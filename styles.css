@@ -1,0 +1,146 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 32px 20px;
+  color: #24303c;
+  background: #eef2f5;
+  font-family: Arial, sans-serif;
+}
+
+.planner {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+header {
+  margin-bottom: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #c44b2b;
+  font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+}
+
+header p:last-child {
+  margin: 8px 0 0;
+  color: #5f6b76;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: min(60vh, 520px);
+  min-height: 360px;
+  overflow: hidden;
+  border: 5px solid #33424f;
+  border-radius: 8px;
+  background-color: #d9d3bf;
+  background-image:
+    linear-gradient(rgba(51, 66, 79, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 66, 79, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  box-shadow: 0 8px 24px rgba(36, 48, 60, 0.12);
+}
+
+.draggable-object {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.position-block {
+  width: 130px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #9e351d;
+  border-radius: 6px;
+  color: white;
+  background: #d85b3d;
+  font-weight: bold;
+}
+
+.target {
+  width: 64px;
+  height: 88px;
+  border: 3px solid #604522;
+  background: #b98b50;
+  clip-path: polygon(22% 0, 78% 0, 100% 24%, 100% 100%, 0 100%, 0 24%);
+}
+
+.target::after {
+  content: "";
+  position: absolute;
+  inset: 16px 12px 10px;
+  border: 2px solid rgba(96, 69, 34, 0.65);
+  border-radius: 45% 45% 35% 35%;
+}
+
+.wall {
+  border: 3px solid #25333d;
+  background: repeating-linear-gradient(
+    45deg,
+    #657783,
+    #657783 9px,
+    #7f909b 9px,
+    #7f909b 18px
+  );
+}
+
+.wall-horizontal {
+  width: 150px;
+  height: 28px;
+}
+
+.wall-vertical {
+  width: 28px;
+  height: 150px;
+}
+
+.draggable-object.dragging {
+  z-index: 1;
+  cursor: grabbing;
+  box-shadow: 0 5px 12px rgba(36, 48, 60, 0.3);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 5px;
+  color: white;
+  background: #33424f;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #202c35;
+}
+
+button:focus-visible,
+.draggable-object:focus-visible {
+  outline: 3px solid #1784b8;
+  outline-offset: 3px;
+}

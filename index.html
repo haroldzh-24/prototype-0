@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USPSA Stage Planner</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="planner">
+      <header>
+        <p class="eyebrow">Prototype #0</p>
+        <h1>2D Stage Planner</h1>
+        <p>Drag the positions, targets, and walls to arrange a simple stage plan.</p>
+      </header>
+
+      <section class="stage" id="stage" aria-label="Stage planning area">
+        <div class="draggable-object position-block" data-x="0.1" data-y="0.15">Start Position</div>
+      </section>
+
+      <div class="controls" aria-label="Stage object controls">
+        <button id="add-target-button" type="button">Add Target</button>
+        <button id="remove-target-button" type="button">Remove Target</button>
+        <button id="add-wall-button" type="button">Add Wall</button>
+        <button id="remove-wall-button" type="button">Remove Wall</button>
+        <button id="reset-button" type="button">Reset Positions</button>
+      </div>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
