@@ -129,6 +129,7 @@ removeWallButton.addEventListener("click", () => {
   if (newestWall) newestWall.remove();
 });
 
+resetButton.addEventListener("click", resetStage);
 window.addEventListener("resize", keepObjectsInsideStage);
 
 makeDraggable(startPosition);
