@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Mobile physical stage and viewport foundation - 2026-09-09
+
+- Added schema 2 physical coordinates in inches and a provisional 480 x 360-inch workspace.
+- Added center-based rectangular geometry, elevation, normalized clockwise rotation, and exact rotated footprint bounds. Fixed right/bottom escape during dragging; rotation also constrains objects within the stage.
+- Added temporary selection, rotation buttons, measured viewport fit, and 0.5x-3x zoom. Reset clears selection but preserves zoom/pan. Pan transforms are supported; interactive panning is deferred.
+- Replaced count-based add IDs with UUID v4 from existing Expo modules, with duplicate insertion protection.
+- Extracted viewport rendering/dragging; added scrollable controls, a selection outline, and 12 lightweight stage tests.
+- Object dimensions are provisional proxies, not competition specifications. No persistence or additional object types.
+- Validation: TypeScript passed; all 12 stage tests passed; Expo Android/iOS Hermes bundles and web static export passed; git diff whitespace checks passed. Native device gestures were not manually tested.
+
 ### Mobile Stage Model Foundation - 2026-09-09
 
 - Added a versioned StageDocument with one ordered collection of target, wall, and start objects.

@@ -11,21 +11,10 @@ Use this file to document known defects from discovery through resolution.
 - **Fix:** Restored the `resetButton` click-handler registration.
 - **Status:** Fixed
 
-### Mobile objects can leave the right/bottom stage edges
+## Mobile Phase 2
 
-- **Recorded:** 2026-09-09
-- **Description:** Movement clamps only negative coordinates; objects can become clipped and unreachable beyond the right/bottom edges.
-- **Evidence:** `mobile/src/stage/operations.ts` preserves the original minimum-only clamp.
-- **Fix:** Deferred intentionally; Phase 1 must preserve existing drag behavior.
-- **Status:** Open
-
-### Mobile object IDs are reused after removal
-
-- **Recorded:** 2026-09-09
-- **Description:** Count-based IDs are reused after last-object removal. Current controls avoid simultaneous duplicates, but future arbitrary deletion/references need stable allocation.
-- **Evidence:** `addObject` in `mobile/src/stage/operations.ts`.
-- **Fix:** Deferred to the next editor phase.
-- **Status:** Open
+- Right/bottom clipping and count-based ID reuse are resolved; details moved to `changelog.md`.
+- Device testing remains needed for selection, rotated hit areas, and scroll/drag interaction. No new confirmed defect from automated checks.
 
 ## Bug Entry Template
 

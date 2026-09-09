@@ -4,17 +4,16 @@ Track features that are proposed or planned but not yet implemented.
 
 ## Future Ideas
 
-### Physical stage coordinates (Phase 2)
+### Interactive viewport panning
 
 - **Recorded:** 2026-09-09
-- **Description:** Define physical units, object origins/dimensions, and viewport mapping on the completed Stage Model Foundation.
-- **Dependencies:** Decide stable ID allocation before arbitrary deletion or object references.
+- **Description:** Add background-drag panning with explicit object/scroll gesture arbitration. Pan offsets already work in the viewport model.
 - **Status:** Proposed
 
-### Rotate walls and targets
+### Edit physical workspace dimensions
 
-- **Description:** Let users rotate walls and targets to match a stage design.
-- **Priority:** High
+- **Recorded:** 2026-09-09
+- **Description:** Add controls for the document width/depth and a policy for oversized objects. Physical coordinates and rotation are complete in the mobile editor.
 - **Status:** Proposed
 
 ### Save and load layouts

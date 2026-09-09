@@ -1,18 +1,27 @@
-import type { StageDocument } from './model';
+import type { StageDocument, StageObject } from './model';
 
-/** Fresh objects on every initialization/reset; never share mutable defaults. */
+/** Provisional rectangular proxies, not competition specifications or target-face profiles. */
+export function createObject(type: StageObject['type'], id: string, x: number, y: number): StageObject {
+  const geometry = type === 'target' ? { width: 24, depth: 24, height: 30 }
+    : type === 'wall' ? { width: 96, depth: 4, height: 72 }
+    : { width: 48, depth: 36, height: 0 };
+  return { id, type, position: { space: 'stage', x, y, z: type === 'target' ? 48 : 0 }, rotation: 0, geometry };
+}
+
+/** Fresh workspace, 40 ft x 30 ft provisionally; not a USPSA standard. */
 export function createDefaultStage(): StageDocument {
   return {
-    schemaVersion: 1,
-    coordinateSystem: 'legacy-layout',
+    schemaVersion: 2,
+    coordinateSystem: 'inches',
+    stage: { width: 480, depth: 360 },
     objects: [
-      { id: 'start-1', type: 'start', position: { space: 'stage', x: 25, y: 50 } },
-      { id: 'target-1', type: 'target', position: { space: 'stage', x: 250, y: 60 } },
-      { id: 'target-2', type: 'target', position: { space: 'stage', x: 260, y: 250 } },
-      { id: 'target-3', type: 'target', position: { space: 'stage', x: 150, y: 230 } },
-      { id: 'wall-1', type: 'wall', position: { space: 'stage', x: 50, y: 200 } },
-      { id: 'wall-2', type: 'wall', position: { space: 'stage', x: 180, y: 40 } },
-      { id: 'wall-3', type: 'wall', position: { space: 'stage', x: 220, y: 320 } },
+      createObject('start', 'start-1', 60, 60),
+      createObject('target', 'target-1', 360, 60),
+      createObject('target', 'target-2', 384, 240),
+      createObject('target', 'target-3', 216, 216),
+      createObject('wall', 'wall-1', 120, 180),
+      createObject('wall', 'wall-2', 288, 36),
+      createObject('wall', 'wall-3', 336, 300),
     ],
   };
 }
