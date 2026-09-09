@@ -4,6 +4,13 @@ Track features that are proposed or planned but not yet implemented.
 
 ## Future Ideas
 
+### Physical stage coordinates (Phase 2)
+
+- **Recorded:** 2026-09-09
+- **Description:** Define physical units, object origins/dimensions, and viewport mapping on the completed Stage Model Foundation.
+- **Dependencies:** Decide stable ID allocation before arbitrary deletion or object references.
+- **Status:** Proposed
+
 ### Rotate walls and targets
 
 - **Description:** Let users rotate walls and targets to match a stage design.

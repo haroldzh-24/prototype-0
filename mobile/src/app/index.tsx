@@ -8,80 +8,19 @@ import {
   View,
 } from 'react-native';
 
-type Item = {
-  id: string;
-  x: number;
-  y: number;
-  type: 'target' | 'wall';
-};
+import { stageToViewport, viewportToStage } from '@/stage/coordinates';
+import { createDefaultStage } from '@/stage/defaults';
+import type { StageDocument, StageObject } from '@/stage/model';
+import { addObject, moveObject, removeLastObject } from '@/stage/operations';
 
 export default function HomeScreen() {
-  const [targets, setTargets] = useState<Item[]>([
-    { id: 'target-1', x: 250, y: 60, type: 'target' },
-    { id: 'target-2', x: 260, y: 250, type: 'target' },
-    { id: 'target-3', x: 150, y: 230, type: 'target' },
-  ]);
+  const [stage, setStage] = useState<StageDocument>(createDefaultStage);
 
-  const [walls, setWalls] = useState<Item[]>([
-    { id: 'wall-1', x: 50, y: 200, type: 'wall' },
-    { id: 'wall-2', x: 180, y: 40, type: 'wall' },
-    { id: 'wall-3', x: 220, y: 320, type: 'wall' },
-  ]);
-
-  const [startPosition, setStartPosition] = useState({
-  x: 25,
-  y: 50,
-  });
-
-  const resetStage = () => {
-    setTargets([
-      { id: 'target-1', x: 250, y: 60, type: 'target' },
-      { id: 'target-2', x: 260, y: 250, type: 'target' },
-      { id: 'target-3', x: 150, y: 230, type: 'target' },
-    ]);
-
-    setWalls([
-      { id: 'wall-1', x: 50, y: 200, type: 'wall' },
-      { id: 'wall-2', x: 180, y: 40, type: 'wall' },
-      { id: 'wall-3', x: 220, y: 320, type: 'wall' },
-    ]);
-    setStartPosition({
-       x: 25,
-       y: 50,
-    });
-  };
-
-  const addTarget = () => {
-    setTargets((current) => [
-      ...current,
-      {
-        id: `target-${current.length + 1}`,
-        x: 140,
-        y: 160,
-        type: 'target',
-      },
-    ]);
-  };
-
-  const removeTarget = () => {
-    setTargets((current) => current.slice(0, -1));
-  };
-
-  const addWall = () => {
-    setWalls((current) => [
-      ...current,
-      {
-        id: `wall-${current.length + 1}`,
-        x: 100,
-        y: 150,
-        type: 'wall',
-      },
-    ]);
-  };
-
-  const removeWall = () => {
-    setWalls((current) => current.slice(0, -1));
-  };
+  const resetStage = () => setStage(createDefaultStage());
+  const addTarget = () => setStage((current) => addObject(current, 'target'));
+  const removeTarget = () => setStage((current) => removeLastObject(current, 'target'));
+  const addWall = () => setStage((current) => addObject(current, 'wall'));
+  const removeWall = () => setStage((current) => removeLastObject(current, 'wall'));
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -94,25 +33,8 @@ export default function HomeScreen() {
         </Text>
 
         <View style={styles.stage}>
-          <DraggableStart
-            position={startPosition}
-            setPosition={setStartPosition}
-          />
-
-          {targets.map((target) => (
-            <DraggableItem
-              key={target.id}
-              item={target}
-              setItems={setTargets}
-            />
-          ))}
-
-          {walls.map((wall) => (
-            <DraggableItem
-              key={wall.id}
-              item={wall}
-              setItems={setWalls}
-            />
+          {stage.objects.map((object) => (
+            <DraggableItem key={object.id} item={object} setStage={setStage} />
           ))}
         </View>
 
@@ -130,12 +52,12 @@ export default function HomeScreen() {
 
 function DraggableItem({
   item,
-  setItems,
+  setStage,
 }: {
-  item: Item;
-  setItems: React.Dispatch<React.SetStateAction<Item[]>>;
+  item: StageObject;
+  setStage: React.Dispatch<React.SetStateAction<StageDocument>>;
 }) {
-  const start = useRef({ x: item.x, y: item.y });
+  const start = useRef(stageToViewport(item.position));
   const latestItem = useRef(item);
 
   latestItem.current = item;
@@ -145,84 +67,35 @@ function DraggableItem({
       onStartShouldSetPanResponder: () => true,
 
       onPanResponderGrant: () => {
-        start.current = {
-          x: latestItem.current.x,
-          y: latestItem.current.y,
-        };
+        start.current = stageToViewport(latestItem.current.position);
       },
 
       onPanResponderMove: (_, gesture) => {
-        setItems((current) =>
-          current.map((currentItem) =>
-            currentItem.id === latestItem.current.id
-              ? {
-                  ...currentItem,
-                  x: Math.max(0, start.current.x + gesture.dx),
-                  y: Math.max(0, start.current.y + gesture.dy),
-                }
-              : currentItem
-          )
-        );
-      },
-    })
-  ).current;
-
-  return (
-    <View
-      {...panResponder.panHandlers}
-      style={[
-        item.type === 'target' ? styles.target : styles.wall,
-        {
-          left: item.x,
-          top: item.y,
-        },
-      ]}
-    />
-  );
-}
-function DraggableStart({
-  position,
-  setPosition,
-}: {
-  position: { x: number; y: number };
-  setPosition: React.Dispatch<
-    React.SetStateAction<{ x: number; y: number }>
-  >;
-}) {
-  const start = useRef(position);
-  const latestPosition = useRef(position);
-
-  latestPosition.current = position;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-
-      onPanResponderGrant: () => {
-        start.current = latestPosition.current;
-      },
-
-      onPanResponderMove: (_, gesture) => {
-        setPosition({
-          x: Math.max(0, start.current.x + gesture.dx),
-          y: Math.max(0, start.current.y + gesture.dy),
+        const position = viewportToStage({
+          space: 'viewport',
+          x: start.current.x + gesture.dx,
+          y: start.current.y + gesture.dy,
         });
+        setStage((current) => moveObject(current, latestItem.current.id, position));
       },
     })
   ).current;
+
+  const position = stageToViewport(item.position);
 
   return (
     <View
       {...panResponder.panHandlers}
       style={[
-        styles.startPosition,
+        item.type === 'start' ? styles.startPosition
+          : item.type === 'target' ? styles.target : styles.wall,
         {
           left: position.x,
           top: position.y,
         },
       ]}
     >
-      <Text style={styles.startText}>Start Position</Text>
+      {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
     </View>
   );
 }
