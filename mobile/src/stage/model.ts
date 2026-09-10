@@ -2,6 +2,8 @@ import type { StagePosition, StageSize } from './coordinates';
 
 /** Local rectangular ground footprint and vertical extent, all in inches. */
 export type ObjectGeometry = Readonly<{ width: number; depth: number; height: number }>;
+/** Rectangular through-opening; offset is its center along local X, sill is above wall bottom. Inches. */
+export type FiringPort = Readonly<{ id: string; offset: number; width: number; height: number; sill: number }>;
 export type WallGeometry = Readonly<{ length: number; thickness: number; height: number }>;
 /** A ground marking, not an occluding wall or volume. */
 export type FaultLineGeometry = Readonly<{ length: number }>;
@@ -22,11 +24,11 @@ export type StageObject =
   | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'steelPlate'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'steelPopper'; geometry: TargetGeometry })
-  | (ObjectBase & { type: 'wall'; geometry: WallGeometry })
+  | (ObjectBase & { type: 'wall'; geometry: WallGeometry; ports: readonly FiringPort[] })
   | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry })
   | (ObjectBase & { type: 'start'; geometry: ObjectGeometry });
 export type StageDocument = {
-  schemaVersion: 5;
+  schemaVersion: 6;
   coordinateSystem: 'inches';
   stage: StageSize;
   /** Drawing order, back to front. */

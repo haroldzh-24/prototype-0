@@ -14,6 +14,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify plate/popper symbol distinction and selection/dragging near edges and overlapping objects on device. Completed implementation is recorded in changelog.md.
 - **Status:** Planned
 
+## Firing-port follow-up verification
+
+- **Recorded:** 2026-09-09
+- **Description:** Verify numbered wall-opening markers and multi-port inspector selection/editing on device. Completed implementation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning

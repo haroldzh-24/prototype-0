@@ -2,3 +2,6 @@
 export function createObjectId(type: 'cardboardTarget' | 'noShootTarget' | 'steelPlate' | 'steelPopper' | 'wall' | 'faultLine', randomUUID: () => string): string {
   return type + '-' + randomUUID();
 }
+
+/** Separate namespace: ports belong to walls, never the StageObject collection. */
+export function createPortId(randomUUID: () => string): string { return 'port-' + randomUUID(); }

@@ -80,6 +80,14 @@ export default function DraggableObject(props: ObjectProps) {
       </>}
       </View>
     </View>}
+    {item.type === 'wall' && item.ports.map((port, index) => <View key={port.id} pointerEvents="none"
+      style={[styles.port, {
+        left: (item.geometry.length / 2 + port.offset - port.width / 2) * transform.scale - 1,
+        width: port.width * transform.scale,
+        top: -1, height,
+      }]}>
+      <Text style={styles.portLabel}>{index + 1}</Text>
+    </View>)}
     {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
   </View>;
 }
@@ -102,6 +110,8 @@ const styles = StyleSheet.create({
   popperFoot: { width: 12, height: 4, backgroundColor: '#235d78' },
   noShoot: { backgroundColor: '#fff', borderColor: '#333' },
   targetText: { fontSize: 10, fontWeight: 'bold', color: '#302719' },
+  port: { position: 'absolute', backgroundColor: '#e0fbff', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#007b91', alignItems: 'center', justifyContent: 'center' },
+  portLabel: { position: 'absolute', top: -13, fontSize: 10, color: '#006879', fontWeight: 'bold' },
   wall: { backgroundColor: '#657783', borderColor: '#25333d' },
   faultLine: { backgroundColor: '#f4c542', borderColor: '#805800' },
   start: { backgroundColor: '#d85b3d', borderColor: '#9e351d', borderRadius: 3 },

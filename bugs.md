@@ -43,6 +43,13 @@ Use this file to document known defects from discovery through resolution.
 - Device verification is pending for plate/popper symbols, overlapping touch areas, rotation and inspector keyboard interaction.
 - No new confirmed runtime defect; symbolic badge bounds remain separate from physical face bounds.
 
+## Firing-port verification
+
+- **Recorded:** 2026-09-09
+- Atomic port validation and wall-resize containment, local geometry preservation, stable IDs and Reset are covered by stage tests.
+- Device verification remains pending for numbered opening markers, multi-port selection and inspector keyboard interaction.
+- Overlapping ports are allowed and may have overlapping markers; overlap solving is outside this increment.
+
 ## Bug Entry Template
 
 ### [Short bug title]

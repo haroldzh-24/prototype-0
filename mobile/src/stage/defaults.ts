@@ -8,7 +8,7 @@ export function createObject(type: StageObject['type'], id: string, x: number, y
     case 'noShootTarget': return { ...base, type, geometry: { faceWidth: 18, faceHeight: 30 } };
     case 'steelPlate': return { ...base, type, geometry: { faceWidth: 12, faceHeight: 12 } };
     case 'steelPopper': return { ...base, type, geometry: { faceWidth: 12, faceHeight: 42 } };
-    case 'wall': return { ...base, type, geometry: { length: 96, thickness: 4, height: 72 } };
+    case 'wall': return { ...base, type, ports: [], geometry: { length: 96, thickness: 4, height: 72 } };
     case 'faultLine': return { ...base, type, geometry: { length: 96 } };
     case 'start': return { ...base, type, geometry: { width: 48, depth: 36, height: 0 } };
   }
@@ -17,7 +17,7 @@ export function createObject(type: StageObject['type'], id: string, x: number, y
 /** Fresh workspace, 40 ft x 30 ft provisionally; not a USPSA standard. */
 export function createDefaultStage(): StageDocument {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     coordinateSystem: 'inches',
     stage: { width: 480, depth: 360 },
     objects: [

@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Wall-owned firing ports - 2026-09-09
+
+- Advanced to schema v6; walls own zero or more rectangular firing ports with stable UUID IDs, wall-center-relative offset, width, height and wall-bottom-relative sill, all in inches.
+- Added selected-wall Add Port / Remove Port controls, numbered port selection and measurement editing. New/default walls start without ports.
+- Added numbered cyan top-down opening spans that inherit wall movement/rotation without rewriting local geometry. Existing wall bounds/snapping use the full wall footprint.
+- Added atomic containment and finite/positive measurement validation, including rejection of wall resizes that invalidate ports and duplicate port IDs across walls.
+- Validation: TypeScript and all 57 stage tests passed; git diff --check passed. No installs, Expo exports, commits or pushes.
+- Overlapping ports are allowed; no visibility solving, persistence or other excluded features. Device interaction/rendering remains unverified.
+
+
 ### Mobile steel plates and poppers - 2026-09-09
 
 - Added explicit steelPlate and steelPopper kinds in schema v5 using authoritative face width/height, center position, clockwise rotation and bottom elevation. Plate defaults are 12 x 12 inches at Z=48; poppers are representative 12 x 42-inch upright faces at Z=0.

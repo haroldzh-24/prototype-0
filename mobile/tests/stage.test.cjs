@@ -86,7 +86,7 @@ test('UUID IDs remain unique across add/remove cycles and duplicate insertion is
 });
 test('default/reset factories are independent and all defaults fit',()=>{
   const a=createDefaultStage(),b=createDefaultStage();
-  assert.equal(a.schemaVersion,5); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
+  assert.equal(a.schemaVersion,6); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
   a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
@@ -234,7 +234,7 @@ test('reset/default schema remains compatible after snapping and numeric edits',
   const moved=moveObject(original,'target-1',snap.position);
   const edited=editObject(moved,'target-1',{geometry:{faceWidth:30},rotation:20},5);
   assert.equal(edited.error,undefined); assert.deepEqual(original,before);
-  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,5);
+  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,6);
   assert.equal(edited.stage.objects.find(o=>o.id==='target-1').id,'target-1');
 });
 
@@ -595,6 +595,95 @@ test('steel removal is per type and Reset restores the existing seven-object lay
   stage = removeLastObject(stage, 'cardboardTarget');
   assert.notDeepEqual(stage, before);
   assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
-  assert.equal(before.schemaVersion, 5); assert.equal(before.objects.length, 7);
+  assert.equal(before.schemaVersion, 6); assert.equal(before.objects.length, 7);
   assert.ok(before.objects.every(o => o.type !== 'steelPlate' && o.type !== 'steelPopper'));
+});
+
+
+const { createPort, validatePorts, parsePortDraft, portValues } = require('../src/stage/ports.ts');
+const { createPortId } = require('../src/stage/ids.ts');
+test('ports belong to walls, support multiple stable IDs, and never enter StageObjects', () => {
+  const original = createDefaultStage(), wall = original.objects.find(o => o.id === 'wall-1');
+  assert.deepEqual(wall.ports, []);
+  const ids = new Set();
+  for (let i = 0; i < 100; i++) {
+    const id = createPortId(randomUUID); assert.ok(!ids.has(id)); ids.add(id);
+  }
+  const ports = [createPort(wall.geometry, [...ids][0]), { ...createPort(wall.geometry, [...ids][1]), offset: 30 }];
+  assert.deepEqual(ports[0], { id: ports[0].id, offset: 0, width: 24, height: 24, sill: 36 });
+  const result = editObject(original, wall.id, { ports });
+  assert.equal(result.error, undefined); assert.equal(result.stage.objects.length, original.objects.length);
+  assert.deepEqual(result.stage.objects.find(o => o.id === wall.id).ports, ports);
+  assert.deepEqual(wall.ports, []);
+  assert.ok(editObject(result.stage, 'wall-2', { ports: [ports[0]] }).error);
+  assert.ok(editObject(original, 'target-1', { ports: [] }).error);
+  assert.ok(editObject(original, wall.id, { ports: [ports[0], ports[0]] }).error);
+  assert.ok(editObject(original, wall.id, { ports: [{ ...ports[0], id: '' }] }).error);
+});
+test('port inspector edits offset, dimensions and local sill atomically with stable identity', () => {
+  const original = createDefaultStage(), wall = original.objects.find(o => o.id === 'wall-1');
+  const port = createPort(wall.geometry, 'port-1'), other = { ...port, id: 'port-2', offset: -30 };
+  let stage = editObject(original, wall.id, { ports: [port, other] }).stage;
+  const parsed = parsePortDraft(port, { offset: '1 ft', width: '18 1/2', height: '2 ft', sill: '3 ft' });
+  assert.equal(parsed.error, undefined);
+  assert.deepEqual(parsed.port, { id: port.id, offset: 12, width: 18.5, height: 24, sill: 36 });
+  const result = editObject(stage, wall.id, { ports: [parsed.port, other] });
+  assert.equal(result.error, undefined);
+  const updated = result.stage.objects.find(o => o.id === wall.id);
+  assert.deepEqual(updated.ports[0], parsed.port); assert.equal(updated.ports[1], other);
+  for (const field of ['offset', 'width', 'height', 'sill']) for (const value of ['', 'Infinity', '1/0']) {
+    assert.ok(parsePortDraft(port, { ...portValues(port), [field]: value }).error);
+  }
+  stage = editObject(result.stage, wall.id, { ports: [other] }).stage;
+  assert.deepEqual(stage.objects.find(o => o.id === wall.id).ports, [other]);
+});
+test('invalid port geometry and wall resizes cannot partially mutate the document', () => {
+  const original = createDefaultStage(), wall = original.objects.find(o => o.id === 'wall-1');
+  const port = createPort(wall.geometry, 'port-1');
+  const stage = editObject(original, wall.id, { ports: [port] }).stage, before = structuredClone(stage);
+  for (const edit of [{ width: 0 }, { width: -1 }, { height: 0 }, { height: -1 },
+    { width: Infinity }, { height: NaN }, { offset: Infinity }, { sill: NaN }, { sill: -1 },
+    { offset: 37 }, { offset: -37 }, { width: 97 }, { sill: 49 }, { height: 37 }]) {
+    const result = editObject(stage, wall.id, { position: { x: 200 }, geometry: { thickness: 8 }, ports: [{ ...port, ...edit }] });
+    assert.ok(result.error, JSON.stringify(edit)); assert.equal(result.stage, stage);
+  }
+  for (const geometry of [{ length: 23 }, { height: 59 }]) {
+    const result = editObject(stage, wall.id, { position: { x: 200 }, geometry });
+    assert.ok(result.error); assert.equal(result.stage, stage);
+  }
+  // Validation also permits an atomic wall-and-port resize that leaves both valid.
+  const resized = editObject(stage, wall.id, { geometry: { length: 12, height: 12 }, ports: [{ ...port, width: 12, height: 12, sill: 0 }] });
+  assert.equal(resized.error, undefined);
+  assert.deepEqual(stage, before);
+  for (const offset of [-36, 36]) assert.equal(validatePorts(wall.geometry, [{ ...port, offset, sill: 48 }]), null);
+  const small = { length: 4, thickness: 1, height: 3 };
+  assert.equal(validatePorts(small, [createPort(small, 'small')]), null);
+});
+test('wall translation, elevation and rotation preserve port local geometry and IDs', () => {
+  const original = createDefaultStage(), wall = original.objects.find(o => o.id === 'wall-1');
+  const ports = [{ ...createPort(wall.geometry, 'port'), offset: 18 }];
+  const stage = editObject(original, wall.id, { ports }).stage;
+  const moved = moveObject(stage, wall.id, { space: 'stage', x: 200, y: 200, z: 12 });
+  const translated = moved.objects.find(o => o.id === wall.id);
+  assert.equal(translated.ports, ports); assert.equal(translated.position.z + ports[0].sill, 48);
+  for (const angle of [15, 90, 180, 270, 359]) {
+    const rotated = rotateObject(moved, wall.id, angle).objects.find(o => o.id === wall.id);
+    assert.equal(rotated.ports, ports); assert.equal(rotated.ports[0].offset, 18);
+    assert.equal(rotated.rotation, angle);
+  }
+  assert.deepEqual(stage.objects.find(o => o.id === wall.id).position, wall.position);
+});
+test('Reset restores empty wall ports and removing walls removes their owned ports', () => {
+  const original = createDefaultStage(), before = structuredClone(original);
+  const wall = original.objects.find(o => o.id === 'wall-3');
+  let stage = editObject(original, wall.id, { ports: [createPort(wall.geometry, 'port')] }).stage;
+  assert.equal(stage.objects.find(o => o.id === wall.id).ports.length, 1);
+  stage = removeLastObject(stage, 'wall');
+  assert.ok(!stage.objects.some(o => o.id === wall.id));
+  assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
+  assert.equal(before.schemaVersion, 6);
+  const fresh = createDefaultStage();
+  for (const w of fresh.objects.filter(o => o.type === 'wall')) {
+    assert.deepEqual(w.ports, []); assert.notEqual(w.ports, before.objects.find(o => o.id === w.id).ports);
+  }
 });

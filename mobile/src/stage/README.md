@@ -1,6 +1,6 @@
 # Physical stage foundation
 
-Schema 5 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
+Schema 6 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
 
 Object X/Y is the center of its ground footprint (the face span for upright targets). Z is its bottom elevation; geometry.height, or geometry.faceHeight for targets, extends upward from Z. Fault lines have no height field and stay at Z=0. Rotation is clockwise in the top-down view, in degrees normalized to [0, 360). Rendering rotates about the same center. These conventions are view-oriented, not a promise of a right-handed 3D camera convention.
 
@@ -67,3 +67,18 @@ Both kinds use the existing rotated face-span bounds, center/endpoint alignment,
 Steel badges are blue-gray: a rectangular SP plate and a rounded-head/narrow-stem P popper. They are symbolic touch affordances, separate from the physical width line, and may overlap or extend beyond the stage near boundaries. Default objects/positions are unchanged; steel is added through dedicated controls. Removal is last-of-type. Reset removes added steel and restores the existing seven-object layout, preserving the existing editor settings and clearing selection.
 
 No migration/persistence or other deferred features are included. Device rendering, selection, dragging and keyboard interaction remain unverified.
+
+
+## Wall-owned firing ports
+
+Schema v6 adds a required ports array to each wall; all default/new walls start with an independent empty array. FiringPort is not a StageObject. Each rectangular through-opening stores a stable UUID-based id, offset, width, height and sill in inches. Offset is the opening center along the wall's local length axis, measured from wall center (negative toward local left). Sill is measured upward from the wall's bottom, not from stage ground.
+
+The opening occupies local X [offset - width/2, offset + width/2], the entire wall thickness, and world Z [wall.position.z + sill, wall.position.z + sill + height]. Its world horizontal center follows wall center plus offset times (cos rotation, sin rotation). This representation provides physical data for future 2.5D rendering, visibility or reconstruction without implementing those features. Translation/rotation/elevation changes preserve the ports array and local measurements.
+
+The selected-wall inspector adds ports, selects them by numbered buttons, removes the selected port and edits all four measurements. Port numbering is a display index; stable IDs do not change when another port is removed. New ports start centered, 24 x 24 inches at local sill 36, reduced as needed to fit smaller walls. Add allocates its ID once outside state updates. Overlapping openings are permitted; no merging or overlap solving is included.
+
+All edits pass through editObject. Ports require finite measurements, positive width/height, nonnegative sill, nonempty unique IDs (including across walls), and full containment within wall length/height. Invalid port edits and wall resizes are rejected atomically, including other submitted position/geometry changes. Exact boundary contact is allowed. Wall bounds and snapping retain the full wall footprint.
+
+Top-down rendering uses pale cyan spans with jamb marks and numbers corresponding to inspector buttons. These are opening indicators, not a full-height gap claim or 2.5D view. Sill/height remain editable data rather than top-down depth. Ports inherit the parent view transform and are not independently draggable. Removing a wall removes its ports; Reset restores default empty arrays and clears editor selection as before.
+
+No line-of-sight solving, partial targets, routes, ammunition planning, persistence/migration, reconstruction, training/video analysis or AI is added. Device rendering, port selection and keyboard interaction remain unverified.

@@ -1,3 +1,5 @@
+import { validatePorts } from './ports';
+import type { FiringPort } from './model';
 import type { StagePosition } from './coordinates';
 import { createObject } from './defaults';
 import { constrainPosition, rotatedHalfExtents, footprint } from './geometry';
@@ -6,6 +8,7 @@ import type { RotationIncrement } from './snapping';
 import type { ObjectGeometry, WallGeometry, TargetGeometry, StageDocument, StageObject } from './model';
 
 export type ObjectEdit = {
+  ports?: readonly FiringPort[];
   position?: Partial<Pick<StagePosition, 'x' | 'y' | 'z'>>;
   geometry?: Partial<ObjectGeometry & WallGeometry & TargetGeometry>;
   rotation?: number;
@@ -16,6 +19,7 @@ export type EditResult = { stage: StageDocument; error?: string };
 export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, rotationIncrement: RotationIncrement = null): EditResult {
   const original = stage.objects.find((object) => object.id === id);
   if (!original) return { stage, error: 'Object no longer exists.' };
+  if (edit.ports !== undefined && original.type !== 'wall') return { stage, error: 'Only walls can contain ports.' };
   const position = { ...original.position, ...edit.position };
   const allowed = original.type === 'wall' ? ['length', 'thickness', 'height']
     : original.type === 'faultLine' ? ['length']
@@ -27,7 +31,7 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   // Narrow each branch so geometry stays paired with its discriminator.
   let updated: StageObject;
   switch (original.type) {
-    case 'wall': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'wall': updated = { ...original, ports: edit.ports ?? original.ports, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'faultLine': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'noShootTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'cardboardTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
@@ -47,6 +51,12 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   }
   if ((original.type === 'start' || original.type === 'faultLine') && (height !== 0 || position.z !== 0)) {
     return { stage, error: 'Ground objects must remain at zero height/elevation.' };
+  }
+  if (updated.type === 'wall') {
+    const error = validatePorts(updated.geometry, updated.ports);
+    if (error) return { stage, error };
+    const otherIds = new Set(stage.objects.flatMap(object => object.type === 'wall' && object.id !== id ? object.ports.map(port => port.id) : []));
+    if (updated.ports.some(port => otherIds.has(port.id))) return { stage, error: 'Port IDs must be unique across walls.' };
   }
   updated.rotation = edit.rotation === undefined ? original.rotation : snapRotation(rotation, rotationIncrement);
   const half = rotatedHalfExtents(updated);

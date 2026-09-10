@@ -1,3 +1,4 @@
+import WallPortsInspector from './WallPortsInspector';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { objectLabel } from '@/stage/model';
@@ -35,6 +36,7 @@ export default function ObjectInspector({ item, disabled, onApply }: {
       </View>;
     })}</View>
     <Pressable accessibilityRole="button" disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>Apply changes</Text></Pressable>
+    {item.type === 'wall' && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} />}
     {notice !== '' && <Text accessibilityLiveRegion="polite">{notice}</Text>}
   </View>;
 }
