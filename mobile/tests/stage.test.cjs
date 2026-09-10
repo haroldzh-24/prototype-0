@@ -921,3 +921,60 @@ test('2.5D renders every kind, physical ground size, steel extents and selection
   }
   assert.deepEqual(stage,before);
 });
+
+
+const P = require('../src/planning/model.ts');
+test('planning magazines validate capacities/counts atomically and support creation/deletion/designation', () => {
+  const empty=P.createPlan();
+  const id=P.createMagazineId(randomUUID), other=P.createMagazineId(randomUUID); assert.notEqual(id,other);
+  let result=P.saveMagazine(empty,{id,capacity:15,startingRounds:7,label:'Partial'},true);
+  assert.equal(result.error,undefined); let plan=result.plan;
+  assert.deepEqual(empty,P.createPlan());
+  for(const [capacity,startingRounds] of [[0,0],[-1,0],[10,-1],[10,11],[1.5,1],[10,1.5],[Infinity,0],[10,NaN]]) {
+    result=P.saveMagazine(plan,{id,capacity,startingRounds});
+    assert.ok(result.error); assert.equal(result.plan,plan);
+  }
+  assert.ok(P.saveMagazine(plan,{id,capacity:10,startingRounds:0},true).error);
+  assert.ok(P.designateMagazine(plan,'missing').error);
+  plan=P.designateMagazine(plan,id).plan; assert.equal(plan.loadout.startingMagazineId,id);
+  plan=P.saveMagazine(plan,{id:other,capacity:20,startingRounds:0},true).plan;
+  plan=P.designateMagazine(plan,other).plan; assert.equal(plan.loadout.startingMagazineId,other);
+  plan=P.deleteMagazine(plan,id); assert.equal(plan.loadout.startingMagazineId,other);
+  plan=P.deleteMagazine(plan,other); assert.equal(plan.loadout.startingMagazineId,null);
+  assert.deepEqual(plan.loadout.magazines,[]);
+});
+test('planning counts actual loaded ammunition and chamber independently, with correct reserve/warning', () => {
+  let plan=P.createPlan(),stage=createDefaultStage();
+  plan=P.saveMagazine(plan,{id:'a',capacity:20,startingRounds:7},true).plan;
+  plan=P.saveMagazine(plan,{id:'b',capacity:20,startingRounds:3},true).plan;
+  plan=P.designateMagazine(plan,'a').plan;
+  plan=P.assignRounds(plan,stage,'target-1',6).plan;
+  plan=P.assignRounds(plan,stage,'target-2',4).plan;
+  assert.deepEqual(P.ammunitionSummary(plan,stage),{totalAvailable:10,totalPlanned:10,reserve:0,insufficient:false});
+  const before=structuredClone(plan.loadout.magazines);
+  plan=P.setChamber(plan,true);
+  assert.deepEqual(P.ammunitionSummary(plan,stage),{totalAvailable:11,totalPlanned:10,reserve:1,insufficient:false});
+  assert.deepEqual(plan.loadout.magazines,before);
+  plan=P.assignRounds(plan,stage,'target-3',3).plan;
+  assert.deepEqual(P.ammunitionSummary(plan,stage),{totalAvailable:11,totalPlanned:13,reserve:-2,insufficient:true});
+  assert.equal(P.ammunitionSummary(P.designateMagazine(plan,null).plan,stage).totalAvailable,11);
+  assert.equal(P.ammunitionSummary(P.setChamber(plan,false),stage).totalAvailable,10);
+});
+test('engagements reference only scoring objects; invalid/deleted references cannot consume ammunition', () => {
+  let plan=P.createPlan(),stage=createDefaultStage();
+  for(const type of ['steelPlate','steelPopper','noShootTarget','faultLine']) stage=addObject(stage,type,type);
+  for(const id of ['target-1','steelPlate','steelPopper']) {
+    const result=P.assignRounds(plan,stage,id,2); assert.equal(result.error,undefined); plan=result.plan;
+  }
+  assert.equal(P.ammunitionSummary(plan,stage).totalPlanned,6);
+  for(const id of ['missing','noShootTarget','faultLine','wall-1','start-1']) assert.ok(P.assignRounds(plan,stage,id,2).error);
+  for(const rounds of [-1,1.5,Infinity,NaN]) {
+    const result=P.assignRounds(plan,stage,'target-1',rounds); assert.ok(result.error); assert.equal(result.plan,plan);
+  }
+  stage=deleteObject(stage,'steelPlate');
+  assert.equal(P.ammunitionSummary(plan,stage).totalPlanned,4);
+  plan=P.reconcilePlan(plan,stage); assert.ok(!('steelPlate' in plan.engagements));
+  plan=P.assignRounds(plan,stage,'target-1',0).plan;
+  assert.equal(P.ammunitionSummary(plan,stage).totalPlanned,2);
+  assert.ok(!('loadout' in stage)); assert.ok(!('plannedRounds' in stage.objects[1]));
+});

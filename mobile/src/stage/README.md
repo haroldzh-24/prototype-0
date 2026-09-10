@@ -127,3 +127,16 @@ Cardboard and no-shoot faces are upright brown/white rectangles containing only 
 The selected Top Down object's surfaces receive blue outlines in preview. Painter sorting uses average camera depth after ground surfaces: intersecting/overlapping surfaces can order incorrectly, and this must never be treated as line-of-sight or target-visibility analysis. Wall partition seams may be visible. Native SVG display, camera controls and dense-scene performance require device verification. Very high zoom can crop the scene; zoom out to recover it.
 
 No routes, ammunition planning, visibility solving, persistence, reconstruction, training/video analysis or AI is implemented.
+
+
+## Ammunition/loadout planning foundation
+
+Shooter-specific StagePlan lives separately in planning/model.ts and React state. Physical StageDocument/schema v7 and object geometry remain unchanged. The expandable Loadout / Planning section is available without replacing navigation or either stage view.
+
+Loadout stores chamberLoaded, a nullable startingMagazineId and a collection of magazines with stable UUID IDs, optional labels, capacity and startingRounds. The designated magazine starts inserted; every other magazine is a carried spare. New magazines default to capacity 10 and zero loaded rounds, with no automatic starting designation. Deleting the starting magazine clears the designation. Counts describe the initial loadout after chambering: the chambered round is separate, never subtracted from or added to magazine counts.
+
+Capacities are positive safe integers; loaded counts are nonnegative safe integers no greater than capacity. Invalid edits reject atomically. Engagements map physical object IDs to nonnegative integer planned rounds, only for cardboardTarget, steelPlate and steelPopper. Unassigned targets count as zero; cut presets do not infer shot requirements. Duplicated targets receive no copied assignment. Deleted references are pruned, and summaries defensively ignore missing/unsupported references. Stage Reset clears engagements but retains the shooter loadout.
+
+Available ammunition = sum of actual magazine startingRounds + (chamberLoaded ? 1 : 0). Planned total is the sum of valid assignments; reserve is available minus planned and can be negative. A shortage warning appears when reserve is negative. Capacity is never used as an assumed ammunition count.
+
+This is aggregate planning only: no engagement order, running magazine state, reload events, route optimization, line-of-sight, reconstruction, persistence, training/video analysis or AI. The stable magazine and object IDs support later ordered events without adding them now. Device form/keyboard interaction remains unverified.

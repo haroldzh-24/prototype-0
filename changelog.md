@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Ammunition/loadout planning foundation - 2026-09-10
+
+- Added separate shooter StagePlan with stable magazine IDs, labels, capacities, actual loaded counts, starting-mag designation and an independent chambered round.
+- Added expandable Loadout / Planning UI with magazine add/delete/edit, chamber toggle and planned-round assignments for cardboard and steel only.
+- Added available/planned/reserve totals and shortage warning. Invalid counts reject atomically; deleted/non-scoring references cannot consume ammunition.
+- Stage Reset clears engagements while retaining loadout; duplicates start unassigned. Physical schema v7 and stage objects remain unchanged.
+- Validation: TypeScript and all 80 stage/planning tests passed; git diff --check passed. No installs, exports, commits or pushes.
+- No engagement order, running magazine/reload simulation, optimization, visibility solving, persistence or other excluded features. Device interaction remains unverified.
+
+
 ### First read-only 2.5D visualization - 2026-09-10
 
 - Added Top Down / 2.5D toggle without replacing the authoritative editor or changing schema v7. Preview consumes the same StageDocument and retains Top Down selection/settings.

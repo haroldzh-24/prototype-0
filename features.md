@@ -38,6 +38,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify native preview display, view switching, wall openings, selected highlights and camera controls on device. Completed first-layer implementation is recorded in changelog.md.
 - **Status:** Planned
 
+## Loadout/planning follow-up verification
+
+- **Recorded:** 2026-09-10
+- **Description:** Verify magazine forms, starting-mag designation, chamber toggle and engagement assignments on device. Completed foundation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning

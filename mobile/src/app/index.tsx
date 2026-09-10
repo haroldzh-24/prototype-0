@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { uuid } from 'expo-modules-core';
+import PlanningPanel from '@/planning/PlanningPanel';
+import { createPlan, reconcilePlan } from '@/planning/model';
 import Stage25D from '@/editor/Stage25D';
 import StageViewport from '@/editor/StageViewport';
 import SnapControls from '@/editor/SnapControls';
@@ -18,6 +20,8 @@ import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
 
 export default function HomeScreen() {
+  const [plan, setPlan] = useState(createPlan);
+  const [showPlanning, setShowPlanning] = useState(false);
   const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
   const [stage, setStage] = useState<StageDocument>(createDefaultStage);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,6 +36,7 @@ export default function HomeScreen() {
 
   const act = (action: ObjectAction) => {
     const result = applyObjectAction(stage, selectedId, action, uuid.v4);
+    setPlan(current => action.kind === 'reset' ? { ...current, engagements: {} } : reconcilePlan(current, result.stage));
     setStage(result.stage);
     setSelectedId(result.selectedId);
     setEditError(result.error ?? '');
@@ -54,6 +59,8 @@ export default function HomeScreen() {
     <ScrollView keyboardShouldPersistTaps="handled" scrollEnabled={!dragging} contentContainerStyle={styles.container}>
       <Text style={styles.eyebrow}>PROTOTYPE #0</Text>
       <Text style={styles.title}>2D Stage Planner</Text>
+      <Button title={showPlanning ? "Hide Loadout / Planning" : "Loadout / Planning"} disabled={dragging} onPress={() => setShowPlanning(value => !value)} />
+      {showPlanning && <PlanningPanel plan={plan} stage={stage} onChange={setPlan} />}
       <Text style={styles.description}>Arrange targets and walls. Tap an object to select and rotate it.</Text>
       <Text style={styles.status}>{stage.stage.width / 12} ft × {stage.stage.depth / 12} ft workspace · {Math.round(viewport.zoom * 100)}% zoom</Text>
       <View style={styles.controls}>

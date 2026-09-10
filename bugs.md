@@ -71,6 +71,13 @@ Use this file to document known defects from discovery through resolution.
 - Native SVG display, view switching, camera controls and dense-scene performance remain unverified.
 - Basic average-depth sorting can misorder intersecting surfaces; preview is not a visibility solver. Wall partition seams may be visible.
 
+## Loadout/planning verification
+
+- **Recorded:** 2026-09-10
+- Magazine validation, actual-round totals, chamber counting, start designation, reserve/shortage and deleted target references are covered by stage/planning tests.
+- Device keyboard/form interaction remains unverified.
+- Unassigned targets count as zero; the summary does not infer required shots or reload feasibility.
+
 ## Bug Entry Template
 
 ### [Short bug title]
