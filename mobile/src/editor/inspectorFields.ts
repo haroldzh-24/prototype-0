@@ -12,9 +12,9 @@ export const inspectorFields = (item: StageObject): { key: Field; label: string 
     { key: 'x', label: 'X' }, { key: 'y', label: 'Y' }, { key: 'rotation', label: 'Rotation (degrees)' },
     ...(item.type === 'wall' ? [{ key: 'length' as const, label: 'Length' }, { key: 'thickness' as const, label: 'Thickness' }]
       : item.type === 'faultLine' ? [{ key: 'length' as const, label: 'Length' }]
-      : item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? [{ key: 'faceWidth' as const, label: 'Face width' }, { key: 'faceHeight' as const, label: 'Face height' }]
+      : item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper' ? [{ key: 'faceWidth' as const, label: 'Face width' }, { key: 'faceHeight' as const, label: item.type === 'steelPopper' ? 'Overall height' : 'Face height' }]
       : [{ key: 'width' as const, label: 'Width' }, { key: 'depth' as const, label: 'Depth' }]),
-    ...(item.type === 'start' || item.type === 'faultLine' ? [] : [...(item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? [] : [{ key: 'height' as const, label: 'Height' }]), { key: 'z' as const, label: 'Bottom elevation' }]),
+    ...(item.type === 'start' || item.type === 'faultLine' ? [] : [...(item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper' ? [] : [{ key: 'height' as const, label: 'Height' }]), { key: 'z' as const, label: 'Bottom elevation' }]),
   ];
 
 export function parseInspectorEdit(item: StageObject, draft: Record<Field, string>): { edit: ObjectEdit; error?: never } | { error: string; edit?: never } {

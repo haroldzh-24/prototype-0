@@ -8,6 +8,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify cardboard/no-shoot badge distinction, selection and dragging near boundaries and overlapping objects on device. Implementation is complete and recorded in changelog.md.
 - **Status:** Planned
 
+## Steel target follow-up verification
+
+- **Recorded:** 2026-09-09
+- **Description:** Verify plate/popper symbol distinction and selection/dragging near edges and overlapping objects on device. Completed implementation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning

@@ -36,6 +36,13 @@ Use this file to document known defects from discovery through resolution.
 - Symbolic target badges may extend beyond the physical face bounds; they do not represent stand geometry or change snapping.
 - No new confirmed runtime defect; completed model changes are recorded in changelog.md.
 
+## Steel target verification
+
+- **Recorded:** 2026-09-09
+- Regression coverage added for steel physical geometry, edits, rotated bounds, snapping, IDs and Reset.
+- Device verification is pending for plate/popper symbols, overlapping touch areas, rotation and inspector keyboard interaction.
+- No new confirmed runtime defect; symbolic badge bounds remain separate from physical face bounds.
+
 ## Bug Entry Template
 
 ### [Short bug title]

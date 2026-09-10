@@ -1,6 +1,6 @@
 # Physical stage foundation
 
-Schema 4 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
+Schema 5 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
 
 Object X/Y is the center of its ground footprint (the face span for upright targets). Z is its bottom elevation; geometry.height, or geometry.faceHeight for targets, extends upward from Z. Fault lines have no height field and stay at Z=0. Rotation is clockwise in the top-down view, in degrees normalized to [0, 360). Rendering rotates about the same center. These conventions are view-oriented, not a promise of a right-handed 3D camera convention.
 
@@ -18,7 +18,7 @@ Rotated rectangular footprint bounds keep objects fully within the workspace. An
 
 New object IDs use Expo's existing UUID v4 generator, injected into the pure ID helper. Generate once per add event, outside React state updaters. Duplicate insertion is rejected. Default IDs are stable within a document; cross-document identity will need a document ID when persistence arrives. Schema 1 layouts are not automatically converted: no real-world scale was established in that version and no persistence exists.
 
-Run npm run test:stage for pure model/geometry checks. No persistence is included. The supported kinds are cardboardTarget, noShootTarget, start, wall, and faultLine.
+Run npm run test:stage for pure model/geometry checks. No persistence is included. The supported kinds are cardboardTarget, noShootTarget, steelPlate, steelPopper, start, wall, and faultLine.
 
 ## Phase 3A precision editing
 
@@ -53,4 +53,17 @@ Rendering shows a brown C silhouette for scoring cardboard and a white NS silhou
 
 Both kinds use existing selection, drag, numeric editing, rotation settings and UUID add/remove behavior. Remove acts on the last object of the chosen type. Reset restores the default cardboard faces, removes added no-shoots, clears selection, and retains existing viewport/snapping settings. Inspector field generation and parsing are extracted into a pure helper for stage tests; the UI still applies edits through editObject.
 
-No detailed target profile, scoring zones, occlusion, steel, poppers, ports, partials, routes, ammunition, persistence, reconstruction, training/video analysis or AI is implemented. Native touch, keyboard and symbolic badge rendering still require device verification.
+No detailed target profile, scoring zones, occlusion, ports, partials, routes, ammunition, persistence, reconstruction, training/video analysis or AI is implemented. Native touch, keyboard and symbolic badge rendering still require device verification.
+
+
+## Steel plates and upright poppers
+
+Schema v5 adds steelPlate and steelPopper. Both store faceWidth and faceHeight in inches using the existing upright-face geometry, X/Y center, clockwise rotation and bottom elevation position.z. A plate is rectangular (default 12 x 12 inches, bottom 48 inches); a popper uses representative maximum width and overall height (default 12 x 42 inches, bottom 0). These are editable prototype dimensions, not certified competition specifications.
+
+The popper's faceHeight is its overall vertical extent, labeled Overall height in the inspector. Its future 2.5D envelope is centered horizontally on local X, has zero plan depth, and extends from Z to Z + faceHeight. The simplified display silhouette is not an authoritative detailed physical contour. There is no stand/base volume, thickness, fallen state, tilt or visibility calculation. A future detailed popper contour can use the explicit kind and stored dimensions without deriving physical geometry from UI styles.
+
+Both kinds use the existing rotated face-span bounds, center/endpoint alignment, grid and rotation snapping, atomic inspector validation and UUID allocation. Width/height must be finite and positive, elevation finite and nonnegative; legacy width/depth/height keys are rejected. Height and elevation never become ground depth.
+
+Steel badges are blue-gray: a rectangular SP plate and a rounded-head/narrow-stem P popper. They are symbolic touch affordances, separate from the physical width line, and may overlap or extend beyond the stage near boundaries. Default objects/positions are unchanged; steel is added through dedicated controls. Removal is last-of-type. Reset removes added steel and restores the existing seven-object layout, preserving the existing editor settings and clearing selection.
+
+No migration/persistence or other deferred features are included. Device rendering, selection, dragging and keyboard interaction remain unverified.

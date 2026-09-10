@@ -7,6 +7,8 @@ export const FAULT_LINE_WIDTH = 2;
 export function footprint(object: StageObject): { width: number; depth: number } {
   switch (object.type) {
     case 'cardboardTarget':
+    case 'steelPlate':
+    case 'steelPopper':
     case 'noShootTarget': return { width: object.geometry.faceWidth, depth: 0 };
     case 'wall': return { width: object.geometry.length, depth: object.geometry.thickness };
     case 'faultLine': return { width: object.geometry.length, depth: FAULT_LINE_WIDTH };

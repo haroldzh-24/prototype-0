@@ -35,7 +35,7 @@ export function alignmentAnchors(object: StageObject): { x: number; y: number }[
   const { width, depth } = footprint(object);
   const w = width / 2, d = depth / 2;
   // Ground lines snap by center/endpoints, without wall-like side-edge anchors.
-  const local = (object.type === 'faultLine' || object.type === 'cardboardTarget' || object.type === 'noShootTarget') ? [[0, 0], [-w, 0], [w, 0]]
+  const local = (object.type === 'faultLine' || object.type === 'cardboardTarget' || object.type === 'noShootTarget' || object.type === 'steelPlate' || object.type === 'steelPopper') ? [[0, 0], [-w, 0], [w, 0]]
     : [[0, 0], [-w, 0], [w, 0], [0, -d], [0, d]];
   return local.map(([x, y]) => ({
     x: object.position.x + x * Math.cos(r) - y * Math.sin(r),

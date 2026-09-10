@@ -86,7 +86,7 @@ test('UUID IDs remain unique across add/remove cycles and duplicate insertion is
 });
 test('default/reset factories are independent and all defaults fit',()=>{
   const a=createDefaultStage(),b=createDefaultStage();
-  assert.equal(a.schemaVersion,4); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
+  assert.equal(a.schemaVersion,5); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
   a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
@@ -234,7 +234,7 @@ test('reset/default schema remains compatible after snapping and numeric edits',
   const moved=moveObject(original,'target-1',snap.position);
   const edited=editObject(moved,'target-1',{geometry:{faceWidth:30},rotation:20},5);
   assert.equal(edited.error,undefined); assert.deepEqual(original,before);
-  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,4);
+  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,5);
   assert.equal(edited.stage.objects.find(o=>o.id==='target-1').id,'target-1');
 });
 
@@ -472,4 +472,129 @@ test('both target kinds retain unique IDs, independent removal, layers and fresh
   assert.equal(before.objects.filter(o => o.type === 'cardboardTarget').length, 3);
   assert.equal(before.objects.filter(o => o.type === 'noShootTarget').length, 0);
   assert.notDeepEqual(stage, before);
+});
+
+
+for (const type of ['steelPlate', 'steelPopper']) {
+  test(type + ' creates authoritative physical geometry and independent stable IDs', () => {
+    const face = createObject(type, 'steel', 100, 120);
+    assert.equal(face.type, type);
+    assert.deepEqual(face.geometry, { faceWidth: 12, faceHeight: type === 'steelPlate' ? 12 : 42 });
+    assert.deepEqual(face.position, { space: 'stage', x: 100, y: 120, z: type === 'steelPlate' ? 48 : 0 });
+    assert.equal(face.rotation, 0);
+    assert.deepEqual(footprint(face), { width: 12, depth: 0 });
+    let stage = createDefaultStage();
+    const ids = new Set();
+    for (let i = 0; i < 100; i++) {
+      const id = createObjectId(type, randomUUID);
+      assert.ok(!ids.has(id)); ids.add(id);
+      stage = addObject(stage, type, id);
+      assert.throws(() => addObject(stage, type, id));
+      stage = removeLastObject(stage, type);
+    }
+    assert.deepEqual(stage, createDefaultStage());
+  });
+  test(type + ' moves and rotates within physical endpoint bounds after resizing', () => {
+    const original = addObject(createDefaultStage(), type, 'steel'), before = structuredClone(original);
+    for (const angle of [0, 15, 45, 90, 135, 270, 359]) {
+      const result = editObject(original, 'steel', { geometry: { faceWidth: 24, faceHeight: 48 }, position: { z: 18 }, rotation: angle });
+      assert.equal(result.error, undefined);
+      for (const x of [-999, 999]) for (const y of [-999, 999]) {
+        const moved = moveObject(result.stage, 'steel', { space: 'stage', x, y, z: 18 });
+        const face = moved.objects.find(o => o.id === 'steel');
+        assert.deepEqual(face.geometry, { faceWidth: 24, faceHeight: 48 });
+        assert.equal(face.position.z, 18); assert.equal(face.rotation, angle);
+        assert.equal(moved.objects[0], original.objects[0]);
+        for (const endpoint of alignmentAnchors(face)) {
+          assert.ok(endpoint.x >= -1e-8 && endpoint.x <= 480 + 1e-8);
+          assert.ok(endpoint.y >= -1e-8 && endpoint.y <= 360 + 1e-8);
+        }
+        const r = angle * Math.PI / 180;
+        near(face.position.x, x < 0 ? 12 * Math.abs(Math.cos(r)) : 480 - 12 * Math.abs(Math.cos(r)));
+        near(face.position.y, y < 0 ? 12 * Math.abs(Math.sin(r)) : 360 - 12 * Math.abs(Math.sin(r)));
+      }
+    }
+    for (const [delta, step, expected] of [[-8, 15, 345], [22, 5, 20], [721.25, null, 1.25]]) {
+      assert.equal(rotateObject(original, 'steel', delta, step).objects.find(o => o.id === 'steel').rotation, expected);
+    }
+    assert.deepEqual(original, before);
+  });
+  test(type + ' inspector supports exact positions, dimensions and bottom elevation with atomic validation', () => {
+    const stage = addObject(createDefaultStage(), type, 'steel');
+    const face = stage.objects.find(o => o.id === 'steel');
+    const fields = inspectorFields(face);
+    assert.deepEqual(fields.map(f => f.key), ['x', 'y', 'rotation', 'faceWidth', 'faceHeight', 'z']);
+    assert.equal(fields.find(f => f.key === 'faceHeight').label, type === 'steelPopper' ? 'Overall height' : 'Face height');
+    assert.deepEqual(parseInspectorEdit(face, inspectorValues(face)), { edit: {} });
+    const draft = { ...inspectorValues(face), x: '123.125', y: '144.25', rotation: '22', faceWidth: '1 ft 6 in', faceHeight: '36 1/2', z: '2 ft' };
+    const parsed = parseInspectorEdit(face, draft);
+    assert.equal(parsed.error, undefined);
+    const result = editObject(stage, 'steel', parsed.edit, 5);
+    assert.equal(result.error, undefined);
+    const edited = result.stage.objects.find(o => o.id === 'steel');
+    assert.deepEqual(edited.geometry, { faceWidth: 18, faceHeight: 36.5 });
+    assert.deepEqual(edited.position, { space: 'stage', x: 123.125, y: 144.25, z: 24 });
+    assert.equal(edited.rotation, 20);
+    for (const key of ['x', 'y', 'rotation', 'faceWidth', 'faceHeight', 'z']) {
+      for (const invalid of ['', '1/0', 'Infinity']) assert.ok(parseInspectorEdit(face, { ...draft, [key]: invalid }).error);
+    }
+    for (const key of ['faceWidth', 'faceHeight']) for (const value of [0, -1, NaN, Infinity]) {
+      const rejected = editObject(stage, 'steel', { geometry: { [key]: value }, position: { x: 200 } });
+      assert.ok(rejected.error); assert.equal(rejected.stage, stage);
+    }
+    for (const edit of [{ position: { z: -1 } }, { position: { z: NaN } }, { rotation: Infinity },
+      { geometry: { width: 20 } }, { geometry: { height: 20 } }, { geometry: { depth: 1 } },
+      { geometry: { faceWidth: 9999 } }]) {
+      const rejected = editObject(stage, 'steel', edit);
+      assert.ok(rejected.error); assert.equal(rejected.stage, stage);
+    }
+    const wide = editObject(stage, 'steel', { geometry: { faceWidth: 470 } }).stage;
+    assert.ok(editObject(wide, 'steel', { rotation: 90 }).error);
+    const vertical = editObject(stage, 'steel', { geometry: { faceHeight: 100 }, position: { z: 0 } });
+    assert.equal(vertical.error, undefined);
+    assert.deepEqual(footprint(vertical.stage.objects.find(o => o.id === 'steel')), footprint(face));
+  });
+  test(type + ' snaps centers and rotated endpoints using physical geometry at every zoom', () => {
+    const face = createObject(type, 'steel', 50, 50), other = createObject('wall', 'wall', 150, 200);
+    const stage = { ...createDefaultStage(), objects: [face, other] };
+    const anchors = alignmentAnchors({ ...face, rotation: 90 });
+    assert.equal(anchors.length, 3); near(anchors[1].y, 44); near(anchors[2].y, 56);
+    const aligned = resolveMovement(stage, 'steel', { ...face.position, x: 95, y: 49 }, DEFAULT_SNAPPING);
+    assert.equal(aligned.position.x, 96);
+    assert.ok(aligned.guides.some(g => g.axis === 'x' && g.value === 102));
+    const centered = resolveMovement(stage, 'steel', { ...face.position, x: 149, y: 49 }, DEFAULT_SNAPPING);
+    assert.equal(centered.position.x, 150);
+    for (const zoom of [0.5, 1, 3]) for (const increment of [12, 6, 3]) {
+      const t = transform(zoom, { x: 17, y: -39 });
+      const a = C.stageToViewport(face.position, t), b = C.stageToViewport({ ...face.position, x: 124, y: 124 }, t);
+      const raw = C.moveByViewportDelta(face.position, { x: b.x-a.x, y: b.y-a.y }, t);
+      const snap = resolveMovement(stage, 'steel', raw, { ...gridOnly, gridIncrement: increment });
+      assert.equal(snap.position.x, snapToIncrement(124, increment)); assert.equal(snap.position.z, face.position.z);
+      near(resolveMovement(stage, 'steel', raw, { ...gridOnly, enabled: false }).position.x, 124);
+    }
+    const rotated = { ...stage, objects: [{ ...face, rotation: 45 }] };
+    const edge = resolveMovement(rotated, 'steel', { ...face.position, x: -100, y: -100 }, gridOnly);
+    near(edge.position.x, 6 * Math.SQRT1_2); near(edge.position.y, 6 * Math.SQRT1_2);
+    assert.deepEqual(edge.gridAxes, []);
+  });
+}
+test('steel removal is per type and Reset restores the existing seven-object layout', () => {
+  const original = createDefaultStage(), before = structuredClone(original);
+  let stage = addObject(addObject(original, 'steelPlate', 'plate-1'), 'steelPlate', 'plate-2');
+  stage = addObject(addObject(stage, 'steelPopper', 'popper-1'), 'steelPopper', 'popper-2');
+  stage = addObject(stage, 'faultLine', 'line');
+  stage = removeLastObject(stage, 'steelPlate');
+  assert.ok(!stage.objects.some(o => o.id === 'plate-2'));
+  assert.ok(stage.objects.some(o => o.id === 'plate-1'));
+  assert.ok(stage.objects.some(o => o.id === 'popper-2'));
+  stage = removeLastObject(stage, 'steelPopper');
+  assert.ok(!stage.objects.some(o => o.id === 'popper-2'));
+  assert.ok(stage.objects.some(o => o.id === 'popper-1'));
+  assert.ok(stage.objects.findIndex(o => o.id === 'popper-1') < stage.objects.findIndex(o => o.id === 'line'));
+  stage = editObject(stage, 'popper-1', { geometry: { faceHeight: 60 }, position: { z: 12 }, rotation: 45 }).stage;
+  stage = removeLastObject(stage, 'cardboardTarget');
+  assert.notDeepEqual(stage, before);
+  assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
+  assert.equal(before.schemaVersion, 5); assert.equal(before.objects.length, 7);
+  assert.ok(before.objects.every(o => o.type !== 'steelPlate' && o.type !== 'steelPopper'));
 });

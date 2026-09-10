@@ -33,7 +33,7 @@ export default function HomeScreen() {
     setEditError('');
     // Reset objects only; preserve the user's zoom and pan.
   };
-  const add = (type: 'cardboardTarget' | 'noShootTarget' | 'wall' | 'faultLine') => {
+  const add = (type: 'cardboardTarget' | 'noShootTarget' | 'steelPlate' | 'steelPopper' | 'wall' | 'faultLine') => {
     const id = createObjectId(type, uuid.v4);
     setStage((current) => addObject(current, type, id));
   };
@@ -60,7 +60,7 @@ export default function HomeScreen() {
       <StageViewport stage={stage} viewport={viewport} selectedId={selectedId} snapping={snapping}
         onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />
       <Text style={styles.status}>{selected ? objectLabel(selected.type) + ' · ' + selected.rotation + '°' : 'No object selected'}</Text>
-      <Text style={styles.status}>C: scoring cardboard ? NS: no-shoot. Target badges are symbols; the line shows physical face width in plan view.</Text>
+      <Text style={styles.status}>C: scoring cardboard ? NS: no-shoot ? SP: steel plate ? P: steel popper. Target badges are symbols; the line shows physical face width in plan view.</Text>
       <SnapControls value={snapping} onChange={setSnapping} disabled={dragging} />
       {editError !== '' && <Text accessibilityLiveRegion="polite">{editError}</Text>}
       <View style={styles.controls}>
@@ -74,6 +74,10 @@ export default function HomeScreen() {
         <Button title="Remove Cardboard Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'cardboardTarget'))} />
         <Button title="Add No-Shoot Target" disabled={dragging} onPress={() => add('noShootTarget')} />
         <Button title="Remove No-Shoot Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'noShootTarget'))} />
+        <Button title="Add Steel Plate" disabled={dragging} onPress={() => add('steelPlate')} />
+        <Button title="Remove Steel Plate" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'steelPlate'))} />
+        <Button title="Add Steel Popper" disabled={dragging} onPress={() => add('steelPopper')} />
+        <Button title="Remove Steel Popper" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'steelPopper'))} />
         <Button title="Add Wall" disabled={dragging} onPress={() => add('wall')} />
         <Button title="Remove Wall" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'wall'))} />
         <Button title="Add Fault Line" disabled={dragging} onPress={() => add('faultLine')} />

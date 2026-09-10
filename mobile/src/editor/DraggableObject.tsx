@@ -51,7 +51,7 @@ export default function DraggableObject(props: ObjectProps) {
   const { item, transform, selected } = props;
   const center = stageToViewport(item.position, transform);
   const dimensions = footprint(item);
-  const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget';
+  const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper';
   const faceSpan = dimensions.width * transform.scale;
   // The upright face projects to a line. The badge is only a selectable editor symbol.
   const width = target ? Math.max(24, faceSpan) : faceSpan;
@@ -65,12 +65,19 @@ export default function DraggableObject(props: ObjectProps) {
       transform: [{ rotate: item.rotation + 'deg' }],
     }, selected && styles.selected]}>
     {target && <View pointerEvents="none" style={styles.targetSymbol}>
-      <View style={[styles.faceSpan, { width: faceSpan }, item.type === 'noShootTarget' && styles.noShootSpan]} />
+      <View style={[styles.faceSpan, { width: faceSpan }, item.type === 'noShootTarget' && styles.noShootSpan, (item.type === 'steelPlate' || item.type === 'steelPopper') && styles.steelSpan]} />
       <View style={styles.targetBadge}>
+      {item.type === 'steelPlate' ? <View style={styles.steelPlate}><Text style={styles.steelText}>SP</Text></View>
+        : item.type === 'steelPopper' ? <View style={styles.popper}>
+          <View style={styles.popperHead}><Text style={styles.steelText}>P</Text></View>
+          <View style={styles.popperStem} />
+          <View style={styles.popperFoot} />
+        </View> : <>
       <View style={[styles.targetHead, item.type === 'noShootTarget' && styles.noShoot]} />
       <View style={[styles.targetBody, item.type === 'noShootTarget' && styles.noShoot]}>
         <Text style={styles.targetText}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
       </View>
+      </>}
       </View>
     </View>}
     {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
@@ -86,6 +93,13 @@ const styles = StyleSheet.create({
   targetBadge: { alignItems: 'center', transform: [{ translateY: -17 }] },
   targetHead: { width: 10, height: 8, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522' },
   targetBody: { width: 24, height: 24, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522', borderTopLeftRadius: 6, borderTopRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  steelSpan: { backgroundColor: '#235d78' },
+  steelPlate: { width: 24, height: 24, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  steelText: { fontSize: 9, fontWeight: 'bold', color: '#153e52' },
+  popper: { alignItems: 'center' },
+  popperHead: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  popperStem: { width: 7, height: 10, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderLeftWidth: 1, borderRightWidth: 1 },
+  popperFoot: { width: 12, height: 4, backgroundColor: '#235d78' },
   noShoot: { backgroundColor: '#fff', borderColor: '#333' },
   targetText: { fontSize: 10, fontWeight: 'bold', color: '#302719' },
   wall: { backgroundColor: '#657783', borderColor: '#25333d' },

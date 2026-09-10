@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Mobile steel plates and poppers - 2026-09-09
+
+- Added explicit steelPlate and steelPopper kinds in schema v5 using authoritative face width/height, center position, clockwise rotation and bottom elevation. Plate defaults are 12 x 12 inches at Z=48; poppers are representative 12 x 42-inch upright faces at Z=0.
+- Reused physical span bounds, center/endpoint snapping, selection, dragging, inspector validation and UUID IDs. The popper inspector labels face height as Overall height.
+- Added blue-gray SP plate and P popper silhouettes and dedicated add/remove controls. Default seven-object layout and Reset/editor-setting behavior are preserved.
+- Added creation, movement, rotation, dimensions, elevation, bounds, snapping, inspector, unique-ID and Reset regression tests.
+- Validation: TypeScript and all 52 stage tests passed; git diff --check passed. No package installs, commits or pushes.
+- No detailed popper contour, base/stand volume, falling simulation, visibility calculation, persistence or other excluded features. Device verification remains pending.
+
+
 ### Mobile cardboard and no-shoot targets - 2026-09-09
 
 - Replaced generic target proxies with explicit cardboardTarget and noShootTarget objects in schema v4. Face width/height, X/Y center, clockwise rotation and bottom elevation are authoritative physical data in inches.

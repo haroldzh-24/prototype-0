@@ -8,7 +8,7 @@ export type FaultLineGeometry = Readonly<{ length: number }>;
 
 /** Upright face dimensions in inches; no stand or ground-depth envelope. */
 export type TargetGeometry = Readonly<{ faceWidth: number; faceHeight: number }>;
-export const objectLabel = (type: StageObject['type']): string => ({ cardboardTarget: 'Cardboard target', noShootTarget: 'No-shoot target', wall: 'Wall', faultLine: 'Fault line', start: 'Start Position' })[type];
+export const objectLabel = (type: StageObject['type']): string => ({ cardboardTarget: 'Cardboard target', noShootTarget: 'No-shoot target', steelPlate: 'Steel plate', steelPopper: 'Steel popper', wall: 'Wall', faultLine: 'Fault line', start: 'Start Position' })[type];
 
 type ObjectBase = {
   id: string;
@@ -20,11 +20,13 @@ type ObjectBase = {
 export type StageObject =
   | (ObjectBase & { type: 'cardboardTarget'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry })
+  | (ObjectBase & { type: 'steelPlate'; geometry: TargetGeometry })
+  | (ObjectBase & { type: 'steelPopper'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'wall'; geometry: WallGeometry })
   | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry })
   | (ObjectBase & { type: 'start'; geometry: ObjectGeometry });
 export type StageDocument = {
-  schemaVersion: 4;
+  schemaVersion: 5;
   coordinateSystem: 'inches';
   stage: StageSize;
   /** Drawing order, back to front. */
