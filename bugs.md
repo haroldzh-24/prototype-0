@@ -28,6 +28,14 @@ Use this file to document known defects from discovery through resolution.
 - TypeScript and stage tests cover the wall field rename and fault-line creation, ground-only edits, rotation, bounds, snapping, and Reset.
 - Thin fault-line touch interaction still needs device verification; no new confirmed defect from these checks.
 
+## Phase 3B-2 target verification
+
+- **Recorded:** 2026-09-09
+- Physical face bounds, invalid target edits, snapping, inspector parsing and Reset are covered by stage tests.
+- Device verification remains pending for target badge selection, overlapping badges, rotated dragging and inspector keyboard interaction.
+- Symbolic target badges may extend beyond the physical face bounds; they do not represent stand geometry or change snapping.
+- No new confirmed runtime defect; completed model changes are recorded in changelog.md.
+
 ## Bug Entry Template
 
 ### [Short bug title]

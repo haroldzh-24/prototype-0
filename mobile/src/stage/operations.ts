@@ -3,11 +3,11 @@ import { createObject } from './defaults';
 import { constrainPosition, rotatedHalfExtents, footprint } from './geometry';
 import { snapRotation } from './snapping';
 import type { RotationIncrement } from './snapping';
-import type { ObjectGeometry, WallGeometry, StageDocument, StageObject } from './model';
+import type { ObjectGeometry, WallGeometry, TargetGeometry, StageDocument, StageObject } from './model';
 
 export type ObjectEdit = {
   position?: Partial<Pick<StagePosition, 'x' | 'y' | 'z'>>;
-  geometry?: Partial<ObjectGeometry & WallGeometry>;
+  geometry?: Partial<ObjectGeometry & WallGeometry & TargetGeometry>;
   rotation?: number;
 };
 export type EditResult = { stage: StageDocument; error?: string };
@@ -18,7 +18,8 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   if (!original) return { stage, error: 'Object no longer exists.' };
   const position = { ...original.position, ...edit.position };
   const allowed = original.type === 'wall' ? ['length', 'thickness', 'height']
-    : original.type === 'faultLine' ? ['length'] : ['width', 'depth', 'height'];
+    : original.type === 'faultLine' ? ['length']
+    : original.type === 'cardboardTarget' || original.type === 'noShootTarget' ? ['faceWidth', 'faceHeight'] : ['width', 'depth', 'height'];
   if (Object.keys(edit.geometry ?? {}).some((key) => !allowed.includes(key))) {
     return { stage, error: 'This geometry field does not apply to this object type.' };
   }
@@ -28,16 +29,18 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   switch (original.type) {
     case 'wall': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'faultLine': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
-    case 'target': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'noShootTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'cardboardTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'start': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
   }
   const { width, depth } = footprint(updated);
-  const height = updated.type === 'faultLine' ? 0 : updated.geometry.height;
+  const target = updated.type === 'cardboardTarget' || updated.type === 'noShootTarget';
+  const height = updated.type === 'cardboardTarget' || updated.type === 'noShootTarget' ? updated.geometry.faceHeight : updated.type === 'faultLine' ? 0 : updated.geometry.height;
   if (![position.x, position.y, position.z, width, depth, height, rotation].every(Number.isFinite)) {
     return { stage, error: 'All values must be finite numbers.' };
   }
-  if (width <= 0 || depth <= 0 || height < 0 || position.z < 0 ||
-    ((original.type === 'target' || original.type === 'wall') && height === 0)) {
+  if (width <= 0 || (target ? depth !== 0 : depth <= 0) || height < 0 || position.z < 0 ||
+    ((target || original.type === 'wall') && height === 0)) {
     return { stage, error: 'Dimensions must be positive; elevation cannot be negative.' };
   }
   if ((original.type === 'start' || original.type === 'faultLine') && (height !== 0 || position.z !== 0)) {
@@ -62,13 +65,13 @@ export function rotateObject(stage: StageDocument, id: string, delta: number, in
   return object ? editObject(stage, id, { rotation: object.rotation + delta }, increment).stage : stage;
 }
 
-type AddableType = 'target' | 'wall' | 'faultLine';
+type AddableType = 'cardboardTarget' | 'noShootTarget' | 'wall' | 'faultLine';
 /** Generate the ID once in the event handler, outside React's replayable state updater. */
 export function addObject(stage: StageDocument, type: AddableType, id: string): StageDocument {
   if (stage.objects.some((object) => object.id === id)) throw new Error('Duplicate stage object ID: ' + id);
-  const object = createObject(type, id, type === 'target' ? 216 : 168, type === 'target' ? 168 : type === 'faultLine' ? 240 : 144);
+  const object = createObject(type, id, (type === 'cardboardTarget' || type === 'noShootTarget') ? 216 : 168, (type === 'cardboardTarget' || type === 'noShootTarget') ? 168 : type === 'faultLine' ? 240 : 144);
   object.position = constrainPosition(object, object.position, stage.stage);
-  const order = { start: 0, target: 1, faultLine: 2, wall: 3 };
+  const order = { start: 0, cardboardTarget: 1, noShootTarget: 1, faultLine: 2, wall: 3 };
   const nextLayer = stage.objects.findIndex((entry) => order[entry.type] > order[type]);
   const index = nextLayer === -1 ? stage.objects.length : nextLayer;
   return { ...stage, objects: [...stage.objects.slice(0, index), object, ...stage.objects.slice(index)] };

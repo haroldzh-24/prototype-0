@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import { moveByViewportDelta, stageToViewport } from '@/stage/coordinates';
 import type { ViewportTransform } from '@/stage/coordinates';
+import { objectLabel } from '@/stage/model';
 import type { StageDocument, StageObject } from '@/stage/model';
 import { footprint } from '@/stage/geometry';
 import { moveObject } from '@/stage/operations';
@@ -50,23 +51,43 @@ export default function DraggableObject(props: ObjectProps) {
   const { item, transform, selected } = props;
   const center = stageToViewport(item.position, transform);
   const dimensions = footprint(item);
-  const width = dimensions.width * transform.scale;
-  const height = dimensions.depth * transform.scale;
+  const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget';
+  const faceSpan = dimensions.width * transform.scale;
+  // The upright face projects to a line. The badge is only a selectable editor symbol.
+  const width = target ? Math.max(24, faceSpan) : faceSpan;
+  const height = target ? 66 : dimensions.depth * transform.scale;
   return <View {...responder.panHandlers} hitSlop={10}
-    accessible accessibilityRole="button" accessibilityLabel={item.type === 'start' ? 'Start Position' : item.type === 'faultLine' ? 'Fault line' : item.type}
+    accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
-    style={[styles.object, item.type === 'target' ? styles.target
+    style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {
       left: center.x - width / 2, top: center.y - height / 2, width, height,
       transform: [{ rotate: item.rotation + 'deg' }],
     }, selected && styles.selected]}>
+    {target && <View pointerEvents="none" style={styles.targetSymbol}>
+      <View style={[styles.faceSpan, { width: faceSpan }, item.type === 'noShootTarget' && styles.noShootSpan]} />
+      <View style={styles.targetBadge}>
+      <View style={[styles.targetHead, item.type === 'noShootTarget' && styles.noShoot]} />
+      <View style={[styles.targetBody, item.type === 'noShootTarget' && styles.noShoot]}>
+        <Text style={styles.targetText}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
+      </View>
+      </View>
+    </View>}
     {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
   </View>;
 }
 
 const styles = StyleSheet.create({
   object: { position: 'absolute', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  target: { backgroundColor: '#b98b50', borderColor: '#604522', borderRadius: 3 },
+  targetMarker: { borderWidth: 0 },
+  targetSymbol: { alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' },
+  faceSpan: { position: 'absolute', height: 2, backgroundColor: '#604522' },
+  noShootSpan: { backgroundColor: '#333' },
+  targetBadge: { alignItems: 'center', transform: [{ translateY: -17 }] },
+  targetHead: { width: 10, height: 8, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522' },
+  targetBody: { width: 24, height: 24, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522', borderTopLeftRadius: 6, borderTopRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  noShoot: { backgroundColor: '#fff', borderColor: '#333' },
+  targetText: { fontSize: 10, fontWeight: 'bold', color: '#302719' },
   wall: { backgroundColor: '#657783', borderColor: '#25333d' },
   faultLine: { backgroundColor: '#f4c542', borderColor: '#805800' },
   start: { backgroundColor: '#d85b3d', borderColor: '#9e351d', borderRadius: 3 },

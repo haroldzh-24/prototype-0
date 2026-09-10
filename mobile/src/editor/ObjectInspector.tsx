@@ -1,45 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { objectLabel } from '@/stage/model';
 import type { StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
 import { formatLength, parseLength } from '@/stage/measurements';
 
-type Field = 'x' | 'y' | 'rotation' | 'width' | 'depth' | 'height' | 'z' | 'length' | 'thickness';
-const values = (item: StageObject): Record<Field, string> => ({
-  x: String(item.position.x), y: String(item.position.y), z: String(item.position.z),
-  rotation: String(item.rotation), width: '', depth: '', height: '', length: '', thickness: '',
-  ...Object.fromEntries(Object.entries(item.geometry).map(([key, value]) => [key, String(value)])),
-});
+import { inspectorValues, inspectorFields, parseInspectorEdit } from './inspectorFields';
+
 export default function ObjectInspector({ item, disabled, onApply }: {
   item: StageObject; disabled: boolean; onApply: (edit: ObjectEdit) => string | null;
 }) {
-  const [draft, setDraft] = useState(() => values(item));
+  const [draft, setDraft] = useState(() => inspectorValues(item));
   const [notice, setNotice] = useState('');
-  useEffect(() => { setDraft(values(item)); }, [item]);
-  const fields: { key: Field; label: string }[] = [
-    { key: 'x', label: 'X' }, { key: 'y', label: 'Y' }, { key: 'rotation', label: 'Rotation (degrees)' },
-    ...(item.type === 'wall' ? [{ key: 'length' as const, label: 'Length' }, { key: 'thickness' as const, label: 'Thickness' }]
-      : item.type === 'faultLine' ? [{ key: 'length' as const, label: 'Length' }]
-      : [{ key: 'width' as const, label: 'Width' }, { key: 'depth' as const, label: 'Depth' }]),
-    ...(item.type === 'start' || item.type === 'faultLine' ? [] : [{ key: 'height' as const, label: 'Height' }, { key: 'z' as const, label: 'Bottom elevation' }]),
-  ];
+  useEffect(() => { setDraft(inspectorValues(item)); }, [item]);
+  const fields = inspectorFields(item);
   const apply = () => {
-    const edit: ObjectEdit = {};
-    const original = values(item);
-    for (const { key, label } of fields) {
-      const text = draft[key].trim();
-      const value = key === 'rotation' ? (text === '' ? null : Number(text)) : parseLength(text);
-      if (value === null || !Number.isFinite(value)) { setNotice('Enter a valid measurement for ' + label + '.'); return; }
-      if (draft[key] === original[key]) continue;
-      if (key === 'rotation') edit.rotation = value;
-      else if (key === 'x' || key === 'y' || key === 'z') edit.position = { ...edit.position, [key]: value };
-      else edit.geometry = { ...edit.geometry, [key]: value };
-    }
-    const error = onApply(edit);
+    const result = parseInspectorEdit(item, draft);
+    if (result.error !== undefined) { setNotice(result.error); return; }
+    const error = onApply(result.edit);
     setNotice(error ?? 'Applied. Positions adjust inward when needed to fit the stage.');
   };
   return <View style={styles.panel}>
-    <Text style={styles.title}>Edit {item.type === 'start' ? 'start position' : item.type === 'faultLine' ? 'fault line' : item.type}</Text>
+    <Text style={styles.title}>Edit {objectLabel(item.type)}</Text>
     <Text>Lengths: enter inches, or feet/inches such as 5' 6". Fractions such as 6 1/2 are supported.</Text>
     <Text>Typed X/Y values are exact, subject to bounds. Rotation uses the current snap setting.</Text>
     <View style={styles.fields}>{fields.map(({ key, label }) => {

@@ -2,6 +2,12 @@
 
 Track features that are proposed or planned but not yet implemented.
 
+## Phase 3B-2 follow-up verification
+
+- **Recorded:** 2026-09-09
+- **Description:** Verify cardboard/no-shoot badge distinction, selection and dragging near boundaries and overlapping objects on device. Implementation is complete and recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning

@@ -1,11 +1,11 @@
 # Physical stage foundation
 
-Schema 3 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
+Schema 4 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
 
-Object X/Y is the center of its rectangular ground footprint. Z is its bottom elevation; geometry.height extends upward from Z for objects with height. Fault lines have no height field and stay at Z=0. Rotation is clockwise in the top-down view, in degrees normalized to [0, 360). Rendering rotates about the same center. These conventions are view-oriented, not a promise of a right-handed 3D camera convention.
+Object X/Y is the center of its ground footprint (the face span for upright targets). Z is its bottom elevation; geometry.height, or geometry.faceHeight for targets, extends upward from Z. Fault lines have no height field and stay at Z=0. Rotation is clockwise in the top-down view, in degrees normalized to [0, 360). Rendering rotates about the same center. These conventions are view-oriented, not a promise of a right-handed 3D camera convention.
 
 Provisional geometry (width x depth x height, inches):
-- Target: 24 x 24 x 30, bottom elevation 48. The ground rectangle is a placeholder envelope for the target assembly, not a cardboard face or official target dimensions.
+- Cardboard target / no-shoot target: faceWidth 18, faceHeight 30, bottom elevation 48. These editable defaults are not certified competition dimensions. The upright face has zero ground depth; no stand geometry is implied.
 - Wall: length 96, thickness 4, height 72, bottom elevation 0. These names are authoritative stored geometry fields.
 - Start: 48 x 36 x 0, bottom elevation 0; a ground region.
 - Fault line: stored length 96, ground elevation 0, no height/occlusion fields. A provisional fixed 2-inch strip width is shared by rendering and bounds through footprint().
@@ -18,7 +18,7 @@ Rotated rectangular footprint bounds keep objects fully within the workspace. An
 
 New object IDs use Expo's existing UUID v4 generator, injected into the pure ID helper. Generate once per add event, outside React state updaters. Duplicate insertion is rejected. Default IDs are stable within a document; cross-document identity will need a document ID when persistence arrives. Schema 1 layouts are not automatically converted: no real-world scale was established in that version and no persistence exists.
 
-Run npm run test:stage for pure model/geometry checks. No persistence is included. The supported kinds are the existing target/start markers, walls, and ground fault-line segments.
+Run npm run test:stage for pure model/geometry checks. No persistence is included. The supported kinds are cardboardTarget, noShootTarget, start, wall, and faultLine.
 
 ## Phase 3A precision editing
 
@@ -38,6 +38,19 @@ Dimensions must be positive (start regions retain zero height); elevation is non
 
 Walls store length/thickness/height explicitly, preserving their old physical dimensions and behavior. Fault lines store length only and are always ground markings, not walls or occluders. The shared footprint adapter maps both into rotated bounds and rendering dimensions without duplicating authoritative wall fields. Fault-line alignment uses centers and endpoints; walls retain center/edge-midpoint anchors.
 
-Fault lines render as gold strips below walls and above targets. The inspector offers X/Y, rotation, and length only. Inapplicable geometry keys, nonzero ground elevation, nonpositive lengths, and oversized edits are rejected. Existing target/start behavior is unchanged. Add/remove uses UUIDs and last-of-type removal. The default seven-object layout has no fault lines; Reset removes added segments and restores default walls while preserving editor settings.
+Fault lines render as gold strips below walls and above targets. The inspector offers X/Y, rotation, and length only. Inapplicable geometry keys, nonzero ground elevation, nonpositive lengths, and oversized edits are rejected. Start behavior is unchanged; the subsequent target increment replaces the target proxy. Add/remove uses UUIDs and last-of-type removal. The default seven-object layout has no fault lines; Reset removes added segments and restores default walls while preserving editor settings.
 
 Schema v3 reflects the wall field rename and new discriminant. There is no save/load or automatic migration from v2; any future import must explicitly map wall width/depth to length/thickness. Fault lines are independent straight segments; connected polylines and editable strip width are not implemented.
+
+
+## Phase 3B-2 cardboard and no-shoot targets
+
+Schema v4 replaces the generic target discriminator and proxy geometry with explicit cardboardTarget and noShootTarget objects sharing authoritative faceWidth/faceHeight. Existing default target IDs and X/Y locations remain; there are three cardboard targets and no default no-shoots. No migration or persistence is included.
+
+Both faces are upright, with their horizontal span along local X at zero rotation. Rotation turns this span clockwise about its X/Y center. The vertical extent is [position.z, position.z + faceHeight]. Height/elevation do not create plan-view depth. Bounds use the rotated face span; alignment uses center and endpoints. Width/height must be finite and positive and bottom elevation finite and nonnegative. Legacy width/depth/height edits are rejected for targets.
+
+Rendering shows a brown C silhouette for scoring cardboard and a white NS silhouette for no-shoots. These fixed-size editor badges provide touch area; their outlines are symbolic, with no scoring zones. A centered line shows the physical face span at viewport scale. Badges may extend past physical stage boundaries and overlap nearby objects; they never affect bounds/snapping. Face height and elevation are edited in the inspector and are not projected into top-down depth.
+
+Both kinds use existing selection, drag, numeric editing, rotation settings and UUID add/remove behavior. Remove acts on the last object of the chosen type. Reset restores the default cardboard faces, removes added no-shoots, clears selection, and retains existing viewport/snapping settings. Inspector field generation and parsing are extracted into a pure helper for stage tests; the UI still applies edits through editObject.
+
+No detailed target profile, scoring zones, occlusion, steel, poppers, ports, partials, routes, ammunition, persistence, reconstruction, training/video analysis or AI is implemented. Native touch, keyboard and symbolic badge rendering still require device verification.

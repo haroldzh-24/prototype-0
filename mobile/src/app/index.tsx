@@ -11,6 +11,7 @@ import { clampZoom, MAX_ZOOM, MIN_ZOOM } from '@/stage/coordinates';
 import type { ViewportState } from '@/stage/coordinates';
 import { createDefaultStage } from '@/stage/defaults';
 import { createObjectId } from '@/stage/ids';
+import { objectLabel } from '@/stage/model';
 import type { StageDocument } from '@/stage/model';
 import { addObject, removeLastObject, editObject } from '@/stage/operations';
 
@@ -32,7 +33,7 @@ export default function HomeScreen() {
     setEditError('');
     // Reset objects only; preserve the user's zoom and pan.
   };
-  const add = (type: 'target' | 'wall' | 'faultLine') => {
+  const add = (type: 'cardboardTarget' | 'noShootTarget' | 'wall' | 'faultLine') => {
     const id = createObjectId(type, uuid.v4);
     setStage((current) => addObject(current, type, id));
   };
@@ -58,7 +59,8 @@ export default function HomeScreen() {
       <Text style={styles.status}>{stage.stage.width / 12} ft × {stage.stage.depth / 12} ft workspace · {Math.round(viewport.zoom * 100)}% zoom</Text>
       <StageViewport stage={stage} viewport={viewport} selectedId={selectedId} snapping={snapping}
         onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />
-      <Text style={styles.status}>{selected ? (selected.type === 'start' ? 'Start Position' : selected.type === 'faultLine' ? 'Fault line' : selected.type) + ' · ' + selected.rotation + '°' : 'No object selected'}</Text>
+      <Text style={styles.status}>{selected ? objectLabel(selected.type) + ' · ' + selected.rotation + '°' : 'No object selected'}</Text>
+      <Text style={styles.status}>C: scoring cardboard ? NS: no-shoot. Target badges are symbols; the line shows physical face width in plan view.</Text>
       <SnapControls value={snapping} onChange={setSnapping} disabled={dragging} />
       {editError !== '' && <Text accessibilityLiveRegion="polite">{editError}</Text>}
       <View style={styles.controls}>
@@ -68,8 +70,10 @@ export default function HomeScreen() {
         <Button title="Zoom +" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
       </View>
       <View style={styles.controls}>
-        <Button title="Add Target" disabled={dragging} onPress={() => add('target')} />
-        <Button title="Remove Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'target'))} />
+        <Button title="Add Cardboard Target" disabled={dragging} onPress={() => add('cardboardTarget')} />
+        <Button title="Remove Cardboard Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'cardboardTarget'))} />
+        <Button title="Add No-Shoot Target" disabled={dragging} onPress={() => add('noShootTarget')} />
+        <Button title="Remove No-Shoot Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'noShootTarget'))} />
         <Button title="Add Wall" disabled={dragging} onPress={() => add('wall')} />
         <Button title="Remove Wall" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'wall'))} />
         <Button title="Add Fault Line" disabled={dragging} onPress={() => add('faultLine')} />

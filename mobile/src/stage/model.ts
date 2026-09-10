@@ -6,6 +6,10 @@ export type WallGeometry = Readonly<{ length: number; thickness: number; height:
 /** A ground marking, not an occluding wall or volume. */
 export type FaultLineGeometry = Readonly<{ length: number }>;
 
+/** Upright face dimensions in inches; no stand or ground-depth envelope. */
+export type TargetGeometry = Readonly<{ faceWidth: number; faceHeight: number }>;
+export const objectLabel = (type: StageObject['type']): string => ({ cardboardTarget: 'Cardboard target', noShootTarget: 'No-shoot target', wall: 'Wall', faultLine: 'Fault line', start: 'Start Position' })[type];
+
 type ObjectBase = {
   id: string;
   /** Center of ground footprint; Z is the bottom elevation, not the vertical center. */
@@ -14,12 +18,13 @@ type ObjectBase = {
   rotation: number;
 };
 export type StageObject =
-  | (ObjectBase & { type: 'target'; geometry: ObjectGeometry })
+  | (ObjectBase & { type: 'cardboardTarget'; geometry: TargetGeometry })
+  | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'wall'; geometry: WallGeometry })
   | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry })
   | (ObjectBase & { type: 'start'; geometry: ObjectGeometry });
 export type StageDocument = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   coordinateSystem: 'inches';
   stage: StageSize;
   /** Drawing order, back to front. */

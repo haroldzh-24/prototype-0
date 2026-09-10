@@ -77,16 +77,16 @@ test('rotation normalization and rotation near edges',()=>{
 test('UUID IDs remain unique across add/remove cycles and duplicate insertion is rejected',()=>{
   const ids=new Set(); let stage=createDefaultStage();
   for(let i=0;i<1000;i++) {
-    const id=createObjectId('target',randomUUID); assert.ok(!ids.has(id)); ids.add(id);
-    stage=addObject(stage,'target',id);
-    assert.throws(()=>addObject(stage,'target',id));
-    stage=removeLastObject(stage,'target');
+    const id=createObjectId('cardboardTarget',randomUUID); assert.ok(!ids.has(id)); ids.add(id);
+    stage=addObject(stage,'cardboardTarget',id);
+    assert.throws(()=>addObject(stage,'cardboardTarget',id));
+    stage=removeLastObject(stage,'cardboardTarget');
   }
   assert.deepEqual(stage,createDefaultStage());
 });
 test('default/reset factories are independent and all defaults fit',()=>{
   const a=createDefaultStage(),b=createDefaultStage();
-  assert.equal(a.schemaVersion,3); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
+  assert.equal(a.schemaVersion,4); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
   a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
@@ -100,13 +100,13 @@ test('movement updates only the requested ID without mutating input',()=>{
   assert.deepEqual(moveObject(stage,'missing',position),stage);
 });
 test('add/remove retains start-target-wall order and last-of-type removal',()=>{
-  let stage=addObject(createDefaultStage(),'target','new-target');
+  let stage=addObject(createDefaultStage(),'cardboardTarget','new-target');
   stage=addObject(stage,'wall','new-wall');
-  assert.deepEqual(stage.objects.map(o=>o.type),['start','target','target','target','target','wall','wall','wall','wall']);
-  stage=removeLastObject(removeLastObject(stage,'target'),'wall');
+  assert.deepEqual(stage.objects.map(o=>o.type),['start','cardboardTarget','cardboardTarget','cardboardTarget','cardboardTarget','wall','wall','wall','wall']);
+  stage=removeLastObject(removeLastObject(stage,'cardboardTarget'),'wall');
   assert.deepEqual(stage,createDefaultStage());
-  for(let i=0;i<5;i++) stage=removeLastObject(stage,'target');
-  assert.equal(stage.objects.filter(o=>o.type==='target').length,0);
+  for(let i=0;i<5;i++) stage=removeLastObject(stage,'cardboardTarget');
+  assert.equal(stage.objects.filter(o=>o.type==='cardboardTarget').length,0);
   assert.equal(stage.objects[0].type,'start');
 });
 
@@ -190,7 +190,7 @@ test('invalid or oversized edits reject atomically and leave original document u
   assert.ok(editObject(large,'wall-1',{rotation:90}).error);
 });
 test('object centers align by X/Y within physical tolerance and override grid per axis',()=>{
-  const stage={...createDefaultStage(),objects:[createObject('target','moving',50,50),createObject('target','other',100,200)]};
+  const stage={...createDefaultStage(),objects:[createObject('cardboardTarget','moving',50,50),createObject('cardboardTarget','other',100,200)]};
   const result=resolveMovement(stage,'moving',{space:'stage',x:98,y:49,z:48},DEFAULT_SNAPPING);
   assert.equal(result.position.x,100); assert.equal(result.position.y,48);
   assert.deepEqual(result.guides,[{axis:'x',value:100,targetId:'other'}]);
@@ -213,7 +213,7 @@ test('snapping off preserves raw physical positions while still enforcing bounds
   const result=resolveMovement(stage,'target-1',p,{...DEFAULT_SNAPPING,enabled:false});
   assert.deepEqual(result.position,p); assert.deepEqual(result.guides,[]); assert.deepEqual(result.gridAxes,[]);
   const edge=resolveMovement(stage,'target-1',{...p,x:-100},{...DEFAULT_SNAPPING,enabled:false});
-  assert.equal(edge.position.x,12);
+  assert.equal(edge.position.x,9);
 });
 test('bounds take priority and do not falsely report grid alignment',()=>{
   const stage=rotateObject(createDefaultStage(),'wall-1',45);
@@ -232,14 +232,14 @@ test('reset/default schema remains compatible after snapping and numeric edits',
   const original=createDefaultStage(); const before=structuredClone(original);
   const snap=resolveMovement(original,'target-1',{space:'stage',x:124,y:140,z:48},DEFAULT_SNAPPING);
   const moved=moveObject(original,'target-1',snap.position);
-  const edited=editObject(moved,'target-1',{geometry:{width:30},rotation:20},5);
+  const edited=editObject(moved,'target-1',{geometry:{faceWidth:30},rotation:20},5);
   assert.equal(edited.error,undefined); assert.deepEqual(original,before);
-  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,3);
+  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,4);
   assert.equal(edited.stage.objects.find(o=>o.id==='target-1').id,'target-1');
 });
 
 test('half-grid destinations and object alignment are stable across noninteger viewport scales',()=>{
-  const stage={...createDefaultStage(),objects:[createObject('target','moving',50,50),createObject('target','other',100,200)]};
+  const stage={...createDefaultStage(),objects:[createObject('cardboardTarget','moving',50,50),createObject('cardboardTarget','other',100,200)]};
   for(const zoom of [0.5,1,3]) {
     const t=C.createViewportTransform(size,{width:331,height:427},{zoom,pan:{x:17.3,y:-12.1}});
     for(const [destination,settings,expectedX] of [
@@ -255,7 +255,7 @@ test('half-grid destinations and object alignment are stable across noninteger v
   }
 });
 test('alignment beyond tolerance is ignored, self is excluded, and reported guides remain valid at bounds',()=>{
-  const stage={...createDefaultStage(),objects:[createObject('target','moving',50,50),createObject('target','other',100,200)]};
+  const stage={...createDefaultStage(),objects:[createObject('cardboardTarget','moving',50,50),createObject('cardboardTarget','other',100,200)]};
   const far=resolveMovement(stage,'moving',{space:'stage',x:95,y:95,z:48},DEFAULT_SNAPPING);
   assert.equal(far.guides.length,0);
   const single={...stage,objects:[stage.objects[0]]};
@@ -335,13 +335,141 @@ test('fault line center/endpoints align with walls and grid snapping is zoom-ind
 test('fault line add/remove keeps layer order and Reset restores unchanged default layout',()=>{
   const original=createDefaultStage();
   let stage=addObject(original,'faultLine','line-1'); stage=addObject(stage,'faultLine','line-2');
-  stage=addObject(stage,'target','new-target'); stage=addObject(stage,'wall','new-wall');
+  stage=addObject(stage,'cardboardTarget','new-target'); stage=addObject(stage,'wall','new-wall');
   const types=stage.objects.map(o=>o.type);
-  assert.ok(types.lastIndexOf('target')<types.indexOf('faultLine'));
+  assert.ok(types.lastIndexOf('cardboardTarget')<types.indexOf('faultLine'));
   assert.ok(types.lastIndexOf('faultLine')<types.indexOf('wall'));
   stage=removeLastObject(stage,'faultLine'); assert.ok(stage.objects.some(o=>o.id==='line-1'));
   assert.ok(!stage.objects.some(o=>o.id==='line-2'));
   stage=removeLastObject(stage,'faultLine'); assert.equal(stage.objects.filter(o=>o.type==='faultLine').length,0);
   assert.deepEqual(createDefaultStage(),original); assert.equal(original.objects.length,7);
   assert.deepEqual(removeLastObject(original,'faultLine'),original);
+});
+
+
+const { inspectorValues, inspectorFields, parseInspectorEdit } = require('../src/editor/inspectorFields.ts');
+for (const type of ['cardboardTarget', 'noShootTarget']) {
+  test(type + ' creates an upright physical face, without the old ground envelope', () => {
+    const object = createObject(type, 'face', 100, 120);
+    assert.equal(object.type, type);
+    assert.deepEqual(object.geometry, { faceWidth: 18, faceHeight: 30 });
+    assert.deepEqual(object.position, { space: 'stage', x: 100, y: 120, z: 48 });
+    assert.equal(object.rotation, 0);
+    assert.deepEqual(footprint(object), { width: 18, depth: 0 });
+    const stage = { ...createDefaultStage(), objects: [object] };
+    const edited = editObject(stage, 'face', { geometry: { faceHeight: 60 }, position: { z: 12 } });
+    assert.equal(edited.error, undefined);
+    assert.deepEqual(footprint(edited.stage.objects[0]), footprint(object));
+  });
+  test(type + ' movement and resize keep rotated face endpoints inside all boundaries', () => {
+    const original = addObject(createDefaultStage(), type, 'face');
+    const before = structuredClone(original);
+    for (const angle of [0, 15, 45, 90, 135, 270, 359]) {
+      const resized = editObject(original, 'face', { geometry: { faceWidth: 42, faceHeight: 36 }, rotation: angle, position: { z: 24 } });
+      assert.equal(resized.error, undefined);
+      for (const x of [-999, 999]) for (const y of [-999, 999]) {
+        const moved = moveObject(resized.stage, 'face', { space: 'stage', x, y, z: 24 });
+        const face = moved.objects.find(o => o.id === 'face');
+        for (const end of [-21, 21]) {
+          const r = angle * Math.PI / 180;
+          const px = face.position.x + end * Math.cos(r), py = face.position.y + end * Math.sin(r);
+          assert.ok(px >= -1e-8 && px <= 480 + 1e-8);
+          assert.ok(py >= -1e-8 && py <= 360 + 1e-8);
+        }
+        assert.equal(face.position.z, 24);
+        assert.equal(moved.objects[0], original.objects[0]);
+      }
+    }
+    assert.deepEqual(original, before);
+    for (const [angle, step, expected] of [[-8, 15, 345], [22, 5, 20], [721.25, null, 1.25]]) {
+      const face = editObject(original, 'face', { rotation: angle }, step).stage.objects.find(o => o.id === 'face');
+      assert.equal(face.rotation, expected);
+    }
+  });
+  test(type + ' rejects invalid dimensions, elevation and legacy geometry atomically', () => {
+    const stage = addObject(createDefaultStage(), type, 'face');
+    for (const key of ['faceWidth', 'faceHeight']) for (const value of [0, -1, NaN, Infinity]) {
+      const result = editObject(stage, 'face', { geometry: { [key]: value }, position: { x: 200 } });
+      assert.ok(result.error); assert.equal(result.stage, stage);
+    }
+    for (const edit of [{ geometry: { faceWidth: 9999 } }, { geometry: { depth: 24 } },
+      { geometry: { width: 24 } }, { geometry: { height: 30 } }, { position: { z: -1 } },
+      { position: { z: Infinity } }, { rotation: NaN }]) {
+      const result = editObject(stage, 'face', edit);
+      assert.ok(result.error); assert.equal(result.stage, stage);
+    }
+    const wide = editObject(stage, 'face', { geometry: { faceWidth: 470 } }).stage;
+    assert.ok(editObject(wide, 'face', { rotation: 90 }).error);
+    assert.equal(editObject(stage, 'face', { position: { z: 0 } }).error, undefined);
+  });
+  test(type + ' inspector parses face dimensions and elevation and preserves exact position edits', () => {
+    const stage = addObject(createDefaultStage(), type, 'face');
+    const object = stage.objects.find(o => o.id === 'face');
+    assert.deepEqual(inspectorFields(object).map(f => f.key), ['x', 'y', 'rotation', 'faceWidth', 'faceHeight', 'z']);
+    assert.deepEqual(parseInspectorEdit(object, inspectorValues(object)), { edit: {} });
+    const draft = { ...inspectorValues(object), x: '123.125', y: '144.25', rotation: '22',
+      faceWidth: '1 ft 8 in', faceHeight: '36 1/2', z: '2 ft' };
+    const parsed = parseInspectorEdit(object, draft);
+    assert.equal(parsed.error, undefined);
+    const result = editObject(stage, 'face', parsed.edit, 5);
+    assert.equal(result.error, undefined);
+    const face = result.stage.objects.find(o => o.id === 'face');
+    assert.deepEqual(face.geometry, { faceWidth: 20, faceHeight: 36.5 });
+    assert.deepEqual(face.position, { space: 'stage', x: 123.125, y: 144.25, z: 24 });
+    assert.equal(face.rotation, 20);
+    for (const key of ['x', 'rotation', 'faceWidth', 'faceHeight', 'z']) {
+      assert.ok(parseInspectorEdit(object, { ...draft, [key]: '' }).error);
+      assert.ok(parseInspectorEdit(object, { ...draft, [key]: '1/0' }).error);
+    }
+  });
+  test(type + ' snaps centers/endpoints, independent of elevation, face height and zoom', () => {
+    const face = createObject(type, 'face', 50, 50);
+    const other = createObject('noShootTarget', 'other', 100, 200);
+    const stage = { ...createDefaultStage(), objects: [face, other] };
+    const anchors = alignmentAnchors({ ...face, rotation: 90 });
+    assert.equal(anchors.length, 3); near(anchors[1].y, 41); near(anchors[2].y, 59);
+    const aligned = resolveMovement(stage, 'face', { ...face.position, x: 80, y: 49 }, DEFAULT_SNAPPING);
+    assert.equal(aligned.position.x, 82);
+    assert.ok(aligned.guides.some(g => g.axis === 'x' && g.value === 91));
+    for (const zoom of [0.5, 1, 3]) for (const increment of [12, 6, 3]) {
+      const t = transform(zoom, { x: 17, y: -39 });
+      const a = C.stageToViewport(face.position, t), b = C.stageToViewport({ ...face.position, x: 124, y: 124 }, t);
+      const raw = C.moveByViewportDelta(face.position, { x: b.x-a.x, y: b.y-a.y }, t);
+      const snap = resolveMovement(stage, 'face', raw, { ...gridOnly, gridIncrement: increment });
+      assert.equal(snap.position.x, snapToIncrement(124, increment));
+      assert.equal(snap.position.z, 48);
+      near(resolveMovement(stage, 'face', raw, { ...gridOnly, enabled: false }).position.x, 124);
+    }
+    const rotated = { ...stage, objects: [{ ...face, rotation: 45 }] };
+    const edge = resolveMovement(rotated, 'face', { ...face.position, x: -100, y: -100 }, gridOnly);
+    near(edge.position.x, 9 * Math.SQRT1_2); near(edge.position.y, 9 * Math.SQRT1_2);
+    assert.deepEqual(edge.gridAxes, []);
+  });
+}
+test('both target kinds retain unique IDs, independent removal, layers and fresh Reset defaults', () => {
+  const original = createDefaultStage(), before = structuredClone(original), ids = new Set();
+  let stage = original;
+  for (let i = 0; i < 100; i++) for (const type of ['cardboardTarget', 'noShootTarget']) {
+    const id = createObjectId(type, randomUUID);
+    assert.ok(!ids.has(id)); ids.add(id);
+    stage = addObject(stage, type, id);
+    assert.throws(() => addObject(stage, type, id));
+    stage = removeLastObject(stage, type);
+  }
+  assert.deepEqual(stage, original);
+  stage = addObject(addObject(stage, 'noShootTarget', 'ns-1'), 'noShootTarget', 'ns-2');
+  stage = addObject(stage, 'cardboardTarget', 'c-1');
+  stage = removeLastObject(stage, 'noShootTarget');
+  assert.ok(stage.objects.some(o => o.id === 'ns-1'));
+  assert.ok(!stage.objects.some(o => o.id === 'ns-2'));
+  assert.ok(stage.objects.some(o => o.id === 'c-1'));
+  assert.ok(stage.objects.findIndex(o => o.id === 'c-1') < stage.objects.findIndex(o => o.type === 'wall'));
+  stage = editObject(stage, 'target-1', { rotation: 45, geometry: { faceWidth: 24, faceHeight: 48 }, position: { z: 0 } }).stage;
+  stage = removeLastObject(stage, 'cardboardTarget');
+  stage = removeLastObject(stage, 'cardboardTarget');
+  assert.deepEqual(createDefaultStage(), before);
+  assert.deepEqual(original, before);
+  assert.equal(before.objects.filter(o => o.type === 'cardboardTarget').length, 3);
+  assert.equal(before.objects.filter(o => o.type === 'noShootTarget').length, 0);
+  assert.notDeepEqual(stage, before);
 });

@@ -4,6 +4,15 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Mobile cardboard and no-shoot targets - 2026-09-09
+
+- Replaced generic target proxies with explicit cardboardTarget and noShootTarget objects in schema v4. Face width/height, X/Y center, clockwise rotation and bottom elevation are authoritative physical data in inches.
+- Upright face spans drive shared bounds and center/endpoint snapping; face height does not become ground depth. Default cardboard targets are editable 18 x 30-inch faces at 48-inch bottom elevation, retaining default IDs/locations.
+- Added distinct brown C and white NS target symbols with physical span lines, dedicated add/remove controls, and face dimension/elevation inspector fields. Existing selection, dragging, rotation and Reset behavior is retained.
+- Extracted inspector field parsing for direct regression coverage. Added target creation, movement, rotated bounds, dimensions, elevation, snapping, inspector edits, ID and Reset tests.
+- Validation: TypeScript and all 43 stage tests passed; git diff --check passed. No packages installed, commits or pushes.
+- No persistence/migration, scoring zones, occlusion or other deferred object types added. Device interaction and rendering remain unverified.
+
 ### Mobile walls and ground fault lines - 2026-09-09
 
 - Walls now store physical length, thickness, and height explicitly; center position, rotation, and existing editing behavior are preserved.
