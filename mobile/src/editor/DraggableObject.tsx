@@ -1,3 +1,4 @@
+import { activeFaceExtent } from '@/stage/targetFace';
 import { useRef, useState } from 'react';
 import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import { moveByViewportDelta, stageToViewport } from '@/stage/coordinates';
@@ -52,9 +53,12 @@ export default function DraggableObject(props: ObjectProps) {
   const center = stageToViewport(item.position, transform);
   const dimensions = footprint(item);
   const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper';
+  const cutFace = item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? activeFaceExtent(item) : null;
+  const fullFaceWidth = item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? item.geometry.faceWidth * transform.scale : dimensions.width * transform.scale;
+  const localCenter = cutFace ? (cutFace.left + cutFace.right) / 2 * transform.scale : 0;
   const faceSpan = dimensions.width * transform.scale;
   // The upright face projects to a line. The badge is only a selectable editor symbol.
-  const width = target ? Math.max(24, faceSpan) : faceSpan;
+  const width = target ? Math.max(24, fullFaceWidth) : faceSpan;
   const height = target ? 66 : dimensions.depth * transform.scale;
   return <View {...responder.panHandlers} hitSlop={10}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
@@ -65,19 +69,14 @@ export default function DraggableObject(props: ObjectProps) {
       transform: [{ rotate: item.rotation + 'deg' }],
     }, selected && styles.selected]}>
     {target && <View pointerEvents="none" style={styles.targetSymbol}>
-      <View style={[styles.faceSpan, { width: faceSpan }, item.type === 'noShootTarget' && styles.noShootSpan, (item.type === 'steelPlate' || item.type === 'steelPopper') && styles.steelSpan]} />
+      <View style={[styles.faceSpan, { width: faceSpan, transform: [{ translateX: localCenter }] }, item.type === 'noShootTarget' && styles.noShootSpan, (item.type === 'steelPlate' || item.type === 'steelPopper') && styles.steelSpan]} />
       <View style={styles.targetBadge}>
       {item.type === 'steelPlate' ? <View style={styles.steelPlate}><Text style={styles.steelText}>SP</Text></View>
         : item.type === 'steelPopper' ? <View style={styles.popper}>
           <View style={styles.popperHead}><Text style={styles.steelText}>P</Text></View>
           <View style={styles.popperStem} />
           <View style={styles.popperFoot} />
-        </View> : <>
-      <View style={[styles.targetHead, item.type === 'noShootTarget' && styles.noShoot]} />
-      <View style={[styles.targetBody, item.type === 'noShootTarget' && styles.noShoot]}>
-        <Text style={styles.targetText}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
-      </View>
-      </>}
+        </View> : (item.type === 'cardboardTarget' || item.type === 'noShootTarget') ? <PaperFaceBadge item={item} /> : null}
       </View>
     </View>}
     {item.type === 'wall' && item.ports.map((port, index) => <View key={port.id} pointerEvents="none"
@@ -89,6 +88,18 @@ export default function DraggableObject(props: ObjectProps) {
       <Text style={styles.portLabel}>{index + 1}</Text>
     </View>)}
     {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
+  </View>;
+}
+
+function PaperFaceBadge({ item }: { item: Extract<StageObject, { type: 'cardboardTarget' | 'noShootTarget' }> }) {
+  const face = activeFaceExtent(item);
+  const w = item.geometry.faceWidth, h = item.geometry.faceHeight;
+  return <View style={{ width: 24, height: 32 }}>
+    <View style={{ position: 'absolute', left: (face.left / w + 0.5) * 24, top: (1 - face.top / h) * 32,
+      width: (face.right - face.left) / w * 24, height: (face.top - face.bottom) / h * 32,
+      backgroundColor: item.type === 'noShootTarget' ? '#fff' : '#b98b50',
+      borderWidth: 1, borderColor: item.type === 'noShootTarget' ? '#333' : '#604522' }} />
+    <Text style={{ position: 'absolute', top: -12, width: 24, textAlign: 'center', fontSize: 9, fontWeight: 'bold' }}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
   </View>;
 }
 

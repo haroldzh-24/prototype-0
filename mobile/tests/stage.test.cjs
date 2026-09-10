@@ -86,7 +86,7 @@ test('UUID IDs remain unique across add/remove cycles and duplicate insertion is
 });
 test('default/reset factories are independent and all defaults fit',()=>{
   const a=createDefaultStage(),b=createDefaultStage();
-  assert.equal(a.schemaVersion,6); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
+  assert.equal(a.schemaVersion,7); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
   a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
@@ -234,7 +234,7 @@ test('reset/default schema remains compatible after snapping and numeric edits',
   const moved=moveObject(original,'target-1',snap.position);
   const edited=editObject(moved,'target-1',{geometry:{faceWidth:30},rotation:20},5);
   assert.equal(edited.error,undefined); assert.deepEqual(original,before);
-  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,6);
+  assert.deepEqual(createDefaultStage(),before); assert.equal(edited.stage.schemaVersion,7);
   assert.equal(edited.stage.objects.find(o=>o.id==='target-1').id,'target-1');
 });
 
@@ -595,7 +595,7 @@ test('steel removal is per type and Reset restores the existing seven-object lay
   stage = removeLastObject(stage, 'cardboardTarget');
   assert.notDeepEqual(stage, before);
   assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
-  assert.equal(before.schemaVersion, 6); assert.equal(before.objects.length, 7);
+  assert.equal(before.schemaVersion, 7); assert.equal(before.objects.length, 7);
   assert.ok(before.objects.every(o => o.type !== 'steelPlate' && o.type !== 'steelPopper'));
 });
 
@@ -681,9 +681,91 @@ test('Reset restores empty wall ports and removing walls removes their owned por
   stage = removeLastObject(stage, 'wall');
   assert.ok(!stage.objects.some(o => o.id === wall.id));
   assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
-  assert.equal(before.schemaVersion, 6);
+  assert.equal(before.schemaVersion, 7);
   const fresh = createDefaultStage();
   for (const w of fresh.objects.filter(o => o.type === 'wall')) {
     assert.deepEqual(w.ports, []); assert.notEqual(w.ports, before.objects.find(o => o.id === w.id).ports);
   }
+});
+
+
+const { activeFaceExtent, facePresets } = require('../src/stage/targetFace.ts');
+for (const type of ['cardboardTarget', 'noShootTarget']) {
+  test(type + ' physical presets preserve identity/reference while changing actual face geometry', () => {
+    const object = { ...createObject(type, 'cut', 120, 120), rotation: 35 };
+    const stage = { ...createDefaultStage(), objects: [object] };
+    const expected = {
+      full: [-9, 9, 0, 30], upper: [-9, 9, 15, 30], lower: [-9, 9, 0, 15],
+      left: [-9, 0, 0, 30], right: [0, 9, 0, 30],
+    };
+    for (const { preset } of facePresets) {
+      const result = editObject(stage, 'cut', { faceCut: { kind: 'preset', preset } });
+      assert.equal(result.error, undefined);
+      const face = result.stage.objects[0], ext = activeFaceExtent(face);
+      assert.deepEqual([ext.left, ext.right, ext.bottom, ext.top], expected[preset]);
+      assert.equal(face.id, object.id); assert.equal(face.type, type);
+      assert.equal(face.rotation, object.rotation); assert.deepEqual(face.position, object.position);
+      assert.deepEqual(face.geometry, object.geometry);
+      assert.equal((ext.right-ext.left)*(ext.top-ext.bottom), preset === 'full' ? 540 : 270);
+      assert.equal(footprint(face).width, preset === 'left' || preset === 'right' ? 9 : 18);
+    }
+    assert.deepEqual(object.faceCut, { kind: 'preset', preset: 'full' });
+  });
+  test(type + ' rotated asymmetric material stays inside stage boundaries and snapping uses active anchors', () => {
+    for (const { preset } of facePresets) for (const angle of [0, 45, 90, 180, 270, 359]) {
+      const face = { ...createObject(type, 'cut', 120, 120), faceCut: { kind: 'preset', preset }, rotation: angle };
+      const stage = { ...createDefaultStage(), objects: [face] };
+      const ext = activeFaceExtent(face), r = angle * Math.PI / 180;
+      const anchors = alignmentAnchors(face);
+      assert.equal(anchors.length, 3);
+      for (const [i, x] of [[0, (ext.left+ext.right)/2], [1, ext.left], [2, ext.right]]) {
+        near(anchors[i].x, 120+x*Math.cos(r)); near(anchors[i].y,120+x*Math.sin(r));
+      }
+      for (const x of [-999, 999]) for (const y of [-999, 999]) {
+        const snap = resolveMovement(stage, 'cut', { ...face.position, x, y }, gridOnly);
+        const moved = moveObject(stage, 'cut', snap.position).objects[0];
+        for (const local of [ext.left, ext.right]) {
+          const px=moved.position.x+local*Math.cos(r), py=moved.position.y+local*Math.sin(r);
+          assert.ok(px>=-1e-8 && px<=480+1e-8); assert.ok(py>=-1e-8 && py<=360+1e-8);
+        }
+        assert.deepEqual(moved.faceCut, face.faceCut); assert.equal(moved.position.z,face.position.z);
+      }
+      assert.deepEqual(rotateObject(stage, 'cut', 15).objects[0].faceCut, face.faceCut);
+    }
+    const moving = { ...createObject(type, 'cut', 50, 50), faceCut: { kind: 'preset', preset: 'right' } };
+    const wall = createObject('wall', 'wall', 150, 200);
+    const stage = { ...createDefaultStage(), objects: [moving, wall] };
+    const snapped = resolveMovement(stage, 'cut', { ...moving.position, x: 92, y: 50 }, DEFAULT_SNAPPING);
+    near(snapped.position.x, 93);
+    assert.ok(snapped.guides.some(g => g.axis === 'x' && g.value === 102));
+  });
+  test(type + ' rejects invalid presets and out-of-bounds restoration without moving the reference', () => {
+    const face = { ...createObject(type, 'cut', 0, 120), faceCut: { kind: 'preset', preset: 'right' } };
+    const stage = { ...createDefaultStage(), objects: [face] }, before = structuredClone(stage);
+    for (const faceCut of [null, 'Upper Portion', { kind: 'preset', preset: 'bad' }, { kind: 'polygon', preset: 'full' },
+      { kind: 'preset', preset: 'full', occluded: true }, { kind: 'preset', preset: 'full' }]) {
+      const result = editObject(stage, 'cut', { faceCut });
+      assert.ok(result.error); assert.equal(result.stage, stage);
+    }
+    for (const geometry of [{ faceWidth: 0 }, { faceHeight: -1 }, { faceWidth: Infinity }]) {
+      const result = editObject(stage, 'cut', { geometry, faceCut: { kind: 'preset', preset: 'right' } });
+      assert.ok(result.error); assert.equal(result.stage, stage);
+    }
+    const inside = moveObject(stage, 'cut', { ...face.position, x: 120 });
+    assert.equal(editObject(inside, 'cut', { faceCut: { kind: 'preset', preset: 'full' } }).error, undefined);
+    assert.deepEqual(stage, before);
+  });
+}
+test('cut geometry is exclusive to paper roles and Reset returns fresh full faces', () => {
+  const original = createDefaultStage(), before = structuredClone(original);
+  for (const type of ['steelPlate', 'steelPopper', 'wall', 'faultLine', 'start']) {
+    const stage = { ...original, objects: [createObject(type, 'other', 120, 120)] };
+    assert.ok(editObject(stage, 'other', { faceCut: { kind: 'preset', preset: 'left' } }).error);
+  }
+  let changed = editObject(original, 'target-1', { faceCut: { kind: 'preset', preset: 'upper' } }).stage;
+  changed = addObject(changed, 'noShootTarget', 'ns');
+  changed = editObject(changed, 'ns', { faceCut: { kind: 'preset', preset: 'lower' } }).stage;
+  assert.notDeepEqual(changed, original);
+  assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
+  assert.equal(before.schemaVersion, 7);
 });

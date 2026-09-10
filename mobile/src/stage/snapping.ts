@@ -1,3 +1,4 @@
+import { footprintCenterOffset } from './geometry';
 import type { StagePosition } from './coordinates';
 import { constrainPosition, normalizeRotation, footprint } from './geometry';
 import type { StageDocument, StageObject } from './model';
@@ -37,9 +38,10 @@ export function alignmentAnchors(object: StageObject): { x: number; y: number }[
   // Ground lines snap by center/endpoints, without wall-like side-edge anchors.
   const local = (object.type === 'faultLine' || object.type === 'cardboardTarget' || object.type === 'noShootTarget' || object.type === 'steelPlate' || object.type === 'steelPopper') ? [[0, 0], [-w, 0], [w, 0]]
     : [[0, 0], [-w, 0], [w, 0], [0, -d], [0, d]];
+  const offset = footprintCenterOffset(object);
   return local.map(([x, y]) => ({
-    x: object.position.x + x * Math.cos(r) - y * Math.sin(r),
-    y: object.position.y + x * Math.sin(r) + y * Math.cos(r),
+    x: object.position.x + offset.x + x * Math.cos(r) - y * Math.sin(r),
+    y: object.position.y + offset.y + x * Math.sin(r) + y * Math.cos(r),
   }));
 }
 

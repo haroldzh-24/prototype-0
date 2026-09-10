@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Physical cardboard and no-shoot cuts - 2026-09-09
+
+- Advanced schema to v7 with a discriminated physical faceCut preset on cardboard/no-shoot targets: full, upper, lower, left and right.
+- Added authoritative active-face extents; asymmetric rotated bounds and alignment anchors use retained material. Upper/lower cuts reduce vertical extent, not plan depth.
+- Preserved the uncut reference position/elevation, rotation, ID and role on preset changes. Invalid or out-of-bounds preset changes are rejected atomically.
+- Added inspector preset buttons and simple retained-rectangle badges with distinct cardboard/no-shoot colors and labels. Default and Reset paper faces remain full.
+- Validation: TypeScript and all 64 stage tests passed; git diff --check passed. No installs, exports, commits or pushes.
+- No occlusion semantics, overlays, polygon editing, detailed scoring or other excluded features. Device rendering/gestures remain unverified.
+
+
 ### Wall-owned firing ports - 2026-09-09
 
 - Advanced to schema v6; walls own zero or more rectangular firing ports with stable UUID IDs, wall-center-relative offset, width, height and wall-bottom-relative sill, all in inches.

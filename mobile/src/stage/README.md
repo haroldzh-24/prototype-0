@@ -1,6 +1,6 @@
 # Physical stage foundation
 
-Schema 6 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
+Schema 7 stores inches, with X pointing right, Y depth pointing down in the top-down view, and Z elevation pointing up. The provisional workspace is 480 x 360 inches (40 x 30 feet), not a competition standard. Dimensions live on the document and viewport/bounds functions consume them; dimension-editing UI is deferred.
 
 Object X/Y is the center of its ground footprint (the face span for upright targets). Z is its bottom elevation; geometry.height, or geometry.faceHeight for targets, extends upward from Z. Fault lines have no height field and stay at Z=0. Rotation is clockwise in the top-down view, in degrees normalized to [0, 360). Rendering rotates about the same center. These conventions are view-oriented, not a promise of a right-handed 3D camera convention.
 
@@ -82,3 +82,18 @@ All edits pass through editObject. Ports require finite measurements, positive w
 Top-down rendering uses pale cyan spans with jamb marks and numbers corresponding to inspector buttons. These are opening indicators, not a full-height gap claim or 2.5D view. Sill/height remain editable data rather than top-down depth. Ports inherit the parent view transform and are not independently draggable. Removing a wall removes its ports; Reset restores default empty arrays and clears editor selection as before.
 
 No line-of-sight solving, partial targets, routes, ammunition planning, persistence/migration, reconstruction, training/video analysis or AI is added. Device rendering, port selection and keyboard interaction remain unverified.
+
+
+## Physical cardboard/no-shoot cuts
+
+Schema v7 adds faceCut: { kind: 'preset', preset: 'full' | 'upper' | 'lower' | 'left' | 'right' } exclusively to cardboardTarget and noShootTarget. These are physical material cuts, never a visibility flag, wall occlusion, a no-shoot overlay or a parent relationship. All defaults/new paper targets are full.
+
+faceWidth/faceHeight describe the uncut rectangular reference. X/Y remain its horizontal center and position.z remains its uncut bottom reference. Full retains local X [-width/2, width/2], Z [0, height]. Upper retains Z [height/2, height]; lower [0, height/2]; left retains X [-width/2, 0]; right [0, width/2]. Each portion has half the reference area. World elevations add position.z. The activeFaceExtent helper is the authoritative retained rectangle used by bounds, alignment and badge rendering; future polygon variants can extend this geometry boundary without treating removed material as occlusion.
+
+Left/right plan spans are asymmetric about the reference. Bounds rotate both their size and center offset; alignment uses the active midpoint and endpoints. Upper/lower change vertical extent but retain plan width. Grid snapping still snaps the stable object reference. Display containers never determine physical occupancy.
+
+Inspector preset buttons submit atomic edits through editObject and retain ID, role, reference position, rotation and elevation. If a preset would add material outside stage bounds, it is rejected with an instruction to move inward first. Invalid presets and cuts on steel/walls/other objects are rejected. Normal dragging, resizing and rotation continue to constrain the active material.
+
+Badges show a simple retained brown or white rectangle within the full reference area, with separate C/NS labels; no removed-half overlay is drawn. The physical plan line shows the retained span. This intentionally uses a rectangular reference rather than detailed target contour/scoring zones. Reset restores full default targets and removes added targets while retaining existing editor settings.
+
+No arbitrary polygon editor, scoring zones, route/ammunition planning, line-of-sight solving, persistence/migration, reconstruction, training/video analysis or AI. Device visual/gesture verification remains pending.

@@ -50,6 +50,13 @@ Use this file to document known defects from discovery through resolution.
 - Device verification remains pending for numbered opening markers, multi-port selection and inspector keyboard interaction.
 - Overlapping ports are allowed and may have overlapping markers; overlap solving is outside this increment.
 
+## Physical partial-target verification
+
+- **Recorded:** 2026-09-09
+- Active asymmetric bounds, rotated anchors, all five presets, reference preservation and atomic rejection are covered by stage tests.
+- Device verification remains pending for half-face badge distinction and preset selection near stage edges.
+- Preset restoration outside bounds is intentionally rejected rather than moving the reference position.
+
 ## Bug Entry Template
 
 ### [Short bug title]

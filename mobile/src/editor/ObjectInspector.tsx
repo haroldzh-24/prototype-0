@@ -1,3 +1,4 @@
+import { facePresets } from '@/stage/targetFace';
 import WallPortsInspector from './WallPortsInspector';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -25,6 +26,16 @@ export default function ObjectInspector({ item, disabled, onApply }: {
     <Text style={styles.title}>Edit {objectLabel(item.type)}</Text>
     <Text>Lengths: enter inches, or feet/inches such as 5' 6". Fractions such as 6 1/2 are supported.</Text>
     <Text>Typed X/Y values are exact, subject to bounds. Rotation uses the current snap setting.</Text>
+    {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View>
+      <Text>Physical face cut (material removed, not hidden)</Text>
+      <Text>Face width/height and position describe the full-face reference. Portion presets retain one half; upper portions begin halfway above the bottom reference.</Text>
+      <View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset}
+        accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }}
+        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: '#007aff' }]}
+        onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}>
+        <Text style={styles.buttonText}>{label}</Text>
+      </Pressable>)}</View>
+    </View>}
     <View style={styles.fields}>{fields.map(({ key, label }) => {
       const parsed = key === 'rotation' ? null : parseLength(draft[key]);
       return <View style={styles.field} key={key}>

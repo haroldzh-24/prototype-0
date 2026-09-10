@@ -1,3 +1,5 @@
+import { validFaceCut } from './targetFace';
+import type { FaceCut } from './model';
 import { validatePorts } from './ports';
 import type { FiringPort } from './model';
 import type { StagePosition } from './coordinates';
@@ -8,6 +10,7 @@ import type { RotationIncrement } from './snapping';
 import type { ObjectGeometry, WallGeometry, TargetGeometry, StageDocument, StageObject } from './model';
 
 export type ObjectEdit = {
+  faceCut?: FaceCut;
   ports?: readonly FiringPort[];
   position?: Partial<Pick<StagePosition, 'x' | 'y' | 'z'>>;
   geometry?: Partial<ObjectGeometry & WallGeometry & TargetGeometry>;
@@ -20,6 +23,7 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   const original = stage.objects.find((object) => object.id === id);
   if (!original) return { stage, error: 'Object no longer exists.' };
   if (edit.ports !== undefined && original.type !== 'wall') return { stage, error: 'Only walls can contain ports.' };
+  if (edit.faceCut !== undefined && ((original.type !== 'cardboardTarget' && original.type !== 'noShootTarget') || !validFaceCut(edit.faceCut))) return { stage, error: 'Invalid physical target-face preset.' };
   const position = { ...original.position, ...edit.position };
   const allowed = original.type === 'wall' ? ['length', 'thickness', 'height']
     : original.type === 'faultLine' ? ['length']
@@ -33,8 +37,8 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   switch (original.type) {
     case 'wall': updated = { ...original, ports: edit.ports ?? original.ports, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'faultLine': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
-    case 'noShootTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
-    case 'cardboardTarget': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'noShootTarget': updated = { ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'cardboardTarget': updated = { ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'steelPlate': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'steelPopper': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'start': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
@@ -60,11 +64,13 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   }
   updated.rotation = edit.rotation === undefined ? original.rotation : snapRotation(rotation, rotationIncrement);
   const half = rotatedHalfExtents(updated);
-  if ((edit.geometry || edit.rotation !== undefined) &&
+  if ((edit.geometry || edit.rotation !== undefined || edit.faceCut !== undefined) &&
     (half.x * 2 > stage.stage.width + 1e-8 || half.y * 2 > stage.stage.depth + 1e-8)) {
     return { stage, error: 'The rotated object is too large for this workspace. Reduce its dimensions or rotation.' };
   }
-  updated.position = constrainPosition(updated, position, stage.stage);
+  const bounded = constrainPosition(updated, position, stage.stage);
+  if (edit.faceCut !== undefined && (Math.abs(bounded.x - position.x) > 1e-8 || Math.abs(bounded.y - position.y) > 1e-8)) return { stage, error: 'This preset does not fit at the current position. Move the target inward first.' };
+  updated.position = edit.faceCut !== undefined ? position : bounded;
   return { stage: { ...stage, objects: stage.objects.map((object) => object.id === id ? updated : object) } };
 }
 
