@@ -16,6 +16,18 @@ Use this file to document known defects from discovery through resolution.
 - Right/bottom clipping and count-based ID reuse are resolved; details moved to `changelog.md`.
 - Device testing remains needed for selection, rotated hit areas, and scroll/drag interaction. No new confirmed defect from automated checks.
 
+## Mobile Phase 3A verification
+
+- **Recorded:** 2026-09-09
+- Physical bounds and invalid numeric edit checks are covered by stage tests.
+- Device verification remains pending for keyboard/inspector scrolling, rotated hit areas, and snap feel in dense layouts. These are verification tasks, not confirmed defects.
+
+## Wall/fault-line increment verification
+
+- **Recorded:** 2026-09-09
+- TypeScript and stage tests cover the wall field rename and fault-line creation, ground-only edits, rotation, bounds, snapping, and Reset.
+- Thin fault-line touch interaction still needs device verification; no new confirmed defect from these checks.
+
 ## Bug Entry Template
 
 ### [Short bug title]

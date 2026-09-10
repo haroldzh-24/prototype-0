@@ -24,7 +24,7 @@ Track features that are proposed or planned but not yet implemented.
 
 ### Edit start positions
 
-- **Description:** Let users add, remove, rename, and resize start positions.
+- **Description:** Let users add, remove, and rename start positions. Numeric positioning and resizing are complete in mobile Phase 3A.
 - **Priority:** Medium
 - **Status:** Proposed
 
@@ -32,6 +32,12 @@ Track features that are proposed or planned but not yet implemented.
 
 - **Description:** Draw routes between shooting positions to compare stage plans.
 - **Priority:** Low
+- **Status:** Proposed
+
+### Snap interaction refinement
+
+- **Recorded:** 2026-09-09
+- **Description:** Evaluate dense-layout snapping and add candidate retention or anchor priorities if device testing shows jitter. Current alignment uses nearest physical anchors with stable tie ordering.
 - **Status:** Proposed
 
 ## Feature Entry Template

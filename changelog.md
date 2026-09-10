@@ -4,6 +4,25 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Mobile walls and ground fault lines - 2026-09-09
+
+- Walls now store physical length, thickness, and height explicitly; center position, rotation, and existing editing behavior are preserved.
+- Added the faultLine type with length-only geometry, zero ground elevation, gold-strip rendering, and shared movement, bounds, grid/alignment snapping, rotation, selection, and inspector editing.
+- Added Add Fault Line / Remove Fault Line controls with UUIDs and last-of-type removal. Default layout is unchanged; Reset removes added fault lines.
+- Advanced the document schema to v3 for the wall field rename; no persistence or migration added.
+- Validation: TypeScript and all 32 stage tests passed. No exports, package installs, commits, or pushes. Device interaction remains unverified.
+
+### Mobile measurement grid and precise editing - 2026-09-09
+
+- Added physical 6-inch minor/12-inch major grid lines and 5-foot labels as viewport overlays.
+- Added 12/6/3-inch center snapping, 3-inch object-axis alignment tolerance, 15/5/free rotation snapping, and temporary visual snap feedback. Settings are editor state; schema remains v2.
+- Added selected-object numeric position, rotation, dimension, and elevation editing with feet/inches hints and decimal/fractional measurement input. Start-region position and resizing are complete.
+- Centralized atomic edit validation and physical bounds. Invalid or oversized edits are rejected without mutating the document.
+- Extracted dragging, grid, guides, settings, and inspector components from StageViewport.
+- Fixed signed-zero and floating-point half-step rounding discovered by snap regression tests.
+- Validation: all 27 stage tests, TypeScript, Expo web/static export, Android/iOS Hermes exports, and `git diff --check` passed. Device gestures and keyboard interaction have not been manually tested.
+
+
 ### Mobile physical stage and viewport foundation - 2026-09-09
 
 - Added schema 2 physical coordinates in inches and a provisional 480 x 360-inch workspace.
