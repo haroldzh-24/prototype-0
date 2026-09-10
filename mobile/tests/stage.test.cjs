@@ -769,3 +769,83 @@ test('cut geometry is exclusive to paper roles and Reset returns fresh full face
   assert.deepEqual(createDefaultStage(), before); assert.deepEqual(original, before);
   assert.equal(before.schemaVersion, 7);
 });
+
+
+const { deleteObject, duplicateObject } = require('../src/stage/operations.ts');
+const { applyObjectAction, validSelection, objectPalette } = require('../src/editor/objectActions.ts');
+for (const { type } of objectPalette) {
+  test(type + ' palette create/select, duplicate physical properties, and selected delete', () => {
+    const original = createDefaultStage(), before = structuredClone(original);
+    const created = applyObjectAction(original, 'start-1', { kind: 'create', type }, randomUUID);
+    const id = created.selectedId;
+    assert.ok(id); assert.equal(validSelection(created.stage, id), id);
+    let object = created.stage.objects.find(o => o.id === id);
+    assert.equal(object.type, type); assert.equal(object.position.x, 240); assert.equal(object.position.y, 180);
+    const edits = { rotation: 35, position: { z: type === 'faultLine' ? 0 : 12 } };
+    if (type === 'cardboardTarget' || type === 'noShootTarget') edits.faceCut = { kind: 'preset', preset: 'right' };
+    if (type === 'wall') edits.ports = [{ id: 'child-a', offset: -18, width: 12, height: 12, sill: 24 }, { id: 'child-b', offset: 18, width: 12, height: 24, sill: 36 }];
+    const edited = editObject(created.stage, id, edits);
+    assert.equal(edited.error, undefined); object = edited.stage.objects.find(o => o.id === id);
+    const duplicate = applyObjectAction(edited.stage, id, { kind: 'duplicate' }, randomUUID);
+    assert.equal(duplicate.error, undefined);
+    const copy = duplicate.stage.objects.find(o => o.id === duplicate.selectedId);
+    assert.notEqual(copy.id, id); assert.equal(copy.type, type); assert.equal(copy.rotation, 35);
+    assert.equal(copy.position.z, object.position.z); assert.deepEqual(copy.geometry, object.geometry);
+    assert.notEqual(copy.geometry, object.geometry); assert.notEqual(copy.position, object.position);
+    near(copy.position.x, object.position.x + 12); near(copy.position.y, object.position.y + 12);
+    if (object.faceCut) { assert.deepEqual(copy.faceCut, object.faceCut); assert.notEqual(copy.faceCut, object.faceCut); }
+    if (object.ports) {
+      assert.equal(copy.ports.length, 2);
+      assert.equal(new Set([...copy.ports, ...object.ports].map(p => p.id)).size, 4);
+      copy.ports.forEach((p, i) => {
+        assert.deepEqual({ ...p, id: object.ports[i].id }, object.ports[i]); assert.notEqual(p, object.ports[i]);
+      });
+    }
+    // Delete the source, which is not the most recently added object of its type.
+    const deleted = applyObjectAction(duplicate.stage, id, { kind: 'delete' }, randomUUID);
+    assert.equal(deleted.selectedId, null); assert.ok(!deleted.stage.objects.some(o => o.id === id));
+    assert.ok(deleted.stage.objects.some(o => o.id === copy.id));
+    assert.equal(validSelection(deleted.stage, id), null); assert.deepEqual(original, before);
+    assert.ok(!('selectedId' in deleted.stage));
+    const edge = moveObject(edited.stage, id, { ...object.position, x: 999, y: 999 });
+    const bounded = applyObjectAction(edge, id, { kind: 'duplicate' }, randomUUID);
+    const boundedCopy = bounded.stage.objects.find(o => o.id === bounded.selectedId);
+    assert.deepEqual(constrainPosition(boundedCopy, boundedCopy.position, bounded.stage.stage), boundedCopy.position);
+    assert.notDeepEqual(boundedCopy.position, edge.objects.find(o => o.id === id).position);
+  });
+}
+test('required start and stale selections are protected; duplicate IDs are rejected atomically', () => {
+  const stage = createDefaultStage();
+  assert.equal(deleteObject(stage, 'start-1'), stage); assert.equal(deleteObject(stage, 'missing'), stage);
+  for (const kind of ['delete', 'duplicate']) {
+    const start = applyObjectAction(stage, 'start-1', { kind }, randomUUID);
+    assert.equal(start.stage, stage); assert.equal(start.selectedId, 'start-1');
+    const missing = applyObjectAction(stage, 'missing', { kind }, randomUUID);
+    assert.equal(missing.stage, stage); assert.equal(missing.selectedId, null);
+  }
+  assert.ok(duplicateObject(stage, 'start-1', 'copy').error);
+  assert.ok(duplicateObject(stage, 'wall-1', 'wall-2').error);
+  const withPort = editObject(stage, 'wall-1', { ports: [{ id: 'child', offset: 0, width: 12, height: 12, sill: 0 }] }).stage;
+  for (const [id, ports] of [['new', []], ['new', ['child']], ['new', ['new']], ['', ['fresh']]]) {
+    const result = duplicateObject(withPort, 'wall-1', id, ports); assert.ok(result.error); assert.equal(result.stage, withPort);
+  }
+});
+test('repeated palette create/duplicate/delete keeps IDs, starts, bounds and selection valid; Reset clears selection', () => {
+  let state = { stage: createDefaultStage(), selectedId: null };
+  for (let i = 0; i < 20; i++) for (const { type } of objectPalette) {
+    state = applyObjectAction(state.stage, state.selectedId, { kind: 'create', type }, randomUUID);
+    const source = state.selectedId;
+    state = applyObjectAction(state.stage, source, { kind: 'duplicate' }, randomUUID);
+    assert.equal(validSelection(state.stage, state.selectedId), state.selectedId);
+    const ids = state.stage.objects.map(o => o.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.equal(state.stage.objects.filter(o => o.type === 'start').length, 1);
+    for (const object of state.stage.objects) assert.deepEqual(constrainPosition(object, object.position, state.stage.stage), object.position);
+    state = applyObjectAction(state.stage, state.selectedId, { kind: 'delete' }, randomUUID);
+    state = applyObjectAction(state.stage, source, { kind: 'delete' }, randomUUID);
+  }
+  assert.deepEqual(state.stage, createDefaultStage()); assert.equal(state.selectedId, null);
+  state = applyObjectAction(state.stage, null, { kind: 'create', type: 'wall' }, randomUUID);
+  state = applyObjectAction(state.stage, state.selectedId, { kind: 'reset' }, randomUUID);
+  assert.deepEqual(state, { stage: createDefaultStage(), selectedId: null });
+});

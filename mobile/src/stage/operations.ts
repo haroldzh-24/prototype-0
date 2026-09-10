@@ -83,11 +83,11 @@ export function rotateObject(stage: StageDocument, id: string, delta: number, in
   return object ? editObject(stage, id, { rotation: object.rotation + delta }, increment).stage : stage;
 }
 
-type AddableType = 'cardboardTarget' | 'noShootTarget' | 'steelPlate' | 'steelPopper' | 'wall' | 'faultLine';
+export type AddableType = Exclude<StageObject['type'], 'start'>;
 /** Generate the ID once in the event handler, outside React's replayable state updater. */
 export function addObject(stage: StageDocument, type: AddableType, id: string): StageDocument {
   if (stage.objects.some((object) => object.id === id)) throw new Error('Duplicate stage object ID: ' + id);
-  const object = createObject(type, id, (type === 'cardboardTarget' || type === 'noShootTarget' || type === 'steelPlate' || type === 'steelPopper') ? 216 : 168, (type === 'cardboardTarget' || type === 'noShootTarget' || type === 'steelPlate' || type === 'steelPopper') ? 168 : type === 'faultLine' ? 240 : 144);
+  const object = createObject(type, id, stage.stage.width / 2, stage.stage.depth / 2);
   object.position = constrainPosition(object, object.position, stage.stage);
   const order = { start: 0, cardboardTarget: 1, noShootTarget: 1, steelPlate: 1, steelPopper: 1, faultLine: 2, wall: 3 };
   const nextLayer = stage.objects.findIndex((entry) => order[entry.type] > order[type]);
@@ -98,4 +98,31 @@ export function addObject(stage: StageDocument, type: AddableType, id: string): 
 export function removeLastObject(stage: StageDocument, type: AddableType): StageDocument {
   const last = stage.objects.filter((object) => object.type === type).at(-1);
   return last ? { ...stage, objects: stage.objects.filter((object) => object.id !== last.id) } : stage;
+}
+
+/** Required start objects cannot be deleted. Missing IDs are a harmless no-op. */
+export function deleteObject(stage: StageDocument, id: string): StageDocument {
+  const object = stage.objects.find(entry => entry.id === id);
+  return !object || object.type === 'start' ? stage
+    : { ...stage, objects: stage.objects.filter(entry => entry.id !== id) };
+}
+
+/** IDs are allocated by the editor event before invoking this pure operation. */
+export function duplicateObject(stage: StageDocument, sourceId: string, id: string, portIds: readonly string[] = []): EditResult {
+  const source = stage.objects.find(entry => entry.id === sourceId);
+  if (!source || source.type === 'start') return { stage, error: 'Select a standalone object other than Start Position.' };
+  const usedIds = new Set(stage.objects.flatMap(entry => [entry.id, ...(entry.type === 'wall' ? entry.ports.map(port => port.id) : [])]));
+  const newIds = [id, ...portIds];
+  if (newIds.some(value => !value.trim() || usedIds.has(value)) || new Set(newIds).size !== newIds.length) return { stage, error: 'Duplicate IDs must be fresh and unique.' };
+  if (portIds.length !== (source.type === 'wall' ? source.ports.length : 0)) return { stage, error: 'Each duplicated port needs a fresh ID.' };
+  const clone = <T extends StageObject>(object: T): T => ({ ...object, id, position: { ...object.position }, geometry: { ...object.geometry } });
+  let copy: StageObject = clone(source);
+  if (copy.type === 'wall') copy = { ...copy, ports: copy.ports.map((port, index) => ({ ...port, id: portIds[index] })) };
+  if (copy.type === 'cardboardTarget' || copy.type === 'noShootTarget') copy = { ...copy, faceCut: { ...copy.faceCut } };
+  // Prefer a one-foot offset; reverse direction near edges to avoid coincident copies.
+  const candidates = [[12, 12], [-12, -12], [12, -12], [-12, 12]].map(([x, y]) =>
+    constrainPosition(copy, { ...copy.position, x: copy.position.x + x, y: copy.position.y + y }, stage.stage));
+  copy.position = candidates.find(p => Math.hypot(p.x - source.position.x, p.y - source.position.y) > 1e-8) ?? candidates[0];
+  const index = stage.objects.findIndex(entry => entry.id === sourceId) + 1;
+  return { stage: { ...stage, objects: [...stage.objects.slice(0, index), copy, ...stage.objects.slice(index)] } };
 }

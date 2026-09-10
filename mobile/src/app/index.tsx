@@ -10,10 +10,11 @@ import type { ObjectEdit } from '@/stage/operations';
 import { clampZoom, MAX_ZOOM, MIN_ZOOM } from '@/stage/coordinates';
 import type { ViewportState } from '@/stage/coordinates';
 import { createDefaultStage } from '@/stage/defaults';
-import { createObjectId } from '@/stage/ids';
+import { applyObjectAction, objectPalette, validSelection } from '@/editor/objectActions';
+import type { ObjectAction } from '@/editor/objectActions';
 import { objectLabel } from '@/stage/model';
 import type { StageDocument } from '@/stage/model';
-import { addObject, removeLastObject, editObject } from '@/stage/operations';
+import { editObject } from '@/stage/operations';
 
 export default function HomeScreen() {
   const [stage, setStage] = useState<StageDocument>(createDefaultStage);
@@ -24,18 +25,14 @@ export default function HomeScreen() {
   const [dragging, setDragging] = useState(false);
   const selected = stage.objects.find((object) => object.id === selectedId);
   useEffect(() => {
-    if (selectedId && !selected) setSelectedId(null);
+    if (selectedId && !selected) setSelectedId(validSelection(stage, selectedId));
   }, [selectedId, selected]);
 
-  const resetStage = () => {
-    setStage(createDefaultStage());
-    setSelectedId(null);
-    setEditError('');
-    // Reset objects only; preserve the user's zoom and pan.
-  };
-  const add = (type: 'cardboardTarget' | 'noShootTarget' | 'steelPlate' | 'steelPopper' | 'wall' | 'faultLine') => {
-    const id = createObjectId(type, uuid.v4);
-    setStage((current) => addObject(current, type, id));
+  const act = (action: ObjectAction) => {
+    const result = applyObjectAction(stage, selectedId, action, uuid.v4);
+    setStage(result.stage);
+    setSelectedId(result.selectedId);
+    setEditError(result.error ?? '');
   };
   const applyEdit = (edit: ObjectEdit): string | null => {
     if (!selected) return 'Select an object first.';
@@ -69,20 +66,15 @@ export default function HomeScreen() {
         <Button title="Zoom -" disabled={viewport.zoom <= MIN_ZOOM || dragging} onPress={() => zoom(1 / 1.25)} />
         <Button title="Zoom +" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
       </View>
+      <Text style={styles.status}>Add stage object</Text>
+      <View style={styles.controls}>{objectPalette.map(({ type, label }) =>
+        <Button key={type} title={label} disabled={dragging} onPress={() => act({ kind: 'create', type })} />
+      )}</View>
+      <Text style={styles.status}>Selected object actions</Text>
       <View style={styles.controls}>
-        <Button title="Add Cardboard Target" disabled={dragging} onPress={() => add('cardboardTarget')} />
-        <Button title="Remove Cardboard Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'cardboardTarget'))} />
-        <Button title="Add No-Shoot Target" disabled={dragging} onPress={() => add('noShootTarget')} />
-        <Button title="Remove No-Shoot Target" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'noShootTarget'))} />
-        <Button title="Add Steel Plate" disabled={dragging} onPress={() => add('steelPlate')} />
-        <Button title="Remove Steel Plate" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'steelPlate'))} />
-        <Button title="Add Steel Popper" disabled={dragging} onPress={() => add('steelPopper')} />
-        <Button title="Remove Steel Popper" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'steelPopper'))} />
-        <Button title="Add Wall" disabled={dragging} onPress={() => add('wall')} />
-        <Button title="Remove Wall" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'wall'))} />
-        <Button title="Add Fault Line" disabled={dragging} onPress={() => add('faultLine')} />
-        <Button title="Remove Fault Line" disabled={dragging} onPress={() => setStage((current) => removeLastObject(current, 'faultLine'))} />
-        <Button title="Reset Positions" disabled={dragging} onPress={resetStage} />
+        <Button title="Duplicate" disabled={!selected || selected.type === 'start' || dragging} onPress={() => act({ kind: 'duplicate' })} />
+        <Button title="Delete" disabled={!selected || selected.type === 'start' || dragging} onPress={() => act({ kind: 'delete' })} />
+        <Button title="Reset Positions" disabled={dragging} onPress={() => act({ kind: 'reset' })} />
       </View>
       {selected && <ObjectInspector key={selected.id} item={selected} disabled={dragging} onApply={applyEdit} />}
     </ScrollView>

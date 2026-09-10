@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Editor object-operation cleanup - 2026-09-10
+
+- Added arbitrary selected deletion and physical duplication for all six standalone palette kinds; Start Position remains protected.
+- Duplicates retain physical properties and cuts, clone child ports with fresh UUID IDs, and use a bounded one-foot offset with reverse-direction fallback.
+- Replaced per-type Remove buttons with a compact creation palette and generic Duplicate/Delete actions. Creation spawns at stage center and selects the new object.
+- Centralized editor action/selection handling outside StageDocument; Reset and deletion clear selection. Existing physical schema v7 and zoom/snapping/inspector behavior are retained.
+- Validation: TypeScript and all 72 stage tests passed; git diff --check passed. No installs, exports, commits or pushes.
+- Device interactions remain unverified; overlapping placement is allowed. No excluded planning, rendering or analysis features added.
+
+
 ### Physical cardboard and no-shoot cuts - 2026-09-09
 
 - Advanced schema to v7 with a discriminated physical faceCut preset on cardboard/no-shoot targets: full, upper, lower, left and right.

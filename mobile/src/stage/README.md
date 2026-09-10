@@ -97,3 +97,16 @@ Inspector preset buttons submit atomic edits through editObject and retain ID, r
 Badges show a simple retained brown or white rectangle within the full reference area, with separate C/NS labels; no removed-half overlay is drawn. The physical plan line shows the retained span. This intentionally uses a rectangular reference rather than detailed target contour/scoring zones. Reset restores full default targets and removes added targets while retaining existing editor settings.
 
 No arbitrary polygon editor, scoring zones, route/ammunition planning, line-of-sight solving, persistence/migration, reconstruction, training/video analysis or AI. Device visual/gesture verification remains pending.
+
+
+## Editor object operations
+
+The six-entry palette creates Cardboard, No-Shoot, Steel Plate, Popper, Wall and Fault Line at the physical stage center (visible with the current centered zoom UI), constrained by existing bounds, and selects the new object. Selected-object Duplicate and Delete replace last-of-type removal in the UI. The old removeLastObject helper remains for existing regression coverage.
+
+Start Position is protected from deletion and duplication; all other standalone kinds are supported. Ports remain wall children and use their own existing inspector controls. Duplication clones geometry, cut presets and ports independently, retains rotation/elevation and all physical properties, and allocates fresh UUID IDs for both the object and every child port. Copies are inserted immediately after the source to preserve drawing layers.
+
+Duplicates prefer a 12-inch X/Y offset, constrained by active bounds; reverse-direction candidates avoid coincident copies at edges. If an object fills all available space, a coincident bounded copy can be unavoidable. No collision avoidance or automatic viewport movement is added.
+
+objectActions is an editor event adapter: it allocates IDs outside replayable React state updaters and returns document plus separate selection. Create/duplicate select the new ID, delete clears selection, stale selections become null, and Reset restores fresh defaults and clears selection. Zoom/pan/snapping remain separate unchanged state. StageDocument and schema v7 are unchanged.
+
+No 2.5D rendering, routes, ammunition, line-of-sight, persistence, reconstruction, training/video analysis or AI is included. Device gesture and palette interaction verification remains pending.

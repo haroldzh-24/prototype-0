@@ -57,6 +57,13 @@ Use this file to document known defects from discovery through resolution.
 - Device verification remains pending for half-face badge distinction and preset selection near stage edges.
 - Preset restoration outside bounds is intentionally rejected rather than moving the reference position.
 
+## Editor object-operation verification
+
+- **Recorded:** 2026-09-10
+- Automated coverage includes selected deletion, start protection, independent duplication with fresh child IDs, bounds, valid selection and repeated operation cycles.
+- Palette/actions and overlapping copies still need device verification.
+- When an object fills the available workspace, duplication may remain coincident after bounds enforcement; collision avoidance is not implemented.
+
 ## Bug Entry Template
 
 ### [Short bug title]

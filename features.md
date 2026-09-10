@@ -26,6 +26,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify retained-portion badges for both paper target roles and inspector preset interaction on device. Completed implementation is recorded in changelog.md.
 - **Status:** Planned
 
+## Editor object-operation follow-up verification
+
+- **Recorded:** 2026-09-10
+- **Description:** Verify palette creation, selected Duplicate/Delete and inspector handoff on device. Completed implementation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning
