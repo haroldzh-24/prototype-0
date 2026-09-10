@@ -46,7 +46,7 @@ export default function StageViewport(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  frame: { height: 430, borderWidth: 5, borderColor: '#33424f', borderRadius: 8, overflow: 'hidden' },
-  viewport: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#c3cbd1' },
-  ground: { position: 'absolute', backgroundColor: '#d9d3bf', borderWidth: 1, borderColor: '#33424f' },
+  frame: { height: 520, borderWidth: 1, borderColor: '#465044', borderRadius: 2, overflow: 'hidden' },
+  viewport: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: '#101611' },
+  ground: { position: 'absolute', backgroundColor: '#1b241c', borderWidth: 1, borderColor: '#465044' },
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, Switch, TextInput, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import type { StageDocument } from '../stage/model';
 import { objectLabel } from '../stage/model';
@@ -10,31 +11,31 @@ export default function PlanningPanel({ plan, stage, onChange }: { plan: StagePl
   const [error, setError] = useState('');
   const apply = (result: PlanResult) => { setError(result.error ?? ''); if (!result.error) onChange(result.plan); };
   const summary = ammunitionSummary(plan,stage);
-  return <View style={{ gap: 12, paddingVertical: 16 }}>
-    <Text style={{ fontSize: 22, fontWeight: 'bold' }}>Loadout and planned rounds</Text>
+  return <View style={{ gap: 8, padding: 10, marginTop: 8, backgroundColor: '#1c261e', borderWidth: 1, borderColor: '#465044' }}>
+    <Text style={{ fontSize: 14, color: '#d0b368', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 'bold' }}>Loadout and planned rounds</Text>
     <Text>Magazine counts are rounds actually loaded, excluding the chamber. Other magazines are carried spares. These are totals, not an engagement order or reload plan.</Text>
     <Text>Chamber loaded: {plan.loadout.chamberLoaded ? 'Yes (1 round)' : 'No'}</Text>
-    <Switch accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
+    <Switch trackColor={{ false: '#384236', true: '#345c59' }} thumbColor="#c5cebc" accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
     <Action label="Add Magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
     <Action label="Start without magazine" onPress={() => apply(designateMagazine(plan,null))} />
     {plan.loadout.startingMagazineId === null && <Text>No starting magazine designated.</Text>}
-    {plan.loadout.magazines.map((magazine,index) => <View key={magazine.id} style={{ borderWidth: 1, borderColor: '#98a5af', padding: 12, gap: 8 }}>
+    {plan.loadout.magazines.map((magazine,index) => <View key={magazine.id} style={{ borderWidth: 1, borderColor: '#465044', padding: 8, gap: 6 }}>
       <Text>Magazine {index+1} — {plan.loadout.startingMagazineId === magazine.id ? 'Starting in firearm' : 'Carried spare'}</Text>
       <MagazineForm magazine={magazine} onSave={value => apply(saveMagazine(plan,value))} />
       <Action label="Use as starting magazine" onPress={() => apply(designateMagazine(plan,magazine.id))} />
       <Action label="Delete Magazine" onPress={() => { onChange(deleteMagazine(plan,magazine.id)); setError(''); }} />
     </View>)}
-    <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Target engagements</Text>
+    <Text style={{ fontSize: 12, color: '#d0b368', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 'bold' }}>Target engagements</Text>
     <Text>Unassigned targets have zero planned rounds. No-shoots and props do not consume ammunition.</Text>
     {stage.objects.filter(isEngageable).map((object,index) => <RoundAssignment key={object.id}
       label={objectLabel(object.type)+' '+(index+1)+' ('+object.id+')'} value={plan.engagements[object.id] ?? 0}
       onSave={rounds => apply(assignRounds(plan,stage,object.id,rounds))} />)}
-    <Text>Total available: {summary.totalAvailable} · Planned: {summary.totalPlanned} · Reserve: {summary.reserve}</Text>
-    {summary.insufficient && <Text accessibilityLiveRegion="polite" style={{ color: '#a32716' }}>Planned rounds exceed available ammunition by {-summary.reserve}.</Text>}
-    {error !== '' && <Text accessibilityLiveRegion="polite" style={{ color: '#a32716' }}>{error}</Text>}
+    <Text style={{ color: '#d0b368' }}>Total available: {summary.totalAvailable} · Planned: {summary.totalPlanned} · Reserve: {summary.reserve}</Text>
+    {summary.insufficient && <Text accessibilityLiveRegion="polite" style={{ color: '#dfb369' }}>Planned rounds exceed available ammunition by {-summary.reserve}.</Text>}
+    {error !== '' && <Text accessibilityLiveRegion="polite" style={{ color: '#dfb369' }}>{error}</Text>}
   </View>;
 }
-const inputStyle = { borderWidth: 1, borderColor: '#788894', backgroundColor: 'white', padding: 8, borderRadius: 4 };
+const inputStyle = { borderWidth: 1, borderColor: '#465044', backgroundColor: '#151d17', padding: 8, minHeight: 44, color: '#e1e5db', borderRadius: 2 };
 function MagazineForm({ magazine, onSave }: { magazine: Magazine; onSave: (magazine: Magazine) => void }) {
   const [label,setLabel] = useState(magazine.label ?? '');
   const [capacity,setCapacity] = useState(String(magazine.capacity));
@@ -57,7 +58,7 @@ function RoundAssignment({ label, value, onSave }: { label: string; value: numbe
   </View>;
 }
 function Action({ label, onPress }: { label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={{ backgroundColor: '#33424f', padding: 10, borderRadius: 4, alignSelf: 'flex-start' }}>
-    <Text style={{ color: 'white' }}>{label}</Text>
+  return <Pressable accessibilityRole="button" onPress={onPress} style={{ backgroundColor: '#252e27', padding: 10, minHeight: 44, borderWidth: 1, borderColor: '#465044', borderRadius: 2, alignSelf: 'flex-start' }}>
+    <Text style={{ color: '#e1e5db', fontSize: 11, textTransform: 'uppercase' }}>{label}</Text>
   </Pressable>;
 }

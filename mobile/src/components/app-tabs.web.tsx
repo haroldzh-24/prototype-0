@@ -22,10 +22,10 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Home</TabButton>
+            <TabButton>BUILDER</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Explore</TabButton>
+            <TabButton>EXPLORE</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -55,7 +55,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>
         <ThemedText type="smallBold" style={styles.brandText}>
-          Expo Starter
+          STAGE / FIELD
         </ThemedText>
 
         {props.children}
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   innerContainer: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.five,
-    borderRadius: Spacing.five,
+    borderRadius: 2, borderWidth: 1, borderColor: '#465044',
     flexDirection: 'row',
     alignItems: 'center',
     flexGrow: 1,
@@ -101,9 +101,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   tabButtonView: {
-    paddingVertical: Spacing.one,
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 2, minHeight: 44, justifyContent: 'center',
   },
   externalPressable: {
     flexDirection: 'row',

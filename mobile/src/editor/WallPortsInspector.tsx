@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import type { FiringPort, StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
@@ -67,9 +68,9 @@ function Control({ title, disabled, onPress }: { title: string; disabled: boolea
     style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
-  panel: { gap: 8, marginTop: 12 }, title: { fontSize: 18, fontWeight: 'bold' },
+  panel: { gap: 8, marginTop: 12 }, title: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#d0b368', fontWeight: 'bold' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, field: { flexBasis: '40%', flexGrow: 1, minWidth: 120 },
-  input: { borderWidth: 1, borderColor: '#788894', backgroundColor: 'white', padding: 8, borderRadius: 4 },
-  button: { backgroundColor: '#33424f', padding: 10, borderRadius: 4, alignSelf: 'flex-start' },
-  selected: { backgroundColor: '#007aff' }, buttonText: { color: 'white' },
+  input: { borderWidth: 1, borderColor: '#465044', backgroundColor: '#151d17', padding: 8, minHeight: 44, color: '#e1e5db', borderRadius: 2 },
+  button: { backgroundColor: '#252e27', padding: 10, minHeight: 44, borderWidth: 1, borderColor: '#465044', borderRadius: 2, alignSelf: 'flex-start' },
+  selected: { backgroundColor: '#60b5bc' }, buttonText: { color: '#e1e5db', fontSize: 11, textTransform: 'uppercase' },
 });

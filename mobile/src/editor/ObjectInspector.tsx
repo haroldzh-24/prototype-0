@@ -1,7 +1,8 @@
 import { facePresets } from '@/stage/targetFace';
 import WallPortsInspector from './WallPortsInspector';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import { objectLabel } from '@/stage/model';
 import type { StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
@@ -31,7 +32,7 @@ export default function ObjectInspector({ item, disabled, onApply }: {
       <Text>Face width/height and position describe the full-face reference. Portion presets retain one half; upper portions begin halfway above the bottom reference.</Text>
       <View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset}
         accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }}
-        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: '#007aff' }]}
+        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: '#60b5bc' }]}
         onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}>
         <Text style={styles.buttonText}>{label}</Text>
       </Pressable>)}</View>
@@ -52,10 +53,10 @@ export default function ObjectInspector({ item, disabled, onApply }: {
   </View>;
 }
 const styles = StyleSheet.create({
-  panel: { marginTop: 16, padding: 12, gap: 8, borderWidth: 1, borderColor: '#98a5af', borderRadius: 6 },
-  title: { fontSize: 18, fontWeight: 'bold' }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  panel: { marginTop: 8, padding: 10, gap: 6, backgroundColor: '#1c261e', borderWidth: 1, borderColor: '#465044', borderRadius: 2 },
+  title: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#d0b368', fontWeight: 'bold' }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { minWidth: 120, flexGrow: 1, flexBasis: '40%' },
-  input: { borderWidth: 1, borderColor: '#788894', backgroundColor: 'white', padding: 8, borderRadius: 4 },
-  hint: { fontSize: 12, color: '#5f6b76' }, button: { backgroundColor: '#33424f', padding: 12, borderRadius: 4, alignSelf: 'flex-start' },
-  buttonText: { color: 'white' },
+  input: { borderWidth: 1, borderColor: '#465044', backgroundColor: '#151d17', padding: 8, minHeight: 44, color: '#e1e5db', borderRadius: 2 },
+  hint: { fontSize: 12, color: '#a6b0a0' }, button: { backgroundColor: '#252e27', padding: 12, minHeight: 44, borderWidth: 1, borderColor: '#465044', borderRadius: 2, alignSelf: 'flex-start' },
+  buttonText: { color: '#e1e5db', fontSize: 11, textTransform: 'uppercase' },
 });

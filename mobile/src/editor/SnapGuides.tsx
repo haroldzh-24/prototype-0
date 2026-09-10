@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
 import type { SnapFeedback } from '@/stage/snapping';
 export default function SnapGuides({ feedback, stage, transform: t }: {
@@ -7,7 +8,7 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
   const active = feedback.guides.length > 0 || feedback.gridAxes.length > 0;
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {feedback.guides.map((guide) => <View key={guide.axis} style={{ position: 'absolute',
-      backgroundColor: '#007aff',
+      backgroundColor: '#60b5bc',
       left: t.offsetX + (guide.axis === 'x' ? guide.value * t.scale : 0),
       top: t.offsetY + (guide.axis === 'y' ? guide.value * t.scale : 0),
       width: guide.axis === 'x' ? 2 : stage.width * t.scale,
@@ -20,4 +21,4 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
   </View>;
 }
 const styles = StyleSheet.create({ status: { position: 'absolute', bottom: 6, left: 6,
-  backgroundColor: '#ffffff', color: '#0056b3', padding: 4, fontSize: 12 } });
+  backgroundColor: '#222c24', color: '#60b5bc', padding: 4, fontSize: 12 } });

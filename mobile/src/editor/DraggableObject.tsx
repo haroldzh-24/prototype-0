@@ -1,6 +1,8 @@
+import { Image } from 'expo-image';
 import { activeFaceExtent } from '@/stage/targetFace';
 import { useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, StyleSheet, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import { moveByViewportDelta, stageToViewport } from '@/stage/coordinates';
 import type { ViewportTransform } from '@/stage/coordinates';
 import { objectLabel } from '@/stage/model';
@@ -87,19 +89,22 @@ export default function DraggableObject(props: ObjectProps) {
       }]}>
       <Text style={styles.portLabel}>{index + 1}</Text>
     </View>)}
-    {item.type === 'start' && <Text style={styles.startText}>Start Position</Text>}
+    {item.type === 'start' && <Text style={styles.startText}>START</Text>}
   </View>;
 }
 
 function PaperFaceBadge({ item }: { item: Extract<StageObject, { type: 'cardboardTarget' | 'noShootTarget' }> }) {
   const face = activeFaceExtent(item);
   const w = item.geometry.faceWidth, h = item.geometry.faceHeight;
+  // Display silhouette only: active clipping comes from physical cut extents.
+  const x = (face.left / w + 0.5) * 24, y = (1 - face.top / h) * 32;
+  const cw = (face.right-face.left)/w*24, ch = (face.top-face.bottom)/h*32;
+  const fill = item.type === 'noShootTarget' ? '#d9ded3' : '#806a45';
+  const stroke = item.type === 'noShootTarget' ? '#f0f1e7' : '#c4a36b';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32"><defs><clipPath id="cut"><rect x="'+x+'" y="'+y+'" width="'+cw+'" height="'+ch+'"/></clipPath></defs><polygon points="8,1 16,1 16,6 23,12 23,26 18,31 6,31 1,26 1,12 8,6" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1" clip-path="url(#cut)"/></svg>';
   return <View style={{ width: 24, height: 32 }}>
-    <View style={{ position: 'absolute', left: (face.left / w + 0.5) * 24, top: (1 - face.top / h) * 32,
-      width: (face.right - face.left) / w * 24, height: (face.top - face.bottom) / h * 32,
-      backgroundColor: item.type === 'noShootTarget' ? '#fff' : '#b98b50',
-      borderWidth: 1, borderColor: item.type === 'noShootTarget' ? '#333' : '#604522' }} />
-    <Text style={{ position: 'absolute', top: -12, width: 24, textAlign: 'center', fontSize: 9, fontWeight: 'bold' }}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
+    <Image source={{ uri: 'data:image/svg+xml;base64,'+btoa(svg) }} style={{ width: 24, height: 32 }} contentFit="contain" cachePolicy="none" />
+    <Text style={{ position: 'absolute', top: -13, width: 24, textAlign: 'center', fontSize: 8, color: '#c7cfc0' }}>{item.type === 'noShootTarget' ? 'NS' : 'C'}</Text>
   </View>;
 }
 
@@ -107,25 +112,25 @@ const styles = StyleSheet.create({
   object: { position: 'absolute', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   targetMarker: { borderWidth: 0 },
   targetSymbol: { alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' },
-  faceSpan: { position: 'absolute', height: 2, backgroundColor: '#604522' },
-  noShootSpan: { backgroundColor: '#333' },
+  faceSpan: { position: 'absolute', height: 2, backgroundColor: '#b69964' },
+  noShootSpan: { backgroundColor: '#c3ccbd' },
   targetBadge: { alignItems: 'center', transform: [{ translateY: -17 }] },
-  targetHead: { width: 10, height: 8, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522' },
-  targetBody: { width: 24, height: 24, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#604522', borderTopLeftRadius: 6, borderTopRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  steelSpan: { backgroundColor: '#235d78' },
-  steelPlate: { width: 24, height: 24, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  steelText: { fontSize: 9, fontWeight: 'bold', color: '#153e52' },
+  targetHead: { width: 10, height: 8, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#b69964' },
+  targetBody: { width: 24, height: 24, backgroundColor: '#b98b50', borderWidth: 1, borderColor: '#b69964', borderTopLeftRadius: 6, borderTopRightRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  steelSpan: { backgroundColor: '#829b9b' },
+  steelPlate: { width: 24, height: 24, backgroundColor: '#455552', borderColor: '#829b9b', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  steelText: { fontSize: 9, fontWeight: 'bold', color: '#d8e0d5' },
   popper: { alignItems: 'center' },
-  popperHead: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  popperStem: { width: 7, height: 10, backgroundColor: '#a7c7d8', borderColor: '#235d78', borderLeftWidth: 1, borderRightWidth: 1 },
-  popperFoot: { width: 12, height: 4, backgroundColor: '#235d78' },
-  noShoot: { backgroundColor: '#fff', borderColor: '#333' },
+  popperHead: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#455552', borderColor: '#829b9b', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  popperStem: { width: 7, height: 10, backgroundColor: '#455552', borderColor: '#829b9b', borderLeftWidth: 1, borderRightWidth: 1 },
+  popperFoot: { width: 12, height: 4, backgroundColor: '#829b9b' },
+  noShoot: { backgroundColor: '#fff', borderColor: '#c3ccbd' },
   targetText: { fontSize: 10, fontWeight: 'bold', color: '#302719' },
-  port: { position: 'absolute', backgroundColor: '#e0fbff', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#007b91', alignItems: 'center', justifyContent: 'center' },
-  portLabel: { position: 'absolute', top: -13, fontSize: 10, color: '#006879', fontWeight: 'bold' },
-  wall: { backgroundColor: '#657783', borderColor: '#25333d' },
-  faultLine: { backgroundColor: '#f4c542', borderColor: '#805800' },
-  start: { backgroundColor: '#d85b3d', borderColor: '#9e351d', borderRadius: 3 },
-  selected: { borderColor: '#007aff', outlineColor: '#007aff', outlineWidth: 2, outlineStyle: 'solid' },
-  startText: { color: 'white', fontWeight: 'bold', fontSize: 8, textAlign: 'center' },
+  port: { position: 'absolute', backgroundColor: '#101611', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#80a6a1', alignItems: 'center', justifyContent: 'center' },
+  portLabel: { position: 'absolute', top: -13, fontSize: 10, color: '#c5b476', fontWeight: 'bold' },
+  wall: { backgroundColor: '#303e35', borderColor: '#83927c' },
+  faultLine: { backgroundColor: '#bdab69', borderColor: '#8c8051' },
+  start: { backgroundColor: '#29392d', borderColor: '#9cab88', borderRadius: 3 },
+  selected: { borderColor: '#60b5bc', outlineColor: '#60b5bc', outlineWidth: 1, outlineStyle: 'solid' },
+  startText: { color: '#e1e5db', fontWeight: 'bold', fontSize: 8, textAlign: 'center' },
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
 import { createPlan, reconcilePlan } from '@/planning/model';
@@ -57,34 +58,33 @@ export default function HomeScreen() {
 
   return <SafeAreaView style={styles.screen}>
     <ScrollView keyboardShouldPersistTaps="handled" scrollEnabled={!dragging} contentContainerStyle={styles.container}>
-      <Text style={styles.eyebrow}>PROTOTYPE #0</Text>
-      <Text style={styles.title}>2D Stage Planner</Text>
-      <Button title={showPlanning ? "Hide Loadout / Planning" : "Loadout / Planning"} disabled={dragging} onPress={() => setShowPlanning(value => !value)} />
-      {showPlanning && <PlanningPanel plan={plan} stage={stage} onChange={setPlan} />}
-      <Text style={styles.description}>Arrange targets and walls. Tap an object to select and rotate it.</Text>
-      <Text style={styles.status}>{stage.stage.width / 12} ft × {stage.stage.depth / 12} ft workspace · {Math.round(viewport.zoom * 100)}% zoom</Text>
+      <Text style={styles.eyebrow}>STAGE SYSTEM / 01</Text>
+      <Text style={styles.title}>STAGE BUILDER</Text>
+      <Text style={styles.status}>{stage.stage.width / 12} x {stage.stage.depth / 12} FT | {viewMode === 'topDown' ? Math.round(viewport.zoom * 100) + '% | GRID 12/6 IN | SNAP ' + (snapping.enabled ? snapping.gridIncrement + ' IN' : 'OFF') : 'SPATIAL PREVIEW'}</Text>
       <View style={styles.controls}>
-        <Button title="Top Down" disabled={dragging || viewMode === 'topDown'} onPress={() => setViewMode('topDown')} />
+        <Button title="TOP DOWN" disabled={dragging || viewMode === 'topDown'} onPress={() => setViewMode('topDown')} />
         <Button title="2.5D" disabled={dragging || viewMode === '25d'} onPress={() => setViewMode('25d')} />
+        {viewMode === 'topDown' && <>
+        <Button title="Zoom -" disabled={viewport.zoom <= MIN_ZOOM || dragging} onPress={() => zoom(1 / 1.25)} />
+        <Button title="Zoom +" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
+        </>}
       </View>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> : <>
+      <Text style={styles.status}>OBJECT PALETTE</Text>
+      <View style={styles.controls}>{objectPalette.map(({ type }) =>
+        <Button key={type} title={({ cardboardTarget: 'CARD', noShootTarget: 'NS', steelPlate: 'STL', steelPopper: 'POP', wall: 'WALL', faultLine: 'FL' })[type]} disabled={dragging} onPress={() => act({ kind: 'create', type })} />
+      )}</View>
       <StageViewport stage={stage} viewport={viewport} selectedId={selectedId} snapping={snapping}
         onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />
-      <Text style={styles.status}>{selected ? objectLabel(selected.type) + ' · ' + selected.rotation + '°' : 'No object selected'}</Text>
-      <Text style={styles.status}>C: scoring cardboard ? NS: no-shoot ? SP: steel plate ? P: steel popper. Target badges are symbols; the line shows physical face width in plan view.</Text>
+      <Text style={styles.status}>{selected ? objectLabel(selected.type).toUpperCase() + ' / ' + selected.rotation + ' DEG' : 'No object selected'}</Text>
+      <Text style={styles.description}>FACE SYMBOLS / PHYSICAL SPAN LINES / PORT OPENINGS</Text>
       <SnapControls value={snapping} onChange={setSnapping} disabled={dragging} />
       {editError !== '' && <Text accessibilityLiveRegion="polite">{editError}</Text>}
       <View style={styles.controls}>
         <Button title={"Rotate -" + rotationStep + " deg"} disabled={!selected || dragging} onPress={() => rotate(-rotationStep)} />
         <Button title={"Rotate +" + rotationStep + " deg"} disabled={!selected || dragging} onPress={() => rotate(rotationStep)} />
-        <Button title="Zoom -" disabled={viewport.zoom <= MIN_ZOOM || dragging} onPress={() => zoom(1 / 1.25)} />
-        <Button title="Zoom +" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
       </View>
-      <Text style={styles.status}>Add stage object</Text>
-      <View style={styles.controls}>{objectPalette.map(({ type, label }) =>
-        <Button key={type} title={label} disabled={dragging} onPress={() => act({ kind: 'create', type })} />
-      )}</View>
-      <Text style={styles.status}>Selected object actions</Text>
+      <Text style={styles.status}>OBJECT ACTIONS</Text>
       <View style={styles.controls}>
         <Button title="Duplicate" disabled={!selected || selected.type === 'start' || dragging} onPress={() => act({ kind: 'duplicate' })} />
         <Button title="Delete" disabled={!selected || selected.type === 'start' || dragging} onPress={() => act({ kind: 'delete' })} />
@@ -92,6 +92,8 @@ export default function HomeScreen() {
       </View>
       {selected && <ObjectInspector key={selected.id} item={selected} disabled={dragging} onApply={applyEdit} />}
       </>}
+      <Button title={showPlanning ? "Hide Loadout / Planning" : "Loadout / Planning"} disabled={dragging} onPress={() => setShowPlanning(value => !value)} />
+      {showPlanning && <PlanningPanel plan={plan} stage={stage} onChange={setPlan} />}
     </ScrollView>
   </SafeAreaView>;
 }
@@ -103,14 +105,14 @@ function Button({ title, onPress, disabled = false }: { title: string; onPress: 
   </Pressable>;
 }
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#eef2f5' },
-  container: { padding: 20, paddingBottom: 100 },
-  eyebrow: { color: '#c44b2b', fontWeight: 'bold', letterSpacing: 2, marginBottom: 4 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#24303c' },
-  description: { color: '#5f6b76', marginTop: 8, marginBottom: 12 },
-  status: { color: '#24303c', marginVertical: 8 },
-  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  button: { backgroundColor: '#33424f', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 5 },
+  screen: { flex: 1, backgroundColor: '#101411' },
+  container: { padding: 12, paddingTop: Platform.OS === 'web' ? 76 : 12, paddingBottom: 100, gap: 4 },
+  eyebrow: { color: '#d0b368', fontWeight: 'bold', letterSpacing: 2, marginBottom: 4 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#e1e5db' },
+  description: { color: '#a6b0a0', marginTop: 2, marginBottom: 4, fontSize: 10 },
+  status: { color: '#d0b368', marginVertical: 4, fontSize: 11, letterSpacing: 0.6 },
+  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4, marginBottom: 4 },
+  button: { backgroundColor: '#252e27', paddingVertical: 10, paddingHorizontal: 12, minHeight: 44, borderWidth: 1, borderColor: '#465044', borderRadius: 2 },
   disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: 'bold' },
+  buttonText: { color: '#e1e5db', fontWeight: 'bold', fontSize: 11, letterSpacing: 0.6, textTransform: 'uppercase' },
 });

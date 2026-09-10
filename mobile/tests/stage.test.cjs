@@ -916,7 +916,7 @@ test('2.5D renders every kind, physical ground size, steel extents and selection
   }
   for(const yaw of [0,45,90,180,270]) {
     const svg=stageSvg(stage,yaw,1,'wall-1');
-    assert.ok(svg.includes('<polygon')); assert.ok(svg.includes('#007aff')); assert.ok(svg.includes('START'));
+    assert.ok(svg.includes('<polygon')); assert.ok(svg.includes('#60b5bc')); assert.ok(svg.includes('START'));
     assert.ok(!svg.includes('NaN')); assert.ok(!svg.includes('Infinity'));
   }
   assert.deepEqual(stage,before);
