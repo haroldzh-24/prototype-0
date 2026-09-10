@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { uuid } from 'expo-modules-core';
+import Stage25D from '@/editor/Stage25D';
 import StageViewport from '@/editor/StageViewport';
 import SnapControls from '@/editor/SnapControls';
 import ObjectInspector from '@/editor/ObjectInspector';
@@ -17,6 +18,7 @@ import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
 
 export default function HomeScreen() {
+  const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
   const [stage, setStage] = useState<StageDocument>(createDefaultStage);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, pan: { x: 0, y: 0 } });
@@ -54,6 +56,11 @@ export default function HomeScreen() {
       <Text style={styles.title}>2D Stage Planner</Text>
       <Text style={styles.description}>Arrange targets and walls. Tap an object to select and rotate it.</Text>
       <Text style={styles.status}>{stage.stage.width / 12} ft × {stage.stage.depth / 12} ft workspace · {Math.round(viewport.zoom * 100)}% zoom</Text>
+      <View style={styles.controls}>
+        <Button title="Top Down" disabled={dragging || viewMode === 'topDown'} onPress={() => setViewMode('topDown')} />
+        <Button title="2.5D" disabled={dragging || viewMode === '25d'} onPress={() => setViewMode('25d')} />
+      </View>
+      {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> : <>
       <StageViewport stage={stage} viewport={viewport} selectedId={selectedId} snapping={snapping}
         onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />
       <Text style={styles.status}>{selected ? objectLabel(selected.type) + ' · ' + selected.rotation + '°' : 'No object selected'}</Text>
@@ -77,6 +84,7 @@ export default function HomeScreen() {
         <Button title="Reset Positions" disabled={dragging} onPress={() => act({ kind: 'reset' })} />
       </View>
       {selected && <ObjectInspector key={selected.id} item={selected} disabled={dragging} onApply={applyEdit} />}
+      </>}
     </ScrollView>
   </SafeAreaView>;
 }

@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### First read-only 2.5D visualization - 2026-09-10
+
+- Added Top Down / 2.5D toggle without replacing the authoritative editor or changing schema v7. Preview consumes the same StageDocument and retains Top Down selection/settings.
+- Added pure orthographic projection and physical surface generation, displayed as SVG through the existing expo-image dependency.
+- Walls render height/thickness and true rectangular port openings with jambs/sills/lintels. Paper faces honor physical cut extents and elevation; steel uses stored dimensions; fault lines/start remain on physical ground.
+- Added five-foot ground grid, selected-object outlines, 15-degree view rotation and 0.5?3x preview zoom. All editing remains in Top Down.
+- Validation: TypeScript and all 77 stage tests passed; git diff --check passed. No installs, exports, commits or pushes.
+- Native rendering/control verification remains pending. Depth ordering is approximate, popper contour representative, and no visibility solving or other excluded features were added.
+
+
 ### Editor object-operation cleanup - 2026-09-10
 
 - Added arbitrary selected deletion and physical duplication for all six standalone palette kinds; Start Position remains protected.

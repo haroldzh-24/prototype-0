@@ -64,6 +64,13 @@ Use this file to document known defects from discovery through resolution.
 - Palette/actions and overlapping copies still need device verification.
 - When an object fills the available workspace, duplication may remain coincident after bounds enforcement; collision avoidance is not implemented.
 
+## First 2.5D visualization verification
+
+- **Recorded:** 2026-09-10
+- Projection, physical surfaces, port union openings, rotated attachment and all partial-face presets are covered by stage tests.
+- Native SVG display, view switching, camera controls and dense-scene performance remain unverified.
+- Basic average-depth sorting can misorder intersecting surfaces; preview is not a visibility solver. Wall partition seams may be visible.
+
 ## Bug Entry Template
 
 ### [Short bug title]

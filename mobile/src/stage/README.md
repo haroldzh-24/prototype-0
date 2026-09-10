@@ -110,3 +110,20 @@ Duplicates prefer a 12-inch X/Y offset, constrained by active bounds; reverse-di
 objectActions is an editor event adapter: it allocates IDs outside replayable React state updaters and returns document plus separate selection. Create/duplicate select the new ID, delete clears selection, stale selections become null, and Reset restores fresh defaults and clears selection. Zoom/pan/snapping remain separate unchanged state. StageDocument and schema v7 are unchanged.
 
 No 2.5D rendering, routes, ammunition, line-of-sight, persistence, reconstruction, training/video analysis or AI is included. Device gesture and palette interaction verification remains pending.
+
+
+## First read-only 2.5D visualization
+
+Top Down remains the authoritative editing mode. The view toggle mounts a read-only Stage25D preview of the same StageDocument; there is no second editable document and schema v7 is unchanged. Top Down state, selection, zoom and snapping are retained while previewing. The preview does not expose edit callbacks, palette, inspector or object-operation controls.
+
+projection.ts converts physical local geometry into world-space surfaces, then applies an orthographic projection with 30-degree downward pitch and default 45-degree yaw. Camera yaw changes in 15-degree increments; preview zoom is bounded to 0.5?3. The initial scene fits all surfaces with margins, then zooms about that fit center. Camera state is local to the mounted preview and resets when returning to it. No free camera or interactive preview selection is included.
+
+The installed expo-image displays a generated base64 SVG using basic polygons, lines and text. No new package or engine is needed. Geometry comes from stored dimensions/rotation/elevation, activeFaceExtent and footprint; UI values are colors, line weights and fit margins only. A 5-foot ground grid shows physical scale, and the start region carries a START label.
+
+Walls have both broad faces, thickness edges and top surfaces. A local X/Z partition removes cells inside the union of all port rectangles; only material surfaces and exposed jamb/sill/lintel faces are emitted. Port coordinates remain attached to the parent wall and use its bottom elevation. This is an opening in geometry, not a colored marker or full-height gap.
+
+Cardboard and no-shoot faces are upright brown/white rectangles containing only active cut material at the correct world elevations. Steel plates use physical width/height. Poppers use a representative normalized contour scaled to stored width/overall height, not a certified physical outline. Fault lines and the start region lie on the ground. No unmodeled target stands are invented.
+
+The selected Top Down object's surfaces receive blue outlines in preview. Painter sorting uses average camera depth after ground surfaces: intersecting/overlapping surfaces can order incorrectly, and this must never be treated as line-of-sight or target-visibility analysis. Wall partition seams may be visible. Native SVG display, camera controls and dense-scene performance require device verification. Very high zoom can crop the scene; zoom out to recover it.
+
+No routes, ammunition planning, visibility solving, persistence, reconstruction, training/video analysis or AI is implemented.

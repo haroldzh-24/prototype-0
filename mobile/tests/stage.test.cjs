@@ -849,3 +849,75 @@ test('repeated palette create/duplicate/delete keeps IDs, starts, bounds and sel
   state = applyObjectAction(state.stage, state.selectedId, { kind: 'reset' }, randomUUID);
   assert.deepEqual(state, { stage: createDefaultStage(), selectedId: null });
 });
+
+
+const { projectPoint, localToWorld, objectSurfaces, wallSurfaces, stageSurfaces, stageSvg } = require('../src/stage/projection.ts');
+test('2.5D projection maps ground axes and elevation consistently across camera rotation', () => {
+  assert.deepEqual(projectPoint({x:0,y:0,z:0},0), {x:0,y:0,depth:0});
+  near(projectPoint({x:12,y:0,z:0},0).x,12);
+  near(projectPoint({x:0,y:12,z:0},0).y,6);
+  const low=projectPoint({x:120,y:60,z:0}), high=projectPoint({x:120,y:60,z:48});
+  near(high.x,low.x); near(high.y,low.y-48*Math.sqrt(3)/2);
+  near(projectPoint({x:12,y:0,z:0},90).y,6);
+});
+test('2.5D wall local endpoints and port openings follow wall rotation and elevation', () => {
+  const wall={...createObject('wall','wall',100,120),rotation:90,position:{space:'stage',x:100,y:120,z:12},
+    ports:[{id:'port',offset:12,width:24,height:24,sill:24}]};
+  const left=localToWorld(wall,-48,0,0), right=localToWorld(wall,48,0,72);
+  near(left.x,100); near(left.y,72); near(left.z,12);
+  near(right.x,100); near(right.y,168); near(right.z,84);
+  const portBottom=localToWorld(wall,12,0,24);
+  near(portBottom.x,100); near(portBottom.y,132); near(portBottom.z,36);
+  assert.equal(wallSurfaces(wall).some(face=>face.points.some(p=>p.z===36)),true);
+  assert.deepEqual(wall.ports,[{id:'port',offset:12,width:24,height:24,sill:24}]);
+});
+test('2.5D walls have actual empty port area, exposed reveals and overlapping-port union', () => {
+  const wall={...createObject('wall','wall',0,0),ports:[{id:'a',offset:0,width:24,height:24,sill:24}]};
+  const surfaces=wallSurfaces(wall);
+  const front=surfaces.filter(s=>s.points.every(p=>p.y===-2));
+  const area=front.reduce((sum,s)=>sum+(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)))*
+    (Math.max(...s.points.map(p=>p.z))-Math.min(...s.points.map(p=>p.z))),0);
+  near(area,96*72-24*24);
+  assert.ok(front.every(s=> {
+    const x=s.points.reduce((n,p)=>n+p.x,0)/4,z=s.points.reduce((n,p)=>n+p.z,0)/4;
+    return !(x>-12 && x<12 && z>24 && z<48);
+  }));
+  assert.ok(surfaces.some(s=>s.points.every(p=>p.z===24) && s.points.some(p=>p.y===2) && s.points.some(p=>p.y===-2)));
+  const overlapping={...wall,ports:[...wall.ports,{id:'b',offset:12,width:24,height:24,sill:24}]};
+  const overlappingArea=wallSurfaces(overlapping).filter(s=>s.points.every(p=>p.y===-2)).reduce((sum,s)=>
+    sum+(Math.max(...s.points.map(p=>p.x))-Math.min(...s.points.map(p=>p.x)))*
+    (Math.max(...s.points.map(p=>p.z))-Math.min(...s.points.map(p=>p.z))),0);
+  near(overlappingArea,96*72-36*24);
+});
+test('2.5D paper target projection uses every physical cut and bottom reference for both roles', () => {
+  for(const type of ['cardboardTarget','noShootTarget']) for(const {preset} of facePresets) {
+    const object={...createObject(type,'face',120,140),rotation:90,faceCut:{kind:'preset',preset}};
+    const f=activeFaceExtent(object), points=objectSurfaces(object)[0].points;
+    assert.equal(points.length,4);
+    near(Math.min(...points.map(p=>p.z)),48+f.bottom); near(Math.max(...points.map(p=>p.z)),48+f.top);
+    near(Math.min(...points.map(p=>p.y)),140+f.left); near(Math.max(...points.map(p=>p.y)),140+f.right);
+    assert.ok(points.every(p=>Math.abs(p.x-120)<1e-8));
+    const projected=points.map(p=>projectPoint(p,30)); assert.ok(projected.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
+  }
+});
+test('2.5D renders every kind, physical ground size, steel extents and selection without mutating stage', () => {
+  let stage=createDefaultStage();
+  for(const type of ['steelPlate','steelPopper','faultLine','noShootTarget']) stage=addObject(stage,type,type);
+  const before=structuredClone(stage);
+  const ground=stageSurfaces(stage)[0];
+  assert.deepEqual(ground.points[2],{x:480,y:360,z:0});
+  for(const object of stage.objects) {
+    const surfaces=objectSurfaces(object); assert.ok(surfaces.length>0);
+    if(object.type==='steelPlate'||object.type==='steelPopper') {
+      const points=surfaces.flatMap(s=>s.points);
+      near(Math.max(...points.map(p=>p.z))-Math.min(...points.map(p=>p.z)),object.geometry.faceHeight);
+      near(Math.max(...points.map(p=>p.x))-Math.min(...points.map(p=>p.x)),object.geometry.faceWidth);
+    }
+  }
+  for(const yaw of [0,45,90,180,270]) {
+    const svg=stageSvg(stage,yaw,1,'wall-1');
+    assert.ok(svg.includes('<polygon')); assert.ok(svg.includes('#007aff')); assert.ok(svg.includes('START'));
+    assert.ok(!svg.includes('NaN')); assert.ok(!svg.includes('Infinity'));
+  }
+  assert.deepEqual(stage,before);
+});

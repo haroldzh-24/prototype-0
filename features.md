@@ -32,6 +32,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify palette creation, selected Duplicate/Delete and inspector handoff on device. Completed implementation is recorded in changelog.md.
 - **Status:** Planned
 
+## First 2.5D follow-up verification
+
+- **Recorded:** 2026-09-10
+- **Description:** Verify native preview display, view switching, wall openings, selected highlights and camera controls on device. Completed first-layer implementation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Future Ideas
 
 ### Interactive viewport panning
