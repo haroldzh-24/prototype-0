@@ -88,3 +88,13 @@ Expo SQLite adds native code: create a new development/TestFlight build.
 For web, Metro config supplies WASM support and cross-origin isolation headers.
 Production web hosting must also send `Cross-Origin-Embedder-Policy: credentialless`
 and `Cross-Origin-Opener-Policy: same-origin` (SQLite web support is experimental).
+Web uses single-page output to avoid SDK 57 static-development worker bundling
+errors. Configure hosting to serve `index.html` for app routes. A web exit handler
+releases SQLite connections and opts out of page caching to avoid retained worker
+file locks. Multiple simultaneously open browser tabs are not supported by the
+experimental SQLite web backend.
+
+`tests/browser-smoke.cjs` can check the running app using an isolated Chromium
+profile with remote debugging port 9228 and an open app tab. Run it from `mobile`;
+set `SMOKE_BASE_URL` if using a different local origin. It creates test stages in
+that profile and saves a Home screenshot under `.expo/browser-home.png`.

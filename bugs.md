@@ -81,6 +81,8 @@ Use this file to document known defects from discovery through resolution.
 ## Prototype 2 Phase 1 verification - 2026-09-17
 
 - Automated SQLite round trips and CRUD isolation pass alongside all existing stage/planning tests.
+- Browser smoke checks pass for navigation, every ADD tile, rotation/preview, stage save/reopen/reload, ammunition retention, unsaved-edit protection, rename/duplicate/delete, Training and Account.
+- SQLite web is experimental and uses exclusive file handles; use one app tab at a time. Native storage does not use this web backend. Fixed startup/page-navigation issues are recorded in `changelog.md`.
 - Native-device checks remain pending for back/swipe unsaved-edit protection, SQLite persistence across app restarts, ADD tiles, dragging, inspector keyboard interaction and 2.5D rendering.
 - Existing dated follow-up items are from September 9–10, 2026; none are over one month old. Older undated ideas cannot be aged reliably.
 

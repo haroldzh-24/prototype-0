@@ -2,6 +2,7 @@
 // Start Expo at localhost:8087 first. This test only uses its isolated local database.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:8087';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 (async () => {
   const pages = await (await fetch('http://localhost:9228/json/list')).json();
@@ -26,7 +27,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     return result.result.value;
   };
   const waitText = async text => {
-    for (let i = 0; i < 100; i++) { if ((await evaluate('document.body.innerText')).includes(text)) return; await sleep(300); }
+    for (let i = 0; i < 100; i++) { if ((await evaluate('document.body?.innerText ?? ""')).includes(text)) return; await sleep(300); }
     throw new Error('Missing text: ' + text + '\n' + await evaluate('document.body.innerText'));
   };
   const click = async name => {
@@ -39,7 +40,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   };
   try {
     await send('Runtime.enable');
-    await send('Page.navigate', { url: 'http://127.0.0.1:8087/' });
+    await send('Page.navigate', { url: baseUrl + '/' });
     await waitText('YOUR NEXT SESSION');
     await click('STAGE PLANNER →'); await waitText('STAGE PLANNER');
     await click('+ NEW STAGE'); await waitText('STAGE BUILDER');
@@ -49,22 +50,36 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       await click('+ ADD'); await waitText('ADD OBJECT'); await click('Add ' + label);
     }
     await click('+ ADD'); await click('◎ START POSITION · SELECT EXISTING');
+    await click('ROTATE +15 DEG'); await waitText('START POSITION / 15 DEG');
     await click('2.5D'); await waitText('SPATIAL PREVIEW'); await click('TOP DOWN');
+    await click('LOADOUT / PLANNING'); await click('ADD MAGAZINE');
+    await fill('Magazine capacity', '20'); await fill('Magazine loaded rounds', '13');
+    await click('APPLY MAGAZINE'); await click('USE AS STARTING MAGAZINE');
+    await waitText('Total available: 13');
     await click('SAVE'); await waitText('Saved on this device.');
     await click('CLOSE'); await waitText('RECENTLY EDITED');
     await click('SAVED STAGES'); await waitText(name); await click('OPEN');
     await waitText('STAGE BUILDER'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Stage name"]').value`), name);
+    await send('Page.reload'); await waitText('40 x 30 FT');
+    await click('+ ADD'); await click('◎ START POSITION · SELECT EXISTING'); await waitText('START POSITION / 15 DEG');
+    await click('LOADOUT / PLANNING'); await waitText('Total available: 13'); await waitText('Starting in firearm');
     await fill('Stage name', name + ' dirty'); await click('CLOSE'); await waitText('UNSAVED CHANGES');
     await click('DISCARD CHANGES AND CLOSE'); await waitText('SAVED STAGES');
+    // Reloading the editor can reset the native stack; Close then returns to Planner.
+    if ((await evaluate('location.pathname')) === '/planner') await click('SAVED STAGES');
+    await waitText(name);
     await click('DUPLICATE'); await waitText(name + ' (copy)');
     await click('RENAME'); await fill('Stage name', name + ' renamed'); await click('APPLY NAME'); await waitText(name + ' renamed');
     await click('DELETE'); await click('CONFIRM DELETE');
-    assert.equal(await evaluate('document.querySelectorAll("[role=button]").length > 0'), true);
-    await send('Page.navigate', { url: 'http://127.0.0.1:8087/training' }); await waitText('No training sessions yet.');
+    await waitText(name);
+    assert.ok(!(await evaluate('document.body.innerText')).includes(name + ' renamed'));
+    await send('Page.navigate', { url: baseUrl + '/training' }); await waitText('No training sessions yet.');
     await click('START TRAINING'); await waitText('No session has been started.');
-    await send('Page.navigate', { url: 'http://127.0.0.1:8087/account' }); await waitText('Local shooter');
+    await send('Page.navigate', { url: baseUrl + '/account' }); await waitText('Local shooter');
+    await send('Page.navigate', { url: baseUrl + '/' }); await waitText('YOUR NEXT SESSION');
+    const screenshot = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync('.expo/browser-home.png', Buffer.from(screenshot.data, 'base64'));
     assert.deepEqual(errors, []);
     console.log('PASS: Home/planner navigation, all ADD tiles, preview, save/reopen, unsaved guard, rename/duplicate/delete, Training and Account.');
   } finally { socket.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
-

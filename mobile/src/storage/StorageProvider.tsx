@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { uuid } from 'expo-modules-core';
+import { Platform } from 'react-native';
 import { Repository } from './repository';
 import { Screen, Copy, Action } from '../ui/kit';
 
@@ -12,12 +13,25 @@ function open() {
     const repo = new Repository(db, uuid.v4);
     try { await repo.initialize(); }
     catch (error) { await db.closeAsync(); throw error; }
+    if (Platform.OS === 'web') {
+      // Release OPFS access handles before a new page opens the same SQLite file.
+      window.addEventListener('pagehide', () => { db.closeSync(); opening = undefined; }, { once: true });
+      // SQLite's web worker owns an exclusive VFS pool even after database close.
+      // Avoid caching that live worker when navigating to another full page.
+      window.addEventListener('unload', () => {});
+    }
     return repo;
   })().catch(error => { opening = undefined; throw error; });
 }
 export function StorageProvider({ children }: { children: ReactNode }) {
   const [repo, setRepo] = useState<Repository | null>(null), [error, setError] = useState(''), [attempt, retry] = useState(0);
   useEffect(() => { let active = true; open().then(value => { if (active) setRepo(value); }).catch(e => { if (active) setError(String(e)); }); return () => { active = false; }; }, [attempt]);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const restore = (event: PageTransitionEvent) => { if (event.persisted) { setRepo(null); setError(''); retry(n => n + 1); } };
+    window.addEventListener('pageshow', restore);
+    return () => window.removeEventListener('pageshow', restore);
+  }, []);
   if (!repo) return <Screen title="LOCAL STORAGE"><Copy>{error || 'Opening your saved data…'}</Copy>{!!error && <Action title="Retry" onPress={() => { setError(''); retry(n => n + 1); }} />}</Screen>;
   return <Context.Provider value={repo}>{children}</Context.Provider>;
 }

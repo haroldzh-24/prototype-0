@@ -14,6 +14,9 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 - Added a shared dark technical screen style, typed training records and six starting types, plus a separate shooter performance profile with estimate defaults.
 - Training currently displays records and explains that recording/drills are coming later. Account displays a persistent local profile; no authentication or route planning was added.
 - Automated stage/planning and SQLite tests pass (83 tests), including database close/reopen, all object kinds, ammunition preservation, rename/copy/delete isolation, training records and profiles.
+- TypeScript passes; Expo web starts, browser smoke checks pass, and the iOS production Hermes bundle exports successfully. Physical iOS/Android interaction still needs device verification.
+- Browser reload verification retains start rotation, magazine capacity/loaded rounds and starting-magazine designation. Home screenshot inspected; `git diff --check` passes.
+- Fixed SDK 57 SQLite web startup by using single-page output with WASM/cross-origin headers; close connections on page exit and prevent caching a worker that retains exclusive SQLite file handles.
 - New TestFlight binary required for the added native SQLite dependency. No commit or push.
 
 ### Ammunition/loadout planning foundation - 2026-09-10
