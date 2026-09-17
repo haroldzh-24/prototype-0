@@ -58,11 +58,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Add controls for the document width/depth and a policy for oversized objects. Physical coordinates and rotation are complete in the mobile editor.
 - **Status:** Proposed
 
-### Save and load layouts
+### Prototype 2 follow-up
 
-- **Description:** Store stage layouts so they can be reopened later.
-- **Priority:** Medium
-- **Status:** Proposed
+- **Recorded:** 2026-09-17
+- **Description:** Add training session recording/drills and profile calibration from results. Add Apple authentication and cloud sync in a later phase. Route planning remains deferred.
+- **Status:** Planned
+- SQLite save/load and stage management are complete; see `changelog.md`.
 
 ### Edit start positions
 

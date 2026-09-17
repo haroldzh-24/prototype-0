@@ -54,3 +54,37 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Prototype 2 Phase 1
+
+Home opens Stage Planner (New Stage / Saved Stages), Training and Account.
+The builder uses an explicit Save button: name the stage, edit, save, and close.
+Back navigation warns about unsaved edits. Changes are not automatically saved;
+force-closing the app can lose edits since the last successful save.
+Saved Stages supports rename, independent copies, and confirmed deletion.
+
+`src/storage/repository.ts` owns parameterized SQL and schema initialization.
+`practical-shooting.db` contains stages, training records and local profiles.
+Each stage row stores the complete StageDocument and StagePlan in one versioned
+JSON payload, so IDs, wall ports, partial faces and ammunition references remain
+intact. Duplicate stages keep internal object IDs in a separate stage record.
+Storage is local to this installation; there is no cloud backup or account sync.
+
+Training has typed records, six starting types, timing segments and repository
+save/list methods. Recording sessions and drills are deferred. Account displays
+an independent performance baseline, currently estimates rather than measurements.
+Route planning and Apple sign-in are intentionally deferred.
+
+Checks (Node 22.13+; Node 24 recommended for built-in SQLite tests):
+
+```sh
+npm test
+npm run typecheck
+npx expo start
+```
+
+Start Expo once after adding routes to refresh `.expo/types/router.d.ts`.
+Expo SQLite adds native code: create a new development/TestFlight build.
+For web, Metro config supplies WASM support and cross-origin isolation headers.
+Production web hosting must also send `Cross-Origin-Embedder-Policy: credentialless`
+and `Cross-Origin-Opener-Policy: same-origin` (SQLite web support is experimental).

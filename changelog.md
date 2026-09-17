@@ -4,6 +4,18 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Prototype 2 Phase 1 - 2026-09-17
+
+- Home now opens a stack-based Expo Router flow to Stage Planner, Saved Stages, Stage Builder, Training and Account.
+- Moved the existing builder into `src/editor/StageBuilder.tsx`; retained the stage model, physical operations, geometry, snapping, preview and planning systems.
+- Added explicit stage naming/saving, reopening, renaming, independent duplication and confirmed deletion. Unsaved edits are guarded on navigation and browser unload.
+- Added Expo SQLite and a repository with versioned document/plan payloads, local profile and training tables. Parameterized SQL stays outside React components.
+- Replaced six add buttons with categorized full-screen icon tiles using existing object actions. Start selects the required existing start; firing ports remain wall-inspector edits.
+- Added a shared dark technical screen style, typed training records and six starting types, plus a separate shooter performance profile with estimate defaults.
+- Training currently displays records and explains that recording/drills are coming later. Account displays a persistent local profile; no authentication or route planning was added.
+- Automated stage/planning and SQLite tests pass (83 tests), including database close/reopen, all object kinds, ammunition preservation, rename/copy/delete isolation, training records and profiles.
+- New TestFlight binary required for the added native SQLite dependency. No commit or push.
+
 ### Ammunition/loadout planning foundation - 2026-09-10
 
 - Added separate shooter StagePlan with stable magazine IDs, labels, capacities, actual loaded counts, starting-mag designation and an independent chambered round.

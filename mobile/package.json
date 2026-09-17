@@ -13,6 +13,7 @@
     "expo-linking": "~57.0.9",
     "expo-router": "~57.0.18",
     "expo-splash-screen": "~57.0.8",
+    "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.3",
@@ -39,7 +40,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:stage": "node --test tests/stage.test.cjs"
+    "test:stage": "node --test tests/stage.test.cjs",
+    "test:storage": "node --test tests/storage.test.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }

@@ -78,6 +78,12 @@ Use this file to document known defects from discovery through resolution.
 - Device keyboard/form interaction remains unverified.
 - Unassigned targets count as zero; the summary does not infer required shots or reload feasibility.
 
+## Prototype 2 Phase 1 verification - 2026-09-17
+
+- Automated SQLite round trips and CRUD isolation pass alongside all existing stage/planning tests.
+- Native-device checks remain pending for back/swipe unsaved-edit protection, SQLite persistence across app restarts, ADD tiles, dragging, inspector keyboard interaction and 2.5D rendering.
+- Existing dated follow-up items are from September 9–10, 2026; none are over one month old. Older undated ideas cannot be aged reliably.
+
 ## Bug Entry Template
 
 ### [Short bug title]
