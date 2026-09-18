@@ -12,6 +12,7 @@ const { createDefaultStage, createObject } = require('../src/stage/defaults.ts')
 const { objectPalette } = require('../src/editor/objectActions.ts');
 const { createPlan } = require('../src/planning/model.ts');
 const { startingTypes } = require('../src/training/model.ts');
+const { createRoute } = require('../src/planning/route.ts');
 function open(file = ':memory:') {
   const db = new DatabaseSync(file);
   return { db, repo: new Repository({
@@ -93,4 +94,25 @@ test('training start types, segments and local profile persist independently of 
     assert.deepEqual(await repo.loadProfile(), profile);
     assert.equal((await repo.listStages()).length, 0);
   } finally { db.close(); }
+});
+
+test('routes survive SQLite reopen and duplication while legacy plans remain unchanged', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'route-storage-'));
+  const file = path.join(dir, 'test.db'); let connection = open(file);
+  try {
+    await connection.repo.initialize(); const { document, plan } = fixture();
+    const legacyId = await connection.repo.createStage('Legacy', document, plan);
+    const route = createRoute('route-a');
+    route.positions = [{ id: 'A', label: 'A', position: { space: 'stage', x: 50, y: 70, z: 0 }, visibleTargetIds: ['cardboardTarget'], engagedTargetIds: ['cardboardTarget'] }];
+    route.reloads = [{ positionId: 'A', magazineId: 'mag' }];
+    const id = await connection.repo.createStage('Route', document, { ...plan, route });
+    connection.db.close(); connection = open(file); await connection.repo.initialize();
+    assert.deepEqual((await connection.repo.loadStage(legacyId)).plan, plan);
+    assert.deepEqual((await connection.repo.loadStage(id)).plan.route, route);
+    const copyId = await connection.repo.duplicateStage(id);
+    await connection.repo.saveStage(id, 'Changed', document, { ...plan, route: { ...route, positions: [] } });
+    assert.deepEqual((await connection.repo.loadStage(copyId)).plan.route, route);
+    await assert.rejects(connection.repo.saveStage(copyId, 'Bad', document, { ...plan, route: { version: 9 } }), /Invalid route/);
+    assert.deepEqual((await connection.repo.loadStage(copyId)).plan.route, route);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
 });

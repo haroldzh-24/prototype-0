@@ -4,6 +4,16 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Prototype 2 Phase 2 manual routes - 2026-09-18
+
+- Added Stage editing / Route planning modes in the existing builder, sharing the authoritative stage. Route markers hide in editing mode; existing object editing, ADD menu, snapping, preview and loadout remain available.
+- Added ordered, labeled, draggable shooting positions in physical inches, START-connected route lines, target numbers, manual visibility, unique intended engagements and reorder/delete controls.
+- Added a versioned optional route in StagePlan with target-ID references and explicit reload choices. Existing SQLite payloads remain compatible; saves, reopening, duplication and unsaved-edit protection include routes. Reset clears route/engagements and retains loadout.
+- Added derived movement distances, magazine/chamber simulation and warnings for shortages, missing targets/magazines, reused magazines, unassigned targets and missing planned rounds. Target counts reuse StagePlan.engagements; no shot-count defaults are invented.
+- Added profile-based movement/draw/split/transition/reload timing, clearly provisional for incomplete plans. Straight-line movement and reloads are additive; reloads occur before engagement and discarded magazines cannot be reused. No automatic route generation or line-of-sight solver.
+- Route payload validation protects saved copies. Selected overlapping route markers render above other markers; new default position labels avoid duplicates after deletion.
+- Validation: all 95 tests pass (83 existing plus 12 route/persistence tests); TypeScript passes. Native-device interaction remains pending.
+
 ### Prototype 2 Phase 1 - 2026-09-17
 
 - Home now opens a stack-based Expo Router flow to Stage Planner, Saved Stages, Stage Builder, Training and Account.

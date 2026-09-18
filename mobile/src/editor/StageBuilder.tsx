@@ -11,6 +11,10 @@ import AddMenu from './AddMenu';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
+import RoutePanel from '@/planning/RoutePanel';
+import { createRoute } from '@/planning/route';
+import type { StageRoute } from '@/planning/route';
+import type { ShooterPerformanceProfile } from '@/profile/model';
 import { createPlan, reconcilePlan } from '@/planning/model';
 import Stage25D from '@/editor/Stage25D';
 import StageViewport from '@/editor/StageViewport';
@@ -31,6 +35,16 @@ import { editObject } from '@/stage/operations';
 export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const repo = useRepository(), navigation = useNavigation();
   const [plan, setPlan] = useState(() => initial?.plan ?? createPlan());
+  const [routeMode, setRouteMode] = useState(false);
+  const [positionId, setPositionId] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
+  const [profileError, setProfileError] = useState('');
+  useEffect(() => { let active = true; repo.loadProfile().then(p => { if (active) setProfile(p.performance); }).catch(e => { if (active) setProfileError(String(e)); }); return () => { active = false; }; }, [repo]);
+  const changeRoute = (route: StageRoute) => setPlan(current => ({ ...current, route }));
+  const enterRoute = () => {
+    if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
+    setRouteMode(true); setViewMode('topDown');
+  };
   const [showPlanning, setShowPlanning] = useState(false);
   const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
   const [stage, setStage] = useState<StageDocument>(() => initial?.document ?? createDefaultStage());
@@ -70,7 +84,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
 
   const act = (action: ObjectAction) => {
     const result = applyObjectAction(stage, selectedId, action, uuid.v4);
-    setPlan(current => action.kind === 'reset' ? { ...current, engagements: {} } : reconcilePlan(current, result.stage));
+    setPlan(current => action.kind === 'reset' ? { ...current, engagements: {}, route: undefined } : reconcilePlan(current, result.stage));
     setStage(result.stage);
     setSelectedId(result.selectedId);
     setEditError(result.error ?? '');
@@ -107,19 +121,28 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
       <TextInput accessibilityLabel="Stage name" style={ui.input} value={name} maxLength={100} onChangeText={setName} />
       <View style={styles.controls}><Button title={saving ? 'Saving...' : 'Save'} disabled={saving || dragging} onPress={() => void save()} /><Button title="Close" disabled={saving || dragging} onPress={() => navigation.canGoBack() ? router.back() : router.replace('/planner')} /></View>
       <Text style={styles.status}>{dirty ? 'UNSAVED CHANGES' : 'SAVED'}{saveMessage ? ' / ' + saveMessage : ''}</Text>
-      <Text style={styles.status}>{stage.stage.width / 12} x {stage.stage.depth / 12} FT | {viewMode === 'topDown' ? Math.round(viewport.zoom * 100) + '% | GRID 12/6 IN | SNAP ' + (snapping.enabled ? snapping.gridIncrement + ' IN' : 'OFF') : 'SPATIAL PREVIEW'}</Text>
+      <Text style={styles.status}>{stage.stage.width / 12} x {stage.stage.depth / 12} FT | {viewMode === 'topDown' ? Math.round(viewport.zoom * 100) + '% | GRID 12/6 IN | ' + (routeMode ? 'ROUTE / FREE DRAG' : 'SNAP ' + (snapping.enabled ? snapping.gridIncrement + ' IN' : 'OFF')) : 'SPATIAL PREVIEW'}</Text>
+      <View style={styles.controls}>
+        <Button title="Stage editing" disabled={dragging || !routeMode} onPress={() => setRouteMode(false)} />
+        <Button title="Route planning" disabled={dragging || routeMode} onPress={enterRoute} />
+      </View>
       <View style={styles.controls}>
         <Button title="TOP DOWN" disabled={dragging || viewMode === 'topDown'} onPress={() => setViewMode('topDown')} />
-        <Button title="2.5D" disabled={dragging || viewMode === '25d'} onPress={() => setViewMode('25d')} />
+        <Button title="2.5D" disabled={dragging || viewMode === '25d' || routeMode} onPress={() => setViewMode('25d')} />
         {viewMode === 'topDown' && <>
         <Button title="Zoom -" disabled={viewport.zoom <= MIN_ZOOM || dragging} onPress={() => zoom(1 / 1.25)} />
         <Button title="Zoom +" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
         </>}
       </View>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> : <>
-      <Button title="+ ADD" disabled={dragging} onPress={() => setShowAdd(true)} />
+      {!routeMode && <Button title="+ ADD" disabled={dragging} onPress={() => setShowAdd(true)} />}
       <StageViewport stage={stage} viewport={viewport} selectedId={selectedId} snapping={snapping}
+        routePlanning={routeMode && plan.route ? { route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging: setDragging } : undefined}
         onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />
+      {routeMode && plan.route ? <>
+        {!!profileError && <Text>{profileError}</Text>}
+        <RoutePanel stage={stage} plan={plan} route={plan.route} profile={profile} selectedId={positionId} select={setPositionId} onChange={changeRoute} />
+      </> : <>
       <Text style={styles.status}>{selected ? objectLabel(selected.type).toUpperCase() + ' / ' + selected.rotation + ' DEG' : 'No object selected'}</Text>
       <Text style={styles.description}>FACE SYMBOLS / PHYSICAL SPAN LINES / PORT OPENINGS</Text>
       <SnapControls value={snapping} onChange={setSnapping} disabled={dragging} />
@@ -135,6 +158,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         <Button title="Reset Positions" disabled={dragging} onPress={() => act({ kind: 'reset' })} />
       </View>
       {selected && <ObjectInspector key={selected.id} item={selected} disabled={dragging} onApply={applyEdit} />}
+      </>}
       </>}
       <Button title={showPlanning ? "Hide Loadout / Planning" : "Loadout / Planning"} disabled={dragging} onPress={() => setShowPlanning(value => !value)} />
       {showPlanning && <PlanningPanel plan={plan} stage={stage} onChange={setPlan} />}

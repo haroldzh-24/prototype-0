@@ -1,8 +1,10 @@
 import type { StageDocument, StageObject } from '../stage/model';
+import type { StageRoute } from './route';
 
 export type Magazine = Readonly<{ id: string; label?: string; capacity: number; startingRounds: number }>;
-/** Shooter-specific initial conditions, not physical stage data or a runtime magazine simulation. */
+/** Shooter-specific loadout, target round counts and optional manual route; separate from physical geometry. */
 export type StagePlan = {
+  route?: StageRoute;
   loadout: { chamberLoaded: boolean; startingMagazineId: string | null; magazines: readonly Magazine[] };
   engagements: Readonly<Record<string, number>>;
 };

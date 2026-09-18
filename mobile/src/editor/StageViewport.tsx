@@ -7,8 +7,11 @@ import type { SnapSettings, SnapFeedback } from '@/stage/snapping';
 import DraggableObject from './DraggableObject';
 import StageGrid from './StageGrid';
 import SnapGuides from './SnapGuides';
+import RouteOverlay from './RouteOverlay';
+import type { RouteOverlayProps } from './RouteOverlay';
 
 type Props = {
+  routePlanning?: RouteOverlayProps;
   stage: StageDocument;
   viewport: ViewportState;
   snapping: SnapSettings;
@@ -35,10 +38,13 @@ export default function StageViewport(props: Props) {
             height: props.stage.stage.depth * transform.scale,
           }]} />
           <StageGrid stage={props.stage.stage} transform={transform} />
+          <View pointerEvents={props.routePlanning ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           {props.stage.objects.map((item) => <DraggableObject key={item.id}
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
             onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage} />)}
+          </View>
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
+          {props.routePlanning && <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />}
         </>}
       </View>
     </View>

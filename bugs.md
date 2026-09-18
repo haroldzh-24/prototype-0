@@ -2,6 +2,13 @@
 
 Use this file to document known defects from discovery through resolution.
 
+## Prototype 2 Phase 2 verification - 2026-09-18
+
+- Route geometry, assignment ownership, ammunition/reload/chamber simulation, missing references, profile timing, legacy saves and route persistence are covered by automated tests.
+- Native-device route dragging, overlapping marker selection and form interaction remain unverified; tracked in features.md.
+- Timing uses straight-line segments and additive profile estimates, with no collision/visibility solving or movement/reload overlap. Incomplete plans display warnings and provisional timing.
+- No newly confirmed runtime defect. No dated unresolved items are older than one month; undated older ideas cannot be aged reliably.
+
 ## Reset button intentionally disabled
 
 - **Description:** The Reset Positions button was intentionally broken for a class Git exercise.

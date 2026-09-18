@@ -1,5 +1,6 @@
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from '../planning/model';
+import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
 import { createLocalProfile } from '../profile/model';
@@ -43,9 +44,13 @@ export class Repository {
     const data = JSON.parse(payload);
     if (data.version !== 1 || data.document?.schemaVersion !== 7 || data.document?.coordinateSystem !== 'inches' || !Array.isArray(data.document.objects) || !data.plan?.loadout || !data.plan?.engagements)
       throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
+    if (data.plan.route !== undefined && !isStageRoute(data.plan.route)) throw new Error('Unsupported or damaged route data. The saved copy has not been changed.');
     return { ...summary, document: data.document, plan: data.plan };
   }
-  private payload(document: StageDocument, plan: StagePlan) { return JSON.stringify({ version: 1, document, plan }); }
+  private payload(document: StageDocument, plan: StagePlan) {
+    if (plan.route !== undefined && !isStageRoute(plan.route)) throw new Error('Invalid route data.');
+    return JSON.stringify({ version: 1, document, plan });
+  }
   async createStage(name: string, document: StageDocument, plan: StagePlan): Promise<string> {
     const id = this.newId(), now = new Date().toISOString();
     await this.db.runAsync('INSERT INTO stages (id, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?)', id, nameOf(name), now, now, this.payload(document, plan));

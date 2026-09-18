@@ -2,6 +2,12 @@
 
 Track features that are proposed or planned but not yet implemented.
 
+## Prototype 2 Phase 2 follow-up verification
+
+- **Recorded:** 2026-09-18
+- **Description:** Verify route marker dragging at different zooms, overlapping marker selection, route/edit mode switching, assignment/reorder/reload controls, and save/reopen on native devices. Manual route implementation is recorded in changelog.md.
+- **Status:** Planned
+
 ## Phase 3B-2 follow-up verification
 
 - **Recorded:** 2026-09-09
@@ -61,7 +67,7 @@ Track features that are proposed or planned but not yet implemented.
 ### Prototype 2 follow-up
 
 - **Recorded:** 2026-09-17
-- **Description:** Add training session recording/drills and profile calibration from results. Add Apple authentication and cloud sync in a later phase. Route planning remains deferred.
+- **Description:** Add training session recording/drills and profile calibration from results. Add Apple authentication and cloud sync in a later phase. Automatic route generation remains deferred; manual routes are implemented.
 - **Status:** Planned
 - SQLite save/load and stage management are complete; see `changelog.md`.
 
@@ -71,9 +77,10 @@ Track features that are proposed or planned but not yet implemented.
 - **Priority:** Medium
 - **Status:** Proposed
 
-### Movement paths
+### Route comparison
 
-- **Description:** Draw routes between shooting positions to compare stage plans.
+- **Recorded:** 2026-09-18
+- **Description:** Compare multiple manual route alternatives within a stage. One ordered manual route with movement segments is complete; see changelog.md.
 - **Priority:** Low
 - **Status:** Proposed
 
