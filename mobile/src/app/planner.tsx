@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { uuid } from 'expo-modules-core';
 import { Screen, Action, Copy } from '@/ui/kit';
 import RecentStages from '@/storage/RecentStages';
 import { useRepository } from '@/storage/StorageProvider';
 import { createPlan } from '@/planning/model';
-import { createRoute } from '@/planning/route';
 import { createDefaultStage } from '@/stage/defaults';
 
 export default function Planner() {
@@ -14,8 +12,7 @@ export default function Planner() {
 		if (creating) return;
 		setCreating(true); setError('');
 		try {
-			const plan = { ...createPlan(), route: createRoute('route-' + uuid.v4()) };
-			const id = await repo.createStage('Untitled stage', createDefaultStage(), plan);
+			const id = await repo.createStage('Untitled stage', createDefaultStage(), createPlan());
 			router.push({ pathname: '/builder', params: { id } });
 		} catch (cause) {
 			console.error('Unable to create new stage', cause);
