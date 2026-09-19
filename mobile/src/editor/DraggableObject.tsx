@@ -12,6 +12,13 @@ import { moveObject } from '@/stage/operations';
 import { resolveMovement } from '@/stage/snapping';
 import type { SnapFeedback, SnapSettings } from '@/stage/snapping';
 
+function dragDiagnostic(event: string, details?: unknown) {
+  console.log('[BuilderDiag]', new Date().toISOString(), event, details ?? '');
+}
+function dragDiagnosticError(event: string, error: unknown) {
+  console.error('[BuilderDiag]', new Date().toISOString(), event, error);
+}
+
 type ObjectProps = {
   onSelect: (id: string) => void;
   onDragging: (dragging: boolean) => void;
@@ -28,21 +35,24 @@ export default function DraggableObject(props: ObjectProps) {
   const [responder] = useState(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderGrant: () => {
-      const current = latest.current;
-      drag.current = { position: current.item.position, transform: current.transform };
-      current.onSelect(current.item.id);
-      current.onDragging(true);
-      current.onFeedback({ guides: [], gridAxes: [] });
+      try {
+        const current = latest.current;
+        drag.current = { position: current.item.position, transform: current.transform };
+        dragDiagnostic('object-drag-grant', { id: current.item.id, type: current.item.type });
+        current.onSelect(current.item.id); current.onDragging(true); current.onFeedback({ guides: [], gridAxes: [] });
+      } catch (error) { dragDiagnosticError('object-drag-grant-error', error); throw error; }
     },
     onPanResponderMove: (_, gesture) => {
-      const position = moveByViewportDelta(drag.current.position,
-        { x: gesture.dx, y: gesture.dy }, drag.current.transform);
-      const { item, setStage, stage, snapping, onFeedback } = latest.current;
-      const result = resolveMovement(stage, item.id, position, snapping);
-      setStage((current) => moveObject(current, item.id, result.position));
-      onFeedback(result);
+      try {
+        const position = moveByViewportDelta(drag.current.position, { x: gesture.dx, y: gesture.dy }, drag.current.transform);
+        const { item, setStage, stage, snapping, onFeedback } = latest.current;
+        const result = resolveMovement(stage, item.id, position, snapping);
+        dragDiagnostic('object-drag-move-state-update', { id: item.id, x: result.position.x, y: result.position.y });
+        setStage((current) => moveObject(current, item.id, result.position)); onFeedback(result);
+      } catch (error) { dragDiagnosticError('object-drag-move-error', error); throw error; }
     },
     onPanResponderRelease: () => {
+      dragDiagnostic('object-drag-release');
       latest.current.onDragging(false);
       latest.current.onFeedback({ guides: [], gridAxes: [] });
     },

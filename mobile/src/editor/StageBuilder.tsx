@@ -32,18 +32,50 @@ import { objectLabel } from '@/stage/model';
 import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
 
+function builderDiagnostic(event: string, details?: unknown) {
+  console.log('[BuilderDiag]', new Date().toISOString(), event, details ?? '');
+}
+function builderDiagnosticError(event: string, error: unknown) {
+  console.error('[BuilderDiag]', new Date().toISOString(), event, error);
+}
+type NativeErrorUtils = {
+  getGlobalHandler?: () => (error: Error, isFatal?: boolean) => void;
+  setGlobalHandler?: (handler: (error: Error, isFatal?: boolean) => void) => void;
+};
+
 export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const repo = useRepository(), navigation = useNavigation();
+  useEffect(() => {
+    builderDiagnostic('mount', { savedId: initial?.id, hasRoute: !!initial?.plan.route });
+    const errorUtils = (globalThis as typeof globalThis & { ErrorUtils?: NativeErrorUtils }).ErrorUtils;
+    const previous = errorUtils?.getGlobalHandler?.();
+    if (errorUtils?.setGlobalHandler && previous) {
+      errorUtils.setGlobalHandler((error, isFatal) => { builderDiagnosticError('global-error', { isFatal, message: error.message, stack: error.stack }); previous(error, isFatal); });
+    }
+    return () => { if (errorUtils?.setGlobalHandler && previous) errorUtils.setGlobalHandler(previous); builderDiagnostic('unmount'); };
+  }, [initial]);
   const [plan, setPlan] = useState(() => initial?.plan ?? createPlan());
   const [routeMode, setRouteMode] = useState(false);
   const [positionId, setPositionId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
   const [profileError, setProfileError] = useState('');
-  useEffect(() => { let active = true; repo.loadProfile().then(p => { if (active) setProfile(p.performance); }).catch(e => { if (active) setProfileError(String(e)); }); return () => { active = false; }; }, [repo]);
-  const changeRoute = (route: StageRoute) => setPlan(current => ({ ...current, route }));
+  useEffect(() => {
+    let active = true;
+    builderDiagnostic('profile-effect-start');
+    repo.loadProfile().then(p => { builderDiagnostic('profile-effect-success'); if (active) setProfile(p.performance); }).catch(e => { builderDiagnosticError('profile-effect-error', e); if (active) setProfileError(String(e)); });
+    return () => { active = false; builderDiagnostic('profile-effect-cleanup'); };
+  }, [repo]);
+  const changeRoute = (route: StageRoute) => {
+    builderDiagnostic('route-state-update', { id: route.id, positions: route.positions.length });
+    setPlan(current => ({ ...current, route }));
+  };
   const enterRoute = () => {
-    if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
-    setRouteMode(true); setViewMode('topDown');
+    builderDiagnostic('route-handler-start', { hasRoute: !!plan.route });
+    try {
+      if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
+      setRouteMode(true); setViewMode('topDown');
+      builderDiagnostic('route-handler-state-updates-complete');
+    } catch (error) { builderDiagnosticError('route-handler-error', error); throw error; }
   };
   const [showPlanning, setShowPlanning] = useState(false);
   const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
@@ -54,8 +86,11 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const [saving, setSaving] = useState(false), savingRef = useRef(false), [saveMessage, setSaveMessage] = useState('');
   const [showAdd, setShowAdd] = useState(false), [pendingExit, setPendingExit] = useState<NavigationAction | null>(null), [allowExit, setAllowExit] = useState(false);
   const dirty = snapshot !== savedSnapshot;
-  usePreventRemove((dirty || saving) && !allowExit, ({ data }) => setPendingExit(data.action));
-  useEffect(() => { if (allowExit && pendingExit) navigation.dispatch(pendingExit); }, [allowExit, pendingExit, navigation]);
+  useEffect(() => { builderDiagnostic('dirty-effect', { dirty, saving, stageObjects: stage.objects.length, hasRoute: !!plan.route }); }, [dirty, saving, stage, plan]);
+  useEffect(() => { builderDiagnostic('stage-effect', { objects: stage.objects.length }); }, [stage]);
+  useEffect(() => { builderDiagnostic('plan-effect', { hasRoute: !!plan.route, positions: plan.route?.positions.length ?? 0 }); }, [plan]);
+  usePreventRemove((dirty || saving) && !allowExit, ({ data }) => { builderDiagnostic('prevent-remove-handler'); setPendingExit(data.action); });
+  useEffect(() => { if (allowExit && pendingExit) { builderDiagnostic('navigation-dispatch-effect'); navigation.dispatch(pendingExit); } }, [allowExit, pendingExit, navigation]);
   useEffect(() => {
     if (typeof window === 'undefined' || !dirty) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
@@ -83,11 +118,14 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   }, [selectedId, selected]);
 
   const act = (action: ObjectAction) => {
-    const result = applyObjectAction(stage, selectedId, action, uuid.v4);
-    setPlan(current => action.kind === 'reset' ? { ...current, engagements: {}, route: undefined } : reconcilePlan(current, result.stage));
-    setStage(result.stage);
-    setSelectedId(result.selectedId);
-    setEditError(result.error ?? '');
+    builderDiagnostic('object-handler-start', { kind: action.kind, selectedId });
+    try {
+      const result = applyObjectAction(stage, selectedId, action, uuid.v4);
+      builderDiagnostic('object-handler-result', { kind: action.kind, objects: result.stage.objects.length, selectedId: result.selectedId, error: result.error });
+      setPlan(current => { const next = action.kind === 'reset' ? { ...current, engagements: {}, route: undefined } : reconcilePlan(current, result.stage); builderDiagnostic('object-plan-state-update', { hasRoute: !!next.route, engagements: Object.keys(next.engagements).length }); return next; });
+      builderDiagnostic('object-stage-state-update'); setStage(result.stage);
+      setSelectedId(result.selectedId); setEditError(result.error ?? '');
+    } catch (error) { builderDiagnosticError('object-handler-error', error); throw error; }
   };
   const applyEdit = (edit: ObjectEdit): string | null => {
     if (!selected) return 'Select an object first.';
