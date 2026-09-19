@@ -116,3 +116,17 @@ test('routes survive SQLite reopen and duplication while legacy plans remain unc
     assert.deepEqual((await connection.repo.loadStage(copyId)).plan.route, route);
   } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
 });
+test('new-stage payload creates native-safe defaults before builder navigation', async () => {
+  const { db, repo } = open();
+  try {
+    await repo.initialize();
+    const document = createDefaultStage();
+    const plan = { ...createPlan(), route: createRoute('route-native-safe') };
+    const id = await repo.createStage('Untitled stage', document, plan);
+    assert.match(id, /^[0-9a-f-]{36}$/i);
+    const saved = await repo.loadStage(id);
+    assert.equal(saved.document.schemaVersion, 7);
+    assert.deepEqual(saved.plan.route, plan.route);
+    assert.equal(JSON.stringify(saved.document).includes('undefined'), false);
+  } finally { db.close(); }
+});

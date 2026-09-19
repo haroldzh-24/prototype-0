@@ -4,6 +4,12 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### Native New Stage crash fix - 2026-09-19
+
+- New Stage now persists native-safe default StageDocument, StagePlan and route data before opening Builder.
+- SQLite/creation failures are logged and shown in Stage Planner instead of becoming unhandled React Native fatal exceptions.
+- Added a SQLite round-trip regression for the new-stage payload.
+
 ### Prototype 2 Phase 2 manual routes - 2026-09-18
 
 - Added Stage editing / Route planning modes in the existing builder, sharing the authoritative stage. Route markers hide in editing mode; existing object editing, ADD menu, snapping, preview and loadout remain available.

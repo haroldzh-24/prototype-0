@@ -1,4 +1,26 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { Screen, Action } from '@/ui/kit';
+import { uuid } from 'expo-modules-core';
+import { Screen, Action, Copy } from '@/ui/kit';
 import RecentStages from '@/storage/RecentStages';
-export default function Planner() { return <Screen title="STAGE PLANNER"><Action title="+ New Stage" onPress={() => router.push('/builder')} /><Action title="Saved Stages" onPress={() => router.push('/saved-stages')} /><RecentStages /></Screen>; }
+import { useRepository } from '@/storage/StorageProvider';
+import { createPlan } from '@/planning/model';
+import { createRoute } from '@/planning/route';
+import { createDefaultStage } from '@/stage/defaults';
+
+export default function Planner() {
+	const repo = useRepository(), [creating, setCreating] = useState(false), [error, setError] = useState('');
+	async function createNewStage() {
+		if (creating) return;
+		setCreating(true); setError('');
+		try {
+			const plan = { ...createPlan(), route: createRoute('route-' + uuid.v4()) };
+			const id = await repo.createStage('Untitled stage', createDefaultStage(), plan);
+			router.push({ pathname: '/builder', params: { id } });
+		} catch (cause) {
+			console.error('Unable to create new stage', cause);
+			setError(`Unable to create a new stage: ${String(cause)}`);
+		} finally { setCreating(false); }
+	}
+	return <Screen title="STAGE PLANNER"><Action title={creating ? 'Creating...' : '+ New Stage'} disabled={creating} onPress={() => void createNewStage()} />{!!error && <Copy>{error}</Copy>}<Action title="Saved Stages" onPress={() => router.push('/saved-stages')} /><RecentStages /></Screen>;
+}

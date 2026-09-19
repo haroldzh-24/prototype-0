@@ -9,6 +9,13 @@ Use this file to document known defects from discovery through resolution.
 - Timing uses straight-line segments and additive profile estimates, with no collision/visibility solving or movement/reload overlap. Incomplete plans display warnings and provisional timing.
 - No newly confirmed runtime defect. No dated unresolved items are older than one month; undated older ideas cannot be aged reliably.
 
+## TestFlight New Stage crash - 2026-09-19
+
+- **Description:** Tapping New Stage could allow a native creation/navigation failure to become an uncaught React Native fatal exception.
+- **Evidence:** The release crash reached `RCTFatal`; browser smoke tests did not exercise native SQLite creation and the planner navigated before awaiting creation.
+- **Fix:** New Stage now creates UUID-backed default document/plan/route data through the repository, awaits persistence before navigation, and displays/logs failures.
+- **Status:** Fixed
+
 ## Reset button intentionally disabled
 
 - **Description:** The Reset Positions button was intentionally broken for a class Git exercise.
