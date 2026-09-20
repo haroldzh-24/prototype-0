@@ -7,10 +7,6 @@ import type { StageRoute, ShootingPosition } from '../planning/route';
 import { movePosition } from '../planning/route';
 import { isEngageable } from '../planning/model';
 
-function routeDragDiagnostic(event: string, details?: unknown) {
-  console.log('[BuilderDiag]', new Date().toISOString(), event, details ?? '');
-}
-
 export type RouteOverlayProps = { route: StageRoute; selectedId: string | null; onSelect: (id: string) => void; onChange: (route: StageRoute) => void; onDragging: (value: boolean) => void };
 export default function RouteOverlay(props: RouteOverlayProps & { stage: StageDocument; transform: ViewportTransform }) {
   const { stage, transform, route } = props;
@@ -34,9 +30,9 @@ function Marker(props: { position: ShootingPosition; index: number; transform: V
   const drag = useRef({ position: props.position.position, transform: props.transform });
   const [responder] = useState(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { const p = latest.current; routeDragDiagnostic('route-drag-grant', { id: p.position.id }); drag.current = { position: p.position.position, transform: p.transform }; p.select(); p.onDragging(true); },
-    onPanResponderMove: (_, gesture) => { const p = latest.current; const position = moveByViewportDelta(drag.current.position, { x: gesture.dx, y: gesture.dy }, drag.current.transform); routeDragDiagnostic('route-drag-move-state-update', { id: p.position.id, x: position.x, y: position.y }); p.move(position); },
-    onPanResponderRelease: () => { routeDragDiagnostic('route-drag-release'); latest.current.onDragging(false); }, onPanResponderTerminate: () => { routeDragDiagnostic('route-drag-terminate'); latest.current.onDragging(false); },
+    onPanResponderGrant: () => { const p = latest.current; drag.current = { position: p.position.position, transform: p.transform }; p.select(); p.onDragging(true); },
+    onPanResponderMove: (_, gesture) => latest.current.move(moveByViewportDelta(drag.current.position, { x: gesture.dx, y: gesture.dy }, drag.current.transform)),
+    onPanResponderRelease: () => latest.current.onDragging(false), onPanResponderTerminate: () => latest.current.onDragging(false),
   }));
   const center = stageToViewport(props.position.position, props.transform);
   return <View {...responder.panHandlers} accessible accessibilityRole="button" accessibilityState={{ selected: props.selected }} accessibilityLabel={`Shooting position ${props.index + 1}: ${props.position.label}`} onAccessibilityTap={props.select} style={{ position: 'absolute', zIndex: props.selected ? 2 : 1, left: center.x - 22, top: center.y - 22, width: 44, height: 44, borderRadius: 22, borderWidth: props.selected ? 3 : 1, borderColor: '#d0b368', backgroundColor: '#252e27', justifyContent: 'center', alignItems: 'center' }}><Text numberOfLines={2} style={{ color: '#e1e5db', fontSize: 11 }}>{props.index + 1}: {props.position.label}</Text></View>;

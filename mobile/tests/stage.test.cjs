@@ -9,6 +9,7 @@ require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule
 ).outputText, file);
 const C = require('../src/stage/coordinates.ts');
 const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
+const { shouldInstallBeforeUnload } = require('../src/editor/browserGuards.ts');
 const { normalizeRotation, constrainPosition } = require('../src/stage/geometry.ts');
 const { createObjectId } = require('../src/stage/ids.ts');
 const { addObject, removeLastObject, moveObject, rotateObject } = require('../src/stage/operations.ts');
@@ -90,6 +91,12 @@ test('default/reset factories are independent and all defaults fit',()=>{
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
   a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
+});
+test('beforeunload protection is web-only even when window exists on native',()=>{
+  assert.equal(shouldInstallBeforeUnload('ios', true), false);
+  assert.equal(shouldInstallBeforeUnload('android', true), false);
+  assert.equal(shouldInstallBeforeUnload('web', false), false);
+  assert.equal(shouldInstallBeforeUnload('web', true), true);
 });
 test('movement updates only the requested ID without mutating input',()=>{
   const stage=createDefaultStage(); const before=structuredClone(stage);
