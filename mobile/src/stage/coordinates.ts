@@ -11,6 +11,13 @@ export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
+export function fitStageViewport(stage: StageSize, viewport: { width: number; height: number }): ViewportState {
+  if (!Number.isFinite(stage.width) || !Number.isFinite(stage.depth) || !Number.isFinite(viewport.width) || !Number.isFinite(viewport.height)) {
+    return { zoom: 1, pan: { x: 0, y: 0 } };
+  }
+  return { zoom: 1, pan: { x: 0, y: 0 } };
+}
+
 /** Fit and center the stage, then zoom about viewport center. Pan is in layout units. */
 export function createViewportTransform(
   stage: StageSize,

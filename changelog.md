@@ -4,6 +4,12 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 
 ## Unreleased
 
+### New Stage Builder mount crash fix - 2026-09-19
+
+- Binary-searching the native Builder mount isolated the regression to the eager route-bearing default plan used only by New Stage.
+- New stages now start with the normal route-optional StagePlan; route IDs are allocated only when Route Planning is entered.
+- Validation: TypeScript, all 96 tests, and the production iOS export pass.
+
 ### Native New Stage crash fix - 2026-09-19
 
 - New Stage now persists native-safe default StageDocument, StagePlan and route data before opening Builder.

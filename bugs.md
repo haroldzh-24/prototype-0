@@ -11,9 +11,9 @@ Use this file to document known defects from discovery through resolution.
 
 ## TestFlight New Stage crash - 2026-09-19
 
-- **Description:** Tapping New Stage could allow a native creation/navigation failure to become an uncaught React Native fatal exception.
-- **Evidence:** The release crash reached `RCTFatal`; browser smoke tests did not exercise native SQLite creation and the planner navigated before awaiting creation.
-- **Fix:** New Stage now creates UUID-backed default document/plan/route data through the repository, awaits persistence before navigation, and displays/logs failures.
+- **Description:** Tapping New Stage crashed while mounting Builder after successful persistence and navigation.
+- **Evidence:** Binary-searching Builder showed the minimal native render path was safe. New Stage was the only path creating and persisting an empty route before Builder mount; route planning already creates that route lazily when entered.
+- **Fix:** New Stage now persists the default StagePlan without a route. Route creation remains lazy in the explicit Route Planning action; creation errors remain logged and visible.
 - **Status:** Fixed
 
 ## Reset button intentionally disabled

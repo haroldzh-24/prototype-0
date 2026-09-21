@@ -38,6 +38,14 @@ test('zoom centers the stage and pan adds viewport offsets',()=>{
   assert.deepEqual(t,{scale:4,offsetX:-455,offsetY:-330});
   assert.deepEqual(C.stageToViewport({space:'stage',x:240,y:180,z:0},t),{space:'viewport',x:505,y:390});
 });
+test('fit viewport derives a valid zoom and keeps stage coordinates unchanged',()=>{
+  const fit=C.fitStageViewport(size,{width:920,height:480});
+  assert.equal(fit.zoom,1);
+  assert.deepEqual(fit.pan,{x:0,y:0});
+  const t=C.createViewportTransform(size,{width:920,height:480},fit);
+  assert.equal(t.scale,4/3);
+  assert.deepEqual(C.viewportToStage(C.stageToViewport({space:'stage',x:120,y:90,z:48},t),t,48),{space:'stage',x:120,y:90,z:48});
+});
 test('gesture distance converts to physical distance at different zooms without changing Z',()=>{
   for(const zoom of [0.5,1,2,3]) {
     const t=transform(zoom,{x:31,y:12});
