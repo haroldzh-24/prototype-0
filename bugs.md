@@ -1,5 +1,11 @@
 # Bug Tracker
 
+## Route-planner foundation verification - 2026-09-21
+
+- No new defect identified. TypeScript and all 115 tests pass, including five focused planner helper tests.
+- Generation and preference enforcement are deliberately deferred features, tracked in features.md. Existing route evaluator, manual route UI and persistence remain unchanged.
+- No dated unresolved item is older than one month; undated legacy ideas cannot be aged reliably.
+
 ## Batch magazine verification - 2026-09-21
 
 - Missing batch magazine setup is implemented; see changelog.md. Invalid counts, over-capacity rounds, total overflow and duplicate IDs reject the entire batch without changing the current loadout.

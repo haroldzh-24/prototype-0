@@ -1,5 +1,12 @@
 # Planned Features
 
+## Automatic route optimizer follow-up - 2026-09-21
+
+- **Status:** Planned. Typed foundation is complete; see changelog.md.
+- Implement candidate generation, visibility/collision feasibility and explicit style scoring policies. Define backward-movement limits and conservative/balanced/aggressive reload thresholds before enforcing them.
+- Add personalized scoring from ShooterPerformanceProfile and expand distance-only difficulty with target type, partial geometry, transition angle and visibility difficulty. Keep existing route evaluation authoritative for ammunition and timing.
+- Planner UI, persistence and automatic application of routes remain deferred.
+
 ## Batch magazine device verification
 
 - **Recorded:** 2026-09-21

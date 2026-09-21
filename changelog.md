@@ -1,5 +1,12 @@
 # Changelog
 
+## Automatic route-planner foundation - 2026-09-21
+
+- Added typed route styles, backward movement preferences, reload strategies, configuration, candidates, evaluated/ranked results and warnings without changing StageDocument, StagePlan, saved routes or UI.
+- Separated generation (explicit not-implemented stub), evaluation (delegates all movement/ammunition/timing to evaluateRoute) and ranking (stable pure helper with an explicit caller-supplied policy and optional exclusion). No automatic routes or default optimizer weights are implemented.
+- Added independent distance-only shooting difficulty: ground-plane inches to target reference, one dimensionless point per yard, reported per unique scoring-target engagement. It does not alter shooting time; geometry/profile extensions remain planned.
+- Validation: TypeScript once and test suite once; all 115 tests pass, including five new pure planner tests. No browser automation, exports, commit or push.
+
 ## Batch magazine editor - 2026-09-21
 
 - Added Plan / Loadout > Batch Magazine Editor with quantity (1-100), capacity, loaded rounds and optional first-new-magazine insertion. Appends ordinary UUID-backed magazines using existing validation and designation; existing magazines and the separate chamber setting remain intact.
