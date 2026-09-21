@@ -1,6 +1,42 @@
 # Bug Tracker
 
+## Batch magazine verification - 2026-09-21
+
+- Missing batch magazine setup is implemented; see changelog.md. Invalid counts, over-capacity rounds, total overflow and duplicate IDs reject the entire batch without changing the current loadout.
+- Physical iPhone form verification remains in features.md. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
+## Target assignment verification - 2026-09-21
+
+- Fixed deleted scoring targets leaving visible/engaged route references behind. Reconciliation now clears those references alongside planned rounds; completed fix is recorded in changelog.md.
+- Automated checks: TypeScript and 107 tests pass, including assignment ownership, batch overrides, invalid inputs and SQLite reopen.
+- Physical iPhone assignment gestures remain unverified and are tracked in features.md.
+- No dated unresolved item exceeds one month as of 2026-09-21; undated legacy ideas cannot be aged reliably.
+
 Use this file to document known defects from discovery through resolution.
+
+## Visual refinement verification - 2026-09-21
+
+- Reduced the reported heavy/dated presentation: shared neutral surfaces, less border nesting, smaller typography and compact navigation-style tools. Completed changes are in changelog.md.
+- Protected model/storage/viewport files and existing UI event callbacks were compared against the pre-refinement source and remain unchanged. No new functional defect identified in the automated checks.
+- Physical iPhone visual verification remains in features.md. The previously logged web storage teardown issue remains open; this styling pass does not change SQLite.
+- No dated unresolved item exceeds one month as of 2026-09-21; undated legacy ideas cannot be aged reliably.
+
+## Builder accidental swipe-back - 2026-09-21
+
+- User reported left-edge canvas gestures triggering native back navigation. The completed route-option fix is recorded in changelog.md.
+- Physical iPhone confirmation remains tracked in features.md; editor gesture handlers and other routes are unchanged.
+
+## Web storage teardown log - 2026-09-21
+
+- **Observed:** The Expo development server logged SharedArrayBuffer is not defined from StorageProvider.tsx's db.closeSync() pagehide callback during browser verification/navigation. The final full browser smoke completed successfully without uncaught CDP exceptions.
+- **Status:** Investigating; reproducibility and cross-origin-isolation state at teardown are not yet established. No storage or SQLite code was changed in this UI iteration. This log does not establish an iOS failure.
+- **Follow-up:** Reproduce web navigation/reload/close against both development and production hosting with cross-origin-isolation headers, then inspect synchronous SQLite teardown behavior.
+
+## Canvas-first editor verification - 2026-09-21
+
+- Removed the builder's scrolling ancestor; only modal forms scroll. Object/route responders own one finger and yield only for a two-finger viewport gesture. The context strip overlays the canvas so selection cannot resize it mid-drag.
+- Implemented fixes are recorded in changelog.md. Native gesture behavior still requires physical iPhone verification, tracked in features.md; browser touch emulation cannot certify UIKit behavior.
+- No dated unresolved item is over one month old as of 2026-09-21. Undated legacy ideas cannot be aged reliably.
 
 ## Prototype 2 Phase 2 verification - 2026-09-18
 

@@ -1,7 +1,7 @@
 import type { StagePosition, StageSize } from '../stage/coordinates';
 import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
-import { isEngageable } from './model';
+import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
 
 export type ShootingPosition = {
@@ -49,6 +49,18 @@ export function engageAt(route: StageRoute, positionId: string, targetId: string
   })) };
 }
 
+export type TargetAssignmentMode = 'visible' | 'engaged';
+export function toggleRouteTarget(route: StageRoute, stage: StageDocument, positionId: string, targetId: string, mode: TargetAssignmentMode): StageRoute {
+  const selected = route.positions.find(p => p.id === positionId);
+  if (!selected || !stage.objects.some(o => o.id === targetId && isEngageable(o))) return route;
+  if (mode === 'engaged' && !selected.engagedTargetIds.includes(targetId)) return engageAt(route, positionId, targetId);
+  return { ...route, positions: route.positions.map(p => p.id !== positionId ? p : {
+    ...p,
+    visibleTargetIds: mode === 'visible' ? (p.visibleTargetIds.includes(targetId) ? p.visibleTargetIds.filter(id => id !== targetId) : [...p.visibleTargetIds, targetId]) : p.visibleTargetIds,
+    engagedTargetIds: p.engagedTargetIds.filter(id => id !== targetId),
+  }) };
+}
+
 /** Derived on every edit/load; cached ammo or timings would become stale when geometry/profile changes. */
 export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: StageRoute, profile: ShooterPerformanceProfile | null): RouteEvaluation {
   const warnings: string[] = [], segments: MovementSegment[] = [], ammo: AmmoState[] = [];
@@ -89,11 +101,11 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     let required = 0, count = 0;
     for (const id of p.engagedTargetIds) {
       if (!targets.has(id)) continue;
-      if (engaged.has(id)) { warnings.push(`${p.label}: target ${id} is engaged more than once.`); continue; }
+      if (engaged.has(id)) { warnings.push(`${p.label}: ${targetLabel(stage, id)} is engaged more than once.`); continue; }
       engaged.add(id);
-      if (!p.visibleTargetIds.includes(id)) warnings.push(`${p.label}: engaged target ${id} is not marked visible.`);
+      if (!p.visibleTargetIds.includes(id)) warnings.push(`${p.label}: engaged ${targetLabel(stage, id)} is not marked visible.`);
       const rounds = plan.engagements[id];
-      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for target ${id} in Loadout / Planning.`); continue; }
+      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for ${targetLabel(stage, id)} in Loadout / Planning.`); continue; }
       required += rounds; splits += rounds - 1; count++;
     }
     targetCount += count; transitions += Math.max(0, count - 1);
@@ -106,7 +118,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     if (magazineId) magazines.set(magazineId, remaining - chamber);
     ammo.push({ positionId: p.id, required, available, remaining, magazineId, sufficient });
   }
-  for (const id of targets.keys()) if (!engaged.has(id)) warnings.push(`Target ${id} has no route engagement.`);
+  for (const id of targets.keys()) if (!engaged.has(id)) warnings.push(`${targetLabel(stage, id)} has no route engagement.`);
   const distance = segments.reduce((n, s) => n + s.distance, 0);
   const timing = validProfile ? { movement: distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
     splits: splits * profile.averageSplitTime, transitions: transitions * profile.transitionTime,

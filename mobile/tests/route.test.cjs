@@ -64,13 +64,15 @@ test('visibility may overlap while intended engagement moves atomically', () => 
   assert.ok(route.positions[1].engagedTargetIds.includes(f.targets[0].id));
   assert.equal(f.route.positions[0].engagedTargetIds.length, 1);
 });
-test('deleted target warnings survive existing plan reconciliation and consume no rounds', () => {
+test('deleted targets reconcile rounds and route references; raw stale routes still warn', () => {
   const f = fixture(); f.plan.route = f.route;
   f.stage.objects = f.stage.objects.filter(o => o.id !== f.targets[0].id);
   const plan = reconcilePlan(f.plan, f.stage), result = evaluateRoute(f.stage, plan, plan.route, f.profile);
   assert.equal(result.ammo[0].required, 0);
-  assert.ok(result.warnings.some(w => w.includes('deleted or non-shootable')));
-  assert.equal(plan.route, f.route);
+  assert.ok(evaluateRoute(f.stage, plan, f.route, f.profile).warnings.some(w => w.includes('deleted or non-shootable')));
+  assert.deepEqual(plan.route.positions[0].visibleTargetIds, []);
+  assert.deepEqual(plan.route.positions[0].engagedTargetIds, []);
+  assert.equal(plan.engagements[f.targets[0].id], undefined);
 });
 test('missing round counts and unengaged targets warn instead of assuming defaults', () => {
   const f = fixture(); delete f.plan.engagements[f.targets[0].id];
@@ -94,4 +96,40 @@ test('invalid profile disables timing without hiding ammunition and geometry', (
     const result = evaluateRoute(f.stage, f.plan, f.route, profile);
     assert.equal(result.timing, null); assert.equal(result.distance, 96); assert.equal(result.ammo.length, 2);
   }
+});
+
+const { assignRoundsByType, assignRounds, targetLabel } = require('../src/planning/model.ts');
+const { toggleRouteTarget } = require('../src/planning/route.ts');
+test('mass rounds are atomic, scoring-only, and allow independent overrides', () => {
+  const f = fixture(), original = JSON.stringify(f.stage);
+  const batch = assignRoundsByType(f.plan, f.stage, 'cardboardTarget', 2).plan;
+  const cards = f.stage.objects.filter(o => o.type === 'cardboardTarget');
+  assert.ok(cards.length > 1);
+  for (const t of cards) assert.equal(batch.engagements[t.id], 2);
+  const override = assignRounds(batch, f.stage, cards[0].id, 3).plan;
+  assert.equal(override.engagements[cards[0].id], 3);
+  assert.equal(override.engagements[cards[1].id], 2);
+  for (const invalid of [-1, 1.5, NaN, Number.MAX_SAFE_INTEGER]) assert.equal(assignRoundsByType(f.plan, f.stage, 'cardboardTarget', invalid).plan, f.plan);
+  assert.equal(assignRoundsByType(f.plan, f.stage, 'noShootTarget', 2).plan, f.plan);
+  assert.equal(JSON.stringify(f.stage), original);
+  assert.equal(targetLabel(f.stage, cards[0].id), 'Cardboard 1');
+  assert.equal(targetLabel(f.stage, cards[1].id), 'Cardboard 2');
+});
+test('canvas toggles preserve visibility, engagement ownership, and physical positions', () => {
+  const f = fixture(), id = f.targets[0].id;
+  const moved = toggleRouteTarget(f.route, f.stage, 'B', id, 'engaged');
+  assert.equal(moved.positions[0].engagedTargetIds.includes(id), false);
+  assert.equal(moved.positions[0].visibleTargetIds.includes(id), true);
+  assert.equal(moved.positions[1].visibleTargetIds.includes(id), true);
+  const cleared = toggleRouteTarget(moved, f.stage, 'B', id, 'engaged');
+  assert.equal(cleared.positions[1].engagedTargetIds.includes(id), false);
+  assert.equal(cleared.positions[1].visibleTargetIds.includes(id), true);
+  const hidden = toggleRouteTarget(moved, f.stage, 'B', id, 'visible');
+  assert.equal(hidden.positions[1].engagedTargetIds.includes(id), false);
+  assert.equal(hidden.positions[1].visibleTargetIds.includes(id), false);
+  assert.equal(toggleRouteTarget(hidden, f.stage, 'B', id, 'visible').positions[1].visibleTargetIds.includes(id), true);
+  for (const targetId of ['missing', f.stage.objects.find(o => o.type === 'start').id]) assert.equal(toggleRouteTarget(f.route, f.stage, 'A', targetId, 'engaged'), f.route);
+  assert.equal(toggleRouteTarget(f.route, f.stage, 'missing', id, 'visible'), f.route);
+  assert.deepEqual(moved.positions.map(p => p.position), f.route.positions.map(p => p.position));
+  assert.equal(evaluateRoute(f.stage, f.plan, moved, f.profile).distance, evaluateRoute(f.stage, f.plan, f.route, f.profile).distance);
 });

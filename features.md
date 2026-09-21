@@ -1,6 +1,30 @@
 # Planned Features
 
+## Batch magazine device verification
+
+- **Recorded:** 2026-09-21
+- **Description:** Verify Plan / Loadout batch numeric fields and keyboard, inserted-magazine switch, append confirmation, individual edits and native save/reopen on iPhone.
+- **Status:** Planned. Batch setup implementation is complete; see changelog.md.
+
+## Target assignment device verification
+
+- **Recorded:** 2026-09-21
+- **Description:** On physical iPhone, check Route > Targets > Visible/Engaged, repeated target taps, overlapping targets, dragging beyond tap tolerance, pinch handoff, empty-stage pan, Done and normal object dragging afterward. Check selected-position arrows at different zooms/pans and after object moves/rotation, mass rounds followed by individual override, and native save/reopen.
+- **Status:** Planned. Target-assignment implementation is complete and recorded in changelog.md.
+
 Track features that are proposed or planned but not yet implemented.
+
+## Companion-app visual verification
+
+- **Recorded:** 2026-09-21
+- **Description:** Check the new typography, compact tool icons, cyan focus states, metric rows and flat sheets on physical iPhone with larger text, landscape and keyboard visible. Compare against the companion-app reference image if supplied later; only the written visual brief was attached.
+- **Status:** Planned. Completed visual changes are recorded in changelog.md.
+
+## Builder swipe-back fix device verification
+
+- **Recorded:** 2026-09-21
+- **Description:** On iPhone, confirm Builder left-edge and full-screen swipes never navigate back, including between drags. Verify object/route drag, pan, pinch, explicit Back save/discard/cancel protection, and swipe-back on other routes.
+- **Status:** Planned. Implementation is complete and recorded in changelog.md.
 
 ## Prototype 2 Phase 2 follow-up verification
 
@@ -50,13 +74,14 @@ Track features that are proposed or planned but not yet implemented.
 - **Description:** Verify magazine forms, starting-mag designation, chamber toggle and engagement assignments on device. Completed foundation is recorded in changelog.md.
 - **Status:** Planned
 
+## Canvas-first UI follow-up verification
+
+- **Recorded:** 2026-09-21
+- **Description:** Physically verify the new iPhone gestures: empty-stage pan, object/position drag, object-to-pinch handoff, lifting one pinch finger, 50-300% zoom, Fit, rotated/thin hit areas, landscape resizing, VoiceOver, safe areas, sheet keyboard/dismissal, and native back/swipe unsaved protection. Use the checklist in mobile/README.md.
+- **Status:** Planned. This Windows workspace cannot run a physical iPhone or iOS simulator; Hermes export is not device interaction verification.
+- Implemented UI and interactive panning are recorded in changelog.md.
+
 ## Future Ideas
-
-### Interactive viewport panning
-
-- **Recorded:** 2026-09-09
-- **Description:** Add background-drag panning with explicit object/scroll gesture arbitration. Pan offsets already work in the viewport model.
-- **Status:** Proposed
 
 ### Edit physical workspace dimensions
 

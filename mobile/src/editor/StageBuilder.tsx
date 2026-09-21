@@ -9,7 +9,7 @@ import type { SavedStage } from '@/storage/repository';
 import EditorSheet from './EditorSheet';
 import { fitViewport, zoomViewport } from './viewportGestures';
 import { RoundAssignment } from '@/planning/PlanningPanel';
-import { assignRounds, isEngageable } from '@/planning/model';
+import { assignRounds, isEngageable, targetLabel } from '@/planning/model';
 import ToolIcon from '../ui/ToolIcon';
 import type { ToolIconName } from '../ui/ToolIcon';
 import { colors, typography } from '../ui/tokens';
@@ -19,8 +19,8 @@ import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
 import RoutePanel from '@/planning/RoutePanel';
-import { createRoute } from '@/planning/route';
-import type { StageRoute } from '@/planning/route';
+import { createRoute, toggleRouteTarget } from '@/planning/route';
+import type { TargetAssignmentMode, StageRoute } from '@/planning/route';
 import type { ShooterPerformanceProfile } from '@/profile/model';
 import { createPlan, reconcilePlan } from '@/planning/model';
 import Stage25D from '@/editor/Stage25D';
@@ -42,7 +42,8 @@ import { editObject } from '@/stage/operations';
 
 export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const repo = useRepository(), navigation = useNavigation();
-  const [plan, setPlan] = useState(() => initial?.plan ?? createPlan());
+  const [plan, setPlan] = useState(() => initial ? reconcilePlan(initial.plan, initial.document) : createPlan());
+  const [assignmentMode, setAssignmentMode] = useState<TargetAssignmentMode | null>(null);
   const [routeMode, setRouteMode] = useState(false);
   const [positionId, setPositionId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
@@ -94,6 +95,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const [snapping, setSnapping] = useState<SnapSettings>({ ...DEFAULT_SNAPPING });
   const [editError, setEditError] = useState('');
   const [dragging, setDragging] = useState(false);
+  useEffect(() => { setAssignmentMode(null); }, [routeMode, positionId]);
   const selected = stage.objects.find((object) => object.id === selectedId);
   useEffect(() => {
     if (selectedId && !selected) setSelectedId(validSelection(stage, selectedId));
@@ -145,8 +147,19 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> :
         <StageViewport stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={gridVisible}
           selectedId={selectedId} snapping={snapping} routeEditing={routeMode}
-          routePlanning={(routeMode || routeVisible) && plan.route ? { route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging: setDragging } : undefined}
+          routePlanning={(routeMode || routeVisible) && plan.route ? { assignmentMode: routeMode ? assignmentMode : null, onTargetTap: id => {
+            if (!assignmentMode || !positionId) return;
+            setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
+          }, route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging: setDragging } : undefined}
           onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />}
+    {routeMode && assignmentMode && <View style={styles.context}>
+      <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label} / TAP TO TOGGLE {assignmentMode.toUpperCase()} TARGETS</Text>
+      <View style={styles.controls}>
+        <Button title="Visible targets" active={assignmentMode === 'visible'} onPress={() => setAssignmentMode('visible')} />
+        <Button title="Engaged targets" active={assignmentMode === 'engaged'} onPress={() => setAssignmentMode('engaged')} />
+        <Button title="Done" onPress={() => setAssignmentMode(null)} />
+      </View>
+    </View>}
     {selected && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
       <View style={styles.readout}><Text style={styles.status}>{objectLabel(selected.type).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
       <View style={styles.controls}>
@@ -175,7 +188,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
           changeRoute({ ...plan.route, positions: [...plan.route.positions, { id, label: 'P' + number, position: { space: 'stage', x: stage.stage.width / 2, y: stage.stage.depth / 2, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }] });
           setPositionId(id);
         }} />
-        <Button title="Assign" icon="targets" active={panel === 'assign'} displayTitle="Targets" label="Assign targets" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => setPanel('assign')} />
+        <Button title="Assign" icon="targets" active={panel === 'assign'} displayTitle="Targets" label="Assign targets" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => { setAssignmentMode(null); setPanel('assign'); }} />
         <Button title="Reload" icon="reload" active={panel === 'reload'} displayTitle="Reload" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => setPanel('reload')} />
         <Button title="Summary" icon="summary" active={panel === 'summary'} displayTitle="Summary" disabled={dragging} onPress={() => setPanel('summary')} />
         <Button title="Exit route" icon="exit" displayTitle="Exit" disabled={dragging} onPress={() => setRouteMode(false)} />
@@ -190,7 +203,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
     <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ edit: 'Edit', plan: 'Plan', view: 'View', snap: 'Grid & snap', summary: 'Route summary', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset positions' }[panel ?? 'edit'])} visible={panel !== null} close={() => setPanel(null)}>
       {panel === 'edit' && selected && <>
         <ObjectInspector key={selected.id} item={selected} disabled={false} onApply={applyEdit} />
-        {isEngageable(selected) && <RoundAssignment key={'rounds-' + selected.id} label={objectLabel(selected.type)} value={plan.engagements[selected.id] ?? 0} onSave={rounds => {
+        {isEngageable(selected) && <RoundAssignment key={'rounds-' + selected.id} label={targetLabel(stage, selected.id)} value={plan.engagements[selected.id] ?? 0} onSave={rounds => {
           const result = assignRounds(plan, stage, selected.id, rounds); setEditError(result.error ?? ''); if (!result.error) setPlan(result.plan);
         }} />}
         {!!editError && <Text style={styles.error}>{editError}</Text>}
@@ -214,7 +227,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
       {panel === 'snap' && <SnapControls value={snapping} onChange={setSnapping} disabled={false} />}
       {(panel === 'summary' || panel === 'assign' || panel === 'reload') && plan.route && <>
         {!!profileError && <Text>{profileError}</Text>}
-        <RoutePanel section={panel} stage={stage} plan={plan} route={plan.route} profile={profile} selectedId={positionId} select={setPositionId} onChange={changeRoute} />
+        <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={plan.route} profile={profile} selectedId={positionId} select={setPositionId} onChange={changeRoute} />
       </>}
       {(panel === 'delete' || panel === 'reset') && <>
         <Text>{panel === 'delete' ? 'Delete this object and its planning references?' : 'Restore the default stage? This also clears the route and target assignments.'}</Text>

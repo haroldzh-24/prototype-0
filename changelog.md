@@ -1,8 +1,52 @@
 # Changelog
 
+## Batch magazine editor - 2026-09-21
+
+- Added Plan / Loadout > Batch Magazine Editor with quantity (1-100), capacity, loaded rounds and optional first-new-magazine insertion. Appends ordinary UUID-backed magazines using existing validation and designation; existing magazines and the separate chamber setting remain intact.
+- Every magazine remains independently editable and uses existing persistence and ammunition simulation. Target/route implementation is unchanged.
+- Added focused atomic creation/validation and SQLite reopen tests, including independent overrides. Physical iPhone form verification remains in features.md.
+
+## Stage Planner target assignment and route editing - 2026-09-21
+
+- Added Plan > Targets > Mass Target Editor with scoring-type counts, round steppers and one-time Apply to All. No-shoots are excluded; existing individual round overrides remain independent.
+- Added Route > Targets > Visible/Engaged canvas modes with selected-target highlights, explicit Done, tap movement tolerance and pinch termination. Physical objects cannot drag during route assignment; empty-stage pan and viewport pinch remain available.
+- Added selected-position visibility arrows using the existing viewport transform, with muted cyan visibility and brighter engaged lines/filled endpoints. These overlays do not change geometry, route distance or evaluation.
+- Added per-type human labels (Cardboard 1, Steel 1, Popper 1) to canvas labels, target controls, route summaries and applicable warnings. Persistent IDs and the StagePlan/route storage format remain unchanged.
+- Fixed deleted-target reconciliation to remove visible/engaged route references as well as rounds; builder also reconciles stale references when reopening.
+- Validation: TypeScript and all 107 automated tests pass. Added focused batch/toggle and real SQLite reopen coverage; updated the deleted-reference regression to assert cleanup while retaining raw stale-route warning coverage. No browser automation; physical iPhone gestures remain a manual follow-up in features.md.
+
 Record completed features, changes, and bug fixes. Add new releases or updates above older entries.
 
 ## Unreleased
+
+### Companion-app visual refinement - 2026-09-21
+
+- Replaced sand-heavy chrome with shared near-black/neutral-gray surfaces, white/gray text, a restrained cyan accent and muted red destructive actions. Added shared typography, statistic and data-row presentation components.
+- Restyled the Builder top bar as a small Back chevron, dominant stage name and text Save action. Bottom tools now use original 22px line symbols and small normal-case labels on a single flat navigation surface; route tools use the same treatment.
+- Reduced enclosing borders, title sizes, uppercase navigation, letter spacing and nested-card padding. Inspectors, wall ports, snapping, View and planning sheets use flat sections and thin dividers. ADD uses quieter two-column silhouette tiles.
+- Presented existing route time/rounds/position counts, ammunition totals and profile values as large-number/small-label groups with aligned detail rows. No calculation, persistence, gesture, viewport, safe-area or navigation behavior changes. Builder swipe-back remains disabled.
+- Retained physical object/material colors and the existing 2.5D scene palette. The reference image was not included with the attachment; this pass follows the supplied written visual specification.
+- Validation: TypeScript and 104 existing tests pass. Final export and visual smoke results are recorded in mobile/README.md. No commit or push.
+
+
+### Builder-only iOS swipe-back fix - 2026-09-21
+
+- Disabled gestureEnabled and fullScreenGestureEnabled on the Builder Stack.Screen only. Removed the editor effect that re-enabled swipe-back whenever dragging stopped.
+- Kept the explicit Back button, usePreventRemove unsaved-change protection, all canvas gestures, and other routes' navigation options unchanged.
+- Validation: TypeScript and all 104 tests pass; physical iPhone left-edge verification remains pending.
+
+
+### Canvas-first mobile UI overhaul - 2026-09-21
+
+- Reorganized existing editor components without changing StageDocument, StagePlan, SQLite, stage operations, geometry, snapping, route evaluation, or shooter-profile models.
+- Added fixed safe-area Back/name/Save bar, flexible Top Down/2.5D canvas and Add/Edit/Route/Plan/View action bar. Charcoal panels, gray dividers, sand accents and original silhouette tiles replace the green-heavy editor chrome.
+- Added a selected-object action strip with Move guidance, Rotate, Edit, Duplicate, confirmed Delete and deselection. The strip does not resize the canvas and hides while dragging. Reset Positions and route-position deletion require confirmation.
+- Added dismissible, keyboard-aware slide-up inspectors and separate PLAN sections; target round assignments are also available in the selected target inspector. VIEW contains preview switching, grid/route visibility, Fit/reset viewport and Grid/Snap settings.
+- Route mode has its own position/assignment/reload/summary/exit actions. Route statistics and existing evaluation warnings stay in the summary panel; route overlays can remain visible but noninteractive during object editing.
+- Added viewport-only one-finger background panning and anchored two-finger pinch zoom (50-300%), zoom buttons, percentage and Fit. Finger-count changes rebase the gesture to prevent jumps. Drag conversion still uses physical inches through the existing inverse transform.
+- Removed the ScrollView ancestor of the canvas. Object and route-marker responders keep single-finger ownership and yield to a parent pinch; native back gestures disable during canvas interaction. Preserved usePreventRemove and the explicitly web-only beforeunload guard.
+- Validation: 104 tests pass (all 97 existing plus seven viewport regressions); TypeScript and iOS Hermes export pass. Phone-width browser smoke (including touch gesture handoff and route panels) and git diff --check pass; details are recorded in mobile/README.md. Physical iPhone verification remains pending. No commit or push.
+
 
 ### Native New Stage crash fix - 2026-09-19
 

@@ -130,3 +130,81 @@ test('new-stage payload creates native-safe defaults before builder navigation',
     assert.equal(JSON.stringify(saved.document).includes('undefined'), false);
   } finally { db.close(); }
 });
+
+test('mass rounds and direct assignments survive SQLite reopen, overrides and target deletion', async () => {
+  const { assignRoundsByType, assignRounds, reconcilePlan } = require('../src/planning/model.ts');
+  const { toggleRouteTarget } = require('../src/planning/route.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'target-assignment-'));
+  let connection = open(path.join(dir, 'data.db'));
+  try {
+    await connection.repo.initialize();
+    const { document, plan } = fixture();
+    let edited = assignRoundsByType(plan, document, 'cardboardTarget', 2).plan;
+    edited = assignRounds(edited, document, 'cardboardTarget', 3).plan;
+    const route = createRoute('assignment-route');
+    route.positions = [{ id: 'A', label: 'Position A', position: { space: 'stage', x: 50, y: 70, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }];
+    edited.route = toggleRouteTarget(route, document, 'A', 'cardboardTarget', 'engaged');
+    const id = await connection.repo.createStage('Assignments', document, edited);
+    connection.db.close(); connection = open(path.join(dir, 'data.db'));
+    await connection.repo.initialize();
+    assert.deepEqual((await connection.repo.loadStage(id)).plan, edited);
+    document.objects = document.objects.filter(o => o.id !== 'cardboardTarget');
+    edited = reconcilePlan(edited, document);
+    await connection.repo.saveStage(id, 'Assignments', document, edited);
+    const loaded = await connection.repo.loadStage(id);
+    assert.deepEqual(loaded.plan.route.positions[0].visibleTargetIds, []);
+    assert.deepEqual(loaded.plan.route.positions[0].engagedTargetIds, []);
+    assert.equal(loaded.plan.engagements.cardboardTarget, undefined);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
+});
+
+const { addMagazineBatch, saveMagazine, ammunitionSummary } = require('../src/planning/model.ts');
+test('magazine batches append unique independent magazines and preserve separate chamber setting', () => {
+  const { document, plan } = fixture();
+  const before = JSON.stringify(plan);
+  const added = addMagazineBatch(plan, 4, 17, 17, true, randomUUID).plan;
+  assert.equal(added.loadout.magazines.length, plan.loadout.magazines.length + 4);
+  assert.deepEqual(added.loadout.magazines[0], plan.loadout.magazines[0]);
+  const created = added.loadout.magazines.slice(1);
+  assert.equal(new Set(added.loadout.magazines.map(m => m.id)).size, 5);
+  assert.ok(created.every(m => m.capacity === 17 && m.startingRounds === 17));
+  assert.equal(added.loadout.startingMagazineId, created[0].id);
+  assert.equal(added.loadout.chamberLoaded, true);
+  assert.equal(ammunitionSummary(added, document).totalAvailable, 82);
+  const edited = saveMagazine(added, { ...created[0], capacity: 20, startingRounds: 10 }).plan;
+  assert.equal(edited.loadout.magazines[1].startingRounds, 10);
+  assert.equal(edited.loadout.magazines[2].startingRounds, 17);
+  assert.equal(JSON.stringify(plan), before);
+  const preserved = addMagazineBatch(plan, 2, 10, 0, false, randomUUID).plan;
+  assert.equal(preserved.loadout.startingMagazineId, plan.loadout.startingMagazineId);
+  const empty = addMagazineBatch(createPlan(), 1, 17, 0, false, randomUUID).plan;
+  assert.equal(empty.loadout.startingMagazineId, null);
+  assert.equal(empty.loadout.chamberLoaded, false);
+});
+test('invalid magazine batches and duplicate IDs reject atomically', () => {
+  const { plan } = fixture();
+  for (const [q, capacity, loaded] of [[0,17,17],[-1,17,17],[1.5,17,17],[101,17,17],[NaN,17,17],[2,0,0],[2,17,18],[2,17,-1],[2,17,1.5],[2,NaN,1],[2,17,NaN],[2,Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER]]) {
+    const result = addMagazineBatch(plan,q,capacity,loaded,true,randomUUID);
+    assert.ok(result.error); assert.equal(result.plan, plan);
+  }
+  const collision = addMagazineBatch(plan, 2, 17, 17, true, () => 'same');
+  assert.ok(collision.error); assert.equal(collision.plan, plan);
+});
+test('batch magazines, inserted designation and independent edits survive SQLite reopen', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'magazine-batch-'));
+  const file = path.join(dir, 'data.db');
+  let connection = open(file);
+  try {
+    await connection.repo.initialize();
+    const { document, plan } = fixture();
+    let added = addMagazineBatch(plan, 4, 17, 17, true, randomUUID).plan;
+    const magazine = added.loadout.magazines[2];
+    added = saveMagazine(added, { ...magazine, startingRounds: 12 }).plan;
+    const id = await connection.repo.createStage('Batch loadout', document, added);
+    connection.db.close(); connection = open(file);
+    await connection.repo.initialize();
+    const loaded = await connection.repo.loadStage(id);
+    assert.deepEqual(loaded.plan, added);
+    assert.equal(ammunitionSummary(loaded.plan, document).totalAvailable, 77);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
+});

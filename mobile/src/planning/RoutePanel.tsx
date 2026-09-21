@@ -3,15 +3,15 @@ import { TextInput, View } from 'react-native';
 import { useState } from 'react';
 import { Action, Copy, Panel, Stat, DataRow, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
-import { objectLabel } from '../stage/model';
+import { targetLabel } from './model';
 import type { ShooterPerformanceProfile } from '../profile/model';
 import { isEngageable } from './model';
 import type { StagePlan } from './model';
-import { engageAt, evaluateRoute, reorderPosition } from './route';
-import type { StageRoute } from './route';
+import { toggleRouteTarget, evaluateRoute, reorderPosition } from './route';
+import type { TargetAssignmentMode, StageRoute } from './route';
 
-type Props = { section?: 'summary' | 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; profile: ShooterPerformanceProfile | null; selectedId: string | null; select: (id: string) => void; onChange: (route: StageRoute) => void };
-export default function RoutePanel({ stage, plan, route, profile, selectedId, select, onChange, section = 'summary' }: Props) {
+type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section?: 'summary' | 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; profile: ShooterPerformanceProfile | null; selectedId: string | null; select: (id: string) => void; onChange: (route: StageRoute) => void };
+export default function RoutePanel({ stage, plan, route, profile, selectedId, select, onChange, onAssign, section = 'summary' }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const result = evaluateRoute(stage, plan, route, profile), selected = route.positions.find(p => p.id === selectedId);
   const targets = stage.objects.filter(isEngageable);
@@ -34,6 +34,7 @@ export default function RoutePanel({ stage, plan, route, profile, selectedId, se
       const state = result.ammo[index], segment = result.segments.find(s => s.toId === p.id);
       return <View key={p.id} style={{ gap: 6, borderTopWidth: 1, borderColor: colors.border, paddingTop: 12 }}>
         <Action title={`${index + 1}. ${p.label}${selectedId === p.id ? ' • selected' : ''}`} onPress={() => select(p.id)} />
+        <Copy>Visible: {p.visibleTargetIds.map(id => targetLabel(stage, id)).join(', ') || 'None'} / Engaged: {p.engagedTargetIds.map(id => targetLabel(stage, id)).join(', ') || 'None'}</Copy>
         <Copy>{segment ? `${(segment.distance / 12).toFixed(1)} ft movement | ` : ''}{state.available} available → {state.required} required → {state.remaining} remaining{state.sufficient ? '' : ' / INSUFFICIENT'}</Copy>
         <View style={{ flexDirection: 'row', gap: 6 }}><Action title="Earlier" disabled={index === 0} onPress={() => onChange(reorderPosition(route, p.id, -1))} /><Action title="Later" disabled={index === route.positions.length - 1} onPress={() => onChange(reorderPosition(route, p.id, 1))} /></View>
       </View>;
@@ -44,13 +45,14 @@ export default function RoutePanel({ stage, plan, route, profile, selectedId, se
       <TextInput accessibilityLabel="Position label" style={ui.input} value={selected.label} maxLength={30} onChangeText={label => updateSelected({ label })} />
       {section === 'assign' && <>
       <Copy>Mark visibility manually; “Engage here” moves the intended engagement to this position. Target rounds are edited in Loadout / Planning.</Copy>
-      {targets.map((t, index) => {
+      {onAssign && <View style={{ gap: 8 }}><Action title="Visible targets / tap on stage" onPress={() => onAssign('visible')} /><Action title="Engaged targets / tap on stage" onPress={() => onAssign('engaged')} /></View>}
+      {targets.map(t => {
         const visible = selected.visibleTargetIds.includes(t.id), here = selected.engagedTargetIds.includes(t.id);
         const owner = route.positions.find(p => p.engagedTargetIds.includes(t.id));
         return <View key={t.id} style={{ gap: 6 }}>
-          <Copy>Target {index + 1} / {objectLabel(t.type)} / {plan.engagements[t.id] ?? 0} rounds / Engage: {owner?.label ?? 'unassigned'}</Copy>
-          <Action title={visible ? 'Visible ✓ (remove)' : 'Mark visible'} onPress={() => updateSelected({ visibleTargetIds: visible ? selected.visibleTargetIds.filter(id => id !== t.id) : [...selected.visibleTargetIds, t.id], engagedTargetIds: visible ? selected.engagedTargetIds.filter(id => id !== t.id) : selected.engagedTargetIds })} />
-          <Action title={here ? 'Clear engagement' : 'Engage here'} onPress={() => here ? updateSelected({ engagedTargetIds: selected.engagedTargetIds.filter(id => id !== t.id) }) : onChange(engageAt(route, selected.id, t.id))} />
+          <Copy>{targetLabel(stage, t.id)} / {plan.engagements[t.id] ?? 0} rounds / Engage: {owner?.label ?? 'unassigned'}</Copy>
+          <Action title={visible ? 'Visible ✓ (remove)' : 'Mark visible'} onPress={() => onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'visible'))} />
+          <Action title={here ? 'Clear engagement' : 'Engage here'} onPress={() => onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'engaged'))} />
         </View>;
       })}
       {[...new Set([...selected.visibleTargetIds, ...selected.engagedTargetIds])].filter(id => !targets.some(t => t.id === id)).map(id => <Action key={id} title={`Remove missing target ${id}`} onPress={() => updateSelected({ visibleTargetIds: selected.visibleTargetIds.filter(t => t !== id), engagedTargetIds: selected.engagedTargetIds.filter(t => t !== id) })} />)}
