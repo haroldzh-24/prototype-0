@@ -1,3 +1,4 @@
+import { colors, typography } from '../ui/tokens';
 import { facePresets } from '@/stage/targetFace';
 import WallPortsInspector from './WallPortsInspector';
 import { useEffect, useState } from 'react';
@@ -32,7 +33,7 @@ export default function ObjectInspector({ item, disabled, onApply }: {
       <Text>Face width/height and position describe the full-face reference. Portion presets retain one half; upper portions begin halfway above the bottom reference.</Text>
       <View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset}
         accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }}
-        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: '#60b5bc' }]}
+        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: colors.selected, borderColor: colors.accent }]}
         onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}>
         <Text style={styles.buttonText}>{label}</Text>
       </Pressable>)}</View>
@@ -53,10 +54,10 @@ export default function ObjectInspector({ item, disabled, onApply }: {
   </View>;
 }
 const styles = StyleSheet.create({
-  panel: { marginTop: 8, padding: 10, gap: 6, backgroundColor: '#1c261e', borderWidth: 1, borderColor: '#465044', borderRadius: 2 },
-  title: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: '#d0b368', fontWeight: 'bold' }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  panel: { paddingHorizontal: 16, paddingVertical: 12, gap: 10, backgroundColor: colors.panel },
+  title: { ...typography.section, color: colors.text }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { minWidth: 120, flexGrow: 1, flexBasis: '40%' },
-  input: { borderWidth: 1, borderColor: '#465044', backgroundColor: '#151d17', padding: 8, minHeight: 44, color: '#e1e5db', borderRadius: 2 },
-  hint: { fontSize: 12, color: '#a6b0a0' }, button: { backgroundColor: '#252e27', padding: 12, minHeight: 44, borderWidth: 1, borderColor: '#465044', borderRadius: 2, alignSelf: 'flex-start' },
-  buttonText: { color: '#e1e5db', fontSize: 11, textTransform: 'uppercase' },
+  input: { borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.secondary, padding: 8, minHeight: 44, color: colors.text, borderRadius: 2 },
+  hint: { fontSize: 12, color: colors.muted }, button: { backgroundColor: colors.secondary, padding: 12, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
+  buttonText: { color: colors.text, ...typography.label },
 });

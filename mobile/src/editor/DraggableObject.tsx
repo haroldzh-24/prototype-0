@@ -1,3 +1,4 @@
+import { colors } from '../ui/tokens';
 import { Image } from 'expo-image';
 import { activeFaceExtent } from '@/stage/targetFace';
 import { useRef, useState } from 'react';
@@ -32,7 +33,9 @@ export default function DraggableObject(props: ObjectProps) {
       drag.current = { position: current.item.position, transform: current.transform };
       current.onSelect(current.item.id); current.onDragging(true); current.onFeedback({ guides: [], gridAxes: [] });
     },
-    onPanResponderMove: (_, gesture) => {
+    onPanResponderTerminationRequest: event => event.nativeEvent.touches.length >= 2,
+    onPanResponderMove: (event, gesture) => {
+      if (event.nativeEvent.touches.length !== 1) return;
       const position = moveByViewportDelta(drag.current.position, { x: gesture.dx, y: gesture.dy }, drag.current.transform);
       const { item, setStage, stage, snapping, onFeedback } = latest.current;
       const result = resolveMovement(stage, item.id, position, snapping);
@@ -58,7 +61,7 @@ export default function DraggableObject(props: ObjectProps) {
   // The upright face projects to a line. The badge is only a selectable editor symbol.
   const width = target ? Math.max(24, fullFaceWidth) : faceSpan;
   const height = target ? 66 : dimensions.depth * transform.scale;
-  return <View {...responder.panHandlers} hitSlop={10}
+  return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={10}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
     style={[styles.object, target ? styles.targetMarker
@@ -122,11 +125,11 @@ const styles = StyleSheet.create({
   popperFoot: { width: 12, height: 4, backgroundColor: '#829b9b' },
   noShoot: { backgroundColor: '#fff', borderColor: '#c3ccbd' },
   targetText: { fontSize: 10, fontWeight: 'bold', color: '#302719' },
-  port: { position: 'absolute', backgroundColor: '#101611', borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#80a6a1', alignItems: 'center', justifyContent: 'center' },
+  port: { position: 'absolute', backgroundColor: colors.background, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#80a6a1', alignItems: 'center', justifyContent: 'center' },
   portLabel: { position: 'absolute', top: -13, fontSize: 10, color: '#c5b476', fontWeight: 'bold' },
   wall: { backgroundColor: '#303e35', borderColor: '#83927c' },
   faultLine: { backgroundColor: '#bdab69', borderColor: '#8c8051' },
   start: { backgroundColor: '#29392d', borderColor: '#9cab88', borderRadius: 3 },
-  selected: { borderColor: '#60b5bc', outlineColor: '#60b5bc', outlineWidth: 1, outlineStyle: 'solid' },
-  startText: { color: '#e1e5db', fontWeight: 'bold', fontSize: 8, textAlign: 'center' },
+  selected: { borderColor: colors.accent, outlineColor: colors.accent, outlineWidth: 1, outlineStyle: 'solid' },
+  startText: { color: colors.text, fontWeight: 'bold', fontSize: 8, textAlign: 'center' },
 });

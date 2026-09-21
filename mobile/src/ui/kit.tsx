@@ -1,15 +1,31 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-export const colors = { background: '#101411', panel: '#1c231e', border: '#465044', text: '#e1e5db', muted: '#a6b0a0', accent: '#d0b368' };
-export function Screen({ title, children }: { title: string; children: ReactNode }) { return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={ui.screen} keyboardShouldPersistTaps="handled"><Text style={ui.eyebrow}>PRACTICAL / SHOOTING</Text><Text style={ui.title}>{title}</Text>{children}</ScrollView>; }
+import { colors, typography } from './tokens';
+export { colors } from './tokens';
+export function Screen({ title, children }: { title: string; children: ReactNode }) { return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={ui.screen} keyboardShouldPersistTaps="handled"><Text style={ui.eyebrow}>PRACTICAL / SHOOTING</Text><Text style={ui.title}>{title.charAt(0) + title.slice(1).toLowerCase()}</Text>{children}</ScrollView>; }
 export function Copy({ children }: { children: ReactNode }) { return <Text style={ui.copy}>{children}</Text>; }
 export function Panel({ children }: { children: ReactNode }) { return <View style={ui.panel}>{children}</View>; }
-export function Action({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [ui.action, { opacity: disabled ? 0.4 : pressed ? 0.65 : 1 }]}><Text style={ui.actionText}>{title.toUpperCase()}</Text></Pressable>; }
+export function Action({ title, onPress, disabled = false }: { title: string; onPress: () => void; disabled?: boolean }) { return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [ui.action, { opacity: disabled ? 0.4 : pressed ? 0.65 : 1 }]}><Text style={ui.actionText}>{title}</Text></Pressable>; }
+export function Stat({ value, label, unit }: { value: string | number; label: string; unit?: string }) {
+  return <View style={ui.stat} accessible accessibilityLabel={label + ": " + value + (unit ? " " + unit : "")}><Text style={ui.statValue}>{value}{unit && <Text style={ui.statUnit}> {unit}</Text>}</Text><Text style={ui.statLabel}>{label.toUpperCase()}</Text></View>;
+}
+export function DataRow({ label, value }: { label: string; value: string | number }) {
+  return <View style={ui.dataRow}><Text style={[ui.copy, { flex: 1 }]}>{label}</Text><Text style={ui.dataValue}>{value}</Text></View>;
+}
 export const ui = StyleSheet.create({
-  screen: { padding: 20, paddingBottom: 60, gap: 16 }, title: { color: colors.text, fontSize: 28, fontWeight: 'bold', letterSpacing: 1 },
-  eyebrow: { color: colors.accent, fontSize: 11, letterSpacing: 2 }, copy: { color: colors.muted, fontSize: 15, lineHeight: 23 },
-  panel: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, padding: 20, gap: 12 },
-  action: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, padding: 16, minHeight: 48 },
-  actionText: { color: colors.text, fontWeight: 'bold', letterSpacing: 1 },
-  input: { color: colors.text, borderWidth: 1, borderColor: colors.border, padding: 12, minHeight: 48, backgroundColor: colors.background },
+  screen: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60, gap: 16 },
+  title: { ...typography.title, color: colors.text },
+  eyebrow: { ...typography.category, color: colors.muted },
+  copy: { ...typography.body, color: colors.muted },
+  panel: { backgroundColor: colors.panel, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingVertical: 16, paddingHorizontal: 16, gap: 12 },
+  action: { borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.secondary, paddingHorizontal: 12, paddingVertical: 12, minHeight: 44, justifyContent: 'center' },
+  actionText: { ...typography.label, color: colors.text },
+  input: { ...typography.body, color: colors.text, borderBottomWidth: 1, borderColor: colors.border, padding: 10, minHeight: 44, backgroundColor: colors.secondary },
+  statGroup: { flexDirection: 'row', flexWrap: 'wrap', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, paddingBottom: 16, gap: 12 },
+  stat: { flexGrow: 1, flexBasis: '26%', minWidth: 82, gap: 4 },
+  statValue: { ...typography.value, color: colors.text, fontVariant: ['tabular-nums'] },
+  statUnit: { ...typography.label, color: colors.muted },
+  statLabel: { ...typography.category, color: colors.muted },
+  dataRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  dataValue: { ...typography.body, color: colors.text, fontVariant: ['tabular-nums'], textAlign: 'right', flexShrink: 1 },
 });

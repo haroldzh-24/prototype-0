@@ -1,3 +1,4 @@
+import { colors } from '../ui/tokens';
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Text from '@/editor/FieldText';
@@ -13,10 +14,10 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
       return <View key={line.axis + line.value} style={{ position: 'absolute', left, top,
         width: vertical ? 1 : stage.width * t.scale,
         height: vertical ? stage.depth * t.scale : 1,
-        backgroundColor: line.major ? '#344034' : '#263027' }}>
+        backgroundColor: line.major ? colors.grid : colors.gridMinor }}>
         {line.value > 0 && line.value % 60 === 0 && <Text style={styles.label}>{line.value / 12} ft</Text>}
       </View>;
     })}
   </View>;
 });
-const styles = StyleSheet.create({ label: { position: 'absolute', left: 2, top: 2, width: 40, fontSize: 9, color: '#c1aa6a' } });
+const styles = StyleSheet.create({ label: { position: 'absolute', left: 2, top: 2, width: 40, fontSize: 9, color: colors.muted, backgroundColor: colors.panel } });

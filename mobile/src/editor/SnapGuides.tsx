@@ -1,3 +1,4 @@
+import { colors } from '../ui/tokens';
 import { StyleSheet, View } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
@@ -8,7 +9,7 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
   const active = feedback.guides.length > 0 || feedback.gridAxes.length > 0;
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {feedback.guides.map((guide) => <View key={guide.axis} style={{ position: 'absolute',
-      backgroundColor: '#60b5bc',
+      backgroundColor: colors.accent,
       left: t.offsetX + (guide.axis === 'x' ? guide.value * t.scale : 0),
       top: t.offsetY + (guide.axis === 'y' ? guide.value * t.scale : 0),
       width: guide.axis === 'x' ? 2 : stage.width * t.scale,
@@ -21,4 +22,4 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
   </View>;
 }
 const styles = StyleSheet.create({ status: { position: 'absolute', bottom: 6, left: 6,
-  backgroundColor: '#222c24', color: '#60b5bc', padding: 4, fontSize: 12 } });
+  backgroundColor: colors.panel, color: colors.accent, padding: 4, fontSize: 12 } });
