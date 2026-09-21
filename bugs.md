@@ -1,10 +1,16 @@
 # Bug Tracker
 
+## Moving reload verification - 2026-09-21
+
+- Fixed additive-only reload timing; completed implementation is recorded in changelog.md. Ammunition simulation remains unchanged.
+- TypeScript passed once and all 143 tests passed once, covering full/partial overlap, stationary/zero movement, final arrival, invalid reloads, unavailable timing, separate segments and ranking.
+- No new defect identified. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Route-style ranking verification - 2026-09-21
 
 - TypeScript passed once; all 135 tests passed in one suite run, including 11 focused ranking tests. No new defect identified.
-- Evaluator and generation remain unchanged. Ranking reports additive reload timing and missing timing explicitly; Personalized falls back because current profiles lack difficulty-dependent shooting costs.
-- Geometric facing and distance-only difficulty are approximations; future calibration and moving-reload overlap remain in features.md.
+- Evaluator and generation remain unchanged. Ranking now reports evaluator overlap-adjusted reload timing and missing timing explicitly; Personalized falls back because current profiles lack difficulty-dependent shooting costs.
+- Geometric facing and distance-only difficulty are approximations; future calibration remains in features.md; moving-reload overlap is complete in Phase 4.
 - No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
 
 ## Candidate-generation verification - 2026-09-21
@@ -12,7 +18,7 @@
 - TypeScript passed once; all 124 tests passed in one suite run, including nine new generation tests. No new defect identified.
 - Bounded generation uses existing evaluator ammunition states to reject infeasible routes. No evaluator, UI or persistence changes.
 - Search is deliberately incomplete at its limits; results retain all valid candidates found and include SEARCH_LIMIT warnings. No guarantee of an optimal route or of finding an existing feasible route after truncation.
-- Existing evaluator does not support moving-reload overlap. This requested extension is tracked in features.md rather than approximated in the generator.
+- Moving-reload overlap is now implemented by the authoritative evaluator in Phase 4; the generator has no timing approximation.
 - No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
 
 ## Route-planner foundation verification - 2026-09-21
@@ -63,7 +69,7 @@ Use this file to document known defects from discovery through resolution.
 
 - Route geometry, assignment ownership, ammunition/reload/chamber simulation, missing references, profile timing, legacy saves and route persistence are covered by automated tests.
 - Native-device route dragging, overlapping marker selection and form interaction remain unverified; tracked in features.md.
-- Timing uses straight-line segments and additive profile estimates, with no collision/visibility solving or movement/reload overlap. Incomplete plans display warnings and provisional timing.
+- Timing uses straight-line segments and profile estimates with movement/reload overlap (Phase 4), with no collision/visibility solving. Incomplete plans display warnings and provisional timing.
 - No newly confirmed runtime defect. No dated unresolved items are older than one month; undated older ideas cannot be aged reliably.
 
 ## TestFlight New Stage crash - 2026-09-19

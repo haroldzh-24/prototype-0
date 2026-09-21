@@ -1,11 +1,18 @@
 # Changelog
 
+## Moving reload overlap Phase 4 - 2026-09-21
+
+- The authoritative evaluator overlaps successful reloads with their destination's incoming movement. Optional stationary mode opts out; omitted mode uses movement, including existing saved/generated entries. Route version and ammunition simulation remain unchanged.
+- Exposed per-reload raw duration, available movement, overlap and additional penalty, plus totals. Total time adds movement once and only uncovered reload time. Missing profiles still disable timing; invalid magazines receive no timing credit.
+- Ranking consumes evaluator timing, retains strategy weights and ammunition margins, and distinguishes stationary/moving alternatives for diversity. Removed the obsolete unsupported-overlap warning. No candidate generation or UI changes.
+- Validation: TypeScript once and full tests once; all 143 tests passed, including eight new focused tests. No browser automation, screenshots, exports, commit or push.
+
 ### Automatic route ranking Phase 3 - 2026-09-21
 
 - Added centralized Minimum Movement, Balanced and Easier Shooting scoring policies, derived metrics, ranks, additive explanation contributions and original candidate references.
 - Personalized explicitly uses Balanced fallback: current performance profiles do not measure the extra shooting cost of target difficulty. Existing supported profile timing still comes from the authoritative evaluator.
 - Added rotation-invariant target-facing retreat approximation, neutral ambiguous segments, direction-change/reversal complexity and Avoid/Limited/Allowed penalties.
-- Added Conservative/Balanced/Aggressive ammunition-margin and additive reload-time preferences, with explicit moving-reload-overlap warning.
+- Added Conservative/Balanced/Aggressive ammunition-margin and additive reload-time preferences, with the initial overlap warning subsequently removed in Phase 4.
 - Added greedy top-five diversity filtering with configurable limit; meaningful subset, order, assignment and reload alternatives survive. Legacy custom scoring callback remains compatible.
 - Validation: TypeScript once and full test suite once, all 135 tests passed (11 new). No UI, evaluator, generation, persistence, browser, screenshot or export changes; no commit or push.
 
@@ -16,7 +23,7 @@
 - Search smaller covering subsets first, keep useful supersets for easier shooting/ammunition alternatives, enumerate distance-ordered permutations from Start, and assign each target once with distance-difficulty-ordered alternatives. Remove empty positions and deduplicate equivalent routes.
 - Repair evaluator-reported ammunition shortages by trying unused magazines at the failing or earlier arrivals; all accepted routes pass the existing ammunition simulation. Return authoritative evaluation, timing/distance/reload metrics, difficulty totals and warnings. Inputs are not mutated or automatically applied.
 - Centralized ceilings: 12 positions, 4095 subset checks, 64 covering subsets, 12 orders per subset, 16 assignments per order, 2000 evaluator calls (including rejected/reload trials), 64 targets and 16 magazines. Callers may lower ceilings; truncated search retains all valid results and warns. Style ranking remains deferred.
-- No UI, evaluator, persistence, browser automation or export changes. Reload timing remains additive because the evaluator has no movement-overlap implementation.
+- No UI, evaluator, persistence, browser automation or export changes. Reload timing was additive in Phase 2; Phase 4 now implements evaluator-owned movement overlap.
 
 ## Automatic route-planner foundation - 2026-09-21
 

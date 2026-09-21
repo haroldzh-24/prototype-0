@@ -76,15 +76,15 @@ test('direction complexity records turns and reversals without counting zero mov
   assert.equal(c.metrics.sharpReversalCount, 1);
   assert.ok(c.metrics.movementComplexityScore > 0);
 });
-test('conservative favors earlier reserve, aggressive favors lower additive reload time', () => {
+test('conservative favors earlier reserve, aggressive favors lower uncovered reload time', () => {
   const ctx = context(); ctx.plan.loadout.magazines[0].startingRounds = 6;
   const positions = [[0, ['a']], [60, ['b']], [120, ['c']]];
   const none = candidate(ctx, 'none', positions), early = candidate(ctx, 'early', positions, [{ positionId: '1', magazineId: 'm2' }]), late = candidate(ctx, 'late', positions, [{ positionId: '2', magazineId: 'm2' }]);
   assert.equal(rank([none, late, early], { reloadStrategy: 'CONSERVATIVE' }).candidates[0].originalCandidate.id, 'early');
   assert.equal(rank([early, none], { reloadStrategy: 'AGGRESSIVE' }).candidates[0].originalCandidate.id, 'none');
   assert.ok(rank([none], { reloadStrategy: 'BALANCED' }).candidates[0].score < rank([none], { reloadStrategy: 'CONSERVATIVE' }).candidates[0].score);
-  assert.equal(early.metrics.reloadTime, ctx.profile.reloadTime);
-  assert.ok(rank([early]).warnings.some(w => w.code === 'MOVING_RELOAD_OVERLAP_NOT_MODELED'));
+  assert.equal(early.metrics.reloadTime, 1.5);
+  assert.ok(!rank([early]).warnings.some(w => /overlap.*not modeled/.test(w.message)));
 });
 test('diversity keeps the best duplicate and meaningful subset, order, assignment and reload alternatives', () => {
   const ctx = context(), a = candidate(ctx, 'a', [[0, ['a']], [120, ['b', 'c']]]);
@@ -116,4 +116,20 @@ test('missing timing omits time across the batch, infeasible ammunition is exclu
   assert.ok(result.candidates.every(c => c.reasons.find(r => r.code === 'TIME').contribution === 0));
   ctx.plan.loadout.magazines[0].startingRounds = 1;
   assert.equal(rank([candidate(ctx, 'bad', [[0, ['a', 'b', 'c']]])]).candidates.length, 0);
+});
+
+test('overlap improves ranking through evaluator timing and preserves reload-mode diversity', () => {
+  const ctx = context(), positions = [[0, ['a']], [240, ['b', 'c']]];
+  const stationary = candidate(ctx, 'stationary', positions, [{ positionId: '1', magazineId: 'm2', mode: 'stationary' }]);
+  const moving = candidate(ctx, 'moving', positions, [{ positionId: '1', magazineId: 'm2' }]);
+  assert.deepEqual(moving.evaluation.ammo, stationary.evaluation.ammo);
+  assert.equal(moving.metrics.reloadTime, 0); assert.equal(moving.metrics.reloadOverlap, 2);
+  assert.equal(moving.metrics.rawReloadDuration, 2);
+  for (const reloadStrategy of ['CONSERVATIVE', 'BALANCED', 'AGGRESSIVE']) {
+    const result = rank([stationary, moving], { reloadStrategy }, { maxResults: 5 });
+    assert.equal(result.candidates.length, 2);
+    assert.equal(result.candidates[0].originalCandidate.id, 'moving');
+    assert.equal(result.candidates[0].metrics.estimatedTotalTime, moving.evaluation.timing.total);
+    assert.equal(result.candidates[0].reasons.find(r => r.code === 'RELOAD_TIME').contribution, 0);
+  }
 });

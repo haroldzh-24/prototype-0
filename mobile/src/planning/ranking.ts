@@ -28,6 +28,7 @@ export type RankingMetrics = Readonly<{
   totalShootingDifficulty: number; averageShootingDifficulty: number; maximumSingleTargetDifficulty: number;
   positionsUsed: number; reloadCount: number; roundsRemaining: number; ammoMargin: number;
   minimumArrivalRounds: number; reloadTime: number | null;
+  rawReloadDuration: number | null; reloadMovementAvailable: number | null; reloadOverlap: number | null;
   directionChangeCount: number; sharpReversalCount: number; movementComplexityScore: number;
   backwardDistance: number; sustainedBackwardDistance: number; backwardSegmentCount: number;
 }>;
@@ -91,6 +92,9 @@ export function deriveRankingMetrics(context: PlannerContext, candidate: Planner
     reloadCount: evaluation.magazineChanges, roundsRemaining: ammo.at(-1)?.remaining ?? evaluation.startingRounds,
     ammoMargin: ammo.length ? Math.min(...ammo.map(a => a.remaining)) : evaluation.startingRounds,
     minimumArrivalRounds: arrivals.length ? Math.min(...arrivals) : evaluation.startingRounds,
+    rawReloadDuration: evaluation.timing?.rawReloadDuration ?? null,
+    reloadMovementAvailable: evaluation.timing?.reloadMovementAvailable ?? null,
+    reloadOverlap: evaluation.timing?.reloadOverlap ?? null,
     reloadTime: evaluation.timing?.reloads ?? null, directionChangeCount: turns, sharpReversalCount: reversals,
     backwardDistance: backward, sustainedBackwardDistance: sustained, backwardSegmentCount: backwardSegments,
     movementComplexityScore: segments * c.segment + turns * c.turn + reversals * c.reversal + backward / 36 * c.backwardYard + route.positions.length * c.position,
@@ -101,7 +105,7 @@ function nearDuplicate(a: StageRoute, b: StageRoute): boolean {
   const d = RANKING_CONFIG.diversity;
   if (a.positions.length !== b.positions.length) return false;
   if (a.positions.some((p, i) => p.id !== b.positions[i].id || length(vector(p.position, b.positions[i].position)) > d.geometryToleranceInches)) return false;
-  const reloadKey = (r: StageRoute) => JSON.stringify(r.reloads.map(x => [x.positionId, x.magazineId]).sort());
+  const reloadKey = (r: StageRoute) => JSON.stringify(r.reloads.map(x => [x.positionId, x.magazineId, x.mode ?? 'moving']).sort());
   if (reloadKey(a) !== reloadKey(b)) return false;
   const assignments = (r: StageRoute) => new Map(r.positions.flatMap(p => p.engagedTargetIds.map(id => [id, p.id] as const)));
   const aa = assignments(a), bb = assignments(b), ids = new Set([...aa.keys(), ...bb.keys()]);
@@ -120,7 +124,7 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
   const effectiveStyle = config.style === 'PERSONALIZED' ? 'BALANCED' : config.style;
   // Even a complete current profile has no distance/difficulty-dependent shooting
   // measurements. Multiplying difficulty by averageSplitTime would invent data.
-  const common: PlannerWarning[] = [{ code: 'MOVING_RELOAD_OVERLAP_NOT_MODELED', message: 'Reload time is additive; moving-reload overlap is not modeled.' }];
+  const common: PlannerWarning[] = [];
   if (config.style === 'PERSONALIZED') common.push({ code: 'PROFILE_FALLBACK', message: 'Balanced fallback: ShooterPerformanceProfile lacks difficulty-dependent shooting costs needed to compare harder shots against movement.' });
   warnings.push(...common);
   // Missing times must not make one candidate artificially cheaper than another.
@@ -148,7 +152,7 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
     const r = RANKING_CONFIG.reload[config.reloadStrategy];
     add('AMMO_MARGIN', `Prefer at least ${r.reserve} spare rounds after engagement`, Math.max(0, r.reserve - m.ammoMargin) * r.margin);
     add('ARRIVAL_MARGIN', 'Avoid arriving near empty before a reload', Math.max(0, r.reserve - m.minimumArrivalRounds) * r.arrival);
-    add('RELOAD_TIME', 'Lower additive reload time', useTiming ? (m.reloadTime ?? 0) * r.time : 0);
+    add('RELOAD_TIME', 'Lower evaluator reload penalty after movement overlap', useTiming ? (m.reloadTime ?? 0) * r.time : 0);
     const score = override ? override(candidate, config) : reasons.reduce((n, r) => n + r.contribution, 0);
     if (score === null) continue;
     if (!Number.isFinite(score)) throw new Error('Planner ranking scores must be finite or null.');

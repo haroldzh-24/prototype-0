@@ -8,17 +8,25 @@ export type ShootingPosition = {
   id: string; label: string; position: StagePosition;
   visibleTargetIds: string[]; engagedTargetIds: string[];
 };
-/** Array order is route order. Reloads occur on arrival, before engagement. */
+/** Array order is route order. Reloads finish before destination engagement.
+ * By default they overlap the incoming segment; stationary explicitly opts out. */
 export type StageRoute = {
   version: 1; id: string; name: string; positions: ShootingPosition[];
-  reloads: { positionId: string; magazineId: string }[];
+  reloads: { positionId: string; magazineId: string; mode?: 'moving' | 'stationary' }[];
 };
 export type MovementSegment = { fromId: string; toId: string; distance: number; seconds: number | null };
 export type AmmoState = { positionId: string; required: number; available: number; remaining: number; magazineId: string | null; sufficient: boolean };
+export type ReloadTiming = {
+  positionId: string; magazineId: string; mode: 'moving' | 'stationary';
+  rawDuration: number; availableMovement: number; overlap: number; additionalPenalty: number;
+};
 export type RouteEvaluation = {
   segments: MovementSegment[]; distance: number; startingRounds: number; ammo: AmmoState[];
   magazineChanges: number; warnings: string[];
-  timing: { movement: number; draw: number; splits: number; transitions: number; reloads: number; total: number } | null;
+  timing: { movement: number; draw: number; splits: number; transitions: number;
+    /** Reloads is the additional cost, so existing timing consumers do not double-count. */
+    reloads: number; rawReloadDuration: number; reloadMovementAvailable: number; reloadOverlap: number;
+    reloadDetails: ReloadTiming[]; total: number } | null;
 };
 export const createRoute = (id: string): StageRoute => ({ version: 1, id, name: 'Manual route', positions: [], reloads: [] });
 /** Validate saved shape without erasing stale target/magazine references; evaluation explains those. */
@@ -28,7 +36,7 @@ export function isStageRoute(value: unknown): value is StageRoute {
   const ids = (values: unknown): values is string[] => Array.isArray(values) && values.every(id => typeof id === 'string') && new Set(values).size === values.length;
   return r.version === 1 && typeof r.id === 'string' && !!r.id && typeof r.name === 'string' && Array.isArray(r.positions) &&
     r.positions.every(p => p && typeof p.id === 'string' && !!p.id && typeof p.label === 'string' && p.position?.space === 'stage' && p.position.z === 0 && [p.position.x, p.position.y].every(Number.isFinite) && ids(p.visibleTargetIds) && ids(p.engagedTargetIds)) &&
-    new Set(r.positions.map(p => p.id)).size === r.positions.length && Array.isArray(r.reloads) && r.reloads.every(r => r && typeof r.positionId === 'string' && typeof r.magazineId === 'string');
+    new Set(r.positions.map(p => p.id)).size === r.positions.length && Array.isArray(r.reloads) && r.reloads.every(r => r && typeof r.positionId === 'string' && typeof r.magazineId === 'string' && (r.mode === undefined || r.mode === 'moving' || r.mode === 'stationary'));
 }
 export function movePosition(route: StageRoute, id: string, position: StagePosition, size: StageSize): StageRoute {
   if (![position.x, position.y].every(Number.isFinite)) return route;
@@ -64,6 +72,7 @@ export function toggleRouteTarget(route: StageRoute, stage: StageDocument, posit
 /** Derived on every edit/load; cached ammo or timings would become stale when geometry/profile changes. */
 export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: StageRoute, profile: ShooterPerformanceProfile | null): RouteEvaluation {
   const warnings: string[] = [], segments: MovementSegment[] = [], ammo: AmmoState[] = [];
+  const reloadDetails: ReloadTiming[] = [];
   const targets = new Map(stage.objects.filter(isEngageable).map(t => [t.id, t]));
   const magazines = new Map(plan.loadout.magazines.map(m => [m.id, m.startingRounds]));
   let magazineId = plan.loadout.startingMagazineId;
@@ -80,9 +89,11 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   if (!validProfile) warnings.push('Timing unavailable: load a valid shooter performance profile.');
   for (const reload of route.reloads) if (!route.positions.some(p => p.id === reload.positionId)) warnings.push('Reload references a deleted shooting position.');
   for (const p of route.positions) {
+    let incomingSeconds = 0;
     if (origin) {
       const distance = Math.hypot(p.position.x - origin.x, p.position.y - origin.y);
       segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? distance / profile.movementSpeed : null });
+      incomingSeconds = segments[segments.length - 1].seconds ?? 0;
     }
     origin = p.position; fromId = p.id;
     if (p.position.x < 0 || p.position.x > stage.stage.width || p.position.y < 0 || p.position.y > stage.stage.depth) warnings.push(`${p.label}: position is outside the stage.`);
@@ -96,6 +107,14 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
         // Preserve at most one chambered round when replacing a nonempty inserted magazine.
         if (!chamber && (magazines.get(magazineId ?? '') ?? 0) > 0) chamber = 1;
         magazineId = reload.magazineId; used.add(magazineId); magazineChanges++;
+        if (validProfile) {
+          const mode = reload.mode ?? 'moving';
+          const availableMovement = mode === 'moving' ? incomingSeconds : 0;
+          const rawDuration = profile.reloadTime;
+          reloadDetails.push({ positionId: p.id, magazineId, mode, rawDuration, availableMovement,
+            overlap: Math.min(rawDuration, availableMovement),
+            additionalPenalty: Math.max(0, rawDuration - availableMovement) });
+        }
       }
     }
     let required = 0, count = 0;
@@ -122,7 +141,10 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   const distance = segments.reduce((n, s) => n + s.distance, 0);
   const timing = validProfile ? { movement: distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
     splits: splits * profile.averageSplitTime, transitions: transitions * profile.transitionTime,
-    reloads: magazineChanges * profile.reloadTime, total: 0 } : null;
+    reloads: reloadDetails.reduce((sum, r) => sum + r.additionalPenalty, 0),
+    rawReloadDuration: reloadDetails.reduce((sum, r) => sum + r.rawDuration, 0),
+    reloadMovementAvailable: reloadDetails.reduce((sum, r) => sum + r.availableMovement, 0),
+    reloadOverlap: reloadDetails.reduce((sum, r) => sum + r.overlap, 0), reloadDetails, total: 0 } : null;
   if (timing) timing.total = timing.movement + timing.draw + timing.splits + timing.transitions + timing.reloads;
   return { segments, distance, startingRounds, ammo, magazineChanges, warnings, timing };
 }

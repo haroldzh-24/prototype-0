@@ -37,7 +37,7 @@ export type PlannerCandidate = Readonly<{ id: string; route: StageRoute }>;
 export type PlannerWarning = Readonly<{
   code: 'ROUTE_EVALUATION' | 'NO_POSITIONS' | 'INVALID_INPUT' | 'INVALID_VISIBILITY'
     | 'UNCOVERED_TARGET' | 'NO_COVERAGE' | 'INVALID_LOADOUT' | 'NO_VALID_ROUTE' | 'SEARCH_LIMIT'
-    | 'PROFILE_FALLBACK' | 'MOVING_RELOAD_OVERLAP_NOT_MODELED' | 'TIMING_UNAVAILABLE';
+    | 'PROFILE_FALLBACK' | 'TIMING_UNAVAILABLE';
   message: string; candidateId?: string;
 }>;
 export type EvaluatedPlannerCandidate = Readonly<{

@@ -34,11 +34,11 @@ test('ammunition reports position shortage despite enough carried reserve', () =
   assert.ok(result.warnings.some(w => w.includes('cannot complete')));
   assert.equal(f.plan.loadout.magazines[0].startingRounds, 5);
 });
-test('explicit reload retains one chamber round, replaces remaining magazine, and adds reload time', () => {
+test('explicit reload retains one chamber round, replaces remaining magazine, and adds only uncovered reload time', () => {
   const f = fixture(); f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
   const result = evaluateRoute(f.stage, f.plan, f.route, f.profile);
   assert.deepEqual(result.ammo.map(a => a.remaining), [2, 6]);
-  assert.equal(result.magazineChanges, 1); assert.equal(result.timing.reloads, 2);
+  assert.equal(result.magazineChanges, 1); assert.equal(result.timing.reloads, 1.7);
   assert.ok(result.ammo.every(a => a.sufficient));
 });
 test('empty chamber reload and initially uninserted magazines do not invent rounds', () => {
@@ -132,4 +132,70 @@ test('canvas toggles preserve visibility, engagement ownership, and physical pos
   assert.equal(toggleRouteTarget(f.route, f.stage, 'missing', id, 'visible'), f.route);
   assert.deepEqual(moved.positions.map(p => p.position), f.route.positions.map(p => p.position));
   assert.equal(evaluateRoute(f.stage, f.plan, moved, f.profile).distance, evaluateRoute(f.stage, f.plan, f.route, f.profile).distance);
+});
+
+test('moving reload fully hidden by its incoming movement without double counting', () => {
+  const f = fixture(); f.profile.reloadTime = 1; f.profile.movementSpeed = 36 / 1.4;
+  f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
+  const before = JSON.stringify(f), result = evaluateRoute(f.stage, f.plan, f.route, f.profile), t = result.timing;
+  assert.equal(t.reloads, 0); assert.equal(t.rawReloadDuration, 1); assert.equal(t.reloadOverlap, 1);
+  assert.equal(t.reloadMovementAvailable, 1.4);
+  assert.equal(t.total, t.movement + t.draw + t.splits + t.transitions);
+  assert.deepEqual(evaluateRoute(f.stage, f.plan, f.route, f.profile), result);
+  assert.equal(JSON.stringify(f), before);
+});
+test('partial overlap at final position uses only its incoming segment', () => {
+  const f = fixture(); f.profile.reloadTime = 1; f.profile.movementSpeed = 60;
+  f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
+  const t = evaluateRoute(f.stage, f.plan, f.route, f.profile).timing;
+  assert.deepEqual(t.reloadDetails, [{ positionId: 'B', magazineId: 'm2', mode: 'moving', rawDuration: 1, availableMovement: 0.6, overlap: 0.6, additionalPenalty: 0.4 }]);
+  assert.equal(t.total, t.movement + t.draw + t.splits + t.transitions + 0.4);
+});
+test('stationary reload preserves full duration and identical ammunition', () => {
+  const f = fixture(); f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
+  const moving = evaluateRoute(f.stage, f.plan, f.route, f.profile);
+  f.route.reloads[0].mode = 'stationary';
+  const stationary = evaluateRoute(f.stage, f.plan, f.route, f.profile);
+  assert.deepEqual(stationary.ammo, moving.ammo);
+  assert.equal(stationary.timing.reloads, 2); assert.equal(stationary.timing.reloadOverlap, 0);
+  assert.equal(stationary.timing.reloadMovementAvailable, 0);
+  assert.equal(isStageRoute(f.route), true);
+  f.route.reloads[0].mode = 'invalid'; assert.equal(isStageRoute(f.route), false);
+});
+test('zero incoming movement and missing start provide no overlap', () => {
+  const f = fixture(); f.route.positions[1].position = { ...f.route.positions[0].position };
+  f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
+  assert.equal(evaluateRoute(f.stage, f.plan, f.route, f.profile).timing.reloads, 2);
+  f.stage.objects = f.stage.objects.filter(o => o.type !== 'start');
+  f.route.reloads[0].positionId = 'A';
+  assert.equal(evaluateRoute(f.stage, f.plan, f.route, f.profile).timing.reloadMovementAvailable, 0);
+});
+test('invalid reloads never receive overlap credit or change ammunition', () => {
+  const f = fixture();
+  for (const reload of [{ positionId: 'B', magazineId: 'missing' }, { positionId: 'B', magazineId: 'm1' }, { positionId: 'deleted', magazineId: 'm2' }]) {
+    f.route.reloads = [reload];
+    const r = evaluateRoute(f.stage, f.plan, f.route, f.profile);
+    assert.equal(r.magazineChanges, 0); assert.equal(r.ammo[1].sufficient, false);
+    assert.equal(r.timing.reloads, 0); assert.equal(r.timing.reloadOverlap, 0);
+    assert.deepEqual(r.timing.reloadDetails, []); assert.ok(r.warnings.length);
+  }
+});
+test('missing or negative reload time disables timing but preserves ammo simulation', () => {
+  const f = fixture(); f.route.reloads = [{ positionId: 'B', magazineId: 'm2' }];
+  const expected = evaluateRoute(f.stage, f.plan, f.route, f.profile).ammo;
+  for (const reloadTime of [undefined, -1, NaN]) {
+    const r = evaluateRoute(f.stage, f.plan, f.route, { ...f.profile, reloadTime });
+    assert.equal(r.timing, null); assert.deepEqual(r.ammo, expected);
+    assert.ok(r.warnings.some(w => w.includes('Timing unavailable')));
+  }
+});
+test('separate reload segments cannot share unused movement overlap', () => {
+  const f = fixture(); f.profile.movementSpeed = 30; f.profile.reloadTime = 1.5;
+  f.plan.loadout.magazines.push({ id: 'm3', capacity: 10, startingRounds: 8 });
+  f.route.reloads = [{ positionId: 'A', magazineId: 'm2' }, { positionId: 'B', magazineId: 'm3' }];
+  const r = evaluateRoute(f.stage, f.plan, f.route, f.profile), t = r.timing;
+  assert.equal(r.magazineChanges, 2); assert.equal(t.rawReloadDuration, 3);
+  assert.equal(t.reloadMovementAvailable, 3.2); assert.equal(t.reloadOverlap, 2.7);
+  assert.ok(Math.abs(t.reloads - 0.3) < 1e-10);
+  assert.equal(t.reloadDetails.length, 2);
 });

@@ -25,8 +25,18 @@ subsequent results remain provisional. No reloads are inserted automatically.
 
 Timing adds straight-line distance / movement speed, one draw if shots are planned,
 (rounds - 1) splits for each target, transitions between targets within each position,
-and successful reloads. It does not model target difficulty, first-shot acquisition
-after movement, obstacles, acceleration or overlapping movement/reloads. Invalid
+and successful reload penalties. Reloads use the incoming segment ending at their
+position, including START to first position and arrival at the final position.
+Omitted mode or `moving` overlaps that segment; optional `stationary` opts out.
+Existing saved/generated entries gain incoming overlap without a route version change.
+Zero/missing movement gives no overlap. Each successful reload exposes rawDuration,
+availableMovement, overlap and additionalPenalty in timing.reloadDetails.
+Overlap is min(rawDuration, availableMovement); additionalPenalty is
+max(0, rawDuration - availableMovement). timing.reloads sums only penalties;
+rawReloadDuration, reloadMovementAvailable and reloadOverlap expose the other totals.
+Invalid reloads receive no time or credit; separate segments cannot share overlap.
+Ammo simulation is unchanged. Target difficulty, first-shot acquisition after
+movement, obstacles and acceleration are not modeled. Invalid
 profile timing values disable timing while retaining distance and ammo results.
 
 Route markers appear only in Top Down route mode. Stage editing and 2.5D continue
@@ -77,12 +87,15 @@ the finish; rounds remaining means the final loaded balance (not unused magazine
 Arrival rounds are measured before arrival reloads. Conservative targets three
 spare rounds, Balanced one, Aggressive zero; capped reserve deficits and arrival
 risk favor earlier safe reloads without rewarding unlimited unused ammunition.
-Aggressive puts greater weight on actual additive reload seconds. All results warn
-that moving-reload overlap is not modeled. Reload choices come from generation.
+Aggressive puts greater weight on evaluator reload penalties after overlap, so
+reloads hidden inside movement can improve rank. Balanced weighs timing and margin;
+Conservative retains its earlier-reload and spare-round preferences. Ranking exposes
+rawReloadDuration, reloadMovementAvailable and reloadOverlap directly from the
+evaluator and performs no overlap calculation. Reload choices come from generation.
 
 Diversity greedily retains the lowest score, then suppresses routes with the same
 ordered position IDs (within 12 inches), identical reload plans and at most 20%
 different target ownership. Different subsets/orders/reloads survive; small changes
 in assignments on larger stages can be suppressed. Visibility-only and cosmetic
 changes do not create diversity. No optimality, collision or automatic visibility
-guarantee is added; the search remains bounded and the evaluator unchanged.
+guarantee is added; the search remains bounded and timing remains evaluator-owned.
