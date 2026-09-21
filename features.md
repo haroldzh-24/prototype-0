@@ -2,8 +2,9 @@
 
 ## Automatic route optimizer follow-up - 2026-09-21
 
-- **Status:** Planned. Typed foundation is complete; see changelog.md.
-- Implement candidate generation, visibility/collision feasibility and explicit style scoring policies. Define backward-movement limits and conservative/balanced/aggressive reload thresholds before enforcing them.
+- **Status:** Planned. Typed foundation and bounded candidate generation are complete; see changelog.md.
+- Implement visibility/collision feasibility and explicit style scoring policies. Define backward-movement limits and conservative/balanced/aggressive reload thresholds before enforcing them.
+- Movement/reload overlap is not supported by the current authoritative evaluator; add it in a separate evaluator phase. Current generated reloads occur on arrival, before engagement, with additive reload timing.
 - Add personalized scoring from ShooterPerformanceProfile and expand distance-only difficulty with target type, partial geometry, transition angle and visibility difficulty. Keep existing route evaluation authoritative for ammunition and timing.
 - Planner UI, persistence and automatic application of routes remain deferred.
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Bounded route candidate generation - 2026-09-21
+
+- Validation: TypeScript once and tests once; 124 tests passed, including nine new generation tests and the updated foundation generation test. No commit or push.
+- Generate ordinary StageRoute candidates from manually placed plan.route.positions and user visibility. Every scoring target requires positive planned rounds; invalid input and uncovered targets produce typed warnings.
+- Search smaller covering subsets first, keep useful supersets for easier shooting/ammunition alternatives, enumerate distance-ordered permutations from Start, and assign each target once with distance-difficulty-ordered alternatives. Remove empty positions and deduplicate equivalent routes.
+- Repair evaluator-reported ammunition shortages by trying unused magazines at the failing or earlier arrivals; all accepted routes pass the existing ammunition simulation. Return authoritative evaluation, timing/distance/reload metrics, difficulty totals and warnings. Inputs are not mutated or automatically applied.
+- Centralized ceilings: 12 positions, 4095 subset checks, 64 covering subsets, 12 orders per subset, 16 assignments per order, 2000 evaluator calls (including rejected/reload trials), 64 targets and 16 magazines. Callers may lower ceilings; truncated search retains all valid results and warns. Style ranking remains deferred.
+- No UI, evaluator, persistence, browser automation or export changes. Reload timing remains additive because the evaluator has no movement-overlap implementation.
+
 ## Automatic route-planner foundation - 2026-09-21
 
 - Added typed route styles, backward movement preferences, reload strategies, configuration, candidates, evaluated/ranked results and warnings without changing StageDocument, StagePlan, saved routes or UI.

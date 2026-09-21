@@ -33,7 +33,8 @@ export type PlannerContext = Readonly<{
 /** Reuse the manual route representation, including visibility, assignments and reloads. */
 export type PlannerCandidate = Readonly<{ id: string; route: StageRoute }>;
 export type PlannerWarning = Readonly<{
-  code: 'GENERATION_NOT_IMPLEMENTED' | 'ROUTE_EVALUATION';
+  code: 'ROUTE_EVALUATION' | 'NO_POSITIONS' | 'INVALID_INPUT' | 'INVALID_VISIBILITY'
+    | 'UNCOVERED_TARGET' | 'NO_COVERAGE' | 'INVALID_LOADOUT' | 'NO_VALID_ROUTE' | 'SEARCH_LIMIT';
   message: string; candidateId?: string;
 }>;
 export type EvaluatedPlannerCandidate = Readonly<{
@@ -49,16 +50,8 @@ export type PlannerResult = Readonly<{
   candidates: readonly RankedPlannerCandidate[];
   warnings: readonly PlannerWarning[];
 }>;
-export type CandidateGenerationResult = Readonly<{
-  status: 'NOT_IMPLEMENTED'; candidates: readonly PlannerCandidate[]; warnings: readonly PlannerWarning[];
-}>;
-
-/** Deliberate stub: does not create, copy, or apply any route. */
-export function generateCandidates(_context: PlannerContext, _config: RoutePlannerConfig): CandidateGenerationResult {
-  return { status: 'NOT_IMPLEMENTED', candidates: [], warnings: [
-    { code: 'GENERATION_NOT_IMPLEMENTED', message: 'Automatic candidate generation is not implemented.' },
-  ] };
-}
+export { generateCandidates, PLANNER_SEARCH_LIMITS } from './candidateGeneration';
+export type { CandidateGenerationResult, GeneratedPlannerCandidate, PlannerSearchLimits } from './candidateGeneration';
 
 /** The existing evaluator is the sole source of distance, ammunition and all timing. */
 export function evaluateCandidate(context: PlannerContext, candidate: PlannerCandidate): EvaluatedPlannerCandidate {

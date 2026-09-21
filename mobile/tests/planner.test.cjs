@@ -22,13 +22,13 @@ function fixture() {
   route.reloads = [{ positionId: '1', magazineId: 'b' }];
   return { context: { stage, plan, profile }, candidate: { id: 'candidate', route } };
 }
-test('generation explicitly remains unimplemented for every style and leaves inputs intact', () => {
+test('generation reports missing manual positions for every style and leaves inputs intact', () => {
   const { context } = fixture(), before = JSON.stringify(context);
   for (const style of ['MINIMUM_MOVEMENT_HARDER_SHOOTING', 'BALANCED', 'MORE_MOVEMENT_EASIER_SHOOTING', 'PERSONALIZED']) {
     const result = P.generateCandidates(context, { ...P.createRoutePlannerConfig(), style });
-    assert.equal(result.status, 'NOT_IMPLEMENTED');
+    assert.equal(result.status, 'INVALID_INPUT');
     assert.deepEqual(result.candidates, []);
-    assert.equal(result.warnings[0].code, 'GENERATION_NOT_IMPLEMENTED');
+    assert.equal(result.warnings[0].code, 'NO_POSITIONS');
   }
   assert.equal(JSON.stringify(context), before);
 });

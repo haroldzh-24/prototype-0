@@ -1,9 +1,17 @@
 # Bug Tracker
 
+## Candidate-generation verification - 2026-09-21
+
+- TypeScript passed once; all 124 tests passed in one suite run, including nine new generation tests. No new defect identified.
+- Bounded generation uses existing evaluator ammunition states to reject infeasible routes. No evaluator, UI or persistence changes.
+- Search is deliberately incomplete at its limits; results retain all valid candidates found and include SEARCH_LIMIT warnings. No guarantee of an optimal route or of finding an existing feasible route after truncation.
+- Existing evaluator does not support moving-reload overlap. This requested extension is tracked in features.md rather than approximated in the generator.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Route-planner foundation verification - 2026-09-21
 
 - No new defect identified. TypeScript and all 115 tests pass, including five focused planner helper tests.
-- Generation and preference enforcement are deliberately deferred features, tracked in features.md. Existing route evaluator, manual route UI and persistence remain unchanged.
+- Generation was deferred in the foundation and is now implemented in Phase 2; preference enforcement remains tracked in features.md. Existing route evaluator, manual route UI and persistence remain unchanged.
 - No dated unresolved item is older than one month; undated legacy ideas cannot be aged reliably.
 
 ## Batch magazine verification - 2026-09-21
