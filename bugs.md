@@ -1,5 +1,12 @@
 # Bug Tracker
 
+## Route-style ranking verification - 2026-09-21
+
+- TypeScript passed once; all 135 tests passed in one suite run, including 11 focused ranking tests. No new defect identified.
+- Evaluator and generation remain unchanged. Ranking reports additive reload timing and missing timing explicitly; Personalized falls back because current profiles lack difficulty-dependent shooting costs.
+- Geometric facing and distance-only difficulty are approximations; future calibration and moving-reload overlap remain in features.md.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Candidate-generation verification - 2026-09-21
 
 - TypeScript passed once; all 124 tests passed in one suite run, including nine new generation tests. No new defect identified.

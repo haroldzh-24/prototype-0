@@ -6,6 +6,8 @@ import { evaluateRoute } from './route';
 import type { RouteEvaluation, StageRoute } from './route';
 import { shootingDifficulty } from './shootingDifficulty';
 import type { ShootingDifficulty } from './shootingDifficulty';
+import { deriveRankingMetrics } from './ranking';
+import type { RankingMetrics, RankingReason } from './ranking';
 
 export type RouteStyle =
   /** Favor fewer positions and less travel, accepting harder engagements. */
@@ -14,11 +16,11 @@ export type RouteStyle =
   | 'BALANCED'
   /** Accept more travel for closer/easier engagements. */
   | 'MORE_MOVEMENT_EASIER_SHOOTING'
-  /** Future policy calibrated from ShooterPerformanceProfile. */
+  /** Falls back until the profile supports difficulty-dependent shooting cost. */
   | 'PERSONALIZED';
 export type MovementPreferences = Readonly<{ backwardMovement: 'AVOID' | 'LIMITED' | 'ALLOWED' }>;
 export type ReloadStrategy = 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE';
-/** Policy intent only: backward limits, reload thresholds and style weights are deferred. */
+/** Ranking preferences; never change route legality. */
 export type RoutePlannerConfig = Readonly<{
   style: RouteStyle;
   movement: MovementPreferences;
@@ -34,7 +36,8 @@ export type PlannerContext = Readonly<{
 export type PlannerCandidate = Readonly<{ id: string; route: StageRoute }>;
 export type PlannerWarning = Readonly<{
   code: 'ROUTE_EVALUATION' | 'NO_POSITIONS' | 'INVALID_INPUT' | 'INVALID_VISIBILITY'
-    | 'UNCOVERED_TARGET' | 'NO_COVERAGE' | 'INVALID_LOADOUT' | 'NO_VALID_ROUTE' | 'SEARCH_LIMIT';
+    | 'UNCOVERED_TARGET' | 'NO_COVERAGE' | 'INVALID_LOADOUT' | 'NO_VALID_ROUTE' | 'SEARCH_LIMIT'
+    | 'PROFILE_FALLBACK' | 'MOVING_RELOAD_OVERLAP_NOT_MODELED' | 'TIMING_UNAVAILABLE';
   message: string; candidateId?: string;
 }>;
 export type EvaluatedPlannerCandidate = Readonly<{
@@ -43,8 +46,13 @@ export type EvaluatedPlannerCandidate = Readonly<{
   /** Per engagement, not per shot. Missing/non-scoring references remain evaluator warnings. */
   shootingDifficulty: readonly (ShootingDifficulty & { positionId: string; targetId: string })[];
   warnings: readonly PlannerWarning[];
+  metrics: RankingMetrics;
 }>;
-export type RankedPlannerCandidate = Readonly<{ candidate: EvaluatedPlannerCandidate; score: number }>;
+export type RankedPlannerCandidate = Readonly<{
+  candidate: EvaluatedPlannerCandidate; originalCandidate: PlannerCandidate; score: number;
+  rank: number; routeStyle: RouteStyle; effectiveStyle: RouteStyle; metrics: RankingMetrics;
+  reasons: readonly RankingReason[]; warnings: readonly PlannerWarning[];
+}>;
 export type PlannerResult = Readonly<{
   status: 'NOT_IMPLEMENTED' | 'RANKED';
   candidates: readonly RankedPlannerCandidate[];
@@ -67,25 +75,12 @@ export function evaluateCandidate(context: PlannerContext, candidate: PlannerCan
     difficulty.push({ positionId: position.id, targetId, ...shootingDifficulty(position.position, target.position) });
   }
   return { candidate, evaluation, shootingDifficulty: difficulty,
+    metrics: deriveRankingMetrics(context, candidate, evaluation, difficulty),
     warnings: evaluation.warnings.map(message => ({ code: 'ROUTE_EVALUATION', message, candidateId: candidate.id })),
   };
 }
 
-/** Future policy owns style weights, preference enforcement and personalized scoring.
- * Return null to exclude a candidate (e.g. incomplete or infeasible); lower scores rank first.
- * Scores are not seconds. No default optimizer policy is implemented in this phase.
- */
+/** Optional legacy override; null excludes a candidate. Scores are not seconds. */
 export type CandidateRankingPolicy = (candidate: EvaluatedPlannerCandidate, config: RoutePlannerConfig) => number | null;
-export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[], config: RoutePlannerConfig,
-  scoreCandidate: CandidateRankingPolicy): PlannerResult {
-  const ranked: RankedPlannerCandidate[] = [];
-  for (const candidate of candidates) {
-    const score = scoreCandidate(candidate, config);
-    if (score === null) continue;
-    if (!Number.isFinite(score)) throw new Error('Planner ranking scores must be finite or null.');
-    ranked.push({ candidate, score });
-  }
-  // Stable sort preserves input order on ties; the caller's array is never sorted in place.
-  ranked.sort((a, b) => a.score - b.score);
-  return { status: 'RANKED', candidates: ranked, warnings: candidates.flatMap(candidate => candidate.warnings) };
-}
+export { rankCandidates, RANKING_CONFIG } from './ranking';
+export type { RankingMetrics, RankingReason, RankingOptions } from './ranking';

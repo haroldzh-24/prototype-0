@@ -1,5 +1,14 @@
 # Changelog
 
+### Automatic route ranking Phase 3 - 2026-09-21
+
+- Added centralized Minimum Movement, Balanced and Easier Shooting scoring policies, derived metrics, ranks, additive explanation contributions and original candidate references.
+- Personalized explicitly uses Balanced fallback: current performance profiles do not measure the extra shooting cost of target difficulty. Existing supported profile timing still comes from the authoritative evaluator.
+- Added rotation-invariant target-facing retreat approximation, neutral ambiguous segments, direction-change/reversal complexity and Avoid/Limited/Allowed penalties.
+- Added Conservative/Balanced/Aggressive ammunition-margin and additive reload-time preferences, with explicit moving-reload-overlap warning.
+- Added greedy top-five diversity filtering with configurable limit; meaningful subset, order, assignment and reload alternatives survive. Legacy custom scoring callback remains compatible.
+- Validation: TypeScript once and full test suite once, all 135 tests passed (11 new). No UI, evaluator, generation, persistence, browser, screenshot or export changes; no commit or push.
+
 ## Bounded route candidate generation - 2026-09-21
 
 - Validation: TypeScript once and tests once; 124 tests passed, including nine new generation tests and the updated foundation generation test. No commit or push.
