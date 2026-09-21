@@ -1,5 +1,12 @@
 # Bug Tracker
 
+## First automatic planner UI - 2026-09-21
+
+- TypeScript passed once and all 146 tests passed once, including three focused planner UI helper tests.
+- Generated results stay separate from the manual route; replacement requires confirmation and copies nested editable data. Changing inputs clears results; closing the panel cancels queued generation.
+- No new defect identified. Physical-device UI verification remains planned in features.md.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Moving reload verification - 2026-09-21
 
 - Fixed additive-only reload timing; completed implementation is recorded in changelog.md. Ammunition simulation remains unchanged.

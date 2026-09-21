@@ -1,5 +1,13 @@
 # Changelog
 
+### Phase 5A first usable automatic planner UI - 2026-09-21
+
+- Added AI PLAN inside Route mode with route style, backward movement and reload strategy choices, plus position/target/visibility/magazine readiness counts and setup guidance.
+- Generation uses the existing candidate generator, evaluator and ranking. Shows up to three results with estimated time, movement distance, positions, reloads, loaded rounds remaining and effective route style; Personalized warns about Balanced fallback.
+- Added Ready, Generating, Results, No valid route and Error states. USE THIS ROUTE requires confirmation before replacing an existing route and deep-copies the selected route into the existing manual editing/save flow.
+- Added three focused tests for result mapping, independent editable copies and overwrite confirmation. Phase 5B refinements remain in features.md.
+- Validation: TypeScript passed once; all 146 tests passed in one suite run. No browser automation, screenshots, iOS export, commit or push.
+
 ## Moving reload overlap Phase 4 - 2026-09-21
 
 - The authoritative evaluator overlaps successful reloads with their destination's incoming movement. Optional stationary mode opts out; omitted mode uses movement, including existing saved/generated entries. Route version and ammunition simulation remain unchanged.

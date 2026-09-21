@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
@@ -19,6 +19,7 @@ import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
 import RoutePanel from '@/planning/RoutePanel';
+import AutoPlannerPanel from '@/planning/AutoPlannerPanel';
 import { createRoute, toggleRouteTarget } from '@/planning/route';
 import type { TargetAssignmentMode, StageRoute } from '@/planning/route';
 import type { ShooterPerformanceProfile } from '@/profile/model';
@@ -60,7 +61,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
     if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
     setRouteMode(true); setRouteVisible(true); setSelectedId(null); setViewMode('topDown');
   };
-  const [panel, setPanel] = useState<'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | null>(null);
+  const [panel, setPanel] = useState<'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
   const [planSection, setPlanSection] = useState<'loadout' | 'targets' | 'summary'>('loadout');
@@ -190,6 +191,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         }} />
         <Button title="Assign" icon="targets" active={panel === 'assign'} displayTitle="Targets" label="Assign targets" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => { setAssignmentMode(null); setPanel('assign'); }} />
         <Button title="Reload" icon="reload" active={panel === 'reload'} displayTitle="Reload" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => setPanel('reload')} />
+        <Button title="AI PLAN" icon="plan" active={panel === 'aiPlan'} disabled={dragging} onPress={() => { setAssignmentMode(null); setPanel('aiPlan'); }} />
         <Button title="Summary" icon="summary" active={panel === 'summary'} displayTitle="Summary" disabled={dragging} onPress={() => setPanel('summary')} />
         <Button title="Exit route" icon="exit" displayTitle="Exit" disabled={dragging} onPress={() => setRouteMode(false)} />
       </> : <>
@@ -200,7 +202,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         <Button title="View" icon="view" active={panel === 'view'} displayTitle="View" disabled={dragging} onPress={() => setPanel('view')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ edit: 'Edit', plan: 'Plan', view: 'View', snap: 'Grid & snap', summary: 'Route summary', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset positions' }[panel ?? 'edit'])} visible={panel !== null} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ aiPlan: 'AI PLAN', edit: 'Edit', plan: 'Plan', view: 'View', snap: 'Grid & snap', summary: 'Route summary', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset positions' }[panel ?? 'edit'])} visible={panel !== null} close={() => setPanel(null)}>
       {panel === 'edit' && selected && <>
         <ObjectInspector key={selected.id} item={selected} disabled={false} onApply={applyEdit} />
         {isEngageable(selected) && <RoundAssignment key={'rounds-' + selected.id} label={targetLabel(stage, selected.id)} value={plan.engagements[selected.id] ?? 0} onSave={rounds => {
@@ -224,6 +226,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         <Button title="Grid / Snap Settings" onPress={() => setPanel('snap')} />
         <Button title="Reset Positions" danger onPress={() => setPanel('reset')} />
       </>}
+      {panel === 'aiPlan' && <AutoPlannerPanel stage={stage} plan={plan} profile={profile} onUse={next => { setPlan(next); setPositionId(next.route?.positions[0]?.id ?? null); setAssignmentMode(null); setPanel(null); }} />}
       {panel === 'snap' && <SnapControls value={snapping} onChange={setSnapping} disabled={false} />}
       {(panel === 'summary' || panel === 'assign' || panel === 'reload') && plan.route && <>
         {!!profileError && <Text>{profileError}</Text>}
