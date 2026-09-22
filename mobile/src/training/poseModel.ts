@@ -84,6 +84,8 @@ export function normalizeVideoPoint(x: number, y: number, width: number, height:
   return { x: (point.x - left) / w, y: (point.y - top) / h };
 }
 export function containedVideoRect(width: number, height: number, videoWidth: number, videoHeight: number) {
+  if (![width, height, videoWidth, videoHeight].every(n => Number.isFinite(n) && n > 0))
+    return { left: 0, top: 0, width: 0, height: 0 };
   const scale = Math.min(width / videoWidth, height / videoHeight);
   const w = videoWidth * scale, h = videoHeight * scale;
   return { left: (width - w) / 2, top: (height - h) / 2, width: w, height: h };

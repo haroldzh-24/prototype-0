@@ -1,5 +1,6 @@
-﻿import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { TextInput } from 'react-native';
+import { OperationGate } from '@/training/operationGate';
 import { useFocusEffect } from 'expo-router';
 import { uuid } from 'expo-modules-core';
 import { useRepository } from '@/storage/StorageProvider';
@@ -18,25 +19,38 @@ export default function Training() {
   const [name, setName] = useState('Practice session'), [context, setContext] = useState<TrainingContext>('DRY_FIRE');
   const [startingType, setStartingType] = useState<StartingType>('competitionHolster'), [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<{ recordId: string; videoId: string } | null>(null);
-  const refresh = useCallback(() => repo.listTraining('local').then(setRecords), [repo]);
-  useFocusEffect(useCallback(() => { let active = true; repo.listTraining('local').then(rows => { if (active) setRecords(rows); }).catch(e => { if (active) setMessage(String(e)); }); return () => { active = false; }; }, [repo]));
-  const run = async (work: () => Promise<void>) => { if (busy) return; setBusy(true); setMessage(''); try { await work(); } catch (e) { setMessage(String(e)); } finally { setBusy(false); } };
-  const create = () => run(async () => {
+  const operation = useRef(new OperationGate());
+  const refresh = async (token: number) => { const rows = await repo.listTraining('local');
+    if (operation.current.current(token)) { setRecords(rows); setMessage(repo.trainingReadWarnings.join('\n')); } };
+  useFocusEffect(useCallback(() => {
+    let active = true; operation.current.activate(); setBusy(false);
+    repo.listTraining('local').then(rows => { if (active) { setRecords(rows); setMessage(repo.trainingReadWarnings.join('\n')); } })
+      .catch(e => { if (active) setMessage(String(e)); });
+    return () => { active = false; operation.current.dispose(); };
+  }, [repo]));
+  const run = async (work: (token: number) => Promise<void>) => {
+    const token = operation.current.begin(); if (token === null) return;
+    setBusy(true); setMessage('');
+    try { await work(token); } catch (e) { if (operation.current.current(token)) setMessage(String(e)); }
+    finally { if (operation.current.current(token)) setBusy(false); operation.current.finish(token); }
+  };
+  const create = () => run(async token => {
     if (!name.trim()) throw new Error('Enter a session or drill name.');
     await repo.saveTraining({ id: uuid.v4(), userId: 'local', drillId: null, drillName: name.trim(), context, startingType,
       occurredAt: new Date().toISOString(), totalTime: null, notes: '', segments: [], videos: [] });
-    await refresh();
+    await refresh(token);
   });
-  const importVideo = (record: TrainingRecord) => run(async () => {
+  const importVideo = (record: TrainingRecord) => run(async token => {
     const id = uuid.v4(), asset = await importVideoAsset(id);
     if (!asset) return;
+    if (!operation.current.current(token)) { discardVideoAsset(asset); return; }
     const now = new Date().toISOString();
     const session: VideoSession = { id, trainingSessionId: record.id, drillId: record.drillId, asset,
       durationMs: null, fps: null, createdAt: record.occurredAt, importedAt: now,
       context: record.context ?? context, analysisStatus: 'ANNOTATING', analysisVersion: 1 };
     try { await repo.saveTraining({ ...record, context: session.context, videos: [...(record.videos ?? []), { session, analysis: analyzeVideo(session, []) }] }); }
     catch (error) { discardVideoAsset(asset); throw error; }
-    await refresh(); setSelected({ recordId: record.id, videoId: id });
+    await refresh(token); if (operation.current.current(token)) setSelected({ recordId: record.id, videoId: id });
   });
   const selectedRecord = records.find(r => r.id === selected?.recordId), selectedVideo = selectedRecord?.videos?.find(v => v.session.id === selected?.videoId);
   return <Screen title="TRAINING"><Panel><Copy>NEW SESSION</Copy>

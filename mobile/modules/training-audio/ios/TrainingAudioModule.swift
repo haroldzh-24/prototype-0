@@ -6,30 +6,65 @@ public final class TrainingAudioModule: Module {
   private let lock = NSLock()
   private var cancelled = Set<String>()
   private var jobs = Set<String>()
+  private var running = false
+  private var reader: AVAssetReader?
+  private var progress = 0.0
 
   public func definition() -> ModuleDefinition {
     Name("TrainingAudio")
+    Function("prepare") { (jobId: String) in
+      self.lock.lock()
+      defer { self.lock.unlock() }
+      guard self.jobs.isEmpty else { throw self.failure("Audio extraction already running.") }
+      self.jobs.insert(jobId)
+      self.progress = 0
+    }
+    Function("release") { (jobId: String) in
+      self.lock.lock()
+      defer { self.lock.unlock() }
+      if !self.running { self.jobs.remove(jobId); self.cancelled.remove(jobId) }
+    }
+    Function("progress") { (jobId: String) -> Double in
+      self.lock.lock()
+      defer { self.lock.unlock() }
+      return self.jobs.contains(jobId) ? self.progress : 1
+    }
+    OnDestroy { self.stop() }
+    OnAppEntersBackground { self.stop() }
     Function("cancel") { (jobId: String) in
       self.lock.lock()
       if self.jobs.contains(jobId) { self.cancelled.insert(jobId) }
+      let reader = self.jobs.contains(jobId) ? self.reader : nil
       self.lock.unlock()
+      reader?.cancelReading()
     }
     AsyncFunction("extract") { (uri: String, jobId: String, rate: Int, limitMs: Double) -> [String: Any] in
       self.lock.lock()
-      guard self.jobs.isEmpty else {
+      guard self.jobs.contains(jobId), !self.running else {
         self.lock.unlock()
         throw self.failure("Audio extraction already running.")
       }
-      self.jobs.insert(jobId)
+      self.running = true
       self.lock.unlock()
       defer {
         self.lock.lock()
         self.jobs.remove(jobId)
         self.cancelled.remove(jobId)
+        self.reader = nil
+        self.running = false
         self.lock.unlock()
       }
+      try self.checkCancellation(jobId)
       return try self.decode(uri, jobId: jobId, rate: rate, limitMs: limitMs)
     }.runOnQueue(DispatchQueue(label: "training.audio.decode", qos: .userInitiated))
+  }
+
+  private func stop() {
+    lock.lock()
+    cancelled.formUnion(jobs)
+    let current = reader
+    lock.unlock()
+    current?.cancelReading()
   }
 
   private func failure(_ message: String) -> NSError {
@@ -59,7 +94,9 @@ public final class TrainingAudioModule: Module {
     if tracks.count > 1 { warnings.append("Multiple audio tracks: only the first track was analyzed.") }
     try checkCancellation(jobId)
     let reader = try AVAssetReader(asset: asset)
+    lock.lock(); self.reader = reader; lock.unlock()
     defer { reader.cancelReading() }
+    try checkCancellation(jobId)
     let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
       AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: rate, AVNumberOfChannelsKey: 1,
       AVLinearPCMBitDepthKey: 32, AVLinearPCMIsFloatKey: true,
@@ -102,6 +139,9 @@ public final class TrainingAudioModule: Module {
             decoded = true
           }
         }
+        lock.lock()
+        progress = max(progress, min(1, max(0, (pts * 1000) / duration)))
+        lock.unlock()
       }
     }
     try checkCancellation(jobId)

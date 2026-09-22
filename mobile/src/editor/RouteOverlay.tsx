@@ -8,7 +8,7 @@ import type { StageRoute, ShootingPosition } from '../planning/route';
 import { movePosition } from '../planning/route';
 import { isEngageable, targetLabel } from '../planning/model';
 
-export type RouteOverlayProps = { preview?: boolean; assignmentMode?: 'visible' | 'engaged' | null; onTargetTap?: (id: string) => void; route: StageRoute; selectedId: string | null; onSelect: (id: string) => void; onChange: (route: StageRoute) => void; onDragging: (value: boolean) => void };
+export type RouteOverlayProps = { preview?: boolean; highlightedSegmentId?: string; assignmentMode?: 'visible' | 'engaged' | null; onTargetTap?: (id: string) => void; route: StageRoute; selectedId: string | null; onSelect: (id: string) => void; onChange: (route: StageRoute) => void; onDragging: (value: boolean) => void };
 export default function RouteOverlay(props: RouteOverlayProps & { stage: StageDocument; transform: ViewportTransform }) {
   const { stage, transform, route } = props;
   const selected = route.positions.find(p => p.id === props.selectedId);
@@ -30,8 +30,9 @@ export default function RouteOverlay(props: RouteOverlayProps & { stage: StageDo
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const destination = route.positions[index + (start ? 0 : 1)];
       const movingReload = props.preview && route.reloads.some(r => r.positionId === destination.id && (r.mode ?? 'moving') === 'moving');
-      const color = movingReload ? colors.text : colors.accent;
-      return <View key={`line-${index}`} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }}><View style={{ position: 'absolute', left: (a.x + b.x) / 2 - length / 2, top: (a.y + b.y) / 2 - 1, width: length, height: movingReload ? 4 : 2, backgroundColor: color, transform: [{ rotate: `${Math.atan2(b.y - a.y, b.x - a.x)}rad` }] }} />{props.preview && length > 20 && <View style={{ position: 'absolute', left: (a.x + b.x) / 2 - 4, top: (a.y + b.y) / 2 - 4, width: 8, height: 8, borderTopWidth: 2, borderRightWidth: 2, borderColor: color, transform: [{ rotate: (Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 4) + 'rad' }] }} />}</View>;
+      const highlighted = props.highlightedSegmentId === destination.id;
+      const color = highlighted ? colors.accent : movingReload ? colors.text : colors.accent;
+      return <View key={`line-${index}`} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }}><View style={{ position: 'absolute', left: (a.x + b.x) / 2 - length / 2, top: (a.y + b.y) / 2 - 1, width: length, height: highlighted ? 6 : movingReload ? 4 : 2, backgroundColor: color, transform: [{ rotate: `${Math.atan2(b.y - a.y, b.x - a.x)}rad` }] }} />{props.preview && length > 20 && <View style={{ position: 'absolute', left: (a.x + b.x) / 2 - 4, top: (a.y + b.y) / 2 - 4, width: 8, height: 8, borderTopWidth: 2, borderRightWidth: 2, borderColor: color, transform: [{ rotate: (Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 4) + 'rad' }] }} />}</View>;
     })}
     {props.preview && start && <Text pointerEvents="none" style={{ position: 'absolute', left: stageToViewport(start.position, transform).x + 12, top: stageToViewport(start.position, transform).y, color: colors.accent, backgroundColor: colors.background, fontSize: 11 }}>START</Text>}
     {!props.assignmentMode && route.positions.map((p, index) => <Marker key={p.id} position={p} index={index} transform={transform} readOnly={props.preview} reload={props.preview && route.reloads.some(r => r.positionId === p.id)} selected={p.id === props.selectedId} select={() => props.onSelect(p.id)} onDragging={props.onDragging} move={position => props.onChange(movePosition(route, p.id, position, stage.stage))} />)}

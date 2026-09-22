@@ -7,9 +7,18 @@ public final class TrainingCloseUpModule: Module {
   private var active: String?
   private var cancelled = false
   private var progress = 0.0
+  private var running = false
+  private var generator: AVAssetImageGenerator?
 
   public func definition() -> ModuleDefinition {
     Name("TrainingCloseUp")
+    OnDestroy { self.stop() }
+    OnAppEntersBackground { self.stop() }
+    Function("release") { (job: String) in
+      self.lock.lock()
+      defer { self.lock.unlock() }
+      if self.active == job && !self.running { self.active = nil }
+    }
     // Reserve synchronously so cancellation also works while extract is queued.
     Function("prepare") { (job: String) in
       self.lock.lock()
@@ -22,7 +31,9 @@ public final class TrainingCloseUpModule: Module {
     Function("cancel") { (job: String) in
       self.lock.lock()
       if self.active == job { self.cancelled = true }
+      let generator = self.active == job ? self.generator : nil
       self.lock.unlock()
+      generator?.cancelAllCGImageGeneration()
     }
     Function("progress") { (job: String) -> Double in
       self.lock.lock()
@@ -30,10 +41,24 @@ public final class TrainingCloseUpModule: Module {
       return self.active == job ? self.progress : 1
     }
     AsyncFunction("extract") { (uri: String, job: String, startMs: Double, region: [String: Double]) -> [String: Any] in
-      defer { self.lock.lock(); self.active = nil; self.lock.unlock() }
+      defer { self.lock.lock(); if self.active == job { self.active = nil; self.running = false; self.generator = nil }; self.lock.unlock() }
+      try self.begin(job)
       try self.check(job)
       return try self.extract(uri, job: job, startMs: startMs, region: region)
     }.runOnQueue(DispatchQueue(label: "training.close.frames", qos: .userInitiated))
+  }
+  private func begin(_ job: String) throws {
+    lock.lock()
+    defer { lock.unlock() }
+    guard active == job, !running else { throw failure("Analysis job is no longer available.") }
+    running = true
+  }
+  private func stop() {
+    lock.lock()
+    cancelled = true
+    let current = generator
+    lock.unlock()
+    current?.cancelAllCGImageGeneration()
   }
   private func failure(_ message: String) -> NSError {
     NSError(domain: "TrainingCloseUp", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -56,6 +81,8 @@ public final class TrainingCloseUpModule: Module {
     let duration = min(rawDuration, 60000)
     guard startMs < duration else { throw failure("Select a frame within the first 60 seconds.") }
     let generator = AVAssetImageGenerator(asset: asset)
+    lock.lock(); self.generator = generator; lock.unlock()
+    try check(job)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: 640, height: 640)
     generator.requestedTimeToleranceBefore = .zero
@@ -83,6 +110,11 @@ public final class TrainingCloseUpModule: Module {
         let image = try generator.copyCGImage(at: CMTime(seconds: (startMs + Double(index)*100)/1000, preferredTimescale: 60000), actualTime: &actual)
         let ms = CMTimeGetSeconds(actual)*1000
         guard ms.isFinite, ms >= 0, ms <= duration, ms > previousMs else { return }
+        try check(job)
+        if let previous = previousImage, previous.width != image.width || previous.height != image.height {
+          tracked = nil
+          previousImage = nil
+        }
         previousMs = ms
         let request = VNDetectHumanHandPoseRequest()
         request.maximumHandCount = 2
@@ -107,7 +139,8 @@ public final class TrainingCloseUpModule: Module {
             try sequence.perform([tracking], on: image, orientation: .up)
             if let result = tracking.results?.first as? VNDetectedObjectObservation, result.confidence >= 0.45 {
               let r = result.boundingBox
-              if r.minX >= 0 && r.minY >= 0 && r.maxX <= 1 && r.maxY <= 1 && r.width > 0 && r.height > 0 {
+              if [r.minX, r.minY, r.maxX, r.maxY, r.width, r.height].allSatisfy({ $0.isFinite })
+                && r.minX >= 0 && r.minY >= 0 && r.maxX <= 1 && r.maxY <= 1 && r.width > 0 && r.height > 0 {
                 tracked = result
                 object = ["status": "TRACKED", "confidence": Double(result.confidence),
                   "region": ["x": Double(r.minX), "y": 1-Double(r.maxY), "width": Double(r.width), "height": Double(r.height)],

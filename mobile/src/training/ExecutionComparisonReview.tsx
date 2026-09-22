@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { OperationGate } from './operationGate';
 import { View } from 'react-native';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, Panel } from '../ui/kit';
@@ -11,6 +12,7 @@ import type { TrainingVideo } from './videoModel';
 import { createExecutionComparison, createExecutionComparisonResult, isExecutionComparison, mapObservedEventsToPlan,
   observedExecution, plannedElements, removeExecutionMapping } from './executionComparison';
 import type { ExecutionComparison, MappingKind } from './executionComparison';
+import { MappingSuggestionReview } from './MappingSuggestionReview';
 
 const seconds = (value: number | null) => value === null ? 'Not measured' : `${(value / 1000).toFixed(3)} s`;
 const delta = (value: number | null) => value === null ? 'Unavailable' : `${value >= 0 ? '+' : ''}${(value / 1000).toFixed(3)} s`;
@@ -41,9 +43,12 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
   video: TrainingVideo; busy: boolean; onChange: (comparison: ExecutionComparison | undefined) => void; onPreview: (ms: number) => void;
 }) {
   const repo = useRepository(), [open, setOpen] = useState(false), [stages, setStages] = useState<StageSummary[]>([]);
+  const operation = useRef(new OperationGate());
+  useEffect(() => { operation.current.activate(); return () => operation.current.dispose(); }, []);
   const [chosen, setChosen] = useState<SavedStage | null>(null), [live, setLive] = useState<SavedStage | null | undefined>();
   const [loading, setLoading] = useState(false), [message, setMessage] = useState('');
   const [kind, setKind] = useState<MappingKind>('MOVEMENT'), [planId, setPlanId] = useState(''), [intervalId, setIntervalId] = useState('');
+  const [stringIds, setStringIds] = useState<string[]>([]);
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, pan: { x: 0, y: 0 } });
   const comparison = isExecutionComparison(video.executionComparison) ? video.executionComparison : undefined;
   const stageId = comparison?.snapshot.stageId;
@@ -66,18 +71,23 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
     setMessage((error instanceof Error ? error.message : String(error)).split(', ').map(w => warnings[w] ?? w).join(' '));
   } };
   const chooseStage = async (id: string) => {
+    const token = operation.current.begin(); if (token === null) return;
     setLoading(true);
-    try { setChosen(await repo.loadStage(id)); setMessage(''); } catch (error) { setMessage(String(error)); }
-    finally { setLoading(false); }
+    try { const selected = await repo.loadStage(id); if (operation.current.current(token)) { setChosen(selected); setMessage(''); } }
+    catch (error) { if (operation.current.current(token)) setMessage(String(error)); }
+    finally { if (operation.current.current(token)) setLoading(false); operation.current.finish(token); }
   };
   const link = async () => {
     if (!chosen) return;
+    const token = operation.current.begin(); if (token === null) return;
     setLoading(true);
     try {
       const profile = await repo.loadProfile();
+      if (!operation.current.current(token)) return;
       onChange(createExecutionComparison(uuid.v4(), chosen, video, profile.performance, new Date().toISOString()));
       setPlanId(''); setIntervalId(''); setMessage('Snapshot linked. Map confirmed intervals, then Save analysis to retain changes.');
-    } catch (error) { setMessage(String(error)); } finally { setLoading(false); }
+    } catch (error) { if (operation.current.current(token)) setMessage(String(error)); }
+    finally { if (operation.current.current(token)) setLoading(false); operation.current.finish(token); }
   };
   const disabled = busy || loading;
   const selectedMapping = comparison?.mappings.find(m => m.kind === kind && m.planElementId === planId);
@@ -85,6 +95,7 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
     setPlanId(id);
     const mapping = comparison?.mappings.find(m => m.kind === kind && m.planElementId === id);
     setIntervalId(mapping?.observedIntervalId ?? '');
+    setStringIds(mapping?.observedIntervalIds ?? ((mapping?.kind === 'STRING' || mapping?.kind === 'POSITION') ? [mapping.observedIntervalId] : []));
     const interval = observed.intervals.find(i => i.id === mapping?.observedIntervalId);
     if (interval) onPreview(interval.startMs);
   };
@@ -113,29 +124,35 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
             readOnly routeEditing={false} gridVisible snapping={DEFAULT_SNAPPING} selectedId={null} onSelect={() => {}}
             onDragging={() => {}} setStage={() => {}}
             routePlanning={{ route: comparison.snapshot.plan.route, preview: true, selectedId: planId,
+              highlightedSegmentId: kind === 'MOVEMENT' || kind === 'RELOAD' ? planId : undefined,
               onSelect: selectElement, onChange: () => {}, onDragging: () => {} }} />
         </View>
         <Action title="Fit snapshot route" onPress={() => setViewport({ zoom: 1, pan: { x: 0, y: 0 } })} />
+        <MappingSuggestionReview comparison={comparison} video={video} disabled={disabled} onChange={onChange} guard={guard}
+          onSelect={pair => { setKind(pair.kind); setPlanId(pair.planElementId); setIntervalId(pair.observedIntervalIds[0]);
+            setStringIds((pair.kind === 'STRING' || pair.kind === 'POSITION') ? pair.observedIntervalIds : []); onPreview(pair.startMs); }} />
         <Copy>MAP EXECUTION · Select an element below to highlight its planned position and mapped timeline interval.</Copy>
         {(['MOVEMENT', 'POSITION', 'RELOAD', 'STRING', 'TOTAL'] as MappingKind[]).map(k => <Action key={k} title={`${kind === k ? 'Selected: ' : ''}${k}`} disabled={disabled}
-          onPress={() => { setKind(k); setPlanId(''); setIntervalId(''); }} />)}
-        {kind === 'POSITION' && <Copy>Position dwell requires confirmed POSITION_ENTRY and POSITION_EXIT events.</Copy>}
-        {kind === 'STRING' && <Copy>Map a complete first-to-last-shot string to one position’s engagement group. The plan estimate excludes draw and reload.</Copy>}
+          onPress={() => { setKind(k); setPlanId(''); setIntervalId(''); setStringIds([]); }} />)}
+        {kind === 'POSITION' && <Copy>Position dwell requires confirmed POSITION_ENTRY and POSITION_EXIT events. Select one interval, or several fragments belonging to this position.</Copy>}
+        {kind === 'STRING' && <Copy>Select one or more strings for this position. Individual groups are preserved; the comparison span includes transitions between them. The plan estimate excludes draw and reload.</Copy>}
         <Copy>PLANNED ELEMENTS</Copy>
         {plannedElements(comparison, kind).map(p => <Action key={p.id}
           title={`${planId === p.id ? 'Selected · ' : ''}${p.label} · ${comparison.mappings.some(m => m.kind === kind && m.planElementId === p.id) ? 'Mapped' : 'Unmapped'}`}
           disabled={disabled} onPress={() => selectElement(p.id)} />)}
         <Copy>CONFIRMED TIMELINE INTERVALS</Copy>
         {!observed.intervals.some(i => i.kind === kind) && <Copy>No confirmed intervals of this kind. Review timeline endpoints first.</Copy>}
-        {observed.intervals.filter(i => i.kind === kind).map(i => <View key={i.id} style={{ borderLeftWidth: intervalId === i.id ? 3 : 0, borderLeftColor: '#58c9b9', paddingLeft: 6 }}>
+        {observed.intervals.filter(i => i.kind === kind).map(i => <View key={i.id} style={{ borderLeftWidth: ((kind === 'STRING' || kind === 'POSITION') ? stringIds.includes(i.id) : intervalId === i.id) ? 3 : 0, borderLeftColor: '#58c9b9', paddingLeft: 6 }}>
           <Action title={`${intervalId === i.id ? 'Selected · ' : ''}${seconds(i.startMs)} → ${seconds(i.endMs)} · ${seconds(i.durationMs)}`}
-            disabled={disabled} onPress={() => { setIntervalId(i.id); onPreview(i.startMs); }} />
+            disabled={disabled} onPress={() => { setIntervalId(i.id); onPreview(i.startMs);
+              if (kind === 'STRING' || kind === 'POSITION') setStringIds(ids => ids.includes(i.id) ? ids.filter(id => id !== i.id) : [...ids, i.id]); }} />
           <Copy>{i.eventIds.join(' → ')}</Copy>
         </View>)}
-        <Action title={selectedMapping ? 'Update mapping' : 'Assign confirmed interval'} disabled={disabled || !planId || !intervalId} onPress={() => guard(() => {
+        <Action title={selectedMapping ? 'Update mapping' : 'Assign confirmed interval'} disabled={disabled || !planId || !intervalId || (kind === 'STRING' || kind === 'POSITION') && !stringIds.length} onPress={() => guard(() => {
           const at = new Date().toISOString();
           onChange(mapObservedEventsToPlan(comparison, video, { id: selectedMapping?.id ?? uuid.v4(), kind, planElementId: planId,
-            observedIntervalId: intervalId, source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true,
+            observedIntervalId: (kind === 'STRING' || kind === 'POSITION') ? stringIds[0] : intervalId,
+            ...((kind === 'STRING' || kind === 'POSITION') ? { observedIntervalIds: stringIds } : {}), source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true,
             createdAt: selectedMapping?.createdAt ?? at, updatedAt: at }));
         })} />
         {selectedMapping && <Action title="Remove selected mapping" disabled={disabled} onPress={() => guard(() => {
@@ -153,7 +170,9 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
         {result.segmentComparisons.map(r => <Copy key={r.mappingId}>Movement to {r.planElementId}: plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)} · planned distance {r.plannedDistanceInches.toFixed(1)} in · mapping {r.mappingConfidence}</Copy>)}
         {result.positionComparisons.map(r => <Copy key={r.mappingId}>Position {r.planElementId}: observed dwell {seconds(r.observedMs)}; planned dwell unavailable. Engagement estimate {seconds(r.plannedEngagementMs)} · {r.plannedEngagementCount} planned targets / {r.plannedRounds ?? '?'} rounds · {r.observedConfirmedShotCount} confirmed shots / {r.observedStringCount} strings.</Copy>)}
         {result.reloadComparisons.map(r => <Copy key={r.mappingId}>Reload at {r.planElementId}: raw plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)}. Plan overlap {seconds(r.plannedOverlapMs)}, additional {seconds(r.plannedAdditionalMs)}; observed overlap {seconds(r.observedOverlapMs)}, additional {seconds(r.observedAdditionalMs)}; additional delta {delta(r.additionalDeltaMs)}.</Copy>)}
-        {result.stringComparisons.map(r => <Copy key={r.mappingId}>Engagement at {r.planElementId}: plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)}.</Copy>)}
+        {result.stringComparisons.map(r => <View key={r.mappingId}><Copy>Engagement at {r.planElementId}: plan {seconds(r.plannedMs)}, observed span {seconds(r.observedMs)}, delta {delta(r.deltaMs)}.
+          {r.stringCount} strings · {r.totalShots} shots · summed string time {seconds(r.engagementDurationMs ?? null)}.</Copy>
+          {r.strings?.map(s => <Copy key={s.id}>{seconds(s.startMs)} → {seconds(s.endMs)} · {s.confirmedShotCount} shots</Copy>)}</View>)}
       </>}
       {result.warnings.map(w => <Copy key={w}>{warnings[w] ?? w}</Copy>)}
       {video.executionComparison && <Action title="Remove comparison link and mappings" disabled={disabled} onPress={() => { onChange(undefined); setChosen(null); setPlanId(''); setIntervalId(''); }} />}

@@ -16,6 +16,25 @@
 
 # Changelog
 
+## Phase 9A: iOS device hardening - 2026-09-22
+
+- Audited Expo configuration, module registration/podspecs, AVFoundation/Vision processing, timestamps, media lifecycle, StageBuilder navigation, training persistence and stale-state rules before edits. Kept existing Phase 8F-B changes intact on ai-route-planner; no major feature, permission or schema migration added.
+- Added synchronous audio preparation, shared extraction reservation, release-on-failure, cancellation/progress, native reader/generator shutdown and background/destroy hooks. Vision validates tracked rectangles and clears tracking/registration on frame-size changes. A lightweight transformed display-size lookup corrects close-up region selection for rotated source tracks.
+- Added operation generations around training imports/saves/relinks, StageBuilder saves and snapshot linking. Stale completions are ignored; same-tap duplicate operations are blocked. Player initialization has local retry recovery, timestamps reject unavailable/nonfinite values, and unsaved/failed imported media is cleaned up without deleting persisted references.
+- Bounded timeline input before sorting/fusion; guarded malformed stage/profile/training payloads; preserved unreadable training rows with visible warnings while listing healthy legacy records. Unknown video-level buffer fields are omitted on normalization. Stage writes now share the training/profile write queue so unrelated writes cannot be lost to a training rollback.
+- Memoized dirty-video serialization and preserved existing discovery/fusion/mapping invalidation and observation-withdrawal behavior. Added the unchecked device checklist and code audit at mobile/docs/ios-device-verification.md.
+- TypeScript passed once. One full-suite run: 447 tests, 444 passed and 3 failed due to old native adapter mocks missing release. All 19 new tests passed. Updated the three mocks and added release assertions afterward; no rerun was performed under the one-run constraint. Autolinking resolved all modules; no Swift compiler/device, browser automation, commit or push.
+
+## Phase 8F-B: automatic execution mapping suggestions - 2026-09-22
+
+- Added a separate deterministic mapping layer over stored historical route snapshots and confirmed timeline intervals. Compact observed/planned sequences preserve references, order, evaluator timing/distance, shots, strings and reload overlap. No route, timeline, detector or performance-profile mutation.
+- Bounded K-best sequence alignment supports matches, planned skips, observed extras, conservative stable-fragment merging and multiple strings at a position. Shared comparison validation preserves fixed anchors and order across overlapping evidence kinds. Centralized scoring/bounds, confidence, deterministic explanations and diverse alternatives expose incomplete/conflicting/no-result states.
+- Compare to Plan now offers Suggest Mapping, accept-all, individual accept/reject, conflict feedback and manual multi-interval editing. Preview highlights the historical route position/incoming segment and confirmed interval rows and seeks the video. Only explicit acceptance creates mappings for the existing comparison engine.
+- Extended engagement comparison to retain individual string details, total shots/string counts, summed string durations and transition-inclusive spans. Existing evaluator reload timing, overlap and residual calculations remain authoritative. Single-shot groups retain zero-duration string references.
+- Persisted algorithm/config/comparison/video-analysis/snapshot versions, generation timestamp, input fingerprint and review decisions with comparison JSON. Trusted timeline/grouping changes mark suggestions stale on read and block acceptance; provisional detector changes do not. Manual mappings remain available for review.
+- TypeScript passed once; the full suite passed once with 428 tests (30 new), including SQLite reopen, immutability, anchors/conflicts, partial acceptance/rejection, malformed data, bounded alternatives, counts/timing/reload support, merging and stale detection. No screenshots, browser automation, iOS export, commit or push. Physical-device verification and recorded-ground-truth confidence calibration remain in features.md.
+- Limits: lane combination is a bounded heuristic; indistinguishable planned positions cannot share one observed interval automatically. No arbitrary position/target recognition, stage reconstruction, new native detectors, coaching/scoring or cloud inference. See mobile/src/training/mappingSuggestions.md.
+
 ### Phase 5B planner preview and result polish - 2026-09-21
 
 - Added VIEW ROUTE using the existing StageViewport/RouteOverlay and stage coordinate transforms. Preview shows numbered positions, directional paths, assigned-target connections, START, reload markers and highlighted incoming moving-reload segments. Object and position editing are disabled; pan/zoom/Fit remain available.

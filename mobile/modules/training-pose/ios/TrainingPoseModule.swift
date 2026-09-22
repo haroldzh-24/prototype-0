@@ -7,9 +7,29 @@ public final class TrainingPoseModule: Module {
   private var active: String?
   private var cancelled = false
   private var progress = 0.0
+  private var running = false
+  private var generator: AVAssetImageGenerator?
 
   public func definition() -> ModuleDefinition {
     Name("TrainingPose")
+    AsyncFunction("displaySize") { (uri: String) -> [String: Double] in
+      guard let url = URL(string: uri), url.isFileURL,
+        let track = AVURLAsset(url: url).tracks(withMediaType: .video).first else {
+        throw self.failure("Video display geometry unavailable.")
+      }
+      let size = CGRect(origin: .zero, size: track.naturalSize).applying(track.preferredTransform).standardized.size
+      guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else {
+        throw self.failure("Invalid video display geometry.")
+      }
+      return ["width": Double(size.width), "height": Double(size.height)]
+    }.runOnQueue(DispatchQueue(label: "training.pose.metadata", qos: .utility))
+    OnDestroy { self.stop() }
+    OnAppEntersBackground { self.stop() }
+    Function("release") { (job: String) in
+      self.lock.lock()
+      defer { self.lock.unlock() }
+      if self.active == job && !self.running { self.active = nil }
+    }
     // Reserve synchronously so cancellation also works while extract is queued.
     Function("prepare") { (job: String) in
       self.lock.lock()
@@ -22,7 +42,9 @@ public final class TrainingPoseModule: Module {
     Function("cancel") { (job: String) in
       self.lock.lock()
       if self.active == job { self.cancelled = true }
+      let generator = self.active == job ? self.generator : nil
       self.lock.unlock()
+      generator?.cancelAllCGImageGeneration()
     }
     Function("progress") { (job: String) -> Double in
       self.lock.lock()
@@ -33,13 +55,27 @@ public final class TrainingPoseModule: Module {
                                maxSamples: Int, imageSize: Int, minConfidence: Double) -> [String: Any] in
       defer {
         self.lock.lock()
-        if self.active == job { self.active = nil }
+        if self.active == job { self.active = nil; self.running = false; self.generator = nil }
         self.lock.unlock()
       }
+      try self.begin(job)
       try self.check(job)
       return try self.extract(uri, job: job, fps: fps, limitMs: limitMs, maxSamples: maxSamples,
                               imageSize: imageSize, minConfidence: minConfidence)
     }.runOnQueue(DispatchQueue(label: "training.pose.frames", qos: .userInitiated))
+  }
+  private func begin(_ job: String) throws {
+    lock.lock()
+    defer { lock.unlock() }
+    guard active == job, !running else { throw failure("Analysis job is no longer available.") }
+    running = true
+  }
+  private func stop() {
+    lock.lock()
+    cancelled = true
+    let current = generator
+    lock.unlock()
+    current?.cancelAllCGImageGeneration()
   }
   private func failure(_ message: String) -> NSError {
     NSError(domain: "TrainingPose", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
@@ -66,6 +102,8 @@ public final class TrainingPoseModule: Module {
     let transform = track.preferredTransform
     let mirrored = transform.a * transform.d - transform.b * transform.c < 0
     let generator = AVAssetImageGenerator(asset: asset)
+    lock.lock(); self.generator = generator; lock.unlock()
+    try check(job)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: CGFloat(imageSize), height: CGFloat(imageSize))
     // Actual returned presentation time, not requested time, is authoritative.
@@ -95,6 +133,7 @@ public final class TrainingPoseModule: Module {
         guard timestampMs.isFinite, timestampMs >= 0 else { throw failure("Invalid video frame timestamp.") }
         if timestampMs <= previousMs || timestampMs > duration { return }
         previousMs = timestampMs
+        try check(job)
         let request = VNDetectHumanBodyPoseRequest()
         request.revision = VNDetectHumanBodyPoseRequestRevision1
         // Pixels already include preferred rotation/mirroring; do not rotate twice.

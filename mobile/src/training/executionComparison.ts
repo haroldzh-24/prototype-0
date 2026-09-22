@@ -7,6 +7,7 @@ import type { SavedStage } from '../storage/repository';
 import type { TrainingVideo } from './videoModel';
 import { isTrustedEvent } from './videoModel';
 import { analyzeVideo } from './videoAnalysis';
+import type { MappingSuggestionSet } from './mappingSuggestions';
 
 export const COMPARISON_VERSION = 1;
 export const COMPARISON_LIMITS = { positions: 100, objects: 2000, mappings: 500, intervals: 2000 } as const;
@@ -17,13 +18,15 @@ export type RouteSnapshot = {
   timingProfile: ShooterPerformanceProfile | null;
 };
 export type ExecutionMapping = { id: string; kind: MappingKind; planElementId: string; observedIntervalId: string;
+  observedIntervalIds?: string[];
   source: 'MANUAL' | 'AUTOMATIC_SUGGESTION'; confidence: 'LOW' | 'MEDIUM' | 'HIGH' | 'CONFIRMED'; confirmed: boolean;
   createdAt: string; updatedAt: string };
 export type ExecutionComparison = { id: string; version: 1; videoId: string; videoAnalysisVersion: 1;
-  createdAt: string; updatedAt: string; snapshot: RouteSnapshot; mappings: ExecutionMapping[] };
+  createdAt: string; updatedAt: string; snapshot: RouteSnapshot; mappings: ExecutionMapping[]; mappingSuggestions?: MappingSuggestionSet };
 export type ObservedInterval = { id: string; kind: MappingKind; startMs: number; endMs: number; durationMs: number;
   eventIds: string[]; confirmedShotCount: number; source: 'CONFIRMED_TIMELINE'; confidence: 'CONFIRMED' };
 export type TimingComparison = { mappingId: string; planElementId: string; observedIntervalId: string;
+  strings?: ObservedInterval[]; totalShots?: number; stringCount?: number; engagementDurationMs?: number;
   plannedMs: number | null; observedMs: number; deltaMs: number | null; startMs: number; endMs: number;
   mappingConfidence: ExecutionMapping['confidence']; mappingSource: ExecutionMapping['source'] };
 export type SegmentComparison = TimingComparison & { plannedDistanceInches: number };
@@ -85,7 +88,10 @@ export function isExecutionComparison(value: unknown): value is ExecutionCompari
     if (canonical(s.evaluation) !== canonical(evaluateRoute(s.document, p, p.route, s.timingProfile))) return false;
     return c.mappings.every(m => m && text(m.id) && kinds.includes(m.kind) && text(m.planElementId) && text(m.observedIntervalId)
       && ['MANUAL', 'AUTOMATIC_SUGGESTION'].includes(m.source) && ['LOW', 'MEDIUM', 'HIGH', 'CONFIRMED'].includes(m.confidence)
-      && typeof m.confirmed === 'boolean' && date(m.createdAt) && date(m.updatedAt));
+      && typeof m.confirmed === 'boolean' && date(m.createdAt) && date(m.updatedAt)
+      && (m.observedIntervalIds === undefined || (m.kind === 'STRING' || m.kind === 'POSITION') && Array.isArray(m.observedIntervalIds)
+        && m.observedIntervalIds.length > 0 && m.observedIntervalIds.length <= 32 && m.observedIntervalIds[0] === m.observedIntervalId
+        && m.observedIntervalIds.every(text) && new Set(m.observedIntervalIds).size === m.observedIntervalIds.length));
   } catch { return false; }
 }
 export function createExecutionComparison(id: string, saved: SavedStage, video: TrainingVideo,
@@ -108,7 +114,7 @@ export function observedExecution(video: TrainingVideo): { intervals: ObservedIn
     const events = video.analysis.events.filter(isTrustedEvent), a = analyzeVideo(video.session, events);
     const intervals: ObservedInterval[] = [], warnings: string[] = [];
     const add = (id: string, kind: MappingKind, startMs: number, endMs: number, eventIds: string[]) => {
-      if (endMs <= startMs) return;
+      if (endMs < startMs || endMs === startMs && kind !== 'STRING') return;
       intervals.push({ id, kind, startMs, endMs, durationMs: endMs - startMs, eventIds,
         confirmedShotCount: events.filter(e => (e.type === 'SHOT' || e.type === 'FIRST_SHOT') && e.timestampMs >= startMs && e.timestampMs <= endMs).length,
         source: 'CONFIRMED_TIMELINE', confidence: 'CONFIRMED' });
@@ -117,6 +123,14 @@ export function observedExecution(video: TrainingVideo): { intervals: ObservedIn
       const kind: MappingKind | undefined = m.kind === 'MOVEMENT' || m.kind === 'POSITION_TRANSITION' ? 'MOVEMENT'
         : m.kind === 'RELOAD' ? 'RELOAD' : m.kind === 'STRING_TIME' ? 'STRING' : m.kind === 'TOTAL' ? 'TOTAL' : undefined;
       if (kind) add(m.id, kind, m.startMs, m.endMs, m.eventIds);
+    }
+    for (const group of a.shotStrings.filter(g => g.eventIds.length === 1)) {
+      const shot = events.find(e => e.id === group.eventIds[0]);
+      if (shot) add(`single:${group.id}`, 'STRING', shot.timestampMs, shot.timestampMs, group.eventIds);
+    }
+    for (const interval of intervals.filter(i => i.kind === 'STRING')) {
+      const group = a.shotStrings.find(g => g.eventIds[0] === interval.eventIds[0]);
+      if (group) interval.eventIds = [...group.eventIds];
     }
     let entry: typeof events[number] | undefined;
     for (const e of a.events) {
@@ -137,18 +151,29 @@ export function plannedElements(c: ExecutionComparison, kind: MappingKind): { id
   return route.positions.flatMap((p, order) => kind === 'RELOAD' && !route.reloads.some(r => r.positionId === p.id)
     || kind === 'STRING' && !p.engagedTargetIds.length ? [] : [{ id: p.id, label: `${order + 1}. ${p.label}`, order }]);
 }
-function resolveMappings(c: ExecutionComparison, intervals: ObservedInterval[]) {
+export function mappingInterval(m: ExecutionMapping, intervals: ObservedInterval[]): ObservedInterval | undefined {
+  const ids = m.observedIntervalIds ?? [m.observedIntervalId];
+  const parts = ids.map(id => intervals.find(i => i.id === id && i.kind === m.kind));
+  if (parts.some(p => !p)) return undefined;
+  const rows = (parts as ObservedInterval[]).slice().sort((a, b) => a.startMs - b.startMs);
+  if (rows.some((r, i) => i > 0 && rows[i - 1].endMs > r.startMs)) return undefined;
+  return { ...rows[0], endMs: rows[rows.length - 1].endMs,
+    durationMs: rows[rows.length - 1].endMs - rows[0].startMs,
+    eventIds: [...new Set(rows.flatMap(r => r.eventIds))], confirmedShotCount: rows.reduce((n, r) => n + r.confirmedShotCount, 0) };
+}
+export function resolveMappings(c: ExecutionComparison, intervals: ObservedInterval[]) {
   const warnings: string[] = [], resolved: { mapping: ExecutionMapping; interval: ObservedInterval; order: number }[] = [];
   for (const m of c.mappings) {
     if (!m.confirmed) { warnings.push('UNCONFIRMED_MAPPING'); continue; }
-    const p = plannedElements(c, m.kind).find(p => p.id === m.planElementId), i = intervals.find(i => i.id === m.observedIntervalId && i.kind === m.kind);
+    const p = plannedElements(c, m.kind).find(p => p.id === m.planElementId), i = mappingInterval(m, intervals);
     if (!p || !i) { warnings.push(!p ? 'UNMATCHED_PLANNED_REFERENCE' : 'MISSING_CONFIRMED_EVENTS'); continue; }
     resolved.push({ mapping: m, interval: i, order: p.order });
   }
   const invalid = new Set<string>();
   for (let a = 0; a < resolved.length; a++) for (let b = a + 1; b < resolved.length; b++) {
     const x = resolved[a], y = resolved[b];
-    if (x.mapping.id === y.mapping.id || x.mapping.kind === y.mapping.kind && (x.order === y.order || x.interval.id === y.interval.id)) {
+    if (x.mapping.id === y.mapping.id || x.mapping.kind === y.mapping.kind && (x.order === y.order ||
+      (x.mapping.observedIntervalIds ?? [x.interval.id]).some(id => (y.mapping.observedIntervalIds ?? [y.interval.id]).includes(id)))) {
       invalid.add(x.mapping.id); invalid.add(y.mapping.id); warnings.push('AMBIGUOUS_MAPPING');
     } else if (x.mapping.kind === y.mapping.kind && ((x.order - y.order) * (x.interval.startMs - y.interval.startMs) < 0
       || x.interval.startMs < y.interval.endMs && y.interval.startMs < x.interval.endMs)) {
@@ -221,9 +246,13 @@ export function compareReloadTiming(c: ExecutionComparison, mappings: Resolved[]
       additionalDeltaMs: additional === null || !p ? null : additional - p.additionalPenalty * 1000 };
   });
 }
-export function compareStringTiming(c: ExecutionComparison, mappings: Resolved[]): TimingComparison[] {
-  return mappings.filter(r => r.mapping.kind === 'STRING').map(r => timing(r,
-    ms(c.snapshot.evaluation.timing?.positionDetails.find(p => p.positionId === r.mapping.planElementId)?.engagementSeconds)));
+export function compareStringTiming(c: ExecutionComparison, mappings: Resolved[], intervals: ObservedInterval[] = []): TimingComparison[] {
+  return mappings.filter(r => r.mapping.kind === 'STRING').map(r => {
+    const strings = intervals.filter(i => (r.mapping.observedIntervalIds ?? [r.interval.id]).includes(i.id));
+    return { ...timing(r, ms(c.snapshot.evaluation.timing?.positionDetails.find(p => p.positionId === r.mapping.planElementId)?.engagementSeconds)),
+      strings, totalShots: r.interval.confirmedShotCount, stringCount: strings.length,
+      engagementDurationMs: strings.reduce((n, i) => n + i.durationMs, 0) };
+  });
 }
 export function createExecutionComparisonResult(input: unknown, video: TrainingVideo, live?: SavedStage | null): ExecutionComparisonResult {
   const empty = { mapped: 0, total: 0 };
@@ -245,7 +274,7 @@ export function createExecutionComparisonResult(input: unknown, video: TrainingV
   result.segmentComparisons = compareRouteSegments(c, mappings);
   result.positionComparisons = comparePositionTiming(c, mappings, observed.intervals);
   result.reloadComparisons = compareReloadTiming(c, mappings);
-  result.stringComparisons = compareStringTiming(c, mappings);
+  result.stringComparisons = compareStringTiming(c, mappings, observed.intervals);
   result.plannedTotalMs = ms(s.evaluation.timing?.total);
   const totals = observed.intervals.filter(i => i.kind === 'TOTAL');
   const total = mappings.find(m => m.mapping.kind === 'TOTAL')?.interval ?? (totals.length === 1 ? totals[0] : undefined);
@@ -259,7 +288,7 @@ export function createExecutionComparisonResult(input: unknown, video: TrainingV
   const count = counts.reduce((n, v) => n + v.total, 0);
   result.completeness.percent = count ? 100 * counts.reduce((n, v) => n + v.mapped, 0) / count : 0;
   if (counts.some(v => v.mapped < v.total)) result.warnings.push('UNMATCHED_PLANNED_ELEMENT');
-  if (observed.intervals.some(i => i.kind !== 'TOTAL' && !mappings.some(m => m.interval.id === i.id))) result.warnings.push('UNMATCHED_OBSERVED_INTERVAL');
+  if (observed.intervals.some(i => i.kind !== 'TOTAL' && !mappings.some(m => (m.mapping.observedIntervalIds ?? [m.interval.id]).includes(i.id)))) result.warnings.push('UNMATCHED_OBSERVED_INTERVAL');
   if (result.positionComparisons.length) result.warnings.push('PLANNED_DWELL_UNAVAILABLE');
   if (result.reloadComparisons.some(r => r.observedOverlapMs === null)) result.warnings.push('OBSERVED_RELOAD_OVERLAP_UNKNOWN');
   for (const r of mappings.filter(r => r.mapping.kind === 'STRING')) {

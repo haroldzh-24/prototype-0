@@ -30,6 +30,13 @@ export type CloseRun = { analysisVersion: 1; detectorVersion: string; configVers
 const unit = (x: unknown) => finite(x) && x >= 0 && x <= 1;
 const point = (p: Point) => !!p && unit(p.x) && unit(p.y);
 export function validRegion(r: Region) { return point(r) && finite(r.width) && finite(r.height) && r.width > 0 && r.height > 0 && r.x + r.width <= 1.000001 && r.y + r.height <= 1.000001; }
+/** Vision requires a strict unit rectangle; tolerate only floating-point noise at display edges. */
+export function visionRegion(region: Region): Region {
+  if (!validRegion(region)) throw new Error('Select a valid region within the video.');
+  const result = { x: region.x, y: region.y, width: Math.min(region.width, 1 - region.x), height: Math.min(region.height, 1 - region.y) };
+  if (result.width <= 0 || result.height <= 0) throw new Error('Selected region is outside the video.');
+  return result;
+}
 const fail = (): never => { throw new Error('Malformed or unsupported close-up analysis.'); };
 export function cleanFrames(frames: CloseFrame[], duration: number): CloseFrame[] {
   if (!Array.isArray(frames) || frames.length > CLOSE_CONFIG.maxSamples) return fail();

@@ -10,6 +10,20 @@
 
 # Bug Tracker
 
+## Phase 9A hardening verification - 2026-09-22
+
+- Fixed queued audio cancellation being lost, stranded prepared native jobs, late UI completions after dismissal, cross-detector double taps, rotated-video selection geometry, nonfinite playback/overlay input handling, incomplete import cleanup and stage writes entering unrelated training transactions. Details are in changelog.md and mobile/docs/ios-device-verification.md.
+- TypeScript passed once. The single full-suite run executed 447 tests: 444 passed, 3 failed because pre-existing pose/close-up adapter mocks did not expose the new native release method. Those mocks now implement release and assert cleanup; they were not rerun, respecting the requested one-run limit. All 19 new hardening tests passed. Corrected mocks still need verification in the next authorized run.
+- Expo autolinking resolves all three custom module classes. Swift compilation, actual audio/Vision behavior, cancellation latency, low-memory/storage behavior and device gestures remain unverified. The device checklist is explicitly unchecked.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably. Existing browser storage teardown investigation remains open.
+
+## Phase 8F-B verification - 2026-09-22
+
+- Closed the deferred inability to compare multiple observed strings at one planned position; original string IDs/details, summed string durations, shot counts and full engagement spans are now preserved. Completed implementation is recorded in changelog.md.
+- Confirmed automatic suggestions cannot overwrite fixed mappings, rejected pairs remain unapplied, timeline/grouping edits block stale acceptance, historical snapshots remain unchanged, and review decisions survive SQLite reopen without profile mutation.
+- TypeScript passed once; the full suite passed once with 428 tests, including 30 new mapping tests. No new defect identified. No screenshots, browser automation, iOS export, commit or push.
+- Physical-device suggestion review remains unverified and is tracked in features.md. No dated unresolved bug or feature exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Phase 8C verification - 2026-09-22
 
 - Native body-pose build/execution and physical-device review remain unverified; tracked in features.md. Camera translation and subject identity remain heuristic limitations, not physical-distance measurements.

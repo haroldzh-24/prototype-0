@@ -163,8 +163,9 @@ function adapter(native) {
 }
 test('unsupported native extraction and cancelled results fail recoverably', async () => {
   await assert.rejects(adapter(null)(session(), selection, 'missing', new AbortController().signal, () => {}), /rebuilt iOS/);
-  let resolve, cancelled = false;
-  const native = { prepare() {}, cancel() { cancelled = true; }, progress() { return 0; }, extract() { return new Promise(done => resolve = done); } };
+  let resolve, cancelled = false, released = false;
+  const native = { prepare() {}, release() { released = true; }, cancel() { cancelled = true; }, progress() { return 0; }, extract() { return new Promise(done => resolve = done); } };
   const controller = new AbortController(), pending = adapter(native)(session(), selection, 'cancel', controller.signal, () => {});
   controller.abort(); resolve(fixture()); await assert.rejects(pending, /cancelled/); assert.ok(cancelled);
+  assert.ok(released);
 });

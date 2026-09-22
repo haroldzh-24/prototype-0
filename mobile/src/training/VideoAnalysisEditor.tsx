@@ -9,7 +9,10 @@ import { extractCloseUp } from './extractCloseUp';
 import { CloseUpOverlay } from './CloseUpOverlay';
 import { CloseUpReview } from './CloseUpReview';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, TextInput, View } from 'react-native';
+import { AppState, Modal, Platform, TextInput, View } from 'react-native';
+import { videoDisplaySize } from './videoDisplaySize';
+import { OperationGate } from './operationGate';
+import { MediaPlayerBoundary } from './MediaPlayerBoundary';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, Panel, Screen, ui } from '../ui/kit';
@@ -17,7 +20,7 @@ import { useRepository } from '../storage/StorageProvider';
 import type { TrainingRecord } from './model';
 import { analyzeVideo, videoAssetAvailable, videoObservations } from './videoAnalysis';
 import { assetExists, discardVideoAsset, importVideoAsset, playbackUri } from './videoAssets';
-import { assertTimeMs, confirmEvent, deleteEvent, editEvent, eventTypes, frameToTime, measurementLabels, msToSeconds, secondsToMs, sortEvents } from './videoModel';
+import { assertTimeMs, confirmEvent, deleteEvent, editEvent, eventTypes, frameToTime, measurementLabels, msToSeconds, playbackTimeMs, secondsToMs, sortEvents } from './videoModel';
 import type { EventType, TimelineEvent, TrainingVideo } from './videoModel';
 import { detectAudio, mergeAudioDetections } from './audioDetection';
 import { extractAnalysisAudio } from './extractAnalysisAudio';
@@ -33,10 +36,17 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
   const [overlay, setOverlay] = useState(false), [playerWidth, setPlayerWidth] = useState(0);
   const [selecting, setSelecting] = useState(false), [closeOverlay, setCloseOverlay] = useState(false);
   const [selection, setSelection] = useState<CloseSelection | null>(null);
+  const [displaySize, setDisplaySize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    let active = true; setDisplaySize(null); setSelection(null); setSelecting(false);
+    void videoDisplaySize(video.session).then(size => { if (active) setDisplaySize(size); });
+    return () => { active = false; };
+  }, [video.session.asset.uri]);
   const [preMs, setPreMs] = useState('500'), [postMs, setPostMs] = useState('2000');
   const poseSamples = video.analysis.poseRun?.preview ?? [];
   const poseSample = overlay ? nearestPoseSample(poseSamples, timeMs) : null;
   const player = useVideoPlayer(playbackUri(video.session.asset), p => { p.timeUpdateEventInterval = 0.05; });
+  const selectionSize = Platform.OS === 'web' ? player.availableVideoTracks[0]?.size : displaySize;
   useEffect(() => {
     if (!preview) return;
     try { player.pause(); player.currentTime = msToSeconds(preview.ms); setTimeMs(preview.ms); setSeekText(String(preview.ms)); }
@@ -44,16 +54,18 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
   }, [preview, player]);
   useEffect(() => {
     const metadata = () => {
+      try {
       if (Number.isFinite(player.duration) && player.duration > 0) {
         if (video.analysis.events.some(e => e.timestampMs > secondsToMs(player.duration))) {
           setError('This file is shorter than the saved timeline. Relink the original recording.'); return;
         }
         const fps = player.availableVideoTracks[0]?.frameRate;
-        onMetadata(secondsToMs(player.duration), fps && fps > 0 ? fps : null);
+        onMetadata(secondsToMs(player.duration), fps && Number.isFinite(fps) && fps > 0 ? fps : null);
       }
+      } catch { setError('Video metadata is unavailable. Retry playback or continue manual editing.'); }
     };
     const listeners = [player.addListener('sourceLoad', metadata),
-      player.addListener('timeUpdate', e => { if (e.currentTime >= 0) setTimeMs(secondsToMs(e.currentTime)); }),
+      player.addListener('timeUpdate', e => { const ms = playbackTimeMs(e.currentTime); if (ms !== null) setTimeMs(ms); }),
       player.addListener('playingChange', e => setPlaying(e.isPlaying)),
       player.addListener('statusChange', e => {
         setReady(e.status === 'readyToPlay');
@@ -69,18 +81,20 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
       setTimeMs(ms); setSeekText(String(Math.round(ms))); setError('');
     } catch (e) { setError(String(e)); }
   };
+  const control = (action: () => void) => { try { action(); } catch { setError('Playback failed. Retry or continue manual editing.'); } };
   const step = video.session.fps ? frameToTime(1, video.session.fps) : 50;
   return <Panel>
     <View onLayout={e => setPlayerWidth(e.nativeEvent.layout.width)} style={{ height: 220 }}>
       <VideoView player={player} style={{ width: '100%', height: 220 }} nativeControls={!selecting} contentFit="contain" />
       {(selecting || closeOverlay) && <CloseUpOverlay run={video.analysis.closeRun} timeMs={timeMs} width={playerWidth} height={220}
-        videoWidth={player.availableVideoTracks[0]?.size?.width ?? 1} videoHeight={player.availableVideoTracks[0]?.size?.height ?? 1}
+        videoWidth={selectionSize?.width ?? 0} videoHeight={selectionSize?.height ?? 0}
         selecting={selecting} onSelect={value => { setSelection(value); setSelecting(false); }} />}
       {overlay && <PoseOverlay sample={poseSample} width={playerWidth} height={220} />}
     </View>
-    <Action title={selecting ? 'Cancel region selection' : 'ANALYZE CLOSE-UP: select region on current frame'} disabled={!ready || closeBusy || !player.availableVideoTracks[0]?.size?.width} onPress={() => {
-      player.pause(); setTimeMs(secondsToMs(player.currentTime)); setSelecting(!selecting); setSelection(null);
+    <Action title={selecting ? 'Cancel region selection' : 'ANALYZE CLOSE-UP: select region on current frame'} disabled={!ready || closeBusy || !selectionSize?.width} onPress={() => {
+      control(() => { player.pause(); setTimeMs(secondsToMs(player.currentTime)); setSelecting(!selecting); setSelection(null); });
     }} />
+    {ready && !selectionSize?.width && <Copy>Close-up selection needs displayed video dimensions. Rebuild the iOS app if unavailable; manual annotation remains available.</Copy>}
     {selecting && <Copy>Drag a box around the object. Use playback/seek controls to choose a representative frame first. Tracking runs forward from this frame.</Copy>}
     {selection && <>
       <Copy>Selected frame {selection.timestampMs.toFixed(0)} ms. Pre/post windows: 100?10000 ms.</Copy>
@@ -110,7 +124,7 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
       </>}
     </>}
     <Copy>{Math.round(timeMs)} / {video.session.durationMs === null ? '?' : Math.round(video.session.durationMs)} ms</Copy>
-    <Action title={playing ? 'Pause' : 'Play'} disabled={!ready || selecting} onPress={() => playing ? player.pause() : player.play()} />
+    <Action title={playing ? 'Pause' : 'Play'} disabled={!ready || selecting} onPress={() => control(() => { if (playing) player.pause(); else player.play(); })} />
     <View style={{ flexDirection: 'row', gap: 8 }}>
       <Action title={`− ${video.session.fps ? '1 frame*' : '50 ms'}`} disabled={!ready} onPress={() => seek(Math.max(0, secondsToMs(player.currentTime) - step))} />
       <Action title={`+ ${video.session.fps ? '1 frame*' : '50 ms'}`} disabled={!ready} onPress={() => seek(Math.min(video.session.durationMs ?? 0, secondsToMs(player.currentTime) + step))} />
@@ -118,7 +132,7 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
     {video.session.fps !== null && <Copy>*Nominal FPS step; variable-rate video and player seeking may differ.</Copy>}
     <TextInput accessibilityLabel="Seek time in milliseconds" style={ui.input} value={seekText} onChangeText={setSeekText} keyboardType="decimal-pad" />
     <Action title="Seek to ms" disabled={!ready} onPress={() => seek(seekText.trim() ? Number(seekText) : NaN)} />
-    <Action title="Add selected event at current time" disabled={!ready} onPress={() => { player.pause(); onMark(secondsToMs(player.currentTime)); }} />
+    <Action title="Add selected event at current time" disabled={!ready} onPress={() => control(() => { player.pause(); onMark(secondsToMs(player.currentTime)); })} />
     {!!error && <Copy>{error}</Copy>}
   </Panel>;
 }
@@ -126,7 +140,14 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy }: { 
 export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: {
   record: TrainingRecord; initialVideo: TrainingVideo; onSaved: (record: TrainingRecord) => void; onClose: () => void;
 }) {
-  const repo = useRepository(), [video, setVideo] = useState(initialVideo), [saved, setSaved] = useState(JSON.stringify(initialVideo));
+  const repo = useRepository(), [video, setVideo] = useState(initialVideo), [saved, setSaved] = useState(() => JSON.stringify(initialVideo));
+  const operation = useRef(new OperationGate());
+  const pendingAssets = useRef<TrainingVideo['session']['asset'][]>([]);
+  const savingAsset = useRef(false);
+  const discardPendingAssets = () => {
+    for (const asset of pendingAssets.current) { try { discardVideoAsset(asset); } catch { /* Keep annotations usable if cleanup fails. */ } }
+    pendingAssets.current = [];
+  };
   const [available, setAvailable] = useState<boolean | null>(null), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const [type, setType] = useState<EventType>('STIMULUS'), [showTypes, setShowTypes] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null), [timestamp, setTimestamp] = useState('0');
@@ -140,7 +161,7 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
   const closeJob = useRef<AbortController | null>(null);
   const [analyzingClose, setAnalyzingClose] = useState(false), [closeMessage, setCloseMessage] = useState('');
   const runCloseUp = async (selection: CloseSelection, preMs: number, postMs: number) => {
-    if (closeJob.current || poseJob.current || audioJob.current || busy) return;
+    if (closeJob.current || poseJob.current || audioJob.current || operation.current.busy) return;
     const controller = new AbortController(); closeJob.current = controller; setAnalyzingClose(true);
     try {
       const extraction = await extractCloseUp(video.session, selection, uuid.v4(), controller.signal, p => {
@@ -157,9 +178,15 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
   };
   const currentVideo = useRef(video);
   useEffect(() => { currentVideo.current = video; }, [video]);
-  useEffect(() => () => { closeJob.current?.abort(); closeJob.current = null; audioJob.current?.abort(); audioJob.current = null; poseJob.current?.abort(); poseJob.current = null; }, []);
+  useEffect(() => {
+    operation.current.activate();
+    const stop = () => { closeJob.current?.abort(); audioJob.current?.abort(); poseJob.current?.abort(); };
+    const subscription = AppState.addEventListener('change', state => { if (state !== 'active') stop(); });
+    return () => { stop(); closeJob.current = null; audioJob.current = null; poseJob.current = null;
+      operation.current.dispose(); subscription.remove(); if (!savingAsset.current) discardPendingAssets(); };
+  }, []);
   const runMovement = async () => {
-    if (closeJob.current || poseJob.current || audioJob.current || busy) return;
+    if (closeJob.current || poseJob.current || audioJob.current || operation.current.busy) return;
     const controller = new AbortController(); poseJob.current = controller;
     setAnalyzingMovement(true); setPoseProgress(0); setPoseMessage('Analyzing movement locally...');
     try {
@@ -181,11 +208,15 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
     }
   };
   const runAudio = async () => {
-    if (closeJob.current || audioJob.current || poseJob.current || busy) return;
+    if (closeJob.current || audioJob.current || poseJob.current || operation.current.busy) return;
     const controller = new AbortController(); audioJob.current = controller;
     setAnalyzing(true); setAudioMessage('Analyzing audio locally...');
     try {
-      const audio = await extractAnalysisAudio(video.session, uuid.v4(), controller.signal);
+      const audio = await extractAnalysisAudio(video.session, uuid.v4(), controller.signal, value => {
+        if (audioJob.current === controller) setAudioMessage(`Analyzing audio locally... ${Math.round(value * 100)}%`);
+      });
+      if (controller.signal.aborted || audioJob.current !== controller) return;
+      setAudioMessage('Processing audio results...');
       const run = await detectAudio(audio, controller.signal);
       if (controller.signal.aborted || audioJob.current !== controller) return;
       // Merge against the CURRENT timeline, including edits made during decode.
@@ -201,7 +232,8 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
       if (audioJob.current === controller) { audioJob.current = null; setAnalyzing(false); }
     }
   };
-  const dirty = JSON.stringify(video) !== saved;
+  const serializedVideo = useMemo(() => JSON.stringify(video), [video]);
+  const dirty = serializedVideo !== saved;
   useEffect(() => {
     let active = true; setAvailable(null);
     videoAssetAvailable(video.session, assetExists).then(value => { if (active) setAvailable(value); });
@@ -227,35 +259,45 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
     id: uuid.v4(), type, timestampMs: ms, source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true, metadata: metadata(),
   }], video.session.durationMs)));
   const save = async (contribute = false) => {
-    if (busy || analyzing || analyzingMovement || analyzingClose) return; setBusy(true);
+    if (audioJob.current || poseJob.current || closeJob.current) return;
+    const token = operation.current.begin(); if (token === null) return;
+    setBusy(true); savingAsset.current = true;
     try {
       const nextVideo = contribute ? { ...video, session: { ...video.session, analysisStatus: 'REVIEWED' as const } } : video;
       const updated = { ...record, videos: (record.videos ?? []).map(v => v.session.id === nextVideo.session.id ? nextVideo : v) };
       if (contribute) await repo.contributeTrainingVideo(updated, video.session.id); else await repo.saveTraining(updated);
+      pendingAssets.current = pendingAssets.current.filter(a => a.uri !== nextVideo.session.asset.uri);
+      if (!operation.current.current(token)) { discardPendingAssets(); return; }
       setVideo(nextVideo); setSaved(JSON.stringify(nextVideo)); onSaved(updated);
       setMessage(contribute ? `${observations.length} measurements contributed. Active profile context: ${video.session.context}.` : 'Analysis saved. Changed evidence was removed from any previous profile contribution.');
-    } catch (e) { setMessage(String(e)); } finally { setBusy(false); }
+    } catch (e) { if (operation.current.current(token)) setMessage(String(e)); else discardPendingAssets(); }
+    finally { savingAsset.current = false; if (operation.current.current(token)) setBusy(false); operation.current.finish(token); }
   };
-  const close = () => { if (busy) return; if (dirty) setMessage('Save your changes before closing, or choose Discard changes.'); else onClose(); };
+  const close = () => { if (operation.current.busy) return; if (dirty) setMessage('Save your changes before closing, or choose Discard changes.'); else onClose(); };
   const relink = async () => {
+    if (audioJob.current || poseJob.current || closeJob.current) return;
+    const token = operation.current.begin(); if (token === null) return;
     setBusy(true);
     try {
       const asset = await importVideoAsset(uuid.v4());
+      if (!operation.current.current(token)) { if (asset) discardVideoAsset(asset); return; }
       if (asset) {
         if (asset.name !== video.session.asset.name || (video.session.asset.size !== undefined && asset.size !== video.session.asset.size)) {
           discardVideoAsset(asset); throw new Error('Choose the same original recording (matching name and size) to preserve annotations.');
         }
         const session = { ...video.session, asset, durationMs: null, fps: null };
+        pendingAssets.current.push(asset);
         setVideo({ ...video, session, analysis: analyzeVideo(session, video.analysis.events, video.analysis.audioRun, video.analysis.poseRun, video.analysis.closeRun, video.analysis.fusion) }); setMessage('Original video relinked. Save to retain the reference.');
       }
-    } catch (e) { setMessage(String(e)); } finally { setBusy(false); }
+    } catch (e) { if (operation.current.current(token)) setMessage(String(e)); }
+    finally { if (operation.current.current(token)) setBusy(false); operation.current.finish(token); }
   };
   return <Modal visible animationType="slide" onRequestClose={close}>
     <Screen title="VIDEO ANALYSIS">
       <Action title="Close analysis" onPress={close} disabled={busy} />
       <Copy>{video.session.asset.name} · {video.session.context} · {dirty ? 'Unsaved changes' : 'Saved'}</Copy>
       {video.session.asset.storage === 'BROWSER_SESSION' && <Copy>Browser video access lasts for this page session. Annotations are saved; reselect the original file after reloading.</Copy>}
-      {available === true && <Player key={video.session.asset.uri} video={video} preview={preview} onCloseUp={runCloseUp} closeBusy={busy || analyzing || analyzingMovement || analyzingClose} onMetadata={onMetadata} onMark={ms => { if (!busy) mark(ms); }} />}
+      {available === true && <MediaPlayerBoundary key={video.session.asset.uri}><Player video={video} preview={preview} onCloseUp={runCloseUp} closeBusy={busy || analyzing || analyzingMovement || analyzingClose} onMetadata={onMetadata} onMark={ms => { if (!busy) mark(ms); }} /></MediaPlayerBoundary>}
       {available === null && <Copy>Checking local video…</Copy>}
       {available === false && <Panel><Copy>Video file unavailable. Saved annotations and measurements are still accessible.</Copy>
         <Action title="Relink original video (keep markers)" onPress={relink} disabled={busy || analyzing || analyzingMovement || analyzingClose} /></Panel>}
@@ -359,7 +401,8 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
       </Panel>
       {!!message && <Copy>{message}</Copy>}
       {dirty && <Action title="Discard changes and close" disabled={busy} onPress={() => {
-        if (video.session.asset.uri !== JSON.parse(saved).session.asset.uri) discardVideoAsset(video.session.asset);
+        if (operation.current.busy) return;
+        discardPendingAssets();
         onClose();
       }} />}
     </Screen>

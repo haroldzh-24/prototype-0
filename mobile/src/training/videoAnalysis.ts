@@ -154,10 +154,12 @@ export function validateSession(session: VideoSession) {
   if (session.fps !== null && (typeof session.fps !== 'number' || !Number.isFinite(session.fps) || session.fps <= 0)) throw new Error('Invalid FPS metadata.');
 }
 export function normalizeVideo(video: TrainingVideo): TrainingVideo {
+  if (!video) throw new Error('Unsupported or damaged video analysis.');
   validateSession(video.session);
   if (!video.analysis || video.analysis.analysisVersion !== VIDEO_ANALYSIS_VERSION || video.analysis.videoId !== video.session.id
     || video.analysis.trainingSessionId !== video.session.trainingSessionId || !Array.isArray(video.analysis.events)) throw new Error('Unsupported or damaged video analysis.');
-  return { ...video, session: video.session, analysis: analyzeVideo(video.session, video.analysis.events, video.analysis.audioRun, video.analysis.poseRun, video.analysis.closeRun, video.analysis.fusion) };
+  return { session: video.session, analysis: analyzeVideo(video.session, video.analysis.events, video.analysis.audioRun, video.analysis.poseRun, video.analysis.closeRun, video.analysis.fusion),
+    ...(video.executionComparison === undefined ? {} : { executionComparison: video.executionComparison }) };
 }
 
 /** Re-derive instead of trusting persisted eligibility or measurement values. */

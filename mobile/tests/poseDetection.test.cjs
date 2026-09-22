@@ -222,15 +222,16 @@ function adapter(native) {
 }
 test('unavailable native pose and decode failure leave recoverable errors', async () => {
   await assert.rejects(adapter(null)(session(), 'missing', new AbortController().signal, () => {}), /unavailable/);
-  const native = { prepare() {}, cancel() {}, progress() { return 0; }, async extract() { throw new Error('Unsupported video'); } };
+  const native = { prepare() {}, release() {}, cancel() {}, progress() { return 0; }, async extract() { throw new Error('Unsupported video'); } };
   await assert.rejects(adapter(native)(session(), 'failed', new AbortController().signal, () => {}), /Unsupported video/);
 });
 test('pose adapter uses bounded local settings and discards cancelled native output', async () => {
-  let resolve, wasCancelled = false, args;
-  const native = { prepare() {}, cancel() { wasCancelled = true; }, progress() { return .5; },
+  let resolve, wasCancelled = false, wasReleased = false, args;
+  const native = { prepare() {}, release() { wasReleased = true; }, cancel() { wasCancelled = true; }, progress() { return .5; },
     extract(...parameters) { args = parameters; return new Promise(done => resolve = done); } };
   const controller = new AbortController(), pending = adapter(native)(session(), 'cancelled', controller.signal, () => {});
   controller.abort(); resolve(extraction());
   await assert.rejects(pending, /cancelled/); assert.equal(wasCancelled, true);
+  assert.equal(wasReleased, true);
   assert.deepEqual(args.slice(2), [10, 60000, 600, 640, .45]); assert.ok(args[0].startsWith('file:'));
 });

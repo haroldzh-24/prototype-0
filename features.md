@@ -182,6 +182,12 @@ Track features that are proposed or planned but not yet implemented.
 
 - Historical route snapshots, optional Training links, manual execution mapping and descriptive timing/residual comparison are complete; see changelog.md and mobile/src/training/executionComparison.md.
 - Verify physical-device stage selection, read-only snapshot viewport, selected interval preview, mapping edits, save/reopen and route-change warnings.
-- Phase 8F-B: conservative mapping suggestions from confirmed sequence/order, multi-string engagement aggregation and tests against stored manual ground truth. Arbitrary visual position recognition remains out of scope.
+- Phase 8F-B mapping suggestions and multi-string engagement aggregation are complete; see changelog.md. Verify suggestion preview, individual/whole acceptance, rejection, multi-interval manual edits and save/reopen on a physical device. Validate confidence thresholds against representative recordings with user-confirmed ground truth. Arbitrary visual position recognition remains out of scope.
 - Future work: multiple comparisons per video, historical candidate forecast capture and an explicit recompare-with-current-route action. The current evaluator has no full dwell estimate; the UI reports it as unavailable.
 - No dated unresolved item exceeds one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.
+
+## Phase 9A device verification - 2026-09-22
+
+- Code hardening is recorded in changelog.md. Rebuild the native client for prepare/release/cancellation and display-geometry changes.
+- Run the unchecked [iOS verification checklist](mobile/docs/ios-device-verification.md), especially portrait/mirrored region selection, immediate cancel/rerun, backgrounding, low storage/memory, missing media, transaction recovery and persistence across relaunch.
+- Swift compilation and physical-device audio/Vision execution remain unverified. Historical damaged-record repair and durable browser media storage remain future work.

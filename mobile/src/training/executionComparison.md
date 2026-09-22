@@ -94,7 +94,7 @@ Malformed comparison data does not prevent opening ordinary video analysis. Limi
 
 Physical-device interaction/save/reopen verification remains pending. Current storage
 supports one comparison per video and one saved route per stage. Multi-string aggregation
-per position, automatic ordered mapping suggestions, recorded candidate forecast history,
-and an explicit recompare-with-current-route action are future work. Full dwell estimation,
+and automatic ordered suggestions are implemented in [Phase 8F-B](mappingSuggestions.md).
+Recorded candidate forecast history and an explicit recompare-with-current-route action are future work. Full dwell estimation,
 arbitrary stage-coordinate recognition, coaching/scoring and new detectors are not added.
 Manual source/confidence/event references can serve as future mapping ground truth.

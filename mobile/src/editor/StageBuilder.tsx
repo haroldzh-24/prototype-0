@@ -44,9 +44,12 @@ import { shouldInstallBeforeUnload } from './browserGuards';
 import { objectLabel } from '@/stage/model';
 import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
+import { OperationGate } from '../training/operationGate';
 
 export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const repo = useRepository(), navigation = useNavigation();
+  const saveOperation = useRef(new OperationGate());
+  useEffect(() => { saveOperation.current.activate(); return () => saveOperation.current.dispose(); }, []);
   const [plan, setPlan] = useState(() => initial ? reconcilePlan(initial.plan, initial.document) : createPlan());
   const [assignmentMode, setAssignmentMode] = useState<TargetAssignmentMode | null>(null);
   const [discoverySession, setDiscoverySession] = useState<DiscoverySession | null>(null);
@@ -85,7 +88,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const [stageId, setStageId] = useState(initial?.id), [name, setName] = useState(initial?.name ?? 'Untitled stage');
   const snapshot = JSON.stringify({ name, stage, plan });
   const [savedSnapshot, setSavedSnapshot] = useState(initial ? snapshot : '');
-  const [saving, setSaving] = useState(false), savingRef = useRef(false), [saveMessage, setSaveMessage] = useState('');
+  const [saving, setSaving] = useState(false), [saveMessage, setSaveMessage] = useState('');
   const [showAdd, setShowAdd] = useState(false), [pendingExit, setPendingExit] = useState<NavigationAction | null>(null), [allowExit, setAllowExit] = useState(false);
   const dirty = snapshot !== savedSnapshot;
   usePreventRemove((dirty || saving) && !allowExit, ({ data }) => setPendingExit(data.action));
@@ -97,14 +100,15 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
   async function save() {
-    if (savingRef.current) return;
-    savingRef.current = true; setSaving(true); setSaveMessage('');
+    const token = saveOperation.current.begin(); if (token === null) return;
+    setSaving(true); setSaveMessage('');
     try {
       if (stageId) await repo.saveStage(stageId, name, stage, plan);
-      else setStageId(await repo.createStage(name, stage, plan));
+      else { const id = await repo.createStage(name, stage, plan); if (saveOperation.current.current(token)) setStageId(id); }
+      if (!saveOperation.current.current(token)) return;
       setSavedSnapshot(snapshot); setSaveMessage('Saved on this device.');
-    } catch (e) { setSaveMessage(String(e)); }
-    finally { savingRef.current = false; setSaving(false); }
+    } catch (e) { if (saveOperation.current.current(token)) setSaveMessage(String(e)); }
+    finally { if (saveOperation.current.current(token)) setSaving(false); saveOperation.current.finish(token); }
   }
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, pan: { x: 0, y: 0 } });

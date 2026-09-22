@@ -6,6 +6,7 @@ import type { AudioAnalysisRun } from './audioDetection';
 import type { PoseAnalysisRun } from './poseModel';
 
 export const VIDEO_ANALYSIS_VERSION = 1 as const;
+export const MAX_TIMELINE_EVENTS = 2000;
 export const eventTypes = ['STIMULUS', 'REACTION', 'HAND_ON_GUN', 'DRAW_COMPLETE', 'FIRST_SHOT', 'SHOT',
   'TARGET_TRANSITION', 'MAG_RELEASE', 'MAG_ACCESS', 'MAG_INSERT', 'RELOAD_COMPLETE', 'MOVEMENT_START',
   'MOVEMENT_STOP', 'POSITION_ENTRY', 'POSITION_EXIT', 'DRILL_END', 'CUSTOM', 'UNKNOWN'] as const;
@@ -66,6 +67,11 @@ export function assertTimeMs(value: number, durationMs?: number | null) {
 }
 export function secondsToMs(seconds: number) { assertTimeMs(seconds); const ms = seconds * 1000; assertTimeMs(ms); return ms; }
 export function msToSeconds(ms: number) { assertTimeMs(ms); return ms / 1000; }
+/** Native playback can briefly emit invalid/unavailable time during source changes. */
+export function playbackTimeMs(seconds: number): number | null {
+  if (!Number.isFinite(seconds) || seconds < 0 || !Number.isFinite(seconds * 1000)) return null;
+  return secondsToMs(seconds);
+}
 function assertFps(fps: number | null): asserts fps is number {
   if (fps === null || !Number.isFinite(fps) || fps <= 0) throw new Error('Frame conversion requires known positive FPS metadata.');
 }
@@ -77,9 +83,10 @@ export function frameToTime(frame: number, fps: number | null) {
 }
 export const isTrustedEvent = (event: TimelineEvent) => event.source === 'MANUAL' || event.confirmed === true;
 export function sortEvents(events: TimelineEvent[], durationMs?: number | null): TimelineEvent[] {
+  if (!Array.isArray(events) || events.length > MAX_TIMELINE_EVENTS) throw new Error('Timeline exceeds the supported event limit or is damaged.');
   const ids = new Set<string>();
   for (const event of events) {
-    if (!event || !event.id || ids.has(event.id) || !eventTypes.includes(event.type)
+    if (!event || typeof event.id !== 'string' || !event.id || event.id.length > 10000 || ids.has(event.id) || !eventTypes.includes(event.type)
       || !['MANUAL', 'AUDIO_DETECTED', 'POSE_DETECTED', 'VISION_DETECTED', 'DERIVED'].includes(event.source)
       || !['LOW', 'MEDIUM', 'HIGH', 'CONFIRMED'].includes(event.confidence) || typeof event.confirmed !== 'boolean')
       throw new Error('Invalid or duplicate timeline event.');

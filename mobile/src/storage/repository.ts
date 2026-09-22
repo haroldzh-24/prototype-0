@@ -27,6 +27,11 @@ const nameOf = (name: string) => {
 };
 export class Repository {
   private trainingWrites: Promise<unknown> = Promise.resolve();
+  trainingReadWarnings: string[] = [];
+  private serializeWrite<T>(action: () => Promise<T>): Promise<T> {
+    const work = this.trainingWrites.then(action);
+    this.trainingWrites = work.catch(() => {}); return work;
+  }
   constructor(private db: Database, private newId: () => string) {}
   async initialize() {
     const version = await this.db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -46,8 +51,23 @@ export class Repository {
     const row = await this.db.getFirstAsync<StageRow>('SELECT * FROM stages WHERE id = ?', id);
     if (!row) throw new Error('Stage no longer exists.');
     const { payload, ...summary } = row;
-    const data = JSON.parse(payload);
-    if (data.version !== 1 || data.document?.schemaVersion !== 7 || data.document?.coordinateSystem !== 'inches' || !Array.isArray(data.document.objects) || !data.plan?.loadout || !data.plan?.engagements)
+    let data;
+    try { data = JSON.parse(payload); } catch { throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.'); }
+    if (!data || data.version !== 1 || data.document?.schemaVersion !== 7 || data.document?.coordinateSystem !== 'inches' || !Array.isArray(data.document.objects) || !data.plan?.loadout || !data.plan?.engagements)
+      throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
+    const d = data.document;
+    const geometryFields = { start: ['width', 'depth', 'height'], wall: ['length', 'thickness', 'height'], faultLine: ['length'],
+      cardboardTarget: ['faceWidth', 'faceHeight'], noShootTarget: ['faceWidth', 'faceHeight'], steelPlate: ['faceWidth', 'faceHeight'], steelPopper: ['faceWidth', 'faceHeight'] };
+    if (!d.stage || ![d.stage.width, d.stage.depth].every(n => Number.isFinite(n) && n > 0)
+      || d.objects.length > 2000 || d.objects.some((o: StageDocument['objects'][number]) => !o || typeof o.id !== 'string'
+        || !o.position || o.position.space !== 'stage' || ![o.position.x, o.position.y, o.position.z, o.rotation].every(Number.isFinite)
+        || !o.geometry || !Object.values(o.geometry).every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0)
+        || !['start', 'wall', 'faultLine', 'cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper'].includes(o.type)
+        || !geometryFields[o.type].every(k => Object.hasOwn(o.geometry, k))
+        || o.type === 'wall' && (!Array.isArray(o.ports) || o.ports.some(p => !p || ![p.offset, p.width, p.height, p.sill].every(Number.isFinite)))
+        || (o.type === 'cardboardTarget' || o.type === 'noShootTarget') && (!o.faceCut || !['full', 'upper', 'lower', 'left', 'right'].includes(o.faceCut.preset)))
+      || !Array.isArray(data.plan.loadout.magazines) || data.plan.loadout.magazines.some((m: StagePlan['loadout']['magazines'][number]) =>
+        !m || typeof m.id !== 'string' || ![m.capacity, m.startingRounds].every(n => Number.isFinite(n) && n >= 0)))
       throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
     if (data.plan.route !== undefined && !isStageRoute(data.plan.route)) throw new Error('Unsupported or damaged route data. The saved copy has not been changed.');
     return { ...summary, document: data.document, plan: data.plan };
@@ -58,29 +78,40 @@ export class Repository {
   }
   async createStage(name: string, document: StageDocument, plan: StagePlan): Promise<string> {
     const id = this.newId(), now = new Date().toISOString();
-    await this.db.runAsync('INSERT INTO stages (id, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?)', id, nameOf(name), now, now, this.payload(document, plan));
+    await this.serializeWrite(() => this.db.runAsync('INSERT INTO stages (id, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?)', id, nameOf(name), now, now, this.payload(document, plan)));
     return id;
   }
   async saveStage(id: string, name: string, document: StageDocument, plan: StagePlan) {
-    const result = await this.db.runAsync('UPDATE stages SET name = ?, updatedAt = ?, payload = ? WHERE id = ?', nameOf(name), new Date().toISOString(), this.payload(document, plan), id);
+    const result = await this.serializeWrite(() => this.db.runAsync('UPDATE stages SET name = ?, updatedAt = ?, payload = ? WHERE id = ?', nameOf(name), new Date().toISOString(), this.payload(document, plan), id));
     if (!result.changes) throw new Error('Stage no longer exists.');
   }
   async renameStage(id: string, name: string) {
-    const result = await this.db.runAsync('UPDATE stages SET name = ?, updatedAt = ? WHERE id = ?', nameOf(name), new Date().toISOString(), id);
+    const result = await this.serializeWrite(() => this.db.runAsync('UPDATE stages SET name = ?, updatedAt = ? WHERE id = ?', nameOf(name), new Date().toISOString(), id));
     if (!result.changes) throw new Error('Stage no longer exists.');
   }
   async duplicateStage(id: string) {
     const stage = await this.loadStage(id);
     return this.createStage(stage.name.slice(0, 93) + ' (copy)', stage.document, stage.plan);
   }
-  async deleteStage(id: string) { await this.db.runAsync('DELETE FROM stages WHERE id = ?', id); }
-  listTraining(userId: string) { return this.db.getAllAsync<{ payload: string }>('SELECT payload FROM training WHERE userId = ? ORDER BY occurredAt DESC', userId).then(rows => rows.map(row => this.normalizeTraining(JSON.parse(row.payload)))); }
+  async deleteStage(id: string) { await this.serializeWrite(() => this.db.runAsync('DELETE FROM stages WHERE id = ?', id)); }
+  async listTraining(userId: string) {
+    const rows = await this.db.getAllAsync<{ id: string; payload: string }>('SELECT id, payload FROM training WHERE userId = ? ORDER BY occurredAt DESC', userId);
+    const records: TrainingRecord[] = [], warnings: string[] = [];
+    for (const row of rows) {
+      try { records.push(this.normalizeTraining(JSON.parse(row.payload))); }
+      catch { warnings.push(`Saved session ${row.id} could not be opened. Its original data has not been changed.`); }
+    }
+    this.trainingReadWarnings = warnings; return records;
+  }
   private normalizeTraining(record: TrainingRecord): TrainingRecord {
-    if (!record.id || !record.userId || !Object.hasOwn(startingTypes, record.startingType) || !Number.isFinite(Date.parse(record.occurredAt)) ||
-      (record.totalTime !== null && (!Number.isFinite(record.totalTime) || record.totalTime < 0)) || record.segments.some(s => !Number.isFinite(s.seconds) || s.seconds < 0)) throw new Error('Invalid training record.');
+    if (!record || typeof record.id !== 'string' || !record.id || typeof record.userId !== 'string' || !record.userId
+      || typeof record.drillName !== 'string' || typeof record.notes !== 'string'
+      || !Object.hasOwn(startingTypes, record.startingType) || !Number.isFinite(Date.parse(record.occurredAt)) ||
+      (record.totalTime !== null && (!Number.isFinite(record.totalTime) || record.totalTime < 0))
+      || !Array.isArray(record.segments) || record.segments.length > 2000 || record.segments.some(s => !s || !Number.isFinite(s.seconds) || s.seconds < 0)) throw new Error('Invalid training record.');
     if (record.context !== undefined && !trainingContexts.includes(record.context)) throw new Error('Invalid training context.');
     if (record.videos === undefined) return record;
-    if (!Array.isArray(record.videos)) throw new Error('Invalid training videos.');
+    if (!Array.isArray(record.videos) || record.videos.length > 100) throw new Error('Invalid training videos or video count exceeds the supported limit.');
     const videos = record.videos.map(normalizeVideo), ids = new Set<string>();
     for (const video of videos) {
       if (ids.has(video.session.id) || video.session.trainingSessionId !== record.id || video.session.drillId !== record.drillId
@@ -119,7 +150,14 @@ export class Repository {
   async loadProfile(): Promise<UserProfile> {
     const row = await this.db.getFirstAsync<{ payload: string }>('SELECT payload FROM profiles WHERE id = ?', 'local');
     if (!row) throw new Error('Local profile unavailable.');
-    const profile: UserProfile = JSON.parse(row.payload);
+    let profile: UserProfile;
+    try { profile = JSON.parse(row.payload); }
+    catch { throw new Error('Damaged profile data. The saved copy has not been changed.'); }
+    if (!profile || profile.id !== 'local' || !profile.performance
+      || !['drawTime', 'reloadTime', 'averageSplitTime', 'transitionTime', 'movementSpeed', 'magazineCapacity', 'startingRounds']
+        .every(k => { const n = profile.performance[k as keyof UserProfile['performance']]; return typeof n === 'number' && Number.isFinite(n) && n >= 0; })
+      || profile.performanceObservations !== undefined && !Array.isArray(profile.performanceObservations))
+      throw new Error('Damaged profile data. The saved copy has not been changed.');
     if (profile.performanceObservations === undefined && !profile.calibrationInputs && !profile.videoCalibrationBase) return profile;
     const rebuilt = withPerformanceObservations(profile, profile.performanceObservations ?? [], profile.calibrationContext ?? 'LIVE_FIRE', false);
     rebuilt.calibrationWarnings = [...new Set([...(profile.calibrationWarnings ?? []), ...(rebuilt.calibrationWarnings ?? [])])].sort();
