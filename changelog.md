@@ -280,3 +280,14 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 - Added deterministic proximity/target-set/per-target-difficulty deduplication, optional Start distance context, fresh manual-compatible position conversion, centralized hard search bounds and explicit geometry/truncation warnings. Existing manual positions, generation, evaluation, ranking, persistence and UI remain unchanged.
 - Documented legal-area, reachability, clearance, elevation, sampling and Phase 6B integration limits in mobile/src/planning/positionDiscovery.md.
 - Validation: TypeScript passed once; full existing suite passed once, 169 tests total including 17 new focused discovery tests. No browser, screenshots, export or device tooling run.
+
+## Phase 8A: local video analysis foundation - 2026-09-22
+
+- Added typed video sessions/results to existing Training records and SQLite JSON persistence; no new database or cloud upload. Native picker cache files move into app-owned documents; web uses local page-session media with original-file relinking.
+- Added millisecond timelines, explicit seconds/frame conversions with unknown-FPS rejection, source/confidence/confirmation metadata, marker edit/delete/confirm, movement segments and manually labeled shot strings.
+- Added deterministic response, split, reload, post-reload, movement, transition and total intervals, including the 2R2 example. Missing sequences remain partial; reload/movement/target boundaries never become splits; physical distance is never inferred.
+- Replaced the Training placeholder with minimal named-session creation, context/start selection, video import and a dark annotation editor with playback/scrubbing/stepping, marker editing, measurement/completeness review, save/discard and explicit profile contribution.
+- Inspection found only Phase 7A scalar profiles/evidence in this checkout, not the observation/calibrator system described in the request. Added the minimal typed observation/calibration bridge to existing fields and guards, preserving VIDEO_ANALYSIS provenance and separate contexts. No alternate shooter profile system.
+- Only manual or user-confirmed evidence contributes. Repeated contribution replaces samples; annotation edits/deletes withdraw stale samples; calibration and Training persistence roll back together on failure. Legacy records load; unknown analysis versions reject without overwrite.
+- Added Expo 57 video/document-picker/file-system dependencies; no camera, microphone or broad media permission requests; background playback and picture-in-picture are disabled. Automatic analysis remains deferred.
+- Final verification: TypeScript passed once and all 231 tests passed once (32 new focused video tests). No screenshot/browser automation, iOS export, commit or push was performed.

@@ -202,3 +202,10 @@ Use this file to document known defects from discovery through resolution.
 - **Evidence:** Logs, screenshots, test results, or relevant file references.
 - **Fix:** The implemented or proposed resolution.
 - **Status:** Open | Investigating | In Progress | Fixed | Closed
+
+## Phase 8A verification - 2026-09-22
+
+- Added focused regression coverage for time/frame conversion, timeline validation/editing, 2R2, movement and shot strings, incomplete sequences, source confirmation, context isolation, profile integration, missing assets, versioning, SQLite reopen and atomic rollback.
+- Completed implementation and fixes are recorded in changelog.md. Physical-device import/playback/seeking and browser media persistence follow-up remain in features.md.
+- No dated unresolved item is older than one month; undated legacy ideas cannot be aged reliably.
+- Final verification: TypeScript passed once; the full suite passed once with 231 tests, including 32 new video-analysis tests. No screenshot/browser automation, iOS export, commit or push was performed.

@@ -48,7 +48,8 @@
       ],
       "expo-sqlite",
       "expo-image",
-      "expo-web-browser"
+      "expo-web-browser",
+      ["expo-video", { "supportsBackgroundPlayback": false, "supportsPictureInPicture": false }]
     ],
     "experiments": {
       "typedRoutes": true,

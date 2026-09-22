@@ -1,3 +1,5 @@
+import type { TrainingContext } from './observations';
+import type { TrainingVideo } from './videoModel';
 export const startingTypes = {
   competitionHolster: 'Draw — Competition/Standard Holster',
   retentionHolster: 'Draw — Level II/III Holster',
@@ -9,4 +11,6 @@ export type TrainingRecord = {
   id: string; userId: string; drillId: string | null; drillName: string;
   occurredAt: string; startingType: StartingType; totalTime: number | null; notes: string;
   segments: { id: string; label: string; seconds: number }[];
+  context?: TrainingContext;
+  videos?: TrainingVideo[];
 };

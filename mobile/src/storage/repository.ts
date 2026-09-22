@@ -5,6 +5,8 @@ import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
+import { normalizeVideo, videoObservations } from '../training/videoAnalysis';
+import { trainingContexts, withVideoObservations } from '../training/observations';
 
 /** Small interface also allows repository tests against real SQLite on Node. */
 export interface Database {
@@ -22,6 +24,7 @@ const nameOf = (name: string) => {
   return clean;
 };
 export class Repository {
+  private trainingWrites: Promise<unknown> = Promise.resolve();
   constructor(private db: Database, private newId: () => string) {}
   async initialize() {
     const version = await this.db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -69,11 +72,47 @@ export class Repository {
     return this.createStage(stage.name.slice(0, 93) + ' (copy)', stage.document, stage.plan);
   }
   async deleteStage(id: string) { await this.db.runAsync('DELETE FROM stages WHERE id = ?', id); }
-  listTraining(userId: string) { return this.db.getAllAsync<{ payload: string }>('SELECT payload FROM training WHERE userId = ? ORDER BY occurredAt DESC', userId).then(rows => rows.map(row => JSON.parse(row.payload) as TrainingRecord)); }
-  async saveTraining(record: TrainingRecord) {
+  listTraining(userId: string) { return this.db.getAllAsync<{ payload: string }>('SELECT payload FROM training WHERE userId = ? ORDER BY occurredAt DESC', userId).then(rows => rows.map(row => this.normalizeTraining(JSON.parse(row.payload)))); }
+  private normalizeTraining(record: TrainingRecord): TrainingRecord {
     if (!record.id || !record.userId || !Object.hasOwn(startingTypes, record.startingType) || !Number.isFinite(Date.parse(record.occurredAt)) ||
       (record.totalTime !== null && (!Number.isFinite(record.totalTime) || record.totalTime < 0)) || record.segments.some(s => !Number.isFinite(s.seconds) || s.seconds < 0)) throw new Error('Invalid training record.');
-    await this.db.runAsync('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET userId=excluded.userId, occurredAt=excluded.occurredAt, payload=excluded.payload', record.id, record.userId, record.occurredAt, JSON.stringify(record));
+    if (record.context !== undefined && !trainingContexts.includes(record.context)) throw new Error('Invalid training context.');
+    if (record.videos === undefined) return record;
+    if (!Array.isArray(record.videos)) throw new Error('Invalid training videos.');
+    const videos = record.videos.map(normalizeVideo), ids = new Set<string>();
+    for (const video of videos) {
+      if (ids.has(video.session.id) || video.session.trainingSessionId !== record.id || video.session.drillId !== record.drillId
+        || (record.context && video.session.context !== record.context)) throw new Error('Video does not belong to this session/context.');
+      ids.add(video.session.id);
+    }
+    return { ...record, videos };
+  }
+  saveTraining(record: TrainingRecord): Promise<void> { return this.writeTraining(record); }
+  /** Explicit contribution is atomic with annotation persistence, and idempotent by measurement ID. */
+  contributeTrainingVideo(record: TrainingRecord, videoId: string): Promise<void> { return this.writeTraining(record, videoId); }
+  private writeTraining(input: TrainingRecord, contributeId?: string): Promise<void> {
+    const work = this.trainingWrites.then(async () => {
+      const record = this.normalizeTraining(input);
+      const selected = record.videos?.find(v => v.session.id === contributeId);
+      if (contributeId && (!selected || record.userId !== 'local')) throw new Error('Video unavailable for local profile contribution.');
+      await this.db.execAsync('BEGIN TRANSACTION;');
+      try {
+        const profile = await this.loadProfile();
+        const valid = (record.videos ?? []).flatMap(v => videoObservations(v, record.startingType));
+        const observations = (profile.performanceObservations ?? []).filter(o => o.trainingSessionId !== record.id
+          || valid.some(v => v.id === o.id && v.evidenceKey === o.evidenceKey));
+        const remaining = selected ? observations.filter(o => o.videoId !== selected.session.id) : observations;
+        const next = selected ? [...remaining, ...videoObservations(selected, record.startingType)] : remaining;
+        if (selected || next.length !== (profile.performanceObservations ?? []).length) {
+          const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
+          await this.saveProfile(updated);
+        }
+        await this.db.runAsync('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET userId=excluded.userId, occurredAt=excluded.occurredAt, payload=excluded.payload', record.id, record.userId, record.occurredAt, JSON.stringify(record));
+        await this.db.execAsync('COMMIT;');
+      } catch (error) { await this.db.execAsync('ROLLBACK;'); throw error; }
+    });
+    this.trainingWrites = work.catch(() => {});
+    return work;
   }
   async loadProfile(): Promise<UserProfile> {
     const row = await this.db.getFirstAsync<{ payload: string }>('SELECT payload FROM profiles WHERE id = ?', 'local');

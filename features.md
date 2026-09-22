@@ -6,7 +6,7 @@
 - Phase 6A discovery and Phase 6B planner integration are complete; see changelog.md. Verify discovery controls, amber read-only markers, native pan/zoom, stale-geometry feedback and auto-route adoption on a physical device. Optional selected-auto-position visibility connections remain a future preview enhancement.
 - Future geometry: legal shooting-area representation, body clearance, movement-path reachability, muzzle elevation/vertical port clearance, target-face occlusion and refined sampling near small openings. Current discovery provides only bounded 2D modeled-geometry estimates.
 - Phase 4 evaluator movement/reload overlap is complete; see changelog.md.
-- Phase 7A deterministic partial-profile personalization and difficulty/split observations are complete; see changelog.md. Future work: measurement entry UI, typed training context/calibration, recency weighting, difficulty-dependent first-shot acquisition, richer transition contexts, and curve-aware accepted manual-route summaries. Expand distance-only difficulty with target type, partial geometry and visibility difficulty only when supported by data. Verify Personalized status/details on a physical device.
+- Phase 7A deterministic partial-profile personalization and difficulty/split observations are complete; see changelog.md. Future work: non-video measurement entry UI, recency weighting, difficulty-dependent first-shot acquisition, richer transition contexts, and curve-aware accepted manual-route summaries. Expand distance-only difficulty with target type, partial geometry and visibility difficulty only when supported by data. Verify Personalized status/details on a physical device.
 - Phase 5A minimal planner UI is complete; selected routes use existing manual editing and persistence.
 - Phase 5B planner presentation is complete; see changelog.md. Verify candidate A/B previews, pan/zoom, reload markers, Back to Results, expanded details, ruleset selection and confirmed route adoption on a physical device.
 - Future ruleset constraints: presets currently store session-only typed metadata and share neutral evaluation; competition capacity, reload, engagement-order and penalty rules remain unimplemented.
@@ -103,7 +103,7 @@ Track features that are proposed or planned but not yet implemented.
 ### Prototype 2 follow-up
 
 - **Recorded:** 2026-09-17
-- **Description:** Add training session recording/drills and profile calibration from results. Add Apple authentication and cloud sync in a later phase. Automatic route generation remains deferred; manual routes are implemented.
+- **Description:** Add a structured drill catalog and non-video measurement entry. Basic named training sessions, video annotation/calibration and automatic route generation are implemented; see changelog.md. Add Apple authentication and cloud sync in a later phase.
 - **Status:** Planned
 - SQLite save/load and stage management are complete; see `changelog.md`.
 
@@ -136,3 +136,12 @@ Track features that are proposed or planned but not yet implemented.
 - **Dependencies:** Related features, services, or technical prerequisites.
 - **Priority:** Low | Medium | High
 - **Status:** Proposed | Planned | In Progress
+
+## Phase 8A follow-up - 2026-09-22
+
+- Local video sessions, manual annotation, deterministic measurements and the bridge into existing profile fields are complete; see changelog.md and mobile/src/training/videoAnalysis.md.
+- Verify native document import, video playback/scrubbing, nominal frame stepping, keyboard/marker editing, save/reopen and missing-file recovery on a physical device. Rebuild the native client for the added Expo modules.
+- Add durable browser media storage; current browser file access lasts for the page session and reopening requires selecting the original file. Annotations already persist in SQLite.
+- Later Phase 8 work: audio-shot suggestions, pose/movement segmentation, target/string suggestions and reviewed detector output with model-version migrations. No automatic detector, cloud processing or stage reconstruction is implemented in 8A.
+- Add a structured drill catalog, richer observation types, explicit shot-to-shot transition calibration and difficulty-labeled video measurements only when their inputs are known.
+- No dated unresolved item is older than one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.

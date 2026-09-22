@@ -15,5 +15,6 @@ export default function Account() {
       <DataRow label="Starting rounds" value={profile.performance.startingRounds} />
       <DataRow label="Chamber" value={profile.performance.chamberedRound ? 'Loaded' : 'Empty'} />
       <Copy>Stage loadouts are configured independently in each stage.</Copy></Panel>}
+    {profile?.calibrationContext && <Copy>Active video calibration context: {profile.calibrationContext}. Other training contexts are stored separately.</Copy>}
   </Screen>;
 }
