@@ -119,32 +119,46 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
   const options = typeof policyOrOptions === 'object' ? policyOrOptions : {};
   const limit = options.maxResults ?? (override ? candidates.length : RANKING_CONFIG.diversity.maxResults);
   if (!Number.isSafeInteger(limit) || limit < 0) throw new Error('maxResults must be a nonnegative integer.');
-  const warnings: PlannerWarning[] = candidates.flatMap(c => c.warnings);
+  const warnings: PlannerWarning[] = [];
   const ranked: RankedPlannerCandidate[] = [];
-  const effectiveStyle = config.style === 'PERSONALIZED' ? 'BALANCED' : config.style;
-  // Even a complete current profile has no distance/difficulty-dependent shooting
-  // measurements. Multiplying difficulty by averageSplitTime would invent data.
+  const personalized = config.style === 'PERSONALIZED' && candidates.length > 0 && candidates.some(c => c.personalized?.usable) && candidates.every(c => c.personalized);
+  const effectiveStyle = config.style === 'PERSONALIZED' && !personalized ? 'BALANCED' : config.style;
   const common: PlannerWarning[] = [];
-  if (config.style === 'PERSONALIZED') common.push({ code: 'PROFILE_FALLBACK', message: 'Balanced fallback: ShooterPerformanceProfile lacks difficulty-dependent shooting costs needed to compare harder shots against movement.' });
-  warnings.push(...common);
+  if (config.style === 'PERSONALIZED' && !personalized) common.push({ code: 'PROFILE_FALLBACK', message: 'Balanced fallback: no useful personalized data for this batch.' });
+  const candidateWarnings = (c: EvaluatedPlannerCandidate) => personalized ? c.personalized!.evaluation.warnings.map(message => ({ code: 'ROUTE_EVALUATION' as const, message, candidateId: c.candidate.id })) : c.warnings;
+  warnings.push(...candidates.flatMap(candidateWarnings), ...common);
   // Missing times must not make one candidate artificially cheaper than another.
-  const useTiming = candidates.every(c => c.metrics.estimatedTotalTime !== null);
+  const useTiming = personalized || candidates.every(c => c.metrics.estimatedTotalTime !== null);
   if (!useTiming) {
     const warning: PlannerWarning = { code: 'TIMING_UNAVAILABLE', message: 'Timing unavailable for part of this batch; time terms omitted for all candidates.' };
     warnings.push(warning); common.push(warning);
   }
   for (const candidate of candidates) {
     if (!override && candidate.evaluation.ammo.some(a => !a.sufficient)) continue;
-    const m = candidate.metrics, w = RANKING_CONFIG.styles[effectiveStyle], s = RANKING_CONFIG.scales;
+    const estimate = personalized ? candidate.personalized : undefined;
+    const m: RankingMetrics = estimate ? { ...candidate.metrics,
+      estimatedTotalTime: estimate.evaluation.timing?.total ?? null,
+      reloadTime: estimate.evaluation.timing?.reloads ?? null,
+      rawReloadDuration: estimate.evaluation.timing?.rawReloadDuration ?? null,
+      reloadMovementAvailable: estimate.evaluation.timing?.reloadMovementAvailable ?? null,
+      reloadOverlap: estimate.evaluation.timing?.reloadOverlap ?? null,
+    } : candidate.metrics;
+    const w = RANKING_CONFIG.styles[effectiveStyle === 'PERSONALIZED' ? 'BALANCED' : effectiveStyle], s = RANKING_CONFIG.scales;
     const reasons: RankingReason[] = [];
     const add = (code: string, message: string, contribution: number) => reasons.push({ code, message, contribution });
-    add('TIME', 'Lower evaluator estimated time', useTiming ? (m.estimatedTotalTime ?? 0) / s.time * w.time : 0);
-    add('MOVEMENT', 'Less total movement', m.movementDistance / s.movement * w.movement);
-    add('DIFFICULTY', 'Lower total shooting difficulty (distance proxy)', m.totalShootingDifficulty / s.difficulty * w.difficulty);
-    add('POSITIONS', 'Fewer shooting positions', m.positionsUsed * w.positions);
-    add('RELOADS', 'Fewer reloads', m.reloadCount * w.reloads);
-    const neutralComplexity = m.movementComplexityScore - m.backwardDistance / 36 * RANKING_CONFIG.complexity.backwardYard;
-    add('COMPLEXITY', 'Less movement complexity (segments, turns and positions)', neutralComplexity * w.complexity);
+    if (estimate) {
+      add('PERSONALIZED_TIME', 'Lower profile-based evaluator time (with explicit generic factors)', (m.estimatedTotalTime ?? 0) / s.time);
+      estimate.explanations.forEach((message, i) => add('PROFILE_' + i, message, 0));
+      estimate.model.warnings.forEach((message, i) => add('PROFILE_WARNING_' + i, message, 0));
+    } else {
+      add('TIME', 'Lower evaluator estimated time', useTiming ? (m.estimatedTotalTime ?? 0) / s.time * w.time : 0);
+      add('MOVEMENT', 'Less total movement', m.movementDistance / s.movement * w.movement);
+      add('DIFFICULTY', 'Lower total shooting difficulty (distance proxy)', m.totalShootingDifficulty / s.difficulty * w.difficulty);
+      add('POSITIONS', 'Fewer shooting positions', m.positionsUsed * w.positions);
+      add('RELOADS', 'Fewer reloads', m.reloadCount * w.reloads);
+      const neutralComplexity = m.movementComplexityScore - m.backwardDistance / 36 * RANKING_CONFIG.complexity.backwardYard;
+      add('COMPLEXITY', 'Less movement complexity (segments, turns and positions)', neutralComplexity * w.complexity);
+    }
     const b = RANKING_CONFIG.backward;
     add('BACKWARD', 'Backward-movement preference penalty', config.movement.backwardMovement === 'ALLOWED' ? 0 :
       config.movement.backwardMovement === 'AVOID' ? m.backwardDistance / 36 * b.avoidPerYard :
@@ -152,13 +166,13 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
     const r = RANKING_CONFIG.reload[config.reloadStrategy];
     add('AMMO_MARGIN', `Prefer at least ${r.reserve} spare rounds after engagement`, Math.max(0, r.reserve - m.ammoMargin) * r.margin);
     add('ARRIVAL_MARGIN', 'Avoid arriving near empty before a reload', Math.max(0, r.reserve - m.minimumArrivalRounds) * r.arrival);
-    add('RELOAD_TIME', 'Lower evaluator reload penalty after movement overlap', useTiming ? (m.reloadTime ?? 0) * r.time : 0);
+    add('RELOAD_TIME', personalized ? 'Reload cost already included in personalized evaluator time' : 'Lower evaluator reload penalty after movement overlap', useTiming && !personalized ? (m.reloadTime ?? 0) * r.time : 0);
     const score = override ? override(candidate, config) : reasons.reduce((n, r) => n + r.contribution, 0);
     if (score === null) continue;
     if (!Number.isFinite(score)) throw new Error('Planner ranking scores must be finite or null.');
     ranked.push({ candidate, originalCandidate: candidate.candidate, score, rank: 0, routeStyle: config.style,
       effectiveStyle, metrics: m, reasons: override ? [{ code: 'CUSTOM_POLICY', message: 'Caller-supplied ranking policy', contribution: score }] : reasons,
-      warnings: [...candidate.warnings, ...common] });
+      warnings: [...candidateWarnings(candidate), ...common] });
   }
   ranked.sort((a, b) => a.score - b.score);
   const selected: RankedPlannerCandidate[] = [];

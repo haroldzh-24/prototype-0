@@ -8,6 +8,8 @@ import { shootingDifficulty } from './shootingDifficulty';
 import type { ShootingDifficulty } from './shootingDifficulty';
 import { deriveRankingMetrics } from './ranking';
 import type { RankingMetrics, RankingReason } from './ranking';
+import { evaluatePersonalizedRoute } from './personalizedRoute';
+import type { PersonalizedRouteEstimate } from './personalizedRoute';
 
 export type RouteStyle =
   /** Favor fewer positions and less travel, accepting harder engagements. */
@@ -16,7 +18,7 @@ export type RouteStyle =
   | 'BALANCED'
   /** Accept more travel for closer/easier engagements. */
   | 'MORE_MOVEMENT_EASIER_SHOOTING'
-  /** Falls back until the profile supports difficulty-dependent shooting cost. */
+  /** Uses supported profile costs, with explicit per-factor generic estimates. */
   | 'PERSONALIZED';
 export type MovementPreferences = Readonly<{ backwardMovement: 'AVOID' | 'LIMITED' | 'ALLOWED' }>;
 export type ReloadStrategy = 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE';
@@ -47,6 +49,7 @@ export type EvaluatedPlannerCandidate = Readonly<{
   shootingDifficulty: readonly (ShootingDifficulty & { positionId: string; targetId: string })[];
   warnings: readonly PlannerWarning[];
   metrics: RankingMetrics;
+  personalized?: PersonalizedRouteEstimate;
 }>;
 export type RankedPlannerCandidate = Readonly<{
   candidate: EvaluatedPlannerCandidate; originalCandidate: PlannerCandidate; score: number;
@@ -75,6 +78,7 @@ export function evaluateCandidate(context: PlannerContext, candidate: PlannerCan
     difficulty.push({ positionId: position.id, targetId, ...shootingDifficulty(position.position, target.position) });
   }
   return { candidate, evaluation, shootingDifficulty: difficulty,
+    personalized: evaluatePersonalizedRoute(context, candidate, difficulty),
     metrics: deriveRankingMetrics(context, candidate, evaluation, difficulty),
     warnings: evaluation.warnings.map(message => ({ code: 'ROUTE_EVALUATION', message, candidateId: candidate.id })),
   };

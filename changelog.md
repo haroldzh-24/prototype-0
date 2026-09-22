@@ -1,3 +1,11 @@
+# Phase 7A: personalized performance model - 2026-09-21
+
+- Documented the actual scalar profile and untyped training data in mobile/src/profile/personalizedPerformance.md; no training labels or seeded defaults are treated as measurements.
+- Added optional evidence on existing scalar timings and aggregated difficulty-indexed split observations, bounded validation, interpolation within recorded support, independent generic fallbacks and LOW/MEDIUM/HIGH completeness metadata. Existing JSON persistence requires no migration.
+- Personalized ranking compares profile-adapted evaluator time plus existing backward/ammunition preferences. The unchanged evaluator handles route timing, transitions, ammunition and moving-reload overlap. Other styles and candidate generation stay unchanged.
+- Planner status and results expose sources, confidence, fallback factors and supported explanations. Accepted routes remain ordinary manual routes; their baseline summary does not yet apply the curve adapter.
+- TypeScript passed once and all 199 tests passed once, including 17 new model/ranking and SQLite round-trip tests. No browser automation, screenshots or iOS export performed.
+
 # Phase 6B: planner position sources - 2026-09-21
 
 - Added MANUAL (default), AUTO and AUTO + MANUAL using a session-only adapter around the unchanged discovery, generator, evaluator and ranking engines.

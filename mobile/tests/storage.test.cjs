@@ -208,3 +208,18 @@ test('batch magazines, inserted designation and independent edits survive SQLite
     assert.equal(ammunitionSummary(loaded.plan, document).totalAvailable, 77);
   } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
 });
+
+test('optional performance evidence and difficulty observations survive SQLite reopen', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'performance-storage-'));
+  const file = path.join(dir, 'profile.db'); let connection = open(file);
+  try {
+    await connection.repo.initialize(); const profile = await connection.repo.loadProfile();
+    profile.performance.movementSpeed = 84;
+    profile.performance.timingEvidence = { movementSpeed: { source: 'MEASURED', sampleCount: 8, standardDeviation: 4, measuredAt: '2026-09-21T12:00:00Z' } };
+    profile.performance.shootingObservations = [{ difficultyModel: 'DISTANCE_ONLY', difficulty: 5, splitTime: 0.4, sampleCount: 8, standardDeviation: 0.03 }];
+    await connection.repo.saveProfile(profile); connection.db.close(); connection = open(file);
+    assert.deepEqual(await connection.repo.loadProfile(), profile);
+    const { buildPersonalizedModel } = require('../src/profile/personalizedPerformance.ts');
+    assert.equal(buildPersonalizedModel((await connection.repo.loadProfile()).performance).usable, true);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});

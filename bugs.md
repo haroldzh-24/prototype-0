@@ -1,3 +1,8 @@
+# Phase 7A verification - 2026-09-21
+
+- Added focused coverage for partial/complete profiles, deterministic curve interpolation, emergent movement/shooting tradeoffs, evaluator-owned reload overlap, corruption handling, explanations and optional profile persistence. TypeScript passed once; the full test suite passed once with 199 tests (17 new tests). No new defect identified; completed implementation is recorded in changelog.md.
+- Native status rendering and measurement-entry/curve-aware accepted-route summaries remain planned in features.md. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 # Phase 6B integration verification - 2026-09-21
 
 - Added focused coverage for source selection, visibility isolation, equivalent-position deduplication, coverage warnings, fallback, stale geometry, bounded pools, preview immutability and normal editable route adoption. TypeScript passed once; the full suite passed once with 182 tests (13 new integration tests). No new defect identified. Completed integration is recorded in changelog.md.

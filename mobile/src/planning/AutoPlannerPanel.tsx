@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Action, Copy, DataRow, Panel } from '../ui/kit';
+import { buildPersonalizedModel } from '../profile/personalizedPerformance';
 import { discoverCandidatePositions } from './positionDiscovery';
 import { discoveryGeometryKey, preparePositionSource } from './positionSources';
 import type { DiscoverySession, PositionSource } from './positionSources';
@@ -22,6 +23,7 @@ export default function AutoPlannerPanel({ stage, plan, profile, onUse, preview,
   const [source, setSource] = useState<PositionSource>('MANUAL');
   const [discoveryDetails, setDiscoveryDetails] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const personalizedModel = buildPersonalizedModel(profile);
   const prepared = preparePositionSource({ stage, plan, profile }, source, discoverySession);
   const [ruleset, setRuleset] = useState<PlannerRuleset>('CUSTOM');
   const [searchWarning, setSearchWarning] = useState(false);
@@ -92,7 +94,15 @@ export default function AutoPlannerPanel({ stage, plan, profile, onUse, preview,
     <Copy>{rulesetMetadata(ruleset).description}</Copy>
     <Copy>Route Style</Copy>
     {(Object.keys(styles) as RouteStyle[]).map(style => <Action key={style} title={`${config.style === style ? '✓ ' : ''}${styles[style]}`} disabled={generating} onPress={() => setConfig({ ...config, style })} />)}
-    {config.style === 'PERSONALIZED' && <Copy>Personalized currently uses Balanced; shooting difficulty measurements are not available.</Copy>}
+    {config.style === 'PERSONALIZED' && <>
+      <Copy>PERSONALIZED MODEL</Copy>
+      <DataRow label="Confidence" value={personalizedModel.confidence} />
+      <Copy>Using: {personalizedModel.using.join(', ') || 'No personalized data'}</Copy>
+      <Copy>Fallback: {personalizedModel.fallback.join(', ') || 'None within measured difficulty range'}</Copy>
+      <Copy>Manual or unverified estimates have low confidence. Confidence may decrease outside recorded difficulty values.</Copy>
+      {!personalizedModel.usable && <Copy>No useful personalized data. Balanced fallback will be used.</Copy>}
+      {personalizedModel.warnings.map(w => <Copy key={w}>{w}</Copy>)}
+    </>}
     <Copy>Backward Movement</Copy>
     {(['AVOID', 'LIMITED', 'ALLOWED'] as const).map(value => <Action key={value} title={`${config.movement.backwardMovement === value ? '✓ ' : ''}${value.charAt(0) + value.slice(1).toLowerCase()}`} disabled={generating} onPress={() => setConfig({ ...config, movement: { backwardMovement: value } })} />)}
     <Copy>Reload Strategy</Copy>
