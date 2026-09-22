@@ -10,6 +10,19 @@
 
 # Bug Tracker
 
+## Phase 8C verification - 2026-09-22
+
+- Native body-pose build/execution and physical-device review remain unverified; tracked in features.md. Camera translation and subject identity remain heuristic limitations, not physical-distance measurements.
+- Added regression coverage for provisional pose markers altering trusted timing/string boundaries, run metadata surviving edits/normalization and confirmed movement requiring real distance. Completed changes are recorded in changelog.md.
+- Final validation: TypeScript passed once; full suite passed once with 302 tests (27 new pose tests). Expo autolinking resolves TrainingPose. No screenshots, extended browser automation, iOS export, commit or push. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
+## Phase 8B verification - 2026-09-22
+
+- Native extraction and signal thresholds require device verification; tracked in features.md. Android/web/old iOS clients report extraction unavailable without disrupting manual editing.
+- Corrected analysis normalization dropping optional detector-run metadata, and guarded reruns against replacing confirmed/manual markers or edits made during decode; completed work is recorded in changelog.md.
+- TypeScript passed once and the full suite passed once with 275 tests (23 new). Synthetic coverage includes tones, impulses, rapid strings, echoes, noise, cancellation, malformed audio, timestamp offsets, deduplication, confirmation gating and SQLite reopen. Expo autolinking resolves TrainingAudio. No screenshots, browser automation, iOS export, commit or push.
+- No dated unresolved bug or feature exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## Phase 6A discovery verification - 2026-09-21
 
 - TypeScript passed once and all 169 tests passed once, including 17 focused discovery tests. No new defect identified; completed implementation is recorded in changelog.md.
@@ -216,3 +229,25 @@ Use this file to document known defects from discovery through resolution.
 - Added focused coverage for generalized observations, overrides/removal, invalid stored data, slow results, duplicate conflicts, contexts, movement/reload/shooting/transition calibration, lifecycle persistence, legacy 8A compatibility and personalized route consumption.
 - No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
 - Final verification: all 252 tests passed in one full-suite run (21 new tests). TypeScript initially found one narrowing error; after correction, its targeted rerun passed. No browser/device tooling, export, commit or push was performed.
+
+## Phase 8D verification - 2026-09-22
+
+- Native close-up Vision execution and player/region alignment remain unverified; see features.md and mobile/src/training/closeUp.md. Low light/blur are reported through confidence/missing data; tracker drift and global registration ambiguity remain limitations.
+- Fixed a one-frame jump producing a sustained transition in synthetic fixtures; event edits now refresh close-up windows and deletions remove stale summaries. Completed work is in changelog.md.
+- No dated unresolved bug or feature exceeds one month; undated legacy items cannot be aged reliably.
+
+- Final Phase 8D validation: TypeScript passed once; full suite passed once with 327 tests, including 25 new close-up tests. The focused fixture run exposed the transient-transition bug before final validation. Git whitespace check passed.
+
+## Phase 8E verification - 2026-09-22
+
+- Completed duplicate-marker suppression, evidence-preserving rejection and confirmed-support retention across independent detector reruns are recorded in changelog.md.
+- Physical-device fusion review and empirical confidence/tolerance calibration remain pending in features.md. Current generic close-up events do not imply semantic gun actions or motion onset.
+- No dated unresolved bug or feature exceeds one month; undated legacy items cannot be aged reliably.
+- Final validation: TypeScript passed once; the full suite passed once with 364 tests, including 37 new fusion tests. No screenshots, browser automation, iOS export, commit or push were performed.
+
+## Phase 8F-A verification - 2026-09-22
+
+- Completed protection against historical route drift, unconfirmed actual timings, reload overlap double-counting and lost links during video recalculation is recorded in changelog.md.
+- Device mapping/viewport/save/reopen verification remains pending in features.md. Unsupported dwell prediction and multi-string aggregation are explicit limitations, not inferred measurements.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+- Final validation: TypeScript passed once; the full suite passed once with 398/398 tests, including 34 new comparison tests. No screenshots, browser automation, iOS export, commit or push were performed.

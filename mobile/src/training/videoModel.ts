@@ -1,4 +1,9 @@
+import type { CloseRun } from './closeUp';
+import type { FusionResult } from './eventFusion';
+import type { ExecutionComparison } from './executionComparison';
 import type { TrainingContext } from './observations';
+import type { AudioAnalysisRun } from './audioDetection';
+import type { PoseAnalysisRun } from './poseModel';
 
 export const VIDEO_ANALYSIS_VERSION = 1 as const;
 export const eventTypes = ['STIMULUS', 'REACTION', 'HAND_ON_GUN', 'DRAW_COMPLETE', 'FIRST_SHOT', 'SHOT',
@@ -10,7 +15,10 @@ export type EventConfidence = 'LOW' | 'MEDIUM' | 'HIGH' | 'CONFIRMED';
 export type TimelineEvent = {
   id: string; type: EventType; timestampMs: number; source: EventSource;
   confidence: EventConfidence; confirmed: boolean;
-  metadata?: { targetId?: string; stringId?: string; movementType?: string; distanceInches?: number; note?: string };
+  metadata?: { targetId?: string; stringId?: string; movementType?: string; distanceInches?: number; note?: string;
+    fusion?: { hypothesisId: string; evidenceIds: string[]; fusionVersion: string; configVersion: number };
+    pose?: { detectorVersion: string; analyzedAt: string; segmentId?: string; stimulusId?: string };
+    audio?: { detectorVersion: string; analyzedAt: string; durationMs: number; peak: number; rise: number; toneRatio: number; toneHz: number } };
 };
 export type VideoSession = {
   id: string; trainingSessionId: string; drillId: string | null;
@@ -19,7 +27,7 @@ export type VideoSession = {
   context: TrainingContext; analysisStatus: 'ANNOTATING' | 'REVIEWED'; analysisVersion: 1;
 };
 export type MeasurementKind = 'REACTION' | 'PRESENTATION' | 'DRAW' | 'SPLIT' | 'RELOAD_MANIPULATION'
-  | 'MAG_ACCESS' | 'RELOAD' | 'POST_RELOAD_SHOT' | 'MOVEMENT' | 'POSITION_TRANSITION' | 'TARGET_TRANSITION' | 'TOTAL';
+  | 'MAG_ACCESS' | 'RELOAD' | 'POST_RELOAD_SHOT' | 'MOVEMENT' | 'POSITION_TRANSITION' | 'TARGET_TRANSITION' | 'TOTAL' | 'STRING_TIME';
 export type VideoMeasurement = {
   id: string; kind: MeasurementKind; startMs: number; endMs: number; durationMs: number;
   eventIds: string[]; eligible: boolean; confidence: EventConfidence;
@@ -29,7 +37,7 @@ export const measurementLabels: Record<MeasurementKind, string> = {
   REACTION: 'Stimulus to reaction', PRESENTATION: 'Reaction to first shot', DRAW: 'Stimulus to first shot',
   SPLIT: 'Shot split', RELOAD_MANIPULATION: 'Magazine release to insert', MAG_ACCESS: 'Magazine access to insert',
   RELOAD: 'Reload: release to complete', POST_RELOAD_SHOT: 'Reload complete to next shot', MOVEMENT: 'Movement duration',
-  POSITION_TRANSITION: 'Position exit to entry', TARGET_TRANSITION: 'Transition marker to next shot', TOTAL: 'Total drill time',
+  POSITION_TRANSITION: 'Position exit to entry', TARGET_TRANSITION: 'Transition marker to next shot', TOTAL: 'Total drill time', STRING_TIME: 'Shooting string time',
 };
 export type MovementSegment = {
   id: string; startMs: number; endMs: number; durationMs: number; eventIds: string[];
@@ -40,12 +48,16 @@ export type ShotString = {
   separatedBy: 'START' | 'RELOAD' | 'MOVEMENT' | 'TARGET_TRANSITION' | 'MANUAL';
 };
 export type VideoAnalysisResult = {
+  fusion?: FusionResult;
+  closeRun?: CloseRun;
+  poseRun?: PoseAnalysisRun;
+  audioRun?: AudioAnalysisRun;
   analysisVersion: 1; videoId: string; trainingSessionId: string;
   events: TimelineEvent[]; movementSegments: MovementSegment[]; shotStrings: ShotString[];
   measurements: VideoMeasurement[]; warnings: string[];
   confidence: EventConfidence; completeness: Record<string, 'Confirmed' | 'Partial' | 'Not measured'>;
 };
-export type TrainingVideo = { session: VideoSession; analysis: VideoAnalysisResult };
+export type TrainingVideo = { session: VideoSession; analysis: VideoAnalysisResult; executionComparison?: ExecutionComparison };
 
 /** The only timeline coordinate is milliseconds from video start (fractional ms allowed). */
 export function assertTimeMs(value: number, durationMs?: number | null) {
@@ -79,6 +91,14 @@ export function sortEvents(events: TimelineEvent[], durationMs?: number | null):
         if (event.metadata[key] !== undefined && typeof event.metadata[key] !== 'string') throw new Error('Invalid event metadata.');
       if (event.metadata.distanceInches !== undefined && (!Number.isFinite(event.metadata.distanceInches) || event.metadata.distanceInches <= 0))
         throw new Error('Known distance must be positive inches.');
+      const audio = event.metadata.audio;
+      const pose = event.metadata.pose;
+      if (pose !== undefined && (!pose || typeof pose.detectorVersion !== 'string' || !Number.isFinite(Date.parse(pose.analyzedAt))
+        || pose.segmentId !== undefined && typeof pose.segmentId !== 'string' || pose.stimulusId !== undefined && typeof pose.stimulusId !== 'string'))
+        throw new Error('Invalid pose detector metadata.');
+      if (audio !== undefined && (!audio || typeof audio.detectorVersion !== 'string' || !Number.isFinite(Date.parse(audio.analyzedAt))
+        || [audio.durationMs, audio.peak, audio.rise, audio.toneRatio, audio.toneHz].some(value => !Number.isFinite(value) || value < 0)))
+        throw new Error('Invalid audio detector metadata.');
     }
     ids.add(event.id);
   }
@@ -86,8 +106,8 @@ export function sortEvents(events: TimelineEvent[], durationMs?: number | null):
 }
 export function editEvent(events: TimelineEvent[], id: string, patch: Partial<Pick<TimelineEvent, 'type' | 'timestampMs' | 'metadata'>>, durationMs?: number | null) {
   if (!events.some(e => e.id === id)) throw new Error('Event no longer exists.');
-  return sortEvents(events.map(e => e.id === id ? { ...e, ...patch, confirmed: false,
-    confidence: e.source === 'MANUAL' ? 'CONFIRMED' as const : 'LOW' as const } : e), durationMs);
+  return sortEvents(events.map(e => e.id === id ? { ...e, ...patch, confirmed: !!e.metadata?.fusion && e.confirmed,
+    confidence: e.source === 'MANUAL' || e.metadata?.fusion && e.confirmed ? 'CONFIRMED' as const : 'LOW' as const } : e), durationMs);
 }
 export function deleteEvent(events: TimelineEvent[], id: string) { return sortEvents(events.filter(e => e.id !== id)); }
 export function confirmEvent(events: TimelineEvent[], id: string) {

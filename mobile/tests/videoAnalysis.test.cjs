@@ -69,7 +69,8 @@ test('editing and deletion recalculate intervals and leave source arrays unchang
   const input = sequence(), before = JSON.stringify(input);
   const edited = V.editEvent(input, 'FIRST_SHOT-1100', { timestampMs: 1000 });
   assert.equal(video(edited).analysis.measurements.find(m => m.kind === 'DRAW').durationMs, 900);
-  assert.ok(!video(V.deleteEvent(edited, 'FIRST_SHOT-1100')).analysis.measurements.some(m => m.kind === 'DRAW'));
+  // Phase 8B derives the first-shot role from the earliest remaining trusted SHOT.
+  assert.equal(video(V.deleteEvent(edited, 'FIRST_SHOT-1100')).analysis.measurements.find(m => m.kind === 'DRAW').durationMs, 1200);
   assert.equal(JSON.stringify(input), before);
   assert.throws(() => V.editEvent(input, 'missing', { type: 'SHOT' }));
 });

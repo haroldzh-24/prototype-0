@@ -20,13 +20,14 @@ export type ReloadTiming = {
   positionId: string; magazineId: string; mode: 'moving' | 'stationary';
   rawDuration: number; availableMovement: number; overlap: number; additionalPenalty: number;
 };
+export type PositionTiming = { positionId: string; plannedRounds: number; targetCount: number; engagementSeconds: number };
 export type RouteEvaluation = {
   segments: MovementSegment[]; distance: number; startingRounds: number; ammo: AmmoState[];
   magazineChanges: number; warnings: string[];
   timing: { movement: number; draw: number; splits: number; transitions: number;
     /** Reloads is the additional cost, so existing timing consumers do not double-count. */
     reloads: number; rawReloadDuration: number; reloadMovementAvailable: number; reloadOverlap: number;
-    reloadDetails: ReloadTiming[]; total: number } | null;
+    reloadDetails: ReloadTiming[]; positionDetails: PositionTiming[]; total: number } | null;
 };
 export const createRoute = (id: string): StageRoute => ({ version: 1, id, name: 'Manual route', positions: [], reloads: [] });
 /** Validate saved shape without erasing stale target/magazine references; evaluation explains those. */
@@ -73,6 +74,7 @@ export function toggleRouteTarget(route: StageRoute, stage: StageDocument, posit
 export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: StageRoute, profile: ShooterPerformanceProfile | null): RouteEvaluation {
   const warnings: string[] = [], segments: MovementSegment[] = [], ammo: AmmoState[] = [];
   const reloadDetails: ReloadTiming[] = [];
+  const positionDetails: PositionTiming[] = [];
   const targets = new Map(stage.objects.filter(isEngageable).map(t => [t.id, t]));
   const magazines = new Map(plan.loadout.magazines.map(m => [m.id, m.startingRounds]));
   let magazineId = plan.loadout.startingMagazineId;
@@ -117,7 +119,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
         }
       }
     }
-    let required = 0, count = 0;
+    let required = 0, count = 0, positionSplits = 0;
     for (const id of p.engagedTargetIds) {
       if (!targets.has(id)) continue;
       if (engaged.has(id)) { warnings.push(`${p.label}: ${targetLabel(stage, id)} is engaged more than once.`); continue; }
@@ -125,9 +127,11 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
       if (!p.visibleTargetIds.includes(id)) warnings.push(`${p.label}: engaged ${targetLabel(stage, id)} is not marked visible.`);
       const rounds = plan.engagements[id];
       if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for ${targetLabel(stage, id)} in Loadout / Planning.`); continue; }
-      required += rounds; splits += rounds - 1; count++;
+      required += rounds; splits += rounds - 1; positionSplits += rounds - 1; count++;
     }
     targetCount += count; transitions += Math.max(0, count - 1);
+    if (validProfile) positionDetails.push({ positionId: p.id, plannedRounds: required, targetCount: count,
+      engagementSeconds: positionSplits * profile.averageSplitTime + Math.max(0, count - 1) * profile.transitionTime });
     const available = (magazines.get(magazineId ?? '') ?? 0) + chamber;
     const sufficient = required <= available;
     if (!sufficient) warnings.push(`${p.label}: requires ${required} rounds; only ${available} available. Magazine plan cannot complete this engagement.`);
@@ -144,7 +148,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     reloads: reloadDetails.reduce((sum, r) => sum + r.additionalPenalty, 0),
     rawReloadDuration: reloadDetails.reduce((sum, r) => sum + r.rawDuration, 0),
     reloadMovementAvailable: reloadDetails.reduce((sum, r) => sum + r.availableMovement, 0),
-    reloadOverlap: reloadDetails.reduce((sum, r) => sum + r.overlap, 0), reloadDetails, total: 0 } : null;
+    reloadOverlap: reloadDetails.reduce((sum, r) => sum + r.overlap, 0), reloadDetails, positionDetails, total: 0 } : null;
   if (timing) timing.total = timing.movement + timing.draw + timing.splits + timing.transitions + timing.reloads;
   return { segments, distance, startingRounds, ammo, magazineChanges, warnings, timing };
 }

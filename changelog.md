@@ -300,3 +300,45 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 - Added physical movement, raw reload, transition, distinct response/acquisition storage, and difficulty-tagged split curve calibration using the existing planner scale and interpolation.
 - Preserved atomic video/profile writes, confirmed-evidence gating, existing timeline/editor behavior, route evaluation/ranking and database schema version.
 - Verification: 252 tests passed in one suite run, including 21 new calibration regressions and all existing video tests. TypeScript passed after correcting one narrowing error and rerunning only the type check.
+# Phase 8B local audio suggestions - 2026-09-22
+
+- Added a local iOS Expo module using AVFoundation to decode imported video audio to bounded 16 kHz mono PCM with video PTS alignment; no new external package, network service or permission. Missing-module/unsupported platforms retain manual editing.
+- Added deterministic frame features, frequency-flexible timer candidates, impulsive shot candidates, centralized limits/confidence, close-echo suppression, trusted-marker deduplication and recoverable warnings/cancellation.
+- Added explicit Analyze/Re-analyze Audio and individual preview/edit/confirm/delete in the existing timeline. Analysis yields for manual editing and merges into current state; confirmed events survive reruns.
+- Reused timeline derivation and the existing observation/calibration pipeline. Trusted SHOT events can acquire a first-shot timing role without relabeling; string durations are derived alongside splits. Suggestions never auto-confirm or invoke profile contribution.
+- Persisted bounded versioned run diagnostics and original detector provenance through normalization/SQLite. PCM and feature arrays remain temporary.
+- Added synthetic detector and persistence coverage; updated the prior deletion regression to expect first-shot timing from the earliest remaining trusted SHOT. Native build/decode/playback still requires physical-device verification. Details: mobile/src/training/audioDetection.md.
+- Validation: TypeScript passed once; full suite passed once with 275 tests (23 new). Expo autolinking resolves TrainingAudio. Confidence/noise thresholds were then collected into the same config without changing their values; the focused audio tests were rechecked.
+# Phase 8C local pose and movement suggestions - 2026-09-22
+
+- Added the local TrainingPose Expo module: sequential orientation-corrected AVFoundation frame sampling plus Apple Vision body pose, actual presentation timestamps, bounded samples/images and progress/cancellation. No external dependency, network inference or permission change.
+- Added typed normalized joints, conservative subject continuity, deterministic time-based smoothing, reaction/gross movement/temporal position suggestions and acceleration/stabilization diagnostics. Camera ambiguity and missing observations degrade or stop detection without inventing joints or physical distance.
+- Added Analyze Movement, purple reviewable timeline markers, movement interval bars and optional sparse skeleton overlay with letterbox alignment and exact saved-sample preview. Audio remains separately available; edits remain available during analysis.
+- Reused trusted-event measurement derivation and explicit shared observation/profile contribution. Confirmed reactions feed stimulusResponseTime; movement speed still requires a known physical distance. Unconfirmed pose markers do not change trusted measurements or shooting strings.
+- Persisted bounded versioned pose diagnostics and up to 120 selected preview samples. Reruns preserve confirmed/manual/audio evidence. Added synthetic pose, bridge error/cancellation and SQLite persistence coverage. Native device verification remains planned; see mobile/src/training/poseDetection.md.
+- Validation: TypeScript passed once and all 302 tests passed in one full-suite run, including 27 new pose tests. Expo autolinking resolves TrainingPose; no screenshots/browser automation, iOS export, commit or push.
+
+## Phase 8D local close-up analysis - 2026-09-22
+
+- Extended the local Vision module with bounded hand pose, user-selected region tracking, actual timestamps, display orientation normalization, translational registration, progress and cancellation.
+- Added validated normalized samples, conservative hand continuity, descriptive paths/velocity/variance/coverage, configurable pre/post-event summaries, return/settle and generic transition/proximity suggestions. Camera ambiguity lowers confidence; gaps stay missing.
+- Added current-frame region selection and toggleable sparse overlay to the existing player, metric review and normal timeline confirmation/rejection. Persisted bounded diagnostics in existing Training JSON; reruns retain all manual/confirmed evidence and other detector runs. No physical scoring, semantic recognition, cloud inference or permission changes.
+- Native build/device validation remains required; see mobile/src/training/closeUp.md. No screenshots, browser automation, iOS export, commit or push.
+
+- Final Phase 8D validation: TypeScript passed once; full suite passed once with 327 tests, including 25 new close-up tests. The focused fixture run exposed the transient-transition bug before final validation. Git whitespace check passed.
+# Phase 8E - General event fusion - 2026-09-22
+
+- Added a pure bounded fusion module with normalized compact evidence, explicit event compatibility, per-category timing tolerances, trusted anchors, family-balanced weighted median timestamps, independent-modality confidence, warning penalties and deterministic explanations.
+- Persisted versioned hypotheses and evidence references alongside untouched detector runs. Manual/confirmed events retain type/time; new support attaches without recreating them. Independent reruns retain confirmed provenance and unaffected detector outputs.
+- Added raw/fused/confirmed review, evidence inspection, editable one-event confirmation, evidence-preserving rejection and duplicate timeline suppression. Existing explicit observation/profile contribution boundaries remain in place.
+- Added synthetic coverage for modality combinations, confidence independence, warnings, disagreement, malformed input, bounds, reruns, confirmation/edit/rejection, profile boundaries and SQLite provenance persistence.
+- Implementation policy and limitations: mobile/src/training/eventFusion.md. Device verification and empirical calibration remain planned in features.md.
+- Validation: TypeScript passed once; full suite passed once, 364/364 tests (37 new). No screenshots, browser automation, iOS export, commit or push.
+# Phase 8F-A - Planned versus confirmed execution - 2026-09-22
+
+- Added optional per-video historical stage/route snapshots with saved revision, capture time, fixed evaluator inputs/output and versioned manual mapping records. Video recalculation and independent detector reruns retain links; live edits never rewrite snapshot history.
+- Added pure confirmed-only movement, dwell, string, reload and total comparison. Exposed per-position engagement detail from the authoritative route evaluator without changing its timing formulas. Unknown dwell estimates remain unavailable.
+- Added reload raw/overlap/additional comparisons and reconciled delta buckets with explicit residual/unattributed time. Conflicting, stale and unconfirmed mappings are excluded; malformed historical comparisons leave normal video analysis usable.
+- Added Training's Compare to Plan workflow with stage/route selection, read-only existing StageViewport/RouteOverlay, interval highlighting/preview, add/update/remove mappings, completeness and descriptive review. Existing explicit calibration is unchanged.
+- Added focused synthetic and SQLite reopen coverage. Remaining device verification and Phase 8F-B work are tracked in features.md; policy is in mobile/src/training/executionComparison.md.
+- Final validation: TypeScript passed once; full suite passed once, 398/398 tests (34 new). No screenshots, browser automation, iOS export, commit or push.

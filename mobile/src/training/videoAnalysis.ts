@@ -1,7 +1,14 @@
-import type { TimingFactor } from '../profile/model';
+import { applyFusionToTimeline, fuseTimeline } from './eventFusion';
+import type { FusionResult } from './eventFusion';
+import { validateCloseRun } from './closeUp';
+import type { CloseRun } from './closeUp';
 import type { StartingType } from './model';
 import type { PerformanceObservation } from './observations';
 import { trainingContexts } from './observations';
+import { validateAudioRun } from './audioDetection';
+import type { AudioAnalysisRun } from './audioDetection';
+import { validatePoseRun } from './poseDetection';
+import type { PoseAnalysisRun } from './poseModel';
 import { assertTimeMs, isTrustedEvent, msToSeconds, sortEvents, VIDEO_ANALYSIS_VERSION } from './videoModel';
 import type { EventConfidence, EventType, MeasurementKind, ShotString, TimelineEvent, TrainingVideo, VideoAnalysisResult, VideoMeasurement, VideoSession } from './videoModel';
 
@@ -9,9 +16,21 @@ const shot = (e: TimelineEvent) => e.type === 'FIRST_SHOT' || e.type === 'SHOT';
 const confidenceOf = (events: TimelineEvent[]): EventConfidence => events.length && events.every(isTrustedEvent) ? 'CONFIRMED'
   : events.some(e => e.confidence === 'LOW') || !events.length ? 'LOW' : events.some(e => e.confidence === 'MEDIUM') ? 'MEDIUM' : 'HIGH';
 
-export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): VideoAnalysisResult {
+export function analyzeVideo(session: VideoSession, input: TimelineEvent[], audioRun?: AudioAnalysisRun, poseRun?: PoseAnalysisRun, closeRun?: CloseRun, previousFusion?: FusionResult): VideoAnalysisResult {
   validateSession(session);
-  const events = sortEvents(input, session.durationMs), measurements: VideoMeasurement[] = [], warnings: string[] = [];
+  const rawEvents = sortEvents(input, session.durationMs);
+  const fusion = fuseTimeline(rawEvents, { audioRun, poseRun, closeRun }, previousFusion);
+  const events = applyFusionToTimeline(rawEvents, fusion), measurements: VideoMeasurement[] = [], warnings: string[] = [];
+  // Infer a first-shot ROLE only from reviewed evidence, retaining each event's SHOT type.
+  const firstShotIds = new Set<string>();
+  let stimulus: TimelineEvent | undefined;
+  for (const e of events.filter(isTrustedEvent)) {
+    if (e.type === 'STIMULUS') stimulus = e;
+    else if (e.type === 'DRILL_END') stimulus = undefined;
+    else if (shot(e) && stimulus && e.timestampMs > stimulus.timestampMs) {
+      firstShotIds.add(e.id); stimulus = undefined;
+    }
+  }
   const add = (kind: MeasurementKind, a: TimelineEvent, b: TimelineEvent) => {
     if (b.timestampMs <= a.timestampMs) { warnings.push(`${kind}: endpoints must have increasing times.`); return; }
     const support = [a, b];
@@ -24,13 +43,17 @@ export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): Vid
   const pair = (start: EventType, end: EventType, kind: MeasurementKind) => {
     let pending: TimelineEvent | undefined;
     for (const e of events) {
+      if (e.source === 'POSE_DETECTED' && !isTrustedEvent(e)) continue;
+      // Beep suggestions must not reset a reviewed interval. Explicit FIRST_SHOT
+      // suggestions can still display provisional measurements for review.
+      if (e.source === 'AUDIO_DETECTED' && !isTrustedEvent(e) && e.type !== 'FIRST_SHOT') continue;
       if (e.type === 'STIMULUS' || e.type === 'DRILL_END') {
         if (pending && e.type !== end) { warnings.push(`${kind}: missing ${end}.`); pending = undefined; }
       }
       if (e.type === start) {
         if (pending) warnings.push(`${kind}: repeated ${start}; earlier interval incomplete.`);
         pending = e;
-      } else if (e.type === end) {
+      } else if (e.type === end || end === 'FIRST_SHOT' && firstShotIds.has(e.id)) {
         if (pending) { add(kind, pending, e); pending = undefined; }
         else warnings.push(`${kind}: ${end} has no ${start}.`);
       }
@@ -50,6 +73,8 @@ export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): Vid
   let previous: TimelineEvent | undefined, group: ShotString | undefined;
   let boundary: ShotString['separatedBy'] = 'START', reload: TimelineEvent | undefined, transition: TimelineEvent | undefined;
   for (const e of events) {
+    if (e.source === 'POSE_DETECTED' && !isTrustedEvent(e)) continue;
+    if (e.source === 'AUDIO_DETECTED' && !isTrustedEvent(e)) continue;
     const separator: ShotString['separatedBy'] | undefined =
       ['MAG_RELEASE', 'MAG_ACCESS', 'MAG_INSERT', 'RELOAD_COMPLETE'].includes(e.type) ? 'RELOAD'
       : ['MOVEMENT_START', 'MOVEMENT_STOP', 'POSITION_EXIT', 'POSITION_ENTRY'].includes(e.type) ? 'MOVEMENT'
@@ -73,6 +98,10 @@ export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): Vid
     if (previous) add('SPLIT', previous, e);
     previous = e;
   }
+  for (const string of shotStrings) {
+    if (string.eventIds.length < 2) continue;
+    add('STRING_TIME', events.find(e => e.id === string.eventIds[0])!, events.find(e => e.id === string.eventIds[string.eventIds.length - 1])!);
+  }
   const movementSegments = measurements.filter(m => m.kind === 'MOVEMENT' || m.kind === 'POSITION_TRANSITION').map(m => ({
     id: m.id, startMs: m.startMs, endMs: m.endMs, durationMs: m.durationMs, eventIds: m.eventIds,
     confidence: m.confidence, movementType: events.find(e => e.id === m.eventIds[0])?.metadata?.movementType,
@@ -83,6 +112,7 @@ export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): Vid
     return !found.length ? 'Not measured' : found.every(isTrustedEvent) ? 'Confirmed' : 'Partial';
   };
   completeness.Stimulus = eventStatus('STIMULUS'); completeness['First shot'] = eventStatus('FIRST_SHOT');
+  if (firstShotIds.size && !events.some(e => e.type === 'FIRST_SHOT')) completeness['First shot'] = 'Confirmed';
   for (const [label, kinds, relevant] of [
     ['Reload', ['RELOAD'], ['MAG_RELEASE', 'MAG_ACCESS', 'MAG_INSERT', 'RELOAD_COMPLETE']],
     ['Movement', ['MOVEMENT', 'POSITION_TRANSITION'], ['MOVEMENT_START', 'MOVEMENT_STOP', 'POSITION_EXIT', 'POSITION_ENTRY']],
@@ -100,7 +130,13 @@ export function analyzeVideo(session: VideoSession, input: TimelineEvent[]): Vid
   if (session.durationMs === null) warnings.push('Video duration unknown; timeline bounds cannot yet be checked.');
   if (shotStrings.some(g => !g.targetId && !g.manualStringId && g.eventIds.length > 1)) warnings.push('Assign a same-target string or target to calibrate splits.');
   return { analysisVersion: VIDEO_ANALYSIS_VERSION, videoId: session.id, trainingSessionId: session.trainingSessionId,
-    events, movementSegments, shotStrings, measurements, warnings: [...new Set(warnings)], confidence: confidenceOf(events), completeness };
+    events: rawEvents, fusion, movementSegments, shotStrings, measurements, warnings: [...new Set(warnings)], confidence: confidenceOf(events), completeness,
+    ...(audioRun ? { audioRun: validateAudioRun(audioRun) } : {}),
+    ...(closeRun ? { closeRun: validateCloseRun({ ...closeRun, events: closeRun.events.flatMap(metric => {
+      const event = events.find(e => e.id === metric.eventId);
+      return event && event.timestampMs <= closeRun.durationMs ? [{ ...metric, timestampMs: event.timestampMs }] : [];
+    }) }) } : {}),
+    ...(poseRun ? { poseRun: validatePoseRun(poseRun) } : {}) };
 }
 
 export function validateSession(session: VideoSession) {
@@ -121,7 +157,7 @@ export function normalizeVideo(video: TrainingVideo): TrainingVideo {
   validateSession(video.session);
   if (!video.analysis || video.analysis.analysisVersion !== VIDEO_ANALYSIS_VERSION || video.analysis.videoId !== video.session.id
     || video.analysis.trainingSessionId !== video.session.trainingSessionId || !Array.isArray(video.analysis.events)) throw new Error('Unsupported or damaged video analysis.');
-  return { session: video.session, analysis: analyzeVideo(video.session, video.analysis.events) };
+  return { ...video, session: video.session, analysis: analyzeVideo(video.session, video.analysis.events, video.analysis.audioRun, video.analysis.poseRun, video.analysis.closeRun, video.analysis.fusion) };
 }
 
 /** Re-derive instead of trusting persisted eligibility or measurement values. */
@@ -131,7 +167,8 @@ export function videoObservations(video: TrainingVideo, startingType: StartingTy
   const observations: PerformanceObservation[] = [];
   for (const measurement of analysis.measurements) {
     if (!measurement.eligible) continue;
-    let factor: TimingFactor | undefined, value = msToSeconds(measurement.durationMs);
+    let factor: PerformanceObservation['factor'] | undefined, value = msToSeconds(measurement.durationMs);
+    if (measurement.kind === 'REACTION') factor = 'stimulusResponseTime';
     if (measurement.kind === 'DRAW' && ['competitionHolster', 'retentionHolster', 'appendix'].includes(startingType)) factor = 'drawTime';
     if (measurement.kind === 'RELOAD') factor = 'reloadTime';
     if (measurement.kind === 'SPLIT' && analysis.shotStrings.some(g => (g.targetId || g.manualStringId)

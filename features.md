@@ -142,11 +142,46 @@ Track features that are proposed or planned but not yet implemented.
 - Local video sessions, manual annotation, deterministic measurements and the bridge into existing profile fields are complete; see changelog.md and mobile/src/training/videoAnalysis.md.
 - Verify native document import, video playback/scrubbing, nominal frame stepping, keyboard/marker editing, save/reopen and missing-file recovery on a physical device. Rebuild the native client for the added Expo modules.
 - Add durable browser media storage; current browser file access lasts for the page session and reopening requires selecting the original file. Annotations already persist in SQLite.
-- Later Phase 8 work: audio-shot suggestions, pose/movement segmentation, target/string suggestions and reviewed detector output with model-version migrations. No automatic detector, cloud processing or stage reconstruction is implemented in 8A.
+- Local audio review, body-pose/movement, close-up hand/selected-region analysis and general event fusion are complete through Phase 8E; see changelog.md. Later Phase 8 work: semantic hand/firearm interpretation, target/string suggestions and detector-version migrations. Cloud processing and stage reconstruction remain out of scope.
 - General observation types and explicit shot-to-shot transition calibration are complete in Phase 7B. Add a structured drill catalog and difficulty-labeled video measurement entry when inputs are known.
 - No dated unresolved item is older than one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.
 
 ## Phase 7B follow-up - 2026-09-22
 
 - General observation/rebuild/lifecycle APIs and transition/difficulty calibration are complete; see changelog.md and mobile/src/training/videoAnalysis.md.
-- Planned: non-video measurement-entry UI, known-difficulty video metadata entry, richer transition geometry only when measured, and future explicitly reviewed automatic detector output.
+- Planned: non-video measurement-entry UI, known-difficulty video metadata entry and richer transition geometry only when measured. Explicitly reviewed audio detector output is implemented in Phase 8B.
+
+## Phase 8B native verification and follow-up - 2026-09-22
+
+- Rebuild the iOS app with the local TrainingAudio module, then verify AVFoundation compilation, imported MP4/MOV AAC decode, stereo/downmix, delayed audio tracks, seek accuracy, no-track/unsupported/corrupt files, cancellation, 60-second limits, memory/latency, review/save/reopen and explicit profile contribution. Windows automated checks cannot certify native decode.
+- Tune heuristic thresholds against representative timer/range recordings after device verification. Long echoes, nearby shooters, clipping and impacts remain ambiguous. Shots less than 65 ms apart may merge.
+- Android and browser extraction adapters remain planned; they currently report unavailable and keep manual annotation working. No native browser-API fallback is used.
+- No dated unresolved item is more than one month old; undated legacy ideas cannot be aged reliably.
+
+## Phase 8C native verification and follow-up - 2026-09-22
+
+- Rebuild iOS with TrainingPose and verify Apple Vision compilation/execution, MOV/MP4/VFR timestamps, portrait/landscape/rotation/mirroring, skeleton alignment, partial framing, occlusion, low light/blur, multiple people, camera motion, timing accuracy, native memory/performance, progress/cancel and audio/manual coexistence.
+- Verify confirmation/edit/rejection, save/reopen and explicit profile contribution. Without separately known distance, pose movement remains relative diagnostics and duration only.
+- Android/web pose extraction, robust identity tracking, camera-motion compensation and calibrated thresholds against representative footage remain planned. Current continuity deliberately stops after long tracking loss.
+- No dated unresolved bug or feature exceeds one month; undated legacy ideas cannot be aged reliably.
+
+## Phase 8D native verification - 2026-09-22
+
+- Close-up hand/selected-region analysis implementation is complete; see changelog.md. Verify native compilation/autolinking, hand continuity, rotated/mirrored/VFR selection, tracking loss, camera ambiguity, cancellation, gestures and save/reopen on physical iPhone.
+- Future extensions: backward tracking, calibrated geometry, stronger camera/background separation and tracker reacquisition. Current measurements remain descriptive image-space values.
+
+## Phase 8E follow-up - 2026-09-22
+
+- General fusion and evidence review are complete; see changelog.md and mobile/src/training/eventFusion.md.
+- Planned: verify raw/fused/confirmed presentation, evidence inspection, edit/confirm/reject, independent reruns and saved provenance on a physical device.
+- Calibrate timing tolerances and confidence heuristics using representative recordings. Current close-up CUSTOM interpretations intentionally remain distinct from semantic body/audio events.
+- Future detector migrations should introduce durable run UUIDs; current run references use detector family and analyzedAt.
+- No dated unresolved item exceeds one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.
+
+## Phase 8F-A follow-up - 2026-09-22
+
+- Historical route snapshots, optional Training links, manual execution mapping and descriptive timing/residual comparison are complete; see changelog.md and mobile/src/training/executionComparison.md.
+- Verify physical-device stage selection, read-only snapshot viewport, selected interval preview, mapping edits, save/reopen and route-change warnings.
+- Phase 8F-B: conservative mapping suggestions from confirmed sequence/order, multi-string engagement aggregation and tests against stored manual ground truth. Arbitrary visual position recognition remains out of scope.
+- Future work: multiple comparisons per video, historical candidate forecast capture and an explicit recompare-with-current-route action. The current evaluator has no full dwell estimate; the UI reports it as unavailable.
+- No dated unresolved item exceeds one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.
