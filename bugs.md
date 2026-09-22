@@ -1,4 +1,15 @@
+# Phase 6B integration verification - 2026-09-21
+
+- Added focused coverage for source selection, visibility isolation, equivalent-position deduplication, coverage warnings, fallback, stale geometry, bounded pools, preview immutability and normal editable route adoption. TypeScript passed once; the full suite passed once with 182 tests (13 new integration tests). No new defect identified. Completed integration is recorded in changelog.md.
+- Native discovery preview gestures remain unverified and are tracked in features.md. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 # Bug Tracker
+
+## Phase 6A discovery verification - 2026-09-21
+
+- TypeScript passed once and all 169 tests passed once, including 17 focused discovery tests. No new defect identified; completed implementation is recorded in changelog.md.
+- Discovery is a bounded 2D estimate, not proof of legal shooting space, movement reachability or vertical port clearance. These model extensions and Phase 6B integration remain in features.md. Invalid walls stop discovery; malformed targets/ports warn; truncated searches preserve completed candidates.
+- No UI, existing planner behavior or persistence changes. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
 
 ## Phase 5B planner verification - 2026-09-21
 

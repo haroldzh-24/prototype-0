@@ -1,3 +1,11 @@
+# Phase 6B: planner position sources - 2026-09-21
+
+- Added MANUAL (default), AUTO and AUTO + MANUAL using a session-only adapter around the unchanged discovery, generator, evaluator and ranking engines.
+- Manual visibility stays intact. Equivalent auto positions within six inches yield to manual positions; remaining auto positions are chosen by added target coverage within the existing 12-position search ceiling. Manual positions are never deleted; existing generator limits still apply when manual positions exceed the ceiling.
+- Explicit discovery caches results for the editor session, rejects stale geometry and surfaces coverage, geometry and search-limit warnings. Empty discovery permits combined-mode manual fallback.
+- Added amber read-only canvas markers and source counts on route results. Accepted routes use the existing editable route and confirmation flow; no persistence/model changes.
+- Focused source integration tests added; final verification recorded in bugs.md.
+
 # Changelog
 
 ### Phase 5B planner preview and result polish - 2026-09-21
@@ -258,3 +266,9 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 ### Fixed
 
 - Nothing yet.
+# Phase 6A automatic shooting-position discovery - 2026-09-21
+
+- Added a pure opt-in physical-grid discovery engine, rotated wall collision/segment helpers, target-center LOS with explicitly projected port openings, and inferred visibility/distance/difficulty metadata using the existing shootingDifficulty helper.
+- Added deterministic proximity/target-set/per-target-difficulty deduplication, optional Start distance context, fresh manual-compatible position conversion, centralized hard search bounds and explicit geometry/truncation warnings. Existing manual positions, generation, evaluation, ranking, persistence and UI remain unchanged.
+- Documented legal-area, reachability, clearance, elevation, sampling and Phase 6B integration limits in mobile/src/planning/positionDiscovery.md.
+- Validation: TypeScript passed once; full existing suite passed once, 169 tests total including 17 new focused discovery tests. No browser, screenshots, export or device tooling run.

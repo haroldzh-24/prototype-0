@@ -12,9 +12,12 @@ import DraggableObject from './DraggableObject';
 import StageGrid from './StageGrid';
 import SnapGuides from './SnapGuides';
 import RouteOverlay from './RouteOverlay';
+import AutoPositionOverlay from './AutoPositionOverlay';
+import type { DiscoveredPosition } from '../planning/positionDiscovery';
 import type { RouteOverlayProps } from './RouteOverlay';
 
 type Props = {
+  autoPositions?: readonly DiscoveredPosition[];
   routePlanning?: RouteOverlayProps;
   routeEditing: boolean;
   readOnly?: boolean;
@@ -94,6 +97,7 @@ export default function StageViewport(props: Props) {
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
             onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage} />)}
           </View>
+          {props.autoPositions && <AutoPositionOverlay positions={props.autoPositions} transform={transform} />}
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
           {props.routePlanning && <View pointerEvents={props.routeEditing && !props.readOnly ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />

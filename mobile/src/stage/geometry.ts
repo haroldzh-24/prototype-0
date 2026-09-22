@@ -5,6 +5,29 @@ import type { StageObject } from './model';
 /** Provisional ground-marking width in inches, shared by bounds and rendering. */
 export const FAULT_LINE_WIDTH = 2;
 
+/** Inverse ground-plane rotation about an object's physical reference point. */
+export function stageToObjectLocal(point: StagePosition, object: Pick<StageObject, 'position' | 'rotation'>) {
+  const radians = normalizeRotation(object.rotation) * Math.PI / 180;
+  const dx = point.x - object.position.x, dy = point.y - object.position.y;
+  return { x: dx * Math.cos(radians) + dy * Math.sin(radians),
+    y: -dx * Math.sin(radians) + dy * Math.cos(radians) };
+}
+
+/** Closed segment/rectangle intersection interval, including tangent contact. */
+export function segmentRectangleInterval(a: { x: number; y: number }, b: { x: number; y: number },
+  halfWidth: number, halfDepth: number): [number, number] | null {
+  let enter = 0, leave = 1;
+  for (const [origin, delta, half] of [[a.x, b.x - a.x, halfWidth], [a.y, b.y - a.y, halfDepth]]) {
+    if (Math.abs(delta) < 1e-9) { if (Math.abs(origin) > half + 1e-9) return null; }
+    else {
+      const t1 = (-half - origin) / delta, t2 = (half - origin) / delta;
+      enter = Math.max(enter, Math.min(t1, t2)); leave = Math.min(leave, Math.max(t1, t2));
+      if (enter > leave + 1e-9) return null;
+    }
+  }
+  return [enter, leave];
+}
+
 export function footprint(object: StageObject): { width: number; depth: number } {
   switch (object.type) {
     case 'cardboardTarget':

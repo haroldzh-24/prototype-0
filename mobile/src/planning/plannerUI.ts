@@ -1,16 +1,18 @@
+import type { PositionMetadata } from './positionSources';
 import { evaluateCandidate, generateCandidates, rankCandidates } from './planner';
 import type { PlannerContext, PlannerResult, RoutePlannerConfig, RankingMetrics, PlannerWarning } from './planner';
 import type { StagePlan } from './model';
 import type { StageRoute } from './route';
 
 /** Presentation mapping only; all metrics and route decisions come from the planner. */
-export function mapPlannerResults(result: PlannerResult) {
+export function mapPlannerResults(result: PlannerResult, sources: Record<string, PositionMetadata> = {}) {
   const candidates = result.candidates.slice(0, 3);
   return candidates.map((item, index) => ({
     number: index + 1,
     label: candidates.length > 1 && candidates.every(other => other === item || item.metrics.movementDistance < other.metrics.movementDistance) ? 'Lowest Movement'
       : candidates.length > 1 && candidates.every(other => other === item || item.metrics.averageShootingDifficulty < other.metrics.averageShootingDifficulty) ? 'Easier Shooting'
       : index === 0 ? 'Recommended Candidate' : 'Alternative Candidate',
+    sourceCounts: { auto: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source === 'AUTO_DISCOVERED').length, manual: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source !== 'AUTO_DISCOVERED').length },
     id: item.originalCandidate.id, route: item.originalCandidate.route,
     estimatedTime: item.metrics.estimatedTotalTime, movementDistance: item.metrics.movementDistance,
     positions: item.metrics.positionsUsed, reloads: item.metrics.reloadCount,
@@ -23,11 +25,11 @@ export function mapPlannerResults(result: PlannerResult) {
 }
 export type PlannerCard = ReturnType<typeof mapPlannerResults>[number];
 
-export function generatePlannerCards(context: PlannerContext, config: RoutePlannerConfig) {
+export function generatePlannerCards(context: PlannerContext, config: RoutePlannerConfig, sources: Record<string, PositionMetadata> = {}) {
   const generated = generateCandidates(context, config);
   const ranked = rankCandidates(generated.candidates.map(candidate => evaluateCandidate(context, candidate)), config, { maxResults: 3 });
   return {
-    cards: mapPlannerResults(ranked),
+    cards: mapPlannerResults(ranked, sources),
     message: generated.warnings.find(w => w.code !== 'SEARCH_LIMIT')?.message,
     searchWarning: plannerSearchWarning(generated.warnings),
   };

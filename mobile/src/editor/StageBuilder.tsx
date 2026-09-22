@@ -20,6 +20,8 @@ import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
 import RoutePanel from '@/planning/RoutePanel';
 import AutoPlannerPanel from '@/planning/AutoPlannerPanel';
+import { currentDiscovery } from '@/planning/positionSources';
+import type { DiscoverySession } from '@/planning/positionSources';
 import { plannerPreviewRoute } from '@/planning/plannerUI';
 import type { PlannerCard } from '@/planning/plannerUI';
 import { createRoute, toggleRouteTarget } from '@/planning/route';
@@ -47,12 +49,14 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const repo = useRepository(), navigation = useNavigation();
   const [plan, setPlan] = useState(() => initial ? reconcilePlan(initial.plan, initial.document) : createPlan());
   const [assignmentMode, setAssignmentMode] = useState<TargetAssignmentMode | null>(null);
+  const [discoverySession, setDiscoverySession] = useState<DiscoverySession | null>(null);
+  const [discoveryPreview, setDiscoveryPreview] = useState(false);
   const [preview, setPreview] = useState<PlannerCard | null>(null);
   useEffect(() => {
-    if (!preview) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { setPreview(null); return true; });
+    if (!preview && !discoveryPreview) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => { setPreview(null); setDiscoveryPreview(false); return true; });
     return () => back.remove();
-  }, [preview]);
+  }, [preview, discoveryPreview]);
   const [routeMode, setRouteMode] = useState(false);
   const [positionId, setPositionId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
@@ -75,6 +79,9 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
   const [planSection, setPlanSection] = useState<'loadout' | 'targets' | 'summary'>('loadout');
   const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
   const [stage, setStage] = useState<StageDocument>(() => initial?.document ?? createDefaultStage());
+  const discovered = currentDiscovery(stage, discoverySession);
+  const previewing = !!preview || discoveryPreview;
+  useEffect(() => { setPreview(null); setDiscoveryPreview(false); }, [stage, plan, profile]);
   const [stageId, setStageId] = useState(initial?.id), [name, setName] = useState(initial?.name ?? 'Untitled stage');
   const snapshot = JSON.stringify({ name, stage, plan });
   const [savedSnapshot, setSavedSnapshot] = useState(initial ? snapshot : '');
@@ -144,24 +151,24 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
       </View></View>
     </Modal>
     <View style={styles.topbar}>
-      <Button title="Back" displayTitle={"\u2039"} compact disabled={saving || dragging} onPress={() => preview ? setPreview(null) : navigation.canGoBack() ? router.back() : router.replace('/planner')} />
-      <TextInput accessibilityLabel="Stage name" style={[ui.input, styles.name]} editable={!preview} value={name} maxLength={100} onChangeText={setName} />
+      <Button title="Back" displayTitle={"\u2039"} compact disabled={saving || dragging} onPress={() => previewing ? (setPreview(null), setDiscoveryPreview(false)) : navigation.canGoBack() ? router.back() : router.replace('/planner')} />
+      <TextInput accessibilityLabel="Stage name" style={[ui.input, styles.name]} editable={!previewing} value={name} maxLength={100} onChangeText={setName} />
       <Button title={saving ? 'Saving...' : 'Save'} accent compact disabled={saving || dragging} onPress={() => void save()} />
     </View>
     <View style={styles.readout}>
-      <Text style={[styles.status, routeMode && styles.active]}>{preview ? 'CANDIDATE PREVIEW / READ ONLY' : routeMode ? 'ROUTE MODE' : viewMode === '25d' ? '2.5D PREVIEW' : 'STAGE EDITOR'}</Text>
+      <Text style={[styles.status, routeMode && styles.active]}>{discoveryPreview ? 'AUTO POSITIONS / READ ONLY' : preview ? 'CANDIDATE PREVIEW / READ ONLY' : routeMode ? 'ROUTE MODE' : viewMode === '25d' ? '2.5D PREVIEW' : 'STAGE EDITOR'}</Text>
       <Text accessibilityLiveRegion="polite" style={styles.status}>{dirty ? 'UNSAVED' + (saveMessage && saveMessage !== 'Saved on this device.' ? ' / ' + saveMessage : '') : saveMessage || 'SAVED'}</Text>
     </View>
     <View style={styles.canvas}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> :
         <StageViewport stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={gridVisible}
-          selectedId={selectedId} snapping={snapping} routeEditing={routeMode} readOnly={!!preview}
-          routePlanning={preview ? { preview: true, route: plannerPreviewRoute(plan, preview)!, selectedId: null, onSelect: () => {}, onChange: () => {}, onDragging: () => {} } : (routeMode || routeVisible) && plan.route ? { assignmentMode: routeMode ? assignmentMode : null, onTargetTap: id => {
+          selectedId={selectedId} snapping={snapping} routeEditing={routeMode} readOnly={previewing} autoPositions={discoveryPreview ? discovered?.candidates : undefined}
+          routePlanning={discoveryPreview ? undefined : preview ? { preview: true, route: plannerPreviewRoute(plan, preview)!, selectedId: null, onSelect: () => {}, onChange: () => {}, onDragging: () => {} } : (routeMode || routeVisible) && plan.route ? { assignmentMode: routeMode ? assignmentMode : null, onTargetTap: id => {
             if (!assignmentMode || !positionId) return;
             setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
           }, route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging: setDragging } : undefined}
           onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />}
-    {!preview && routeMode && assignmentMode && <View style={styles.context}>
+    {!previewing && routeMode && assignmentMode && <View style={styles.context}>
       <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label} / TAP TO TOGGLE {assignmentMode.toUpperCase()} TARGETS</Text>
       <View style={styles.controls}>
         <Button title="Visible targets" active={assignmentMode === 'visible'} onPress={() => setAssignmentMode('visible')} />
@@ -169,7 +176,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         <Button title="Done" onPress={() => setAssignmentMode(null)} />
       </View>
     </View>}
-    {selected && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
+    {!previewing && selected && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
       <View style={styles.readout}><Text style={styles.status}>{objectLabel(selected.type).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
       <View style={styles.controls}>
         <Button title="Move" disabled={dragging} onPress={() => setEditError('Drag the selected object, or use EDIT for exact X / Y.')} />
@@ -185,11 +192,11 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
       <Text testID="stage-zoom" style={styles.status}>{Math.round(viewport.zoom * 100)}%</Text>
       <Button title="+" compact label="Zoom in" disabled={viewport.zoom >= MAX_ZOOM || dragging} onPress={() => zoom(1.25)} />
       <Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} />
-      <Text style={[styles.status, { flex: 1, textAlign: 'right' }]}>{preview ? 'READ ONLY' : routeMode ? (plan.route?.positions.find(p => p.id === positionId)?.label ?? 'DRAG POSITIONS') : snapping.enabled ? 'SNAP ' + snapping.gridIncrement + ' IN' : 'FREE MOVE'}</Text>
+      <Text style={[styles.status, { flex: 1, textAlign: 'right' }]}>{previewing ? 'READ ONLY' : routeMode ? (plan.route?.positions.find(p => p.id === positionId)?.label ?? 'DRAG POSITIONS') : snapping.enabled ? 'SNAP ' + snapping.gridIncrement + ' IN' : 'FREE MOVE'}</Text>
     </View>}
     {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
     <View style={styles.bottomBar}>
-      {preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Candidate {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode ? <>
+      {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered positions. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Candidate {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode ? <>
         <Button title="+ Position" icon="position" displayTitle="Position" disabled={dragging} onPress={() => {
           if (!plan.route) return;
           const id = 'position-' + uuid.v4(); let number = 1;
@@ -199,7 +206,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         }} />
         <Button title="Assign" icon="targets" active={panel === 'assign'} displayTitle="Targets" label="Assign targets" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => { setAssignmentMode(null); setPanel('assign'); }} />
         <Button title="Reload" icon="reload" active={panel === 'reload'} displayTitle="Reload" disabled={dragging || !plan.route?.positions.some(p => p.id === positionId)} onPress={() => setPanel('reload')} />
-        <Button title="AI PLAN" icon="plan" active={panel === 'aiPlan'} disabled={dragging} onPress={() => { setAssignmentMode(null); setPanel('aiPlan'); }} />
+        <Button title="AI PLAN" icon="plan" active={panel === 'aiPlan'} disabled={dragging} onPress={() => { setAssignmentMode(null); setSelectedId(null); setViewMode('topDown'); setPanel('aiPlan'); }} />
         <Button title="Summary" icon="summary" active={panel === 'summary'} displayTitle="Summary" disabled={dragging} onPress={() => setPanel('summary')} />
         <Button title="Exit route" icon="exit" displayTitle="Exit" disabled={dragging} onPress={() => setRouteMode(false)} />
       </> : <>
@@ -246,7 +253,7 @@ export default function StageBuilder({ initial }: { initial?: SavedStage }) {
         <Button title={panel === 'delete' ? 'Confirm delete' : 'Confirm reset'} danger onPress={() => { act({ kind: panel }); setPanel(null); }} />
       </>}
     </EditorSheet>
-    {panel === 'aiPlan' && <AutoPlannerPanel stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setPanel(null); }} onUse={next => { setPreview(null); setPlan(next); setPositionId(next.route?.positions[0]?.id ?? null); setAssignmentMode(null); setPanel(null); }} />}
+    {panel === 'aiPlan' && <AutoPlannerPanel discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setPlan(next); setPositionId(next.route?.positions[0]?.id ?? null); setAssignmentMode(null); setPanel(null); }} />}
   </SafeAreaView>;
 }
 

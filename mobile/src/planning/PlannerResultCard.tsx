@@ -16,6 +16,7 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
     <Text style={ui.statValue}>{card.estimatedTime === null ? 'Time unavailable' : `${card.estimatedTime.toFixed(2)} s`}</Text>
     <Copy>{`${(card.movementDistance / 12).toFixed(1)} ft · ${card.positions} positions · ${card.reloads} reloads`}</Copy>
     <Copy>{card.comparison}</Copy>
+    <Copy>Used {card.sourceCounts.auto} automatically discovered positions / {card.sourceCounts.manual} manual positions</Copy>
     {card.personalizedFallback && <Copy>Personalized fell back to Balanced.</Copy>}
     {!!card.reasons.length && <>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: why }} onPress={() => onExpand({ ...expansion, why: !why })} style={ui.action}><Text style={ui.actionText}>{why ? '−' : '+'} WHY THIS ROUTE</Text></Pressable>

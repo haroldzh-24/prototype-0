@@ -3,7 +3,8 @@
 ## Automatic route optimizer follow-up - 2026-09-21
 
 - **Status:** Planned. Typed foundation, bounded candidate generation and Phase 3 ranking are complete; see changelog.md.
-- Implement visibility/collision feasibility; style scoring, geometric backward preferences, reload strategies and diversity are complete.
+- Phase 6A discovery and Phase 6B planner integration are complete; see changelog.md. Verify discovery controls, amber read-only markers, native pan/zoom, stale-geometry feedback and auto-route adoption on a physical device. Optional selected-auto-position visibility connections remain a future preview enhancement.
+- Future geometry: legal shooting-area representation, body clearance, movement-path reachability, muzzle elevation/vertical port clearance, target-face occlusion and refined sampling near small openings. Current discovery provides only bounded 2D modeled-geometry estimates.
 - Phase 4 evaluator movement/reload overlap is complete; see changelog.md.
 - Add difficulty-dependent shooter measurements before enabling personalized scoring (currently explicit Balanced fallback); expand distance-only difficulty with target type, partial geometry, transition angle and visibility difficulty. Keep existing route evaluation authoritative for ammunition and timing.
 - Phase 5A minimal planner UI is complete; selected routes use existing manual editing and persistence.
