@@ -7,7 +7,8 @@
 - Phase 4 evaluator movement/reload overlap is complete; see changelog.md.
 - Add difficulty-dependent shooter measurements before enabling personalized scoring (currently explicit Balanced fallback); expand distance-only difficulty with target type, partial geometry, transition angle and visibility difficulty. Keep existing route evaluation authoritative for ammunition and timing.
 - Phase 5A minimal planner UI is complete; selected routes use existing manual editing and persistence.
-- Phase 5B: graphical route preview, WHY THIS ROUTE expansion, ruleset selection, advanced metrics, polished result comparison, search-limit explanation UI and additional visual refinements. Verify the planner flow on a physical device.
+- Phase 5B planner presentation is complete; see changelog.md. Verify candidate A/B previews, pan/zoom, reload markers, Back to Results, expanded details, ruleset selection and confirmed route adoption on a physical device.
+- Future ruleset constraints: presets currently store session-only typed metadata and share neutral evaluation; competition capacity, reload, engagement-order and penalty rules remain unimplemented.
 
 ## Batch magazine device verification
 

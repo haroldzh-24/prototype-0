@@ -1,5 +1,11 @@
 # Bug Tracker
 
+## Phase 5B planner verification - 2026-09-21
+
+- TypeScript passed once and all 152 tests passed once. New coverage checks frozen manual-route preservation across preview switching, preview-to-confirmed-copy behavior, backend reason mapping, advanced metrics, search-limit propagation and ruleset metadata.
+- No new defect identified by these checks. Native rendering, sheet transitions and gesture behavior remain physical-device verification tasks in features.md; helper tests do not certify native interactions.
+- Completed planner presentation work is recorded in changelog.md. No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+
 ## First automatic planner UI - 2026-09-21
 
 - TypeScript passed once and all 146 tests passed once, including three focused planner UI helper tests.

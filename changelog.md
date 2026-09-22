@@ -1,5 +1,15 @@
 # Changelog
 
+### Phase 5B planner preview and result polish - 2026-09-21
+
+- Added VIEW ROUTE using the existing StageViewport/RouteOverlay and stage coordinate transforms. Preview shows numbered positions, directional paths, assigned-target connections, START, reload markers and highlighted incoming moving-reload segments. Object and position editing are disabled; pan/zoom/Fit remain available.
+- Planner state stays mounted outside the hidden sheet during preview. Back to Results, header Back and Android hardware Back return to the same results, preferences and expansion state. Preview never assigns to the manual plan; confirmed USE THIS ROUTE retains the existing deep-copy/edit/save flow.
+- Compact result cards show effective style, time, feet, position and reload counts, difficulty/ammo differences, and comparison labels derived from returned metrics without changing ranking or diversity. WHY THIS ROUTE displays backend reason messages as ranking preferences, not invented comparative achievements.
+- DETAILS exposes total/average/maximum distance-proxy difficulty, loaded rounds/minimum margin, movement complexity, turns/reversals, estimated backward/sustained retreat, raw reload time, available movement, overlap and additional time. Missing timing is explicitly unavailable.
+- Added typed session ruleset choices USPSA, IDPA, PCSL and Custom / Vanilla with extensible constraint metadata. All currently use neutral general evaluation; the UI explicitly discloses unmodeled competition rules. Personalized retains its Balanced fallback warning.
+- LIMITED SEARCH is shown only when generation supplies SEARCH_LIMIT, including no-result searches. No generation, evaluation, ranking, route format or persistence changes.
+- Validation: TypeScript passed once; all 152 tests passed in one suite run, including six new focused helper tests. No browser automation, screenshots, exports, commit or push. Physical-device verification remains in features.md.
+
 ### Phase 5A first usable automatic planner UI - 2026-09-21
 
 - Added AI PLAN inside Route mode with route style, backward movement and reload strategy choices, plus position/target/visibility/magazine readiness counts and setup guidance.

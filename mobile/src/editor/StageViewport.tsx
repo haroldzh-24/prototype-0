@@ -17,6 +17,7 @@ import type { RouteOverlayProps } from './RouteOverlay';
 type Props = {
   routePlanning?: RouteOverlayProps;
   routeEditing: boolean;
+  readOnly?: boolean;
   gridVisible: boolean;
   onViewportChange: (viewport: ViewportState) => void;
   stage: StageDocument;
@@ -88,13 +89,13 @@ export default function StageViewport(props: Props) {
             height: props.stage.stage.depth * transform.scale,
           }]} />
           {props.gridVisible && <StageGrid stage={props.stage.stage} transform={transform} />}
-          <View pointerEvents={props.routeEditing ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
+          <View accessibilityElementsHidden={props.readOnly} importantForAccessibility={props.readOnly ? 'no-hide-descendants' : 'auto'} pointerEvents={(props.routeEditing || props.readOnly) ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           {props.stage.objects.map((item) => <DraggableObject key={item.id}
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
             onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage} />)}
           </View>
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
-          {props.routePlanning && <View pointerEvents={props.routeEditing ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
+          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.readOnly ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />
           </View>}
         </>}
