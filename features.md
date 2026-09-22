@@ -143,5 +143,10 @@ Track features that are proposed or planned but not yet implemented.
 - Verify native document import, video playback/scrubbing, nominal frame stepping, keyboard/marker editing, save/reopen and missing-file recovery on a physical device. Rebuild the native client for the added Expo modules.
 - Add durable browser media storage; current browser file access lasts for the page session and reopening requires selecting the original file. Annotations already persist in SQLite.
 - Later Phase 8 work: audio-shot suggestions, pose/movement segmentation, target/string suggestions and reviewed detector output with model-version migrations. No automatic detector, cloud processing or stage reconstruction is implemented in 8A.
-- Add a structured drill catalog, richer observation types, explicit shot-to-shot transition calibration and difficulty-labeled video measurements only when their inputs are known.
+- General observation types and explicit shot-to-shot transition calibration are complete in Phase 7B. Add a structured drill catalog and difficulty-labeled video measurement entry when inputs are known.
 - No dated unresolved item is older than one month as of 2026-09-22; undated legacy ideas cannot be aged reliably.
+
+## Phase 7B follow-up - 2026-09-22
+
+- General observation/rebuild/lifecycle APIs and transition/difficulty calibration are complete; see changelog.md and mobile/src/training/videoAnalysis.md.
+- Planned: non-video measurement-entry UI, known-difficulty video metadata entry, richer transition geometry only when measured, and future explicitly reviewed automatic detector output.

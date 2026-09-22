@@ -291,3 +291,12 @@ Record completed features, changes, and bug fixes. Add new releases or updates a
 - Only manual or user-confirmed evidence contributes. Repeated contribution replaces samples; annotation edits/deletes withdraw stale samples; calibration and Training persistence roll back together on failure. Legacy records load; unknown analysis versions reject without overwrite.
 - Added Expo 57 video/document-picker/file-system dependencies; no camera, microphone or broad media permission requests; background playback and picture-in-picture are disabled. Automatic analysis remains deferred.
 - Final verification: TypeScript passed once and all 231 tests passed once (32 new focused video tests). No screenshot/browser automation, iOS export, commit or push was performed.
+
+## Phase 7B completion - 2026-09-22
+
+- Generalized the working Phase 8A observation bridge for structured/manual measurements and future confirmed detectors, with one deterministic rebuild API, context-isolated statistics and existing confidence-model support.
+- Added explicit removable manual overrides, capture of newer scalar edits, safe legacy baseline migration, deterministic duplicate-conflict exclusion, runtime sample validation, and observation add/replace/remove/rebuild repository APIs.
+- Fixed slow valid results being discarded by performance thresholds, high-variability evidence rejection, stale baseline restoration over manual edits, and video withdrawal incorrectly affecting non-video samples.
+- Added physical movement, raw reload, transition, distinct response/acquisition storage, and difficulty-tagged split curve calibration using the existing planner scale and interpolation.
+- Preserved atomic video/profile writes, confirmed-evidence gating, existing timeline/editor behavior, route evaluation/ranking and database schema version.
+- Verification: 252 tests passed in one suite run, including 21 new calibration regressions and all existing video tests. TypeScript passed after correcting one narrowing error and rerunning only the type check.

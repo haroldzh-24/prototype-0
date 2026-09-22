@@ -1,4 +1,3 @@
-import { buildPersonalizedModel } from '../profile/personalizedPerformance';
 import type { TimingFactor } from '../profile/model';
 import type { StartingType } from './model';
 import type { PerformanceObservation } from './observations';
@@ -139,11 +138,12 @@ export function videoObservations(video: TrainingVideo, startingType: StartingTy
       && measurement.eventIds.every(id => g.eventIds.includes(id)))) factor = 'averageSplitTime';
     if (measurement.kind === 'MOVEMENT' && measurement.distanceInches) { factor = 'movementSpeed'; value = measurement.distanceInches / value; }
     // Marker-to-shot transition is retained for review, not mislabeled as shot-to-shot profile timing.
-    if (!factor || buildPersonalizedModel({ [factor]: value, timingEvidence: { [factor]: { source: 'MEASURED', sampleCount: 1 } } }).factors[factor].status !== 'MEASURED') continue;
+    if (!factor || !Number.isFinite(value) || value <= 0) continue;
     const support = analysis.events.filter(e => measurement.eventIds.includes(e.id));
     observations.push({ id: `${session.id}:${measurement.id}`, factor, value, context: session.context,
       measuredAt: session.createdAt, source: 'VIDEO_ANALYSIS', trainingSessionId: session.trainingSessionId,
       videoId: session.id, analysisVersion: session.analysisVersion, eventIds: measurement.eventIds, confirmed: true,
+      ...(measurement.distanceInches ? { distanceInches: measurement.distanceInches, durationSeconds: msToSeconds(measurement.durationMs) } : {}),
       evidenceKey: JSON.stringify([session.context, session.createdAt, startingType, factor, value, support]) });
   }
   return observations;

@@ -11,7 +11,7 @@ const within = (value: unknown, low: number, high: number): value is number => t
 function quality(value: number, evidence: PerformanceEvidence): Confidence | null {
   if (!evidence || !['MANUAL', 'MEASURED'].includes(evidence.source)) return null;
   if (evidence.sampleCount !== undefined && (!Number.isSafeInteger(evidence.sampleCount) || evidence.sampleCount < 1 || evidence.sampleCount > 1e6)) return null;
-  if (evidence.standardDeviation !== undefined && !within(evidence.standardDeviation, 0, value * 2)) return null;
+  if (evidence.standardDeviation !== undefined && !within(evidence.standardDeviation, 0, Number.MAX_VALUE)) return null;
   if (evidence.measuredAt !== undefined && (typeof evidence.measuredAt !== 'string' || !Number.isFinite(Date.parse(evidence.measuredAt)))) return null;
   if (evidence.source === 'MANUAL') return 'LOW';
   if (!evidence.sampleCount) return null;
@@ -31,9 +31,10 @@ export function buildPersonalizedModel(input: unknown): PersonalizedModel {
   const factors = {} as PersonalizedModel['factors'], warnings: string[] = [];
   for (const key of timingFactors) {
     const value = profile[key], evidence = profile.timingEvidence?.[key];
-    const valid = within(value, ...limits[key]), confidence = evidence ? quality(value as number, evidence) : 'LOW';
+    const valid = evidence ? typeof value === 'number' && Number.isFinite(value) && value > 0 : within(value, ...limits[key]);
+    const confidence = evidence ? quality(value as number, evidence) : 'LOW';
     let status: FactorStatus = 'GENERIC';
-    if (valid && confidence && (evidence || value !== defaults[key])) {
+    if (typeof value === 'number' && valid && confidence && (evidence || value !== defaults[key])) {
       timingProfile[key] = value; status = evidence?.source ?? 'PROFILE_ESTIMATE';
     } else if (value !== undefined && (!valid || !confidence)) warnings.push(`${factorLabels[key]} data rejected; generic estimate used.`);
     factors[key] = { status, confidence: status === 'GENERIC' ? 'LOW' : confidence! };
@@ -44,8 +45,8 @@ export function buildPersonalizedModel(input: unknown): PersonalizedModel {
   if (observations.length > 128) warnings.push('Shooting observation limit reached; only the first 128 records are considered.');
   for (const observation of observations.slice(0, 128)) {
     const confidence = observation && quality(observation.splitTime, { ...observation, source: 'MEASURED' });
-    if (!observation || observation.difficultyModel !== 'DISTANCE_ONLY' || !within(observation.difficulty, 0, 1000)
-      || !within(observation.splitTime, ...limits.averageSplitTime) || !confidence) {
+    if (!observation || observation.difficultyModel !== 'DISTANCE_ONLY' || !within(observation.difficulty, 0, Number.MAX_VALUE)
+      || !(typeof observation.splitTime === 'number' && Number.isFinite(observation.splitTime) && observation.splitTime > 0) || !confidence) {
       warnings.push('Invalid shooting observation ignored.'); continue;
     }
     curve.push({ ...observation, confidence });

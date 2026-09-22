@@ -6,7 +6,9 @@ import { startingTypes } from '../training/model';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
 import { normalizeVideo, videoObservations } from '../training/videoAnalysis';
-import { trainingContexts, withVideoObservations } from '../training/observations';
+import { changeObservation, setManualOverride, trainingContexts, withPerformanceObservations, withVideoObservations } from '../training/observations';
+import type { PerformanceObservation, TrainingContext } from '../training/observations';
+import type { TimingFactor } from '../profile/model';
 
 /** Small interface also allows repository tests against real SQLite on Node. */
 export interface Database {
@@ -99,13 +101,13 @@ export class Repository {
       try {
         const profile = await this.loadProfile();
         const valid = (record.videos ?? []).flatMap(v => videoObservations(v, record.startingType));
-        const observations = (profile.performanceObservations ?? []).filter(o => o.trainingSessionId !== record.id
+        const observations = (profile.performanceObservations ?? []).filter(o => o.source !== 'VIDEO_ANALYSIS' || o.trainingSessionId !== record.id
           || valid.some(v => v.id === o.id && v.evidenceKey === o.evidenceKey));
-        const remaining = selected ? observations.filter(o => o.videoId !== selected.session.id) : observations;
+        const remaining = selected ? observations.filter(o => o.source !== 'VIDEO_ANALYSIS' || o.videoId !== selected.session.id) : observations;
         const next = selected ? [...remaining, ...videoObservations(selected, record.startingType)] : remaining;
         if (selected || next.length !== (profile.performanceObservations ?? []).length) {
           const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
-          await this.saveProfile(updated);
+          await this.persistProfile(updated);
         }
         await this.db.runAsync('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET userId=excluded.userId, occurredAt=excluded.occurredAt, payload=excluded.payload', record.id, record.userId, record.occurredAt, JSON.stringify(record));
         await this.db.execAsync('COMMIT;');
@@ -117,7 +119,24 @@ export class Repository {
   async loadProfile(): Promise<UserProfile> {
     const row = await this.db.getFirstAsync<{ payload: string }>('SELECT payload FROM profiles WHERE id = ?', 'local');
     if (!row) throw new Error('Local profile unavailable.');
-    return JSON.parse(row.payload);
+    const profile: UserProfile = JSON.parse(row.payload);
+    if (profile.performanceObservations === undefined && !profile.calibrationInputs && !profile.videoCalibrationBase) return profile;
+    const rebuilt = withPerformanceObservations(profile, profile.performanceObservations ?? [], profile.calibrationContext ?? 'LIVE_FIRE', false);
+    rebuilt.calibrationWarnings = [...new Set([...(profile.calibrationWarnings ?? []), ...(rebuilt.calibrationWarnings ?? [])])].sort();
+    return rebuilt;
   }
-  async saveProfile(profile: UserProfile) { await this.db.runAsync('UPDATE profiles SET payload = ? WHERE id = ?', JSON.stringify(profile), profile.id); }
+  private async persistProfile(profile: UserProfile) { await this.db.runAsync('UPDATE profiles SET payload = ? WHERE id = ?', JSON.stringify(profile), profile.id); }
+  private updateProfile(change: (profile: UserProfile) => UserProfile): Promise<void> {
+    const work = this.trainingWrites.then(async () => { await this.persistProfile(change(await this.loadProfile())); });
+    this.trainingWrites = work.catch(() => {}); return work;
+  }
+  saveProfile(profile: UserProfile): Promise<void> {
+    return this.updateProfile(() => profile.calibrationInputs || profile.performanceObservations || profile.videoCalibrationBase
+      ? withPerformanceObservations(profile, profile.performanceObservations ?? []) : profile);
+  }
+  addObservation(observation: PerformanceObservation) { return this.updateProfile(p => changeObservation(p, { operation: 'add', observation })); }
+  replaceObservation(observation: PerformanceObservation) { return this.updateProfile(p => changeObservation(p, { operation: 'replace', observation })); }
+  removeObservation(id: string) { return this.updateProfile(p => changeObservation(p, { operation: 'remove', id })); }
+  setManualOverride(factor: TimingFactor, value: number | null) { return this.updateProfile(p => setManualOverride(p, factor, value)); }
+  rebuildProfile(context?: TrainingContext) { return this.updateProfile(p => withPerformanceObservations(p, p.performanceObservations ?? [], context ?? p.calibrationContext ?? 'LIVE_FIRE')); }
 }

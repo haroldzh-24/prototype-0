@@ -175,9 +175,9 @@ test('calibration keeps contexts isolated and samples idempotent and order indep
   assert.equal(O.calibrateObservations(base, [...live, ...dry], 'DRY_FIRE').drawTime, 0.7);
   assert.deepEqual(O.calibrateObservations(base, [...live].reverse(), 'LIVE_FIRE'), O.calibrateObservations(base, [...live, ...live], 'LIVE_FIRE'));
 });
-test('outliers, nonfinite values and unconfirmed observations fail existing profile guards', () => {
+test('invalid values and unconfirmed observations fail structural guards', () => {
   const base = createLocalProfile().performance, o = A.videoObservations(video(), 'competitionHolster')[0];
-  for (const patch of [{ value: NaN }, { value: -1 }, { value: 100000 }, { confirmed: false }, { measuredAt: 'bad' }])
+  for (const patch of [{ value: NaN }, { value: -1 }, { confirmed: false }, { measuredAt: 'bad' }])
     assert.equal(O.calibrateObservations(base, [{ ...o, ...patch }], 'LIVE_FIRE').drawTime, base.drawTime);
 });
 test('analysis normalization preserves version and regenerates derived state', () => {

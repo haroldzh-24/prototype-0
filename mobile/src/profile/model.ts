@@ -4,7 +4,7 @@ export type TimingFactor = 'drawTime' | 'reloadTime' | 'averageSplitTime' | 'tra
 export type PerformanceEvidence = {
   source: 'MANUAL' | 'MEASURED'; sampleCount?: number;
   standardDeviation?: number; measuredAt?: string;
-  origin?: 'VIDEO_ANALYSIS'; context?: TrainingContext;
+  origin?: 'VIDEO_ANALYSIS' | 'TRAINING'; context?: TrainingContext;
 };
 export type ShootingObservation = {
   difficultyModel: 'DISTANCE_ONLY'; difficulty: number; splitTime: number;
@@ -18,7 +18,9 @@ export type ShooterPerformanceProfile = {
   shootingObservations?: ShootingObservation[];
 };
 export type UserProfile = { id: string; displayName: string; identity: { provider: 'local' | 'apple'; subject: string | null }; performance: ShooterPerformanceProfile;
-  performanceObservations?: PerformanceObservation[]; videoCalibrationBase?: ShooterPerformanceProfile; calibrationContext?: TrainingContext };
+  performanceObservations?: PerformanceObservation[]; videoCalibrationBase?: ShooterPerformanceProfile; calibrationContext?: TrainingContext;
+  calibrationInputs?: { version: 1; baseline: ShooterPerformanceProfile; manualOverrides: Partial<Record<TimingFactor, number>> };
+  calibrationWarnings?: string[] };
 export const createLocalProfile = (): UserProfile => ({
   id: 'local', displayName: 'Local shooter', identity: { provider: 'local', subject: null },
   performance: { drawTime: 1.5, reloadTime: 2, averageSplitTime: 0.25, transitionTime: 0.4,

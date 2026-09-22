@@ -209,3 +209,10 @@ Use this file to document known defects from discovery through resolution.
 - Completed implementation and fixes are recorded in changelog.md. Physical-device import/playback/seeking and browser media persistence follow-up remain in features.md.
 - No dated unresolved item is older than one month; undated legacy ideas cannot be aged reliably.
 - Final verification: TypeScript passed once; the full suite passed once with 231 tests, including 32 new video-analysis tests. No screenshot/browser automation, iOS export, commit or push was performed.
+
+## Phase 7B verification - 2026-09-22
+
+- Completed fixes for overwritten manual inputs, stale baseline restoration, order-dependent duplicate conflicts, slow-performance rejection and non-video sample withdrawal are recorded in changelog.md.
+- Added focused coverage for generalized observations, overrides/removal, invalid stored data, slow results, duplicate conflicts, contexts, movement/reload/shooting/transition calibration, lifecycle persistence, legacy 8A compatibility and personalized route consumption.
+- No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
+- Final verification: all 252 tests passed in one full-suite run (21 new tests). TypeScript initially found one narrowing error; after correction, its targeted rerun passed. No browser/device tooling, export, commit or push was performed.
