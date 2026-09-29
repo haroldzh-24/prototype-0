@@ -3,6 +3,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { objectPalette } from './objectActions';
 import type { AddableType } from '../stage/operations';
 import { Action, colors, ui } from '../ui/kit';
+import { useEffect, useState } from 'react';
+import type { TargetFamily } from '../stage/targetFamily';
+import TargetFamilyPicker from '../ui/TargetFamilyPicker';
 
 function Silhouette({ type }: { type: AddableType | 'start' }) {
   return <View accessible={false} style={styles.symbol}>
@@ -12,17 +15,20 @@ function Silhouette({ type }: { type: AddableType | 'start' }) {
     </>}
   </View>;
 }
-export default function AddMenu({ visible, close, create, selectStart }: { visible: boolean; close: () => void; create: (type: AddableType) => void; selectStart: () => void }) {
+export default function AddMenu({ visible, close, create, selectStart, targetFamily }: { visible: boolean; close: () => void; create: (type: AddableType, family: TargetFamily) => void; selectStart: () => void; targetFamily: TargetFamily }) {
+  const [family, setFamily] = useState(targetFamily);
+  useEffect(() => { if (visible) setFamily(targetFamily); }, [visible, targetFamily]);
   return <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.header}><Text style={[ui.title, { flex: 1 }]}>Add object</Text><Action title="Close" onPress={close} /></View>
       <ScrollView contentContainerStyle={ui.screen}>
         {['TARGETS', 'STRUCTURES', 'STAGE'].map(category => <View key={category} style={{ gap: 12 }}>
           <Text style={ui.eyebrow}>{category}</Text>
+          {category === 'TARGETS' && <><Text style={ui.copy}>Target family (match default: {targetFamily})</Text><TargetFamilyPicker value={family} onChange={setFamily} /></>}
           <View style={styles.tiles}>
             {objectPalette.filter(item => (item.type === 'wall' ? 'STRUCTURES' : item.type === 'faultLine' ? 'STAGE' : 'TARGETS') === category).map(item =>
-              <Pressable accessibilityRole="button" accessibilityLabel={'Add ' + item.label} key={item.type} onPress={() => { close(); create(item.type); }} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
-                <Silhouette type={item.type} /><Text style={ui.actionText}>{item.label}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={'Add ' + item.label} key={item.type} onPress={() => { close(); create(item.type, family); }} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
+                <Silhouette type={item.type} /><Text style={ui.actionText}>{category === 'TARGETS' ? family + ' / ' : ''}{item.label}</Text>
               </Pressable>)}
             {category === 'STAGE' && <Pressable accessibilityRole="button" accessibilityLabel="Select Start Position" onPress={() => { close(); selectStart(); }} style={({ pressed }) => [styles.tile, pressed && styles.pressed]}>
               <Silhouette type="start" /><Text style={ui.actionText}>Start position</Text><Text style={ui.copy}>Select existing</Text>

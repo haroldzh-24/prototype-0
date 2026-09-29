@@ -1,5 +1,5 @@
 import type { FiringPort, WallGeometry } from './model';
-import { parseLength } from './measurements';
+import { parseYards, yardInput } from './measurements';
 
 export function validatePorts(wall: WallGeometry, ports: readonly FiringPort[]): string | null {
   const ids = new Set<string>();
@@ -27,13 +27,14 @@ export const portFields = [
 ] as const;
 type PortField = typeof portFields[number]['key'];
 export const portValues = (port: FiringPort): Record<PortField, string> => ({
-  offset: String(port.offset), width: String(port.width), height: String(port.height), sill: String(port.sill),
+  offset: yardInput(port.offset), width: yardInput(port.width), height: yardInput(port.height), sill: yardInput(port.sill),
 });
 export function parsePortDraft(port: FiringPort, draft: Record<PortField, string>):
   { port: FiringPort; error?: never } | { error: string; port?: never } {
   const values = { ...port };
   for (const { key, label } of portFields) {
-    const value = parseLength(draft[key]);
+    if (draft[key] === portValues(port)[key]) continue;
+    const value = parseYards(draft[key]);
     if (value === null) return { error: 'Enter a valid measurement for ' + label + '.' };
     values[key] = value;
   }

@@ -16,6 +16,81 @@ const { addObject, removeLastObject, moveObject, rotateObject } = require('../sr
 const near = (a, b) => assert.ok(Math.abs(a-b) < 1e-8, a + ' != ' + b);
 const position = { space: 'stage', x: 120, y: 90, z: 48 };
 const size = { width: 480, depth: 360 };
+const { parseYards, yardInput, formatYards, yardsToInches, inchesToYards } = require('../src/stage/measurements.ts');
+const { outsideStage, resizeStage } = require('../src/stage/resize.ts');
+
+test('yard entry converts without rounding fractional inches and rejects invalid values', () => {
+  for (const yards of [0.001, 0.125, 1.23456789, 13.333333]) {
+    near(parseYards(String(yards)), yards * 36);
+    near(inchesToYards(yardsToInches(yards)), yards);
+  }
+  assert.equal(parseYards('1.125 yd'), 40.5);
+  assert.equal(parseYards('1/2'), 18);
+  assert.equal(formatYards(40.5), '1.125 yd');
+  for (const text of ['', 'NaN', 'Infinity', '1e309', '3abc', '1/0']) assert.equal(parseYards(text), null);
+});
+
+test('resize cancellation and confirmation preserve every object and route reference', () => {
+  const document = createDefaultStage();
+  document.objects.push(createObject('faultLine', 'fault', 400, 250));
+  const route = { positions: [{ id: 'position', label: 'P1', position: { space: 'stage', x: 475.125, y: 300, z: 0 } }] };
+  const snapshot = JSON.stringify({ document, route });
+  const boundary = { width: parseYards('5.125'), depth: parseYards('4.003') };
+  const pending = resizeStage(document, boundary, route);
+  assert.equal(pending.needsConfirmation, true);
+  assert.equal(pending.document, document);
+  assert.ok(pending.outside.some(p => p.id === 'fault'));
+  assert.ok(pending.outside.some(p => p.id === 'position'));
+  const kept = resizeStage(document, boundary, route, true);
+  assert.equal(kept.needsConfirmation, false);
+  assert.deepEqual(kept.document.stage, boundary);
+  assert.equal(kept.document.objects, document.objects);
+  assert.equal(JSON.stringify({ document, route }), snapshot);
+  const enlarged = resizeStage(kept.document, { width: 720, depth: 720 }, route);
+  assert.equal(enlarged.needsConfirmation, false);
+  assert.deepEqual(enlarged.outside, []);
+  assert.equal(enlarged.document.objects, document.objects);
+});
+
+test('resize checks rotated footprints, cut-face offsets, exact boundaries and all object types', () => {
+  const stage = { ...createDefaultStage(), stage: { width: 100, depth: 100 }, objects: [] };
+  for (const type of ['wall', 'faultLine', 'start', 'cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper']) {
+    const object = { ...createObject(type, type, 97, 50), rotation: 45 };
+    stage.objects = [object];
+    assert.equal(outsideStage(stage, stage.stage).length, 1, type);
+  }
+  const target = createObject('cardboardTarget', 'cut', 100, 50);
+  target.faceCut.preset = 'left'; stage.objects = [target];
+  assert.equal(outsideStage(stage, stage.stage).length, 0);
+  target.faceCut.preset = 'right';
+  assert.equal(outsideStage(stage, stage.stage).length, 1);
+  stage.objects = [createObject('steelPlate', 'edge', 94, 50)];
+  assert.equal(outsideStage(stage, stage.stage).length, 0);
+  assert.equal(outsideStage(stage, { width: 99.9, depth: 100 }).length, 1);
+});
+
+test('invalid resize dimensions never mutate the original document', () => {
+  const stage = createDefaultStage();
+  for (const value of [0, -1, NaN, Infinity]) for (const key of ['width', 'depth']) {
+    const result = resizeStage(stage, { ...stage.stage, [key]: value }, undefined, true);
+    assert.ok(result.error); assert.equal(result.document, stage);
+  }
+  const safe = resizeStage(stage, { width: 450, depth: 350 });
+  assert.equal(safe.needsConfirmation, false);
+});
+
+test('yard inspector and port drafts preserve untouched precision and convert edited fields', () => {
+  const object = createObject('wall', 'precise', 120.123456789, 150);
+  object.geometry.thickness = 4.123456789;
+  const draft = inspectorValues(object);
+  assert.equal(draft.x, yardInput(object.position.x));
+  assert.deepEqual(parseInspectorEdit(object, draft), { edit: {} });
+  const edit = parseInspectorEdit(object, { ...draft, x: '3.125', thickness: '0.125' }).edit;
+  assert.deepEqual(edit, { position: { x: 112.5 }, geometry: { thickness: 4.5 } });
+  const port = { id: 'port', offset: 0.123456789, width: 18.123456789, height: 24, sill: 36 };
+  assert.deepEqual(parsePortDraft(port, portValues(port)).port, port);
+  assert.equal(parsePortDraft(port, { ...portValues(port), width: '0.501' }).port.width, 18.036);
+});
 const transform = (zoom = 1, pan = { x: 0, y: 0 }) => C.createViewportTransform(size,
   { width: 960, height: 800 }, { zoom, pan });
 
@@ -414,8 +489,8 @@ for (const type of ['cardboardTarget', 'noShootTarget']) {
     const object = stage.objects.find(o => o.id === 'face');
     assert.deepEqual(inspectorFields(object).map(f => f.key), ['x', 'y', 'rotation', 'faceWidth', 'faceHeight', 'z']);
     assert.deepEqual(parseInspectorEdit(object, inspectorValues(object)), { edit: {} });
-    const draft = { ...inspectorValues(object), x: '123.125', y: '144.25', rotation: '22',
-      faceWidth: '1 ft 8 in', faceHeight: '36 1/2', z: '2 ft' };
+    const draft = { ...inspectorValues(object), x: '123.125 in', y: '144.25 in', rotation: '22',
+      faceWidth: '1 ft 8 in', faceHeight: '36 1/2 in', z: '2 ft' };
     const parsed = parseInspectorEdit(object, draft);
     assert.equal(parsed.error, undefined);
     const result = editObject(stage, 'face', parsed.edit, 5);
@@ -533,7 +608,7 @@ for (const type of ['steelPlate', 'steelPopper']) {
     assert.deepEqual(fields.map(f => f.key), ['x', 'y', 'rotation', 'faceWidth', 'faceHeight', 'z']);
     assert.equal(fields.find(f => f.key === 'faceHeight').label, type === 'steelPopper' ? 'Overall height' : 'Face height');
     assert.deepEqual(parseInspectorEdit(face, inspectorValues(face)), { edit: {} });
-    const draft = { ...inspectorValues(face), x: '123.125', y: '144.25', rotation: '22', faceWidth: '1 ft 6 in', faceHeight: '36 1/2', z: '2 ft' };
+    const draft = { ...inspectorValues(face), x: '123.125 in', y: '144.25 in', rotation: '22', faceWidth: '1 ft 6 in', faceHeight: '36 1/2 in', z: '2 ft' };
     const parsed = parseInspectorEdit(face, draft);
     assert.equal(parsed.error, undefined);
     const result = editObject(stage, 'steel', parsed.edit, 5);
@@ -631,7 +706,7 @@ test('port inspector edits offset, dimensions and local sill atomically with sta
   const original = createDefaultStage(), wall = original.objects.find(o => o.id === 'wall-1');
   const port = createPort(wall.geometry, 'port-1'), other = { ...port, id: 'port-2', offset: -30 };
   let stage = editObject(original, wall.id, { ports: [port, other] }).stage;
-  const parsed = parsePortDraft(port, { offset: '1 ft', width: '18 1/2', height: '2 ft', sill: '3 ft' });
+  const parsed = parsePortDraft(port, { offset: '1 ft', width: '18 1/2 in', height: '2 ft', sill: '3 ft' });
   assert.equal(parsed.error, undefined);
   assert.deepEqual(parsed.port, { id: port.id, offset: 12, width: 18.5, height: 24, sill: 36 });
   const result = editObject(stage, wall.id, { ports: [parsed.port, other] });

@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
 import { measurementGrid } from '@/stage/grid';
+import { formatYards } from '../stage/measurements';
 
 export default memo(function StageGrid({ stage, transform: t }: { stage: StageSize; transform: ViewportTransform }) {
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -15,7 +16,7 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
         width: vertical ? 1 : stage.width * t.scale,
         height: vertical ? stage.depth * t.scale : 1,
         backgroundColor: line.major ? colors.grid : colors.gridMinor }}>
-        {line.value > 0 && line.value % 60 === 0 && <Text style={styles.label}>{line.value / 12} ft</Text>}
+        {line.value > 0 && line.value % 60 === 0 && <Text style={styles.label}>{formatYards(line.value)}</Text>}
       </View>;
     })}
   </View>;

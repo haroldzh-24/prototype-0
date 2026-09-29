@@ -1,4 +1,5 @@
 import type { StagePosition, StageSize } from './coordinates';
+import type { TargetFamily } from './targetFamily';
 
 /** Local rectangular ground footprint and vertical extent, all in inches. */
 export type ObjectGeometry = Readonly<{ width: number; depth: number; height: number }>;
@@ -22,10 +23,10 @@ type ObjectBase = {
   rotation: number;
 };
 export type StageObject =
-  | (ObjectBase & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut })
-  | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut })
-  | (ObjectBase & { type: 'steelPlate'; geometry: TargetGeometry })
-  | (ObjectBase & { type: 'steelPopper'; geometry: TargetGeometry })
+  | (ObjectBase & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut; targetFamily?: TargetFamily })
+  | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut; targetFamily?: TargetFamily })
+  | (ObjectBase & { type: 'steelPlate'; geometry: TargetGeometry; targetFamily?: TargetFamily })
+  | (ObjectBase & { type: 'steelPopper'; geometry: TargetGeometry; targetFamily?: TargetFamily })
   | (ObjectBase & { type: 'wall'; geometry: WallGeometry; ports: readonly FiringPort[] })
   | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry })
   | (ObjectBase & { type: 'start'; geometry: ObjectGeometry });

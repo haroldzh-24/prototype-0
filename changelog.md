@@ -1,3 +1,20 @@
+# Match → Stages hierarchy - 2026-09-29
+
+- Stage Planner now opens match cards showing name, target family and stage count. Create a match with only name/family; open it to create, rename, duplicate, delete or open its stages. Match settings support renaming and USPSA/PCSL/IDPA defaults; match deletion requires confirmation and duplication includes its stages.
+- Added database schema v2 with separate match rows and persistent indexed stage ownership. New stage writes require a valid match. Match deletion/duplication and migration use atomic transactions in the existing shared write queue. Match records never contain StageDocument copies.
+- Existing unowned stages migrate into one Imported Stages match (default USPSA), retaining their row IDs, timestamps and exact payload bytes, including geometry, routes, ammunition and references. Initialization is idempotent and rolls back failed migrations. The imported match is created only if unowned stages exist.
+- Add Target defaults to the parent match's target family, permits a per-add override, and records the chosen family on newly created targets. Existing targets, geometry and dimensions are never changed by a match-family update. Existing generic target shapes/dimensions remain in use.
+- Removed standalone creation/list shortcuts. Old Saved Stages URLs redirect to Matches; a builder URL without a saved stage ID redirects to Matches. Designer Back returns to its stage's owning match and retains the existing unsaved-changes guard.
+- Added ten migration, match isolation, target-family immutability, duplication/rollback and save/reopen tests. Updated existing storage fixtures and browser smoke navigation for owned stages. TypeScript and all 463 tests passed. Phone steps and migration details are in mobile/docs/match-hierarchy-testing.md; native/browser UI verification was not performed.
+
+# Editable stage dimensions - 2026-09-29
+
+- Stage Planner now offers Add Stage → stage name → Open Stage Designer, using the existing 480 × 360-inch canvas (13⅓ × 10 yards). No dimensions are requested during creation.
+- Added persistent Stage Settings access in object, route and 2.5D editing modes, with positive decimal-yard width/depth inputs and visible current dimensions. Dirty tracking and the existing Save action persist changes without a schema migration.
+- Resize changes only the boundary. Reductions inspect rotated physical footprints, asymmetric cut targets and route positions, offering Cancel resize or Keep resize. Existing objects, firing ports, IDs, geometry, positions, route assignments and loadouts remain intact. Outside items are listed for selection, camera focus and manual correction, including after reopen.
+- Stage/object/port fields, grids, snap controls and route distance displays now use yards. Conversion uses yards × 36 and inches ÷ 36; stored geometry retains fractional inches. Unchanged formatted inputs retain their exact stored values. Explicit legacy inch/foot inputs remain accepted.
+- Bounded grid rendering for large user-entered dimensions. Updated the browser smoke script for name-only creation; it was not run. TypeScript and all 453 regression tests passed, including six new conversion/resize/persistence tests. Physical-device verification remains in features.md.
+
 # Phase 7A: personalized performance model - 2026-09-21
 
 - Documented the actual scalar profile and untyped training data in mobile/src/profile/personalizedPerformance.md; no training labels or seeded defaults are treated as measurements.

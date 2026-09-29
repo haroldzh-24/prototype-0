@@ -14,7 +14,7 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
     <Text style={ui.actionText}>{styleLabel}</Text>
     <Copy>{card.label} · Compared with displayed candidates</Copy>
     <Text style={ui.statValue}>{card.estimatedTime === null ? 'Time unavailable' : `${card.estimatedTime.toFixed(2)} s`}</Text>
-    <Copy>{`${(card.movementDistance / 12).toFixed(1)} ft · ${card.positions} positions · ${card.reloads} reloads`}</Copy>
+    <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} positions · ${card.reloads} reloads`}</Copy>
     <Copy>{card.comparison}</Copy>
     <Copy>Used {card.sourceCounts.auto} automatically discovered positions / {card.sourceCounts.manual} manual positions</Copy>
     {card.personalization && <><Copy>Personalized confidence: {card.personalization.confidence}</Copy><Copy>Using: {card.personalization.using.join(', ') || 'Generic factors for this route'}</Copy><Copy>Fallback: {card.personalization.fallback.join(', ') || 'None within recorded range'}</Copy></>}

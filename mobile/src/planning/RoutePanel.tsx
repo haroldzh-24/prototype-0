@@ -9,6 +9,7 @@ import { isEngageable } from './model';
 import type { StagePlan } from './model';
 import { toggleRouteTarget, evaluateRoute, reorderPosition } from './route';
 import type { TargetAssignmentMode, StageRoute } from './route';
+import { formatYards } from '../stage/measurements';
 
 type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section?: 'summary' | 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; profile: ShooterPerformanceProfile | null; selectedId: string | null; select: (id: string) => void; onChange: (route: StageRoute) => void };
 export default function RoutePanel({ stage, plan, route, profile, selectedId, select, onChange, onAssign, section = 'summary' }: Props) {
@@ -28,20 +29,20 @@ export default function RoutePanel({ stage, plan, route, profile, selectedId, se
     </View>
     <TextInput accessibilityLabel="Route name" style={ui.input} value={route.name} maxLength={100} onChangeText={name => onChange({ ...route, name })} />
     <Copy>START → {route.positions.map(p => p.label).join(' → ') || 'Add a position'}</Copy>
-    <DataRow label="Distance" value={(result.distance / 12).toFixed(1) + " ft"} />
+    <DataRow label="Distance" value={formatYards(result.distance)} />
     <DataRow label="Magazine changes" value={result.magazineChanges} />
     {route.positions.map((p, index) => {
       const state = result.ammo[index], segment = result.segments.find(s => s.toId === p.id);
       return <View key={p.id} style={{ gap: 6, borderTopWidth: 1, borderColor: colors.border, paddingTop: 12 }}>
         <Action title={`${index + 1}. ${p.label}${selectedId === p.id ? ' • selected' : ''}`} onPress={() => select(p.id)} />
         <Copy>Visible: {p.visibleTargetIds.map(id => targetLabel(stage, id)).join(', ') || 'None'} / Engaged: {p.engagedTargetIds.map(id => targetLabel(stage, id)).join(', ') || 'None'}</Copy>
-        <Copy>{segment ? `${(segment.distance / 12).toFixed(1)} ft movement | ` : ''}{state.available} available → {state.required} required → {state.remaining} remaining{state.sufficient ? '' : ' / INSUFFICIENT'}</Copy>
+        <Copy>{segment ? `${formatYards(segment.distance)} movement | ` : ''}{state.available} available → {state.required} required → {state.remaining} remaining{state.sufficient ? '' : ' / INSUFFICIENT'}</Copy>
         <View style={{ flexDirection: 'row', gap: 6 }}><Action title="Earlier" disabled={index === 0} onPress={() => onChange(reorderPosition(route, p.id, -1))} /><Action title="Later" disabled={index === route.positions.length - 1} onPress={() => onChange(reorderPosition(route, p.id, 1))} /></View>
       </View>;
     })}
     </>}
     {selected && section !== 'summary' && <>
-      <Copy>POSITION / {selected.label} / X {selected.position.x.toFixed(1)} IN / Y {selected.position.y.toFixed(1)} IN</Copy>
+      <Copy>POSITION / {selected.label} / X {formatYards(selected.position.x)} / Y {formatYards(selected.position.y)}</Copy>
       <TextInput accessibilityLabel="Position label" style={ui.input} value={selected.label} maxLength={30} onChangeText={label => updateSelected({ label })} />
       {section === 'assign' && <>
       <Copy>Mark visibility manually; “Engage here” moves the intended engagement to this position. Target rounds are edited in Loadout / Planning.</Copy>

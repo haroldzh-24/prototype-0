@@ -103,7 +103,7 @@ test('advanced metrics format backend values with units and preserve unavailable
   const c = P.generateCandidates(context, config).candidates[0];
   const m = P.evaluateCandidate(context, c).metrics;
   const rows = Object.fromEntries(plannerDetails({ ...m, backwardDistance: 30, backwardSegmentCount: 2, rawReloadDuration: 2, reloadOverlap: 1.5, reloadTime: 0.5 }).map(r => [r.label, r.value]));
-  assert.equal(rows['Backward movement (estimate)'], '2.5 ft / 2 segments');
+  assert.equal(rows['Backward movement (estimate)'], '0.83 yd / 2 segments');
   assert.equal(rows['Reload overlap with movement'], '1.50 s');
   assert.equal(rows['Additional reload time'], '0.50 s');
   assert.equal(rows['Total shooting difficulty'], m.totalShootingDifficulty.toFixed(1));

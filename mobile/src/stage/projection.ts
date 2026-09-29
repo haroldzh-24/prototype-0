@@ -89,7 +89,9 @@ export function stageSvg(stage: StageDocument, yaw: number, zoom: number, select
   // Five-foot grid provides a physical distance reference without excessive detail.
   for (const axis of ['x','y'] as const) {
     const end = axis === 'x' ? stage.stage.width : stage.stage.depth;
-    for (let value=60;value<end;value+=60) {
+    const step = Math.max(60, Math.ceil(end / 60000) * 60);
+    for (let i=1;i<=1000 && i*step<end;i++) {
+      const value = i * step;
       const a = axis === 'x' ? {x:value,y:0,z:0} : {x:0,y:value,z:0};
       const b = axis === 'x' ? {x:value,y:stage.stage.depth,z:0} : {x:stage.stage.width,y:value,z:0};
       svg += '<polyline points="'+xy(projectPoint(a,yaw))+' '+xy(projectPoint(b,yaw))+'" stroke="#394637" stroke-width="0.7"/>';

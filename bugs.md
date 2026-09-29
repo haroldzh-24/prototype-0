@@ -1,3 +1,17 @@
+# Match hierarchy verification - 2026-09-29
+
+- Fixed standalone stage organization and missing persistent match ownership; completed behavior is recorded in changelog.md. Match-family changes never rewrite placed targets. Deletion/duplication and upgrade migrations are atomic.
+- TypeScript and the full 463-test suite passed. Ten new tests cover multiple matches, same-name stages, ownership/isolation, family changes, duplication/deletion rollback, byte-preserving migration, partial/unreadable legacy records, migration rollback/retry/idempotence and database close/reopen.
+- The first full-suite run had one assertion mismatch between a plain JavaScript object and SQLite's null-prototype row; stored values matched. Normalized the assertion, added mixed-ownership migration coverage and reran the full suite successfully. Regenerated ignored Expo route types to include the new match screen; no type suppression was used.
+- Browser smoke navigation is updated but was not executed. Native upgrade, UI, keyboards, family selection and back/unsaved guards require [phone verification](mobile/docs/match-hierarchy-testing.md).
+- No dated unresolved bugs or features exceed one month as of 2026-09-29. Undated legacy entries cannot be aged reliably; the existing browser storage teardown investigation remains open.
+
+# Stage dimensions verification - 2026-09-29
+
+- Stage dimensions are now editable inside the designer. Boundary reductions require cancel/keep confirmation when physical footprints or shooting positions would be outside; confirmed resizes retain every object and planning reference. Completed work is recorded in changelog.md.
+- TypeScript passed; all 453 regression tests passed, including fractional-yard conversion, resize immutability, rotated/cut footprints, unchanged-field precision and SQLite close/reopen. Browser/native UI interaction has not been verified in this change.
+- No dated unresolved bugs or features are older than one month. Undated legacy entries cannot be aged reliably; the existing browser storage teardown investigation remains open.
+
 # Phase 7A verification - 2026-09-21
 
 - Added focused coverage for partial/complete profiles, deterministic curve interpolation, emergent movement/shooting tradeoffs, evaluator-owned reload overlap, corruption handling, explanations and optional profile persistence. TypeScript passed once; the full test suite passed once with 199 tests (17 new tests). No new defect identified; completed implementation is recorded in changelog.md.

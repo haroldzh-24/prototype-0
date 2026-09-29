@@ -35,6 +35,27 @@ function fixture() {
   const plan = { loadout: { chamberLoaded: true, startingMagazineId: 'mag', magazines: [{ id: 'mag', capacity: 20, startingRounds: 13 }] }, engagements: { cardboardTarget: 3, steelPlate: 1, steelPopper: 2 } };
   return { document, plan };
 }
+
+test('fractional stage resize and outside objects/positions survive save and database reopen', async () => {
+  const { resizeStage } = require('../src/stage/resize.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-resize-'));
+  const file = path.join(dir, 'test.db');
+  let connection = open(file);
+  try {
+    await connection.repo.initialize();
+    const original = createDefaultStage(), plan = createPlan();
+    plan.route = createRoute('route');
+    plan.route.positions.push({ id: 'outside', label: 'P1', position: { space: 'stage', x: 475.125, y: 300.25, z: 0 }, visibleTargetIds: ['target-1'], engagedTargetIds: ['target-1'] });
+    const id = await connection.repo.createStage('Named stage', original, plan, await connection.repo.createMatch('Test match', 'USPSA'));
+    const resized = resizeStage(original, { width: 180.125, depth: 144.375 }, plan.route, true).document;
+    await connection.repo.saveStage(id, 'Named stage', resized, plan);
+    connection.db.close(); connection = open(file); await connection.repo.initialize();
+    const loaded = await connection.repo.loadStage(id);
+    assert.deepEqual(loaded.document, resized);
+    assert.deepEqual(loaded.document.objects, original.objects);
+    assert.deepEqual(loaded.plan, plan);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
+});
 test('complete stage and ammunition survive database close/reopen; source and duplicate stay independent', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-storage-'));
   const file = path.join(dir, 'test.db');
@@ -42,7 +63,7 @@ test('complete stage and ammunition survive database close/reopen; source and du
   try {
     await connection.repo.initialize();
     const { document, plan } = fixture();
-    const id = await connection.repo.createStage("Match 'A'; DROP TABLE stages;", document, plan);
+    const id = await connection.repo.createStage("Match 'A'; DROP TABLE stages;", document, plan, await connection.repo.createMatch('Test match', 'USPSA'));
     connection.db.close(); connection = open(file); await connection.repo.initialize();
     const reopened = await connection.repo.loadStage(id);
     assert.deepEqual(reopened.document, document); assert.deepEqual(reopened.plan, plan);
@@ -68,8 +89,8 @@ test('names and unsupported payloads reject without altering another stage', asy
   const { db, repo } = open();
   try {
     await repo.initialize(); const { document, plan } = fixture();
-    await assert.rejects(repo.createStage('   ', document, plan));
-    const id = await repo.createStage('Valid', document, plan);
+    await assert.rejects(repo.createStage('   ', document, plan, await repo.createMatch('Test match', 'USPSA')));
+    const id = await repo.createStage('Valid', document, plan, await repo.createMatch('Test match', 'USPSA'));
     await assert.rejects(repo.renameStage(id, ''));
     assert.equal((await repo.loadStage(id)).name, 'Valid');
     db.prepare('UPDATE stages SET payload = ? WHERE id = ?').run(JSON.stringify({ version: 999 }), id);
@@ -101,11 +122,11 @@ test('routes survive SQLite reopen and duplication while legacy plans remain unc
   const file = path.join(dir, 'test.db'); let connection = open(file);
   try {
     await connection.repo.initialize(); const { document, plan } = fixture();
-    const legacyId = await connection.repo.createStage('Legacy', document, plan);
+    const legacyId = await connection.repo.createStage('Legacy', document, plan, await connection.repo.createMatch('Test match', 'USPSA'));
     const route = createRoute('route-a');
     route.positions = [{ id: 'A', label: 'A', position: { space: 'stage', x: 50, y: 70, z: 0 }, visibleTargetIds: ['cardboardTarget'], engagedTargetIds: ['cardboardTarget'] }];
     route.reloads = [{ positionId: 'A', magazineId: 'mag' }];
-    const id = await connection.repo.createStage('Route', document, { ...plan, route });
+    const id = await connection.repo.createStage('Route', document, { ...plan, route }, await connection.repo.createMatch('Test match', 'USPSA'));
     connection.db.close(); connection = open(file); await connection.repo.initialize();
     assert.deepEqual((await connection.repo.loadStage(legacyId)).plan, plan);
     assert.deepEqual((await connection.repo.loadStage(id)).plan.route, route);
@@ -122,7 +143,7 @@ test('new-stage payload creates native-safe defaults before builder navigation',
     await repo.initialize();
     const document = createDefaultStage();
     const plan = createPlan();
-    const id = await repo.createStage('Untitled stage', document, plan);
+    const id = await repo.createStage('Untitled stage', document, plan, await repo.createMatch('Test match', 'USPSA'));
     assert.match(id, /^[0-9a-f-]{36}$/i);
     const saved = await repo.loadStage(id);
     assert.equal(saved.document.schemaVersion, 7);
@@ -144,7 +165,7 @@ test('mass rounds and direct assignments survive SQLite reopen, overrides and ta
     const route = createRoute('assignment-route');
     route.positions = [{ id: 'A', label: 'Position A', position: { space: 'stage', x: 50, y: 70, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }];
     edited.route = toggleRouteTarget(route, document, 'A', 'cardboardTarget', 'engaged');
-    const id = await connection.repo.createStage('Assignments', document, edited);
+    const id = await connection.repo.createStage('Assignments', document, edited, await connection.repo.createMatch('Test match', 'USPSA'));
     connection.db.close(); connection = open(path.join(dir, 'data.db'));
     await connection.repo.initialize();
     assert.deepEqual((await connection.repo.loadStage(id)).plan, edited);
@@ -200,7 +221,7 @@ test('batch magazines, inserted designation and independent edits survive SQLite
     let added = addMagazineBatch(plan, 4, 17, 17, true, randomUUID).plan;
     const magazine = added.loadout.magazines[2];
     added = saveMagazine(added, { ...magazine, startingRounds: 12 }).plan;
-    const id = await connection.repo.createStage('Batch loadout', document, added);
+    const id = await connection.repo.createStage('Batch loadout', document, added, await connection.repo.createMatch('Test match', 'USPSA'));
     connection.db.close(); connection = open(file);
     await connection.repo.initialize();
     const loaded = await connection.repo.loadStage(id);

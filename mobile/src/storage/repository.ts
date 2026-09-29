@@ -9,6 +9,8 @@ import { normalizeVideo, videoObservations } from '../training/videoAnalysis';
 import { changeObservation, setManualOverride, trainingContexts, withPerformanceObservations, withVideoObservations } from '../training/observations';
 import type { PerformanceObservation, TrainingContext } from '../training/observations';
 import type { TimingFactor } from '../profile/model';
+import { isTargetFamily } from '../stage/targetFamily';
+import type { TargetFamily } from '../stage/targetFamily';
 
 /** Small interface also allows repository tests against real SQLite on Node. */
 export interface Database {
@@ -17,12 +19,14 @@ export interface Database {
   getAllAsync<T>(sql: string, ...params: (string | number | null)[]): Promise<T[]>;
   getFirstAsync<T>(sql: string, ...params: (string | number | null)[]): Promise<T | null>;
 }
-export type StageSummary = { id: string; name: string; createdAt: string; updatedAt: string };
+export type Match = { id: string; name: string; targetFamily: TargetFamily; createdAt: string; updatedAt: string };
+export type MatchSummary = Match & { stageCount: number };
+export type StageSummary = { id: string; matchId: string; name: string; createdAt: string; updatedAt: string };
 export type SavedStage = StageSummary & { document: StageDocument; plan: StagePlan };
 type StageRow = StageSummary & { payload: string };
-const nameOf = (name: string) => {
+const nameOf = (name: string, kind = 'stage') => {
   const clean = name.trim();
-  if (!clean || clean.length > 100) throw new Error('Enter a stage name between 1 and 100 characters.');
+  if (!clean || clean.length > 100) throw new Error(`Enter a ${kind} name between 1 and 100 characters.`);
   return clean;
 };
 export class Repository {
@@ -33,20 +37,93 @@ export class Repository {
     this.trainingWrites = work.catch(() => {}); return work;
   }
   constructor(private db: Database, private newId: () => string) {}
+  private async transaction<T>(work: () => Promise<T>): Promise<T> {
+    await this.db.execAsync('BEGIN IMMEDIATE;');
+    try { const result = await work(); await this.db.execAsync('COMMIT;'); return result; }
+    catch (error) { await this.db.execAsync('ROLLBACK;'); throw error; }
+  }
   async initialize() {
+    return this.serializeWrite(async () => {
     const version = await this.db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    if ((version?.user_version ?? 0) > 1) throw new Error('This database requires a newer app version.');
-    await this.db.execAsync(`PRAGMA journal_mode = WAL;
-      BEGIN TRANSACTION;
+    if ((version?.user_version ?? 0) > 2) throw new Error('This database requires a newer app version.');
+    await this.db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+    await this.transaction(async () => {
+    await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS stages (id TEXT PRIMARY KEY, name TEXT NOT NULL, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS training (id TEXT PRIMARY KEY, userId TEXT NOT NULL, occurredAt TEXT NOT NULL, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-      PRAGMA user_version = 1;
-      COMMIT;`);
+      CREATE TABLE IF NOT EXISTS matches (id TEXT PRIMARY KEY, name TEXT NOT NULL, targetFamily TEXT NOT NULL CHECK(targetFamily IN ('USPSA', 'PCSL', 'IDPA')), createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL);`);
+    const columns = await this.db.getAllAsync<{ name: string }>('PRAGMA table_info(stages)');
+    if (!columns.some(column => column.name === 'matchId'))
+      await this.db.execAsync('ALTER TABLE stages ADD COLUMN matchId TEXT REFERENCES matches(id) ON DELETE CASCADE;');
+    const standalone = await this.db.getFirstAsync<{ count: number }>("SELECT COUNT(*) AS count FROM stages WHERE matchId IS NULL OR matchId = ''");
+    if (standalone?.count) {
+      const now = new Date().toISOString();
+      await this.db.runAsync('INSERT OR IGNORE INTO matches (id, name, targetFamily, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', 'imported-stages', 'Imported Stages', 'USPSA', now, now);
+      // Association only: leave IDs, timestamps and the entire payload untouched.
+      await this.db.runAsync("UPDATE stages SET matchId = ? WHERE matchId IS NULL OR matchId = ''", 'imported-stages');
+    }
+    await this.db.execAsync(`CREATE INDEX IF NOT EXISTS stages_matchId ON stages(matchId);
+      CREATE TRIGGER IF NOT EXISTS stages_require_match_insert BEFORE INSERT ON stages
+      WHEN NEW.matchId IS NULL OR NOT EXISTS (SELECT 1 FROM matches WHERE id = NEW.matchId)
+      BEGIN SELECT RAISE(ABORT, 'Stage must belong to an existing match.'); END;
+      CREATE TRIGGER IF NOT EXISTS stages_require_match_update BEFORE UPDATE OF matchId ON stages
+      WHEN NEW.matchId IS NULL OR NOT EXISTS (SELECT 1 FROM matches WHERE id = NEW.matchId)
+      BEGIN SELECT RAISE(ABORT, 'Stage must belong to an existing match.'); END;
+      CREATE TRIGGER IF NOT EXISTS stages_touch_match_insert AFTER INSERT ON stages
+      BEGIN UPDATE matches SET updatedAt = NEW.updatedAt WHERE id = NEW.matchId; END;
+      CREATE TRIGGER IF NOT EXISTS stages_touch_match_update AFTER UPDATE ON stages
+      BEGIN UPDATE matches SET updatedAt = NEW.updatedAt WHERE id = NEW.matchId; END;
+      CREATE TRIGGER IF NOT EXISTS stages_touch_match_delete AFTER DELETE ON stages
+      BEGIN UPDATE matches SET updatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = OLD.matchId; END;
+      PRAGMA user_version = 2;`);
     const profile = createLocalProfile();
     await this.db.runAsync('INSERT OR IGNORE INTO profiles (id, payload) VALUES (?, ?)', profile.id, JSON.stringify(profile));
+    });
+    });
   }
-  listStages() { return this.db.getAllAsync<StageSummary>('SELECT id, name, createdAt, updatedAt FROM stages ORDER BY updatedAt DESC, id'); }
+  listMatches() {
+    return this.db.getAllAsync<MatchSummary>('SELECT m.*, COUNT(s.id) AS stageCount FROM matches m LEFT JOIN stages s ON s.matchId = m.id GROUP BY m.id ORDER BY m.updatedAt DESC, m.id');
+  }
+  async loadMatch(id: string): Promise<Match> {
+    const match = await this.db.getFirstAsync<Match>('SELECT * FROM matches WHERE id = ?', id);
+    if (!match) throw new Error('Match no longer exists.');
+    return match;
+  }
+  async createMatch(name: string, targetFamily: TargetFamily): Promise<string> {
+    const clean = nameOf(name, 'match');
+    if (!isTargetFamily(targetFamily)) throw new Error('Choose USPSA, PCSL or IDPA.');
+    const id = this.newId(), now = new Date().toISOString();
+    await this.serializeWrite(() => this.db.runAsync('INSERT INTO matches (id, name, targetFamily, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', id, clean, targetFamily, now, now));
+    return id;
+  }
+  async updateMatch(id: string, name: string, targetFamily: TargetFamily) {
+    const clean = nameOf(name, 'match');
+    if (!isTargetFamily(targetFamily)) throw new Error('Choose USPSA, PCSL or IDPA.');
+    const result = await this.serializeWrite(() => this.db.runAsync('UPDATE matches SET name = ?, targetFamily = ?, updatedAt = ? WHERE id = ?', clean, targetFamily, new Date().toISOString(), id));
+    if (!result.changes) throw new Error('Match no longer exists.');
+  }
+  async deleteMatch(id: string) {
+    await this.serializeWrite(() => this.transaction(async () => {
+      await this.loadMatch(id);
+      await this.db.runAsync('DELETE FROM stages WHERE matchId = ?', id);
+      await this.db.runAsync('DELETE FROM matches WHERE id = ?', id);
+    }));
+  }
+  async duplicateMatch(id: string): Promise<string> {
+    return this.serializeWrite(() => this.transaction(async () => {
+      const match = await this.loadMatch(id), copyId = this.newId(), now = new Date().toISOString();
+      await this.db.runAsync('INSERT INTO matches (id, name, targetFamily, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', copyId, match.name.slice(0, 93) + ' (copy)', match.targetFamily, now, now);
+      const stages = await this.db.getAllAsync<StageRow>('SELECT * FROM stages WHERE matchId = ? ORDER BY id', id);
+      for (const stage of stages) await this.db.runAsync('INSERT INTO stages (id, matchId, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?, ?)', this.newId(), copyId, stage.name, now, now, stage.payload);
+      return copyId;
+    }));
+  }
+  listStages(matchId?: string) {
+    return matchId === undefined
+      ? this.db.getAllAsync<StageSummary>('SELECT id, matchId, name, createdAt, updatedAt FROM stages ORDER BY updatedAt DESC, id')
+      : this.db.getAllAsync<StageSummary>('SELECT id, matchId, name, createdAt, updatedAt FROM stages WHERE matchId = ? ORDER BY updatedAt DESC, id', matchId);
+  }
   async loadStage(id: string): Promise<SavedStage> {
     const row = await this.db.getFirstAsync<StageRow>('SELECT * FROM stages WHERE id = ?', id);
     if (!row) throw new Error('Stage no longer exists.');
@@ -63,6 +140,7 @@ export class Repository {
         || !o.position || o.position.space !== 'stage' || ![o.position.x, o.position.y, o.position.z, o.rotation].every(Number.isFinite)
         || !o.geometry || !Object.values(o.geometry).every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0)
         || !['start', 'wall', 'faultLine', 'cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper'].includes(o.type)
+        || ('targetFamily' in o && o.targetFamily !== undefined && !isTargetFamily(o.targetFamily))
         || !geometryFields[o.type].every(k => Object.hasOwn(o.geometry, k))
         || o.type === 'wall' && (!Array.isArray(o.ports) || o.ports.some(p => !p || ![p.offset, p.width, p.height, p.sill].every(Number.isFinite)))
         || (o.type === 'cardboardTarget' || o.type === 'noShootTarget') && (!o.faceCut || !['full', 'upper', 'lower', 'left', 'right'].includes(o.faceCut.preset)))
@@ -76,9 +154,13 @@ export class Repository {
     if (plan.route !== undefined && !isStageRoute(plan.route)) throw new Error('Invalid route data.');
     return JSON.stringify({ version: 1, document, plan });
   }
-  async createStage(name: string, document: StageDocument, plan: StagePlan): Promise<string> {
+  async createStage(name: string, document: StageDocument, plan: StagePlan, matchId: string): Promise<string> {
     const id = this.newId(), now = new Date().toISOString();
-    await this.serializeWrite(() => this.db.runAsync('INSERT INTO stages (id, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?)', id, nameOf(name), now, now, this.payload(document, plan)));
+    const clean = nameOf(name), payload = this.payload(document, plan);
+    await this.serializeWrite(async () => {
+      await this.loadMatch(matchId);
+      await this.db.runAsync('INSERT INTO stages (id, matchId, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?, ?)', id, matchId, clean, now, now, payload);
+    });
     return id;
   }
   async saveStage(id: string, name: string, document: StageDocument, plan: StagePlan) {
@@ -91,7 +173,7 @@ export class Repository {
   }
   async duplicateStage(id: string) {
     const stage = await this.loadStage(id);
-    return this.createStage(stage.name.slice(0, 93) + ' (copy)', stage.document, stage.plan);
+    return this.createStage(stage.name.slice(0, 93) + ' (copy)', stage.document, stage.plan, stage.matchId);
   }
   async deleteStage(id: string) { await this.serializeWrite(() => this.db.runAsync('DELETE FROM stages WHERE id = ?', id)); }
   async listTraining(userId: string) {

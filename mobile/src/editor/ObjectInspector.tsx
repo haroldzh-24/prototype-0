@@ -7,7 +7,7 @@ import Text from '@/editor/FieldText';
 import { objectLabel } from '@/stage/model';
 import type { StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
-import { formatLength, parseLength } from '@/stage/measurements';
+import { formatYards, parseYards } from '@/stage/measurements';
 
 import { inspectorValues, inspectorFields, parseInspectorEdit } from './inspectorFields';
 
@@ -26,7 +26,8 @@ export default function ObjectInspector({ item, disabled, onApply }: {
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>Edit {objectLabel(item.type)}</Text>
-    <Text>Lengths: enter inches, or feet/inches such as 5' 6". Fractions such as 6 1/2 are supported.</Text>
+    {'targetFamily' in item && item.targetFamily && <Text>Target family: {item.targetFamily}</Text>}
+    <Text>Lengths are in yards. Decimals and fractions are supported.</Text>
     <Text>Typed X/Y values are exact, subject to bounds. Rotation uses the current snap setting.</Text>
     {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View>
       <Text>Physical face cut (material removed, not hidden)</Text>
@@ -39,13 +40,13 @@ export default function ObjectInspector({ item, disabled, onApply }: {
       </Pressable>)}</View>
     </View>}
     <View style={styles.fields}>{fields.map(({ key, label }) => {
-      const parsed = key === 'rotation' ? null : parseLength(draft[key]);
+      const parsed = key === 'rotation' ? null : parseYards(draft[key]);
       return <View style={styles.field} key={key}>
-        <Text>{label}{key === 'rotation' ? '' : ' (in)'}</Text>
+        <Text>{label}{key === 'rotation' ? '' : ' (yards)'}</Text>
         <TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]}
           autoCorrect={false} autoCapitalize="none" style={styles.input}
           onChangeText={(text) => { setDraft((current) => ({ ...current, [key]: text })); setNotice(''); }} />
-        {parsed !== null && <Text style={styles.hint}>{formatLength(parsed)}</Text>}
+        {parsed !== null && <Text style={styles.hint}>{formatYards(parsed)}</Text>}
       </View>;
     })}</View>
     <Pressable accessibilityRole="button" disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>Apply changes</Text></Pressable>

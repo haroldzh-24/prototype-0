@@ -1,12 +1,12 @@
 import type { StageObject } from '../stage/model';
 import type { ObjectEdit } from '../stage/operations';
-import { parseLength } from '../stage/measurements';
+import { parseYards, yardInput } from '../stage/measurements';
 
 type Field = 'x' | 'y' | 'rotation' | 'width' | 'depth' | 'height' | 'z' | 'length' | 'thickness' | 'faceWidth' | 'faceHeight';
 export const inspectorValues = (item: StageObject): Record<Field, string> => ({
-  x: String(item.position.x), y: String(item.position.y), z: String(item.position.z),
+  x: yardInput(item.position.x), y: yardInput(item.position.y), z: yardInput(item.position.z),
   rotation: String(item.rotation), width: '', depth: '', height: '', length: '', thickness: '', faceWidth: '', faceHeight: '',
-  ...Object.fromEntries(Object.entries(item.geometry).map(([key, value]) => [key, String(value)])),
+  ...Object.fromEntries(Object.entries(item.geometry).map(([key, value]) => [key, yardInput(value)])),
 });
 export const inspectorFields = (item: StageObject): { key: Field; label: string }[] => [
     { key: 'x', label: 'X' }, { key: 'y', label: 'Y' }, { key: 'rotation', label: 'Rotation (degrees)' },
@@ -22,7 +22,7 @@ export function parseInspectorEdit(item: StageObject, draft: Record<Field, strin
     const original = inspectorValues(item);
     for (const { key, label } of inspectorFields(item)) {
       const text = draft[key].trim();
-      const value = key === 'rotation' ? (text === '' ? null : Number(text)) : parseLength(text);
+      const value = key === 'rotation' ? (text === '' ? null : Number(text)) : parseYards(text);
       if (value === null || !Number.isFinite(value)) { return { error: 'Enter a valid measurement for ' + label + '.' }; }
       if (draft[key] === original[key]) continue;
       if (key === 'rotation') edit.rotation = value;

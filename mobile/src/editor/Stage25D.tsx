@@ -12,7 +12,7 @@ export default function Stage25D({ stage, selectedId }: { stage: StageDocument; 
   const [error, setError] = useState('');
   const uri = useMemo(() => 'data:image/svg+xml;base64,' + btoa(stageSvg(stage, yaw, zoom, selectedId)), [stage, yaw, zoom, selectedId]);
   return <View style={{ flex: 1, gap: 8, padding: 8 }}>
-    <Text>2.5D preview — switch to Top Down to edit. Ground grid: 5 feet. Blue outlines mark the selected object.</Text>
+    <Text>2.5D preview — switch to Top Down to edit. Ground grid: approximately 1.667 yards (coarser for large stages). Blue outlines mark the selected object.</Text>
     <Image source={{ uri }} style={{ width: '100%', flex: 1, minHeight: 80, backgroundColor: colors.panel }} contentFit="contain"
       cachePolicy="none" transition={0} accessibilityLabel="Read-only projected stage visualization"
       onError={() => setError('The 2.5D preview could not be displayed on this device. Top Down remains available.')}

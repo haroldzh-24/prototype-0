@@ -1,11 +1,11 @@
 import { colors } from '../ui/tokens';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Platform, StyleSheet, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 import { advanceViewport, sampleTouches } from './viewportGestures';
 import type { TouchSample } from './viewportGestures';
 import { createViewportTransform } from '@/stage/coordinates';
-import type { ViewportState } from '@/stage/coordinates';
+import type { StagePosition, ViewportState } from '@/stage/coordinates';
 import type { StageDocument } from '@/stage/model';
 import type { SnapSettings, SnapFeedback } from '@/stage/snapping';
 import DraggableObject from './DraggableObject';
@@ -17,6 +17,7 @@ import type { DiscoveredPosition } from '../planning/positionDiscovery';
 import type { RouteOverlayProps } from './RouteOverlay';
 
 type Props = {
+  focusPosition?: StagePosition | null;
   autoPositions?: readonly DiscoveredPosition[];
   routePlanning?: RouteOverlayProps;
   routeEditing: boolean;
@@ -38,6 +39,15 @@ export default function StageViewport(props: Props) {
   const frame = useRef<View>(null);
   const origin = useRef({ x: 0, y: 0 });
   const latest = useRef({ props, size }); latest.current = { props, size };
+  useEffect(() => {
+    if (!props.focusPosition || size.width <= 0 || size.height <= 0) return;
+    const current = latest.current.props;
+    const t = createViewportTransform(current.stage.stage, size, current.viewport);
+    current.onViewportChange({ ...current.viewport, pan: {
+      x: (current.stage.stage.width / 2 - props.focusPosition.x) * t.scale,
+      y: (current.stage.stage.depth / 2 - props.focusPosition.y) * t.scale,
+    } });
+  }, [props.focusPosition, size.width, size.height]);
   const previous = useRef<TouchSample | null>(null);
   const moving = useRef(false);
   const gestureViewport = useRef(props.viewport);

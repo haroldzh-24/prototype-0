@@ -4,6 +4,7 @@ import { validatePorts } from './ports';
 import type { FiringPort } from './model';
 import type { StagePosition } from './coordinates';
 import { createObject } from './defaults';
+import type { TargetFamily } from './targetFamily';
 import { constrainPosition, rotatedHalfExtents, footprint } from './geometry';
 import { snapRotation } from './snapping';
 import type { RotationIncrement } from './snapping';
@@ -85,9 +86,9 @@ export function rotateObject(stage: StageDocument, id: string, delta: number, in
 
 export type AddableType = Exclude<StageObject['type'], 'start'>;
 /** Generate the ID once in the event handler, outside React's replayable state updater. */
-export function addObject(stage: StageDocument, type: AddableType, id: string): StageDocument {
+export function addObject(stage: StageDocument, type: AddableType, id: string, targetFamily?: TargetFamily): StageDocument {
   if (stage.objects.some((object) => object.id === id)) throw new Error('Duplicate stage object ID: ' + id);
-  const object = createObject(type, id, stage.stage.width / 2, stage.stage.depth / 2);
+  const object = createObject(type, id, stage.stage.width / 2, stage.stage.depth / 2, targetFamily);
   object.position = constrainPosition(object, object.position, stage.stage);
   const order = { start: 0, cardboardTarget: 1, noShootTarget: 1, steelPlate: 1, steelPopper: 1, faultLine: 2, wall: 3 };
   const nextLayer = stage.objects.findIndex((entry) => order[entry.type] > order[type]);

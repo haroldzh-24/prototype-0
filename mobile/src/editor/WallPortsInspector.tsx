@@ -28,7 +28,7 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>Firing ports ({wall.ports.length})</Text>
-    <Text>Offset is the opening center from the wall center. Negative is toward the local left end. Sill is above the wall bottom. All lengths are in inches; feet/inches and fractions are supported.</Text>
+    <Text>Offset is the opening center from the wall center. Negative is toward the local left end. Sill is above the wall bottom. All lengths are in yards; decimals and fractions are supported.</Text>
     <View style={styles.row}>
       <Control title="Add Port" disabled={disabled} onPress={add} />
       <Control title="Remove Port" disabled={disabled || !selected} onPress={remove} />
@@ -53,7 +53,7 @@ function PortForm({ port, disabled, onApply, onError }: {
   useEffect(() => setDraft(portValues(port)), [port]);
   return <View style={styles.panel}>
     <View style={styles.row}>{portFields.map(({ key, label }) => <View key={key} style={styles.field}>
-      <Text>{label} (in)</Text>
+      <Text>{label} (yards)</Text>
       <TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]} autoCorrect={false} autoCapitalize="none"
         style={styles.input} onChangeText={text => { setDraft(current => ({ ...current, [key]: text })); onError(''); }} />
     </View>)}</View>

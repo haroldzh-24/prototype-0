@@ -22,7 +22,7 @@ Run npm run test:stage for pure model/geometry checks. No persistence is include
 
 ## Phase 3A precision editing
 
-The grid is derived from physical stage dimensions: 6-inch minor lines, 12-inch major lines, and labels every 5 feet. It is an editor overlay, never document data.
+The grid is derived from physical stage dimensions: 6-inch minor lines, 12-inch major lines, and yard labels at 60-inch intervals. Very large stages use coarser grid spacing to bound rendering work. It is an editor overlay, never document data.
 
 Snapping is temporary editor state. Defaults: enabled, 6-inch center-position grid, object alignment enabled with a 3-inch physical tolerance, and 15-degree rotation increments. Position increments are 12/6/3 inches. Rotation supports 15/5 degrees or free; the master switch disables both position and rotation snapping. Settings, zoom, and pan survive Reset; defaults/selection reset as before.
 
@@ -30,9 +30,9 @@ Dragging snaps the raw physical destination, never the last snapped point, so mo
 
 Bounds win over snapping. Infeasible object alignments are skipped; grid targets clamp inward if needed. Feedback only reports grid axes that remain on-grid and object alignments that are achievable. Alignment guides and the grid-snap indicator clear at drag end.
 
-The inspector accepts bare inches, decimal/fractional inches, or feet/inches such as 5 ft 6 in and 5' 6". Feet/inches hints are rounded for display only; input fields retain the full stored inch value. Apply submits only changed fields atomically. Typed X/Y positions do not grid/object snap, but share the same physical bounds function as dragging. Changed rotation follows the active rotation setting.
+The inspector displays and accepts decimal/fractional yards. Explicit inch/foot inputs remain accepted for compatibility. Yard hints and fields round for display only; unchanged fields retain their exact stored inch values. Apply submits only changed fields atomically. Typed X/Y positions do not grid/object snap, but share the same physical bounds function as dragging. Changed rotation follows the active rotation setting.
 
-Dimensions must be positive (start regions retain zero height); elevation is nonnegative. A valid resize or rotation can move the object inward. Edits whose rotated footprint cannot fit are rejected with a message; invalid edits leave the document untouched. Existing oversized-object fallback in constrainPosition is retained for future stage-size changes, which have no UI yet. Phase 3A used schema v2; the wall/fault-line increment below advances it to v3.
+Dimensions must be positive (start regions retain zero height); elevation is nonnegative. A valid resize or rotation can move the object inward. Edits whose rotated footprint cannot fit are rejected with a message; invalid edits leave the document untouched. Existing oversized-object fallback in constrainPosition applies only to explicit object edits, never to stage boundary resizing. Phase 3A used schema v2; the wall/fault-line increment below advances it to v3.
 
 ## Walls and fault-line segments
 
@@ -140,3 +140,7 @@ Capacities are positive safe integers; loaded counts are nonnegative safe intege
 Available ammunition = sum of actual magazine startingRounds + (chamberLoaded ? 1 : 0). Planned total is the sum of valid assignments; reserve is available minus planned and can be negative. A shortage warning appears when reserve is negative. Capacity is never used as an assumed ammunition count.
 
 This is aggregate planning only: no engagement order, running magazine state, reload events, route optimization, line-of-sight, reconstruction, persistence, training/video analysis or AI. The stable magazine and object IDs support later ordered events without adding them now. Device form/keyboard interaction remains unverified.
+
+## Editable stage boundary (2026-09-29)
+
+Stage Settings accepts width/depth in yards at any time while editing. Creation asks only for a name and retains the existing 480 ? 360-inch default. `resizeStage` changes only the boundary, returning the original document until an out-of-bounds reduction is confirmed. Rotated footprints, cut-face offsets and route position points determine warnings. Confirmed outside items remain persisted, selectable from Settings and available for manual correction; objects and route geometry are never scaled, deleted or moved by resizing. Internal lengths remain fractional inches (`yards * 36`); display uses `inches / 36`. No schema migration is needed.

@@ -1,5 +1,16 @@
 # Planned Features
 
+## Match hierarchy phone verification - 2026-09-29
+
+- **Status:** Planned verification. Match creation/settings/duplication/deletion, owned stage management, target-family defaults and standalone-stage migration are implemented; see changelog.md.
+- Follow [the phone checklist](mobile/docs/match-hierarchy-testing.md) on the existing installation, especially upgrade/relaunch idempotence, family changes with mixed old/new targets, cancellation and match/stage delete isolation.
+
+## Stage settings device verification - 2026-09-29
+
+- **Status:** Planned verification. Name-only stage creation, yard-based Stage Settings and boundary-only resizing are complete; see changelog.md.
+- Verify decimal keyboard entry, cancel/keep resize, selecting outside objects and shooting positions, manual correction and save/reopen on a physical device.
+- Match-level organization now connects this name-only stage creation flow; completed work is recorded in changelog.md.
+
 ## Automatic route optimizer follow-up - 2026-09-21
 
 - **Status:** Planned. Typed foundation, bounded candidate generation and Phase 3 ranking are complete; see changelog.md.

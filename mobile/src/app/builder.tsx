@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import StageBuilder from '@/editor/StageBuilder';
 import { useRepository } from '@/storage/StorageProvider';
-import type { SavedStage } from '@/storage/repository';
-import { Screen, Copy } from '@/ui/kit';
+import type { Match, SavedStage } from '@/storage/repository';
+import { Screen, Copy, Action } from '@/ui/kit';
+
 export default function BuilderRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  return <LoadedBuilder key={id ?? 'new'} id={id} />;
+  if (!id) return <Redirect href="/planner" />;
+  return <LoadedBuilder key={id} id={id} />;
 }
-function LoadedBuilder({ id }: { id?: string }) {
-  const repo = useRepository(), [saved, setSaved] = useState<SavedStage>(), [error, setError] = useState('');
-  useEffect(() => { let active = true; if (id) repo.loadStage(id).then(row => { if (active) setSaved(row); }).catch(e => { if (active) setError(String(e)); }); return () => { active = false; }; }, [id, repo]);
-  if (id && !saved) return <Screen title="STAGE BUILDER"><Copy>{error || 'Loading stage...'}</Copy></Screen>;
-  return <StageBuilder initial={saved} />;
+function LoadedBuilder({ id }: { id: string }) {
+  const repo = useRepository(), [data, setData] = useState<{ saved: SavedStage; match: Match }>(), [error, setError] = useState('');
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    repo.loadStage(id).then(async saved => ({ saved, match: await repo.loadMatch(saved.matchId) }))
+      .then(next => { if (active) { setData(next); setError(''); } }).catch(e => { if (active) setError(String(e)); });
+    return () => { active = false; };
+  }, [id, repo]));
+  if (error || !data) return <Screen title="STAGE DESIGNER"><Copy>{error || 'Loading stage...'}</Copy><Action title="Back to Matches" onPress={() => router.dismissTo('/planner')} /></Screen>;
+  return <StageBuilder initial={data.saved} targetFamily={data.match.targetFamily} />;
 }

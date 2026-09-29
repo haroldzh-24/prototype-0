@@ -1,8 +1,10 @@
 import type { StageDocument, StageObject } from './model';
+import type { TargetFamily } from './targetFamily';
 
 /** Editable physical defaults, not certified competition specifications. */
-export function createObject(type: StageObject['type'], id: string, x: number, y: number): StageObject {
-  const base = { id, position: { space: 'stage' as const, x, y, z: (type === 'cardboardTarget' || type === 'noShootTarget' || type === 'steelPlate') ? 48 : 0 }, rotation: 0 };
+export function createObject(type: StageObject['type'], id: string, x: number, y: number, targetFamily?: TargetFamily): StageObject {
+  const base = { id, position: { space: 'stage' as const, x, y, z: (type === 'cardboardTarget' || type === 'noShootTarget' || type === 'steelPlate') ? 48 : 0 }, rotation: 0,
+    ...(targetFamily && ['cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper'].includes(type) ? { targetFamily } : {}) };
   switch (type) {
     case 'cardboardTarget': return { ...base, type, faceCut: { kind: 'preset', preset: 'full' }, geometry: { faceWidth: 18, faceHeight: 30 } };
     case 'noShootTarget': return { ...base, type, faceCut: { kind: 'preset', preset: 'full' }, geometry: { faceWidth: 18, faceHeight: 30 } };
@@ -15,16 +17,16 @@ export function createObject(type: StageObject['type'], id: string, x: number, y
 }
 
 /** Fresh workspace, 40 ft x 30 ft provisionally; not a USPSA standard. */
-export function createDefaultStage(): StageDocument {
+export function createDefaultStage(targetFamily?: TargetFamily): StageDocument {
   return {
     schemaVersion: 7,
     coordinateSystem: 'inches',
     stage: { width: 480, depth: 360 },
     objects: [
       createObject('start', 'start-1', 60, 60),
-      createObject('cardboardTarget', 'target-1', 360, 60),
-      createObject('cardboardTarget', 'target-2', 384, 240),
-      createObject('cardboardTarget', 'target-3', 216, 216),
+      createObject('cardboardTarget', 'target-1', 360, 60, targetFamily),
+      createObject('cardboardTarget', 'target-2', 384, 240, targetFamily),
+      createObject('cardboardTarget', 'target-3', 216, 216, targetFamily),
       createObject('wall', 'wall-1', 120, 180),
       createObject('wall', 'wall-2', 288, 36),
       createObject('wall', 'wall-3', 336, 300),

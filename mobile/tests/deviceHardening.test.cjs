@@ -99,7 +99,7 @@ test('one damaged training record does not hide healthy legacy sessions or rewri
 test('damaged stage geometry fails before opening native canvas and retains stored data', async () => {
   const { db, repo } = database();
   try {
-    await repo.initialize(); const id = await repo.createStage('stage', createDefaultStage(), createPlan());
+    await repo.initialize(); const id = await repo.createStage('stage', createDefaultStage(), createPlan(), await repo.createMatch('Test match', 'USPSA'));
     const payload = JSON.parse(db.prepare('SELECT payload FROM stages WHERE id = ?').get(id).payload);
     payload.document.objects[0].geometry = {};
     db.prepare('UPDATE stages SET payload = ? WHERE id = ?').run(JSON.stringify(payload), id);
@@ -118,9 +118,9 @@ test('stage writes cannot be rolled back by an overlapping failed training trans
   const reached = deferred(), release = deferred();
   const { db, repo } = database(async sql => { if (sql.startsWith('INSERT INTO training')) { reached.resolve(); await release.promise; throw new Error('disk failure'); } });
   try {
-    await repo.initialize(); const failed = repo.saveTraining(record());
+    await repo.initialize(); const matchId = await repo.createMatch('Test match', 'USPSA'); const failed = repo.saveTraining(record());
     const rejection = assert.rejects(failed, /disk failure/); await reached.promise;
-    const stage = repo.createStage('survives', createDefaultStage(), createPlan());
+    const stage = repo.createStage('survives', createDefaultStage(), createPlan(), matchId);
     release.resolve(); await rejection; const id = await stage;
     assert.equal((await repo.loadStage(id)).name, 'survives'); assert.equal((await repo.listTraining('local')).length, 0);
   } finally { db.close(); }

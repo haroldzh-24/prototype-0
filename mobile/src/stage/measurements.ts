@@ -24,3 +24,17 @@ export function formatLength(inches: number): string {
   const remainder = Math.round((rounded - feet * 12) * 1000) / 1000;
   return (inches < 0 ? '-' : '') + feet + ' ft ' + remainder + ' in';
 }
+
+export const yardsToInches = (yards: number): number => yards * 36;
+export const inchesToYards = (inches: number): number => inches / 36;
+/** Display rounding never changes stored geometry. */
+export const yardInput = (inches: number): string => String(Number(inchesToYards(inches).toFixed(6)));
+export const formatYards = (inches: number): string => `${Number(inchesToYards(inches).toFixed(3))} yd`;
+/** Bare decimals/fractions are yards; explicit legacy units remain accepted. */
+export function parseYards(text: string): number | null {
+  if (/["']|\b(?:ft|feet|foot|in|inch|inches)\b/i.test(text)) return parseLength(text);
+  const yards = parseLength(text.trim().replace(/\s*(?:yards?|yd)\s*$/i, ''));
+  if (yards === null) return null;
+  const inches = yardsToInches(yards);
+  return Number.isFinite(inches) ? inches : null;
+}
