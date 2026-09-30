@@ -1,8 +1,14 @@
+# Moving engagements follow-up - 2026-09-29
+
+- Moving/stationary engagement planning, explicit stage-brief legality, ordered arrows, analysis and persistence are implemented; see changelog.md. Complete the [phone/browser checklist](mobile/docs/moving-engagements.md) for circle/arrow legibility, pan/pinch, waypoint edits, order rejection and save/reopen.
+- Future modeling: performance-backed moving-versus-stationary timing, reload/firing scheduling within one segment, body/vertical port clearance, and direct firing-area/cover authoring tied to drawn fault lines. Current firing polygons and IDPA cover/exposure areas are explicit inputs; moving-fire timing is intentionally unavailable.
+- No dated unresolved item exceeds one month as of 2026-09-29; undated legacy ideas cannot be aged reliably.
+
 # Stage Designer presets/tools follow-up - 2026-09-29
 
 - Implementation is complete; see changelog.md. Perform the [phone checklist](mobile/docs/designer-tools-testing.md), especially pinch handoff, small-target selection, rotation wheel, endpoint handles and save/relaunch. Browser touch emulation does not establish native-device behavior.
 - Obtain dimensioned paper/popper outline drawings and reconcile vendor-size differences recorded in [target sources](docs/target-preset-sources.md). Current paper/popper shapes remain explicitly approximate.
-- Photo import, OCR, image reconstruction and new AI route work remain deferred.
+- Photo import, OCR and image reconstruction remain deferred. Deterministic moving-engagement route work is recorded above and in changelog.md.
 - No dated unresolved item is older than one month as of 2026-09-29. Undated older ideas cannot be aged reliably.
 
 # Planned Features

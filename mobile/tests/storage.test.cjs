@@ -36,6 +36,30 @@ function fixture() {
   return { document, plan };
 }
 
+test('moving engagements, saved order and stage-brief rules survive SQLite close/reopen', async () => {
+  const { defaultEngagementRules, suggestEngagements, analyzeEngagements, reorderEngagement } = require('../src/planning/engagements.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moving-engagements-')), file = path.join(dir, 'test.db');
+  let connection = open(file);
+  try {
+    await connection.repo.initialize();
+    const document = createDefaultStage(), plan = createPlan();
+    document.objects = [createObject('start', 'start', 40, 300), createObject('cardboardTarget', 't1', 200, 80), createObject('cardboardTarget', 't2', 220, 80)];
+    plan.route = createRoute('route');
+    plan.route.positions = [{ id: 'end', label: 'End', position: { space: 'stage', x: 350, y: 300, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }];
+    plan.route.engagementRules = { ...defaultEngagementRules(), firingAreas: [{ id: 'area', vertices: [{ x: 0, y: 0 }, { x: 480, y: 0 }, { x: 480, y: 360 }, { x: 0, y: 360 }] }] };
+    plan.route = suggestEngagements(document, plan.route);
+    plan.route = reorderEngagement(document, plan.route, 'end', plan.route.positions[0].engagedTargetIds[0], 1).route;
+    const before = analyzeEngagements(document, plan.route);
+    const id = await connection.repo.createStage('Moving airsoft route', document, plan, await connection.repo.createMatch('Airsoft match', 'USPSA'));
+    connection.db.close(); connection = open(file); await connection.repo.initialize();
+    const loaded = await connection.repo.loadStage(id);
+    assert.deepEqual(loaded.plan.route, plan.route); assert.deepEqual(loaded.document, document);
+    assert.deepEqual(analyzeEngagements(loaded.document, loaded.plan.route), before);
+    assert.equal(before.complete, true); assert.equal(before.nodes[0].kind, 'moving');
+    assert.equal(Object.hasOwn(loaded.plan.route, 'windows'), false);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
+});
+
 test('fractional stage resize and outside objects/positions survive save and database reopen', async () => {
   const { resizeStage } = require('../src/stage/resize.ts');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-resize-'));

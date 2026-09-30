@@ -4,6 +4,7 @@ import type { PlannerCandidate, PlannerContext, PlannerWarning, RoutePlannerConf
 import { evaluateRoute } from './route';
 import type { RouteEvaluation, ShootingPosition, StageRoute } from './route';
 import { shootingDifficulty } from './shootingDifficulty';
+import { analyzeEngagements, suggestEngagements } from './engagements';
 
 /** Hard ceilings; callers may lower them for a smaller search, never raise them. */
 export const PLANNER_SEARCH_LIMITS = Object.freeze({
@@ -90,6 +91,47 @@ export function generateCandidates(context: PlannerContext, _config: RoutePlanne
   }
   if (pool.some(p => p.visibleTargetIds.some(id => !targetIds.has(id))))
     warn('INVALID_VISIBILITY', 'Ignored visibility references to missing or non-scoring targets.');
+  if (plan.route?.engagementRules) {
+    // Evaluate path prefixes directly: coverage can occur between waypoints, even
+    // when neither endpoint can see a target. No endpoint-visibility prefilter.
+    const points = pool.slice(0, limits.maxPositions);
+    if (pool.length > points.length) limited();
+    const seen = new Set<string>();
+    const tryGeometry = (input: StageRoute): boolean => {
+      if (search.evaluations >= Math.min(256, limits.maxEvaluations)) { limited(); return false; }
+      const key = JSON.stringify([input.positions.map(p => p.id), input.reloads]);
+      if (seen.has(key)) return false; seen.add(key); search.evaluations++;
+      const route = suggestEngagements(stage, input), analysis = analyzeEngagements(stage, route);
+      if (analysis.truncated) limited();
+      if (!analysis.complete) return false;
+      const evaluation = evaluateRoute(stage, plan, route, profile), failure = evaluation.ammo.findIndex(a => !a.sufficient);
+      if (failure >= 0) {
+        const used = new Set([plan.loadout.startingMagazineId, ...route.reloads.map(r => r.magazineId)]);
+        for (let i = failure; i >= 0; i--) for (const magazine of magazines) {
+          if (used.has(magazine.id) || !magazine.startingRounds || route.reloads.some(r => r.positionId === route.positions[i].id)) continue;
+          tryGeometry({ ...input, reloads: [...route.reloads, { positionId: route.positions[i].id, magazineId: magazine.id, mode: 'stationary' }] });
+        }
+        return false;
+      }
+      const id = `planner-${candidates.length + 1}`;
+      candidates.push({ id, route: { ...route, id }, evaluation, metrics: { estimatedTime: evaluation.timing?.total ?? null,
+        movementDistance: evaluation.distance, shootingDifficultyTotal: 0, positionsUsed: analysis.nodes.filter(n => n.kind === 'stationary').length,
+        reloadCount: evaluation.magazineChanges }, warnings: evaluation.warnings.map(message => ({ code: 'ROUTE_EVALUATION', message, candidateId: id })) });
+      return true;
+    };
+    // Breadth first prevents a long first permutation from starving short paths.
+    const queue: ShootingPosition[][] = points.map(p => [p]);
+    for (let index = 0; index < queue.length; index++) {
+      if (search.evaluations >= Math.min(256, limits.maxEvaluations)) { limited(); break; }
+      const ordered = queue[index]; search.orders++;
+      const complete = tryGeometry({ version: 1, id: 'pending', name: 'Airsoft geometry route', positions: ordered, reloads: [], engagementRules: plan.route.engagementRules });
+      if (!complete) for (const p of points) if (!ordered.includes(p)) {
+        if (queue.length >= 512) { limited(); break; } queue.push([...ordered, p]);
+      }
+    }
+    candidates.sort((a, b) => a.metrics.movementDistance - b.metrics.movementDistance || a.metrics.positionsUsed - b.metrics.positionsUsed);
+    return finish(candidates.length ? 'GENERATED' : 'NO_VALID_ROUTE');
+  }
   let positions: ShootingPosition[] = pool.map(p => ({ ...p, position: { ...p.position },
     visibleTargetIds: [...new Set(p.visibleTargetIds.filter(id => targetIds.has(id)))], engagedTargetIds: [],
   })).filter(p => p.visibleTargetIds.length > 0);

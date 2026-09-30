@@ -71,7 +71,7 @@ export function reconcilePlan(plan: StagePlan, stage: StageDocument): StagePlan 
   const entries = Object.entries(plan.engagements).filter(([id]) => valid.has(id));
   const staleRoute = plan.route?.positions.some(p => [...p.visibleTargetIds, ...p.engagedTargetIds].some(id => !valid.has(id)));
   if (entries.length === Object.keys(plan.engagements).length && !staleRoute) return plan;
-  return { ...plan, engagements: Object.fromEntries(entries), ...(staleRoute && plan.route ? { route: { ...plan.route, positions: plan.route.positions.map(p => ({ ...p, visibleTargetIds: p.visibleTargetIds.filter(id => valid.has(id)), engagedTargetIds: p.engagedTargetIds.filter(id => valid.has(id)) })) } } : {}) };
+  return { ...plan, engagements: Object.fromEntries(entries), ...(staleRoute && plan.route ? { route: { ...plan.route, positions: plan.route.positions.map(p => ({ ...p, ...(p.movingTargetIds ? { movingTargetIds: p.movingTargetIds.filter(id => valid.has(id)) } : {}), visibleTargetIds: p.visibleTargetIds.filter(id => valid.has(id)), engagedTargetIds: p.engagedTargetIds.filter(id => valid.has(id)) })) } } : {}) };
 }
 /** One-time atomic batch; individual assignments remain independent. */
 export function assignRoundsByType(plan: StagePlan, stage: StageDocument, type: ScoringType, rounds: number): PlanResult {

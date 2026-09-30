@@ -75,7 +75,8 @@ export function evaluateCandidate(context: PlannerContext, candidate: PlannerCan
     const target = targets.get(targetId);
     if (!target || seen.has(targetId)) continue;
     seen.add(targetId);
-    difficulty.push({ positionId: position.id, targetId, ...shootingDifficulty(position.position, target.position) });
+    const engagementPoint = evaluation.engagementAnalysis?.nodes.find(n => n.targets.some(t => t.targetId === targetId))?.position ?? position.position;
+    difficulty.push({ positionId: position.id, targetId, ...shootingDifficulty(engagementPoint, target.position) });
   }
   return { candidate, evaluation, shootingDifficulty: difficulty,
     personalized: evaluatePersonalizedRoute(context, candidate, difficulty),

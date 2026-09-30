@@ -10,6 +10,7 @@ import type { StagePlan } from './model';
 import { toggleRouteTarget, evaluateRoute, reorderPosition } from './route';
 import type { TargetAssignmentMode, StageRoute } from './route';
 import { formatYards } from '../stage/measurements';
+import EngagementPanel from './EngagementPanel';
 
 type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section?: 'summary' | 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; profile: ShooterPerformanceProfile | null; selectedId: string | null; select: (id: string) => void; onChange: (route: StageRoute) => void };
 export default function RoutePanel({ stage, plan, route, profile, selectedId, select, onChange, onAssign, section = 'summary' }: Props) {
@@ -22,10 +23,11 @@ export default function RoutePanel({ stage, plan, route, profile, selectedId, se
   const updateSelected = (change: Partial<NonNullable<typeof selected>>) => onChange({ ...route, positions: route.positions.map(p => p.id === selectedId ? { ...p, ...change } : p) });
   return <Panel>
     {section === 'summary' && <>
+    <EngagementPanel stage={stage} route={route} onChange={onChange} />
     <View style={ui.statGroup}>
       <Stat value={result.timing ? result.timing.total.toFixed(2) : '--'} unit="s" label={result.warnings.length ? 'Provisional time' : 'Est. time'} />
       <Stat value={result.startingRounds} label="Starting rounds" />
-      <Stat value={route.positions.length} label="Positions" />
+      <Stat value={route.positions.length} label="Route waypoints" />
     </View>
     <TextInput accessibilityLabel="Route name" style={ui.input} value={route.name} maxLength={100} onChangeText={name => onChange({ ...route, name })} />
     <Copy>START → {route.positions.map(p => p.label).join(' → ') || 'Add a position'}</Copy>
@@ -81,7 +83,7 @@ export default function RoutePanel({ stage, plan, route, profile, selectedId, se
       <DataRow label="Transitions" value={result.timing.transitions.toFixed(2) + ' s'} />
       <DataRow label="Reloads" value={result.timing.reloads.toFixed(2) + ' s'} />
     </>}
-    <Copy>Estimates use your saved shooter profile. Straight-line movement does not validate walls or fault lines. Reloads occur before engagement; discarded magazines cannot be reused. Timing adds movement and reload time, with no overlap or automatic visibility calculation.</Copy>
+    <Copy>{route.engagementRules ? 'Engagement legality uses configured stage-brief areas, safe angles and projected walls. Moving-fire timing is unavailable. Reload segments use stationary engagements.' : 'Legacy manual route: visibility is user assigned; walls, safe angles and fault lines are unverified. Configure engagement analysis above to check them.'} Reload timing overlaps incoming movement unless stationary.</Copy>
     </>}
   </Panel>;
 }

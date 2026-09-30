@@ -1,3 +1,10 @@
+# Moving engagement verification - 2026-09-29
+
+- Fixed endpoint-only target coverage, implied stops at every engagement, missing legal-area/safe-angle inputs and missing ordered engagement arrows; completed implementation is recorded in changelog.md.
+- Final review corrected stationary prerequisite ordering and deferral to later moving windows, and made configured planner counts/ranking distinguish stops from waypoints. TypeScript passed; full-suite verification passed 523 tests, then 87 relevant tests passed after final changes (including two additional regressions).
+- Native/browser engagement rendering and gestures remain unverified; use [the checklist](mobile/docs/moving-engagements.md). Firing polygons are explicit stage-brief inputs and must be kept aligned with edited fault-line marks. Projected ports, point movement and conservative reload-segment handling are documented model limits.
+- No dated unresolved bugs or features exceed one month as of 2026-09-29. Undated legacy reports cannot be aged reliably; the existing browser storage teardown investigation remains open.
+
 # Stage Designer verification - 2026-09-29
 
 - Fixed oversized target symbols, center-only segment placement and missing document undo through this phase; completed changes are recorded in changelog.md.

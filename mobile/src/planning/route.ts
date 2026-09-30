@@ -3,15 +3,20 @@ import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
 import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
+import { analyzeEngagements, validEngagementRules } from './engagements';
+import type { EngagementRules, EngagementAnalysis } from './engagements';
 
 export type ShootingPosition = {
   id: string; label: string; position: StagePosition;
   visibleTargetIds: string[]; engagedTargetIds: string[];
+  /** Engagements on the incoming segment; these do not add route waypoints. */
+  movingTargetIds?: string[];
 };
 /** Array order is route order. Reloads finish before destination engagement.
  * By default they overlap the incoming segment; stationary explicitly opts out. */
 export type StageRoute = {
   version: 1; id: string; name: string; positions: ShootingPosition[];
+  engagementRules?: EngagementRules;
   reloads: { positionId: string; magazineId: string; mode?: 'moving' | 'stationary' }[];
 };
 export type MovementSegment = { fromId: string; toId: string; distance: number; seconds: number | null };
@@ -22,6 +27,7 @@ export type ReloadTiming = {
 };
 export type PositionTiming = { positionId: string; plannedRounds: number; targetCount: number; engagementSeconds: number };
 export type RouteEvaluation = {
+  engagementAnalysis?: EngagementAnalysis;
   segments: MovementSegment[]; distance: number; startingRounds: number; ammo: AmmoState[];
   magazineChanges: number; warnings: string[];
   timing: { movement: number; draw: number; splits: number; transitions: number;
@@ -35,8 +41,9 @@ export function isStageRoute(value: unknown): value is StageRoute {
   if (!value || typeof value !== 'object') return false;
   const r = value as StageRoute;
   const ids = (values: unknown): values is string[] => Array.isArray(values) && values.every(id => typeof id === 'string') && new Set(values).size === values.length;
-  return r.version === 1 && typeof r.id === 'string' && !!r.id && typeof r.name === 'string' && Array.isArray(r.positions) &&
+  return (r.engagementRules === undefined || validEngagementRules(r.engagementRules)) && r.version === 1 && typeof r.id === 'string' && !!r.id && typeof r.name === 'string' && Array.isArray(r.positions) &&
     r.positions.every(p => p && typeof p.id === 'string' && !!p.id && typeof p.label === 'string' && p.position?.space === 'stage' && p.position.z === 0 && [p.position.x, p.position.y].every(Number.isFinite) && ids(p.visibleTargetIds) && ids(p.engagedTargetIds)) &&
+    r.positions.every(p => p.movingTargetIds === undefined || (ids(p.movingTargetIds) && (!p.movingTargetIds.length || !!r.engagementRules) && p.movingTargetIds.every(id => p.engagedTargetIds.includes(id)))) &&
     new Set(r.positions.map(p => p.id)).size === r.positions.length && Array.isArray(r.reloads) && r.reloads.every(r => r && typeof r.positionId === 'string' && typeof r.magazineId === 'string' && (r.mode === undefined || r.mode === 'moving' || r.mode === 'stationary'));
 }
 export function movePosition(route: StageRoute, id: string, position: StagePosition, size: StageSize): StageRoute {
@@ -53,6 +60,7 @@ export function reorderPosition(route: StageRoute, id: string, direction: -1 | 1
 export function engageAt(route: StageRoute, positionId: string, targetId: string): StageRoute {
   if (!route.positions.some(p => p.id === positionId)) return route;
   return { ...route, positions: route.positions.map(p => ({ ...p,
+    ...(p.movingTargetIds ? { movingTargetIds: p.movingTargetIds.filter(id => id !== targetId) } : {}),
     visibleTargetIds: p.id === positionId ? [...new Set([...p.visibleTargetIds, targetId])] : p.visibleTargetIds,
     engagedTargetIds: [...p.engagedTargetIds.filter(id => id !== targetId), ...(p.id === positionId ? [targetId] : [])],
   })) };
@@ -65,6 +73,7 @@ export function toggleRouteTarget(route: StageRoute, stage: StageDocument, posit
   if (mode === 'engaged' && !selected.engagedTargetIds.includes(targetId)) return engageAt(route, positionId, targetId);
   return { ...route, positions: route.positions.map(p => p.id !== positionId ? p : {
     ...p,
+    ...(p.movingTargetIds ? { movingTargetIds: p.movingTargetIds.filter(id => id !== targetId) } : {}),
     visibleTargetIds: mode === 'visible' ? (p.visibleTargetIds.includes(targetId) ? p.visibleTargetIds.filter(id => id !== targetId) : [...p.visibleTargetIds, targetId]) : p.visibleTargetIds,
     engagedTargetIds: p.engagedTargetIds.filter(id => id !== targetId),
   }) };
@@ -143,12 +152,16 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   }
   for (const id of targets.keys()) if (!engaged.has(id)) warnings.push(`${targetLabel(stage, id)} has no route engagement.`);
   const distance = segments.reduce((n, s) => n + s.distance, 0);
-  const timing = validProfile ? { movement: distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
+  const engagementAnalysis = route.engagementRules ? analyzeEngagements(stage, route) : undefined;
+  if (engagementAnalysis) warnings.push(...engagementAnalysis.warnings);
+  const moving = route.positions.some(p => p.movingTargetIds?.length);
+  if (moving) warnings.push('Moving engagement is geometry-only; performance timing is unavailable until movement/firing overlap is calibrated.');
+  const timing = validProfile && !moving ? { movement: distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
     splits: splits * profile.averageSplitTime, transitions: transitions * profile.transitionTime,
     reloads: reloadDetails.reduce((sum, r) => sum + r.additionalPenalty, 0),
     rawReloadDuration: reloadDetails.reduce((sum, r) => sum + r.rawDuration, 0),
     reloadMovementAvailable: reloadDetails.reduce((sum, r) => sum + r.availableMovement, 0),
     reloadOverlap: reloadDetails.reduce((sum, r) => sum + r.overlap, 0), reloadDetails, positionDetails, total: 0 } : null;
   if (timing) timing.total = timing.movement + timing.draw + timing.splits + timing.transitions + timing.reloads;
-  return { segments, distance, startingRounds, ammo, magazineChanges, warnings, timing };
+  return { segments, distance, startingRounds, ammo, magazineChanges, warnings, timing, ...(engagementAnalysis ? { engagementAnalysis } : {}) };
 }

@@ -90,8 +90,10 @@ export default function AutoPlannerPanel({ stage, plan, profile, onUse, preview,
     {prepared.warnings.filter(w => !w.startsWith('Coarse discovery') && !w.startsWith('Bounds and wall') && !w.startsWith('Port horizontal')).map((warning, i) => <Copy key={i}>{warning}</Copy>)}
     <DataRow label="Magazines" value={plan.loadout.magazines.length} />
     <Copy>Ruleset</Copy>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>{rulesets.map(choice => <Action key={choice} title={(ruleset === choice ? 'Selected: ' : '') + rulesetMetadata(choice).label} disabled={generating} onPress={() => setRuleset(choice)} />)}</View>
-    <Copy>{rulesetMetadata(ruleset).description}</Copy>
+    {plan.route?.engagementRules ? <Copy>{plan.route.engagementRules.ruleset}: geometry-first engagement planning uses the firing areas, safe angles and procedures saved in Route Analysis. Movement first, then fewer stops; profile style does not add accuracy penalties.</Copy> : <>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>{rulesets.map(choice => <Action key={choice} title={(ruleset === choice ? 'Selected: ' : '') + rulesetMetadata(choice).label} disabled={generating} onPress={() => setRuleset(choice)} />)}</View>
+      <Copy>{rulesetMetadata(ruleset).description}</Copy>
+    </>}
     <Copy>Route Style</Copy>
     {(Object.keys(styles) as RouteStyle[]).map(style => <Action key={style} title={`${config.style === style ? '✓ ' : ''}${styles[style]}`} disabled={generating} onPress={() => setConfig({ ...config, style })} />)}
     {config.style === 'PERSONALIZED' && <>

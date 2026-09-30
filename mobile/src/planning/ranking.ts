@@ -88,7 +88,7 @@ export function deriveRankingMetrics(context: PlannerContext, candidate: Planner
   return {
     estimatedTotalTime: evaluation.timing?.total ?? null, movementDistance: evaluation.distance,
     totalShootingDifficulty: total, averageShootingDifficulty: scores.length ? total / scores.length : 0,
-    maximumSingleTargetDifficulty: Math.max(0, ...scores), positionsUsed: route.positions.length,
+    maximumSingleTargetDifficulty: Math.max(0, ...scores), positionsUsed: evaluation.engagementAnalysis?.nodes.filter(n => n.kind === 'stationary').length ?? route.positions.length,
     reloadCount: evaluation.magazineChanges, roundsRemaining: ammo.at(-1)?.remaining ?? evaluation.startingRounds,
     ammoMargin: ammo.length ? Math.min(...ammo.map(a => a.remaining)) : evaluation.startingRounds,
     minimumArrivalRounds: arrivals.length ? Math.min(...arrivals) : evaluation.startingRounds,
@@ -134,6 +134,7 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
     warnings.push(warning); common.push(warning);
   }
   for (const candidate of candidates) {
+    if (candidate.candidate.route.engagementRules && !candidate.evaluation.engagementAnalysis?.complete) continue;
     if (!override && candidate.evaluation.ammo.some(a => !a.sufficient)) continue;
     const estimate = personalized ? candidate.personalized : undefined;
     const m: RankingMetrics = estimate ? { ...candidate.metrics,
@@ -173,8 +174,16 @@ export function rankCandidates(candidates: readonly EvaluatedPlannerCandidate[],
     ranked.push({ candidate, originalCandidate: candidate.candidate, score, rank: 0, routeStyle: config.style,
       effectiveStyle, metrics: m, reasons: override ? [{ code: 'CUSTOM_POLICY', message: 'Caller-supplied ranking policy', contribution: score }] : reasons,
       warnings: [...candidateWarnings(candidate), ...common] });
+    if (candidate.candidate.route.engagementRules) {
+      const item = ranked[ranked.length - 1];
+      ranked[ranked.length - 1] = { ...item, reasons: [{ code: 'GEOMETRY_FIRST', message: 'Complete legal coverage, then minimum movement, then fewest stationary engagements. No accuracy penalty.', contribution: 0 }] };
+    }
   }
-  ranked.sort((a, b) => a.score - b.score);
+  ranked.sort((a, b) => a.originalCandidate.route.engagementRules && b.originalCandidate.route.engagementRules
+    ? a.metrics.movementDistance - b.metrics.movementDistance
+      || (a.candidate.evaluation.engagementAnalysis?.nodes.filter(n => n.kind === 'stationary').length ?? 0) - (b.candidate.evaluation.engagementAnalysis?.nodes.filter(n => n.kind === 'stationary').length ?? 0)
+      || a.originalCandidate.id.localeCompare(b.originalCandidate.id)
+    : a.score - b.score);
   const selected: RankedPlannerCandidate[] = [];
   for (const result of ranked) {
     if (selected.length >= limit) break;

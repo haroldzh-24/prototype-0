@@ -16,6 +16,7 @@ export function mapPlannerResults(result: PlannerResult, sources: Record<string,
     id: item.originalCandidate.id, route: item.originalCandidate.route,
     estimatedTime: item.metrics.estimatedTotalTime, movementDistance: item.metrics.movementDistance,
     positions: item.metrics.positionsUsed, reloads: item.metrics.reloadCount,
+    movingSegments: item.candidate.evaluation.engagementAnalysis ? new Set(item.candidate.evaluation.engagementAnalysis.nodes.filter(n => n.kind === 'moving').map(n => n.waypointId)).size : null,
     roundsRemaining: item.metrics.roundsRemaining, routeStyle: item.effectiveStyle,
     personalization: item.effectiveStyle === 'PERSONALIZED' && item.candidate.personalized ? {
       confidence: item.candidate.personalized.confidence,
@@ -82,7 +83,9 @@ export function plannerPreviewRoute(plan: StagePlan, candidate: PlannerCard | nu
 export function copyPlannerRoute(plan: StagePlan, route: StageRoute, confirmed = false): StagePlan | null {
   if (plan.route && !confirmed) return null;
   return { ...plan, route: { ...route,
+    ...(route.engagementRules ? { engagementRules: JSON.parse(JSON.stringify(route.engagementRules)) } : {}),
     positions: route.positions.map(p => ({ ...p, position: { ...p.position },
+      ...(p.movingTargetIds ? { movingTargetIds: [...p.movingTargetIds] } : {}),
       visibleTargetIds: [...p.visibleTargetIds], engagedTargetIds: [...p.engagedTargetIds] })),
     reloads: route.reloads.map(reload => ({ ...reload })),
   } };

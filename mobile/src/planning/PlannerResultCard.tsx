@@ -11,11 +11,12 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
   const { why, details } = expansion;
   return <View style={{ gap: 6, borderTopWidth: 1, borderColor: colors.border, paddingVertical: 12 }}>
     <Text style={[ui.actionText, { color: colors.accent }]}>Candidate {index + 1}{index === 0 ? ' · Best Evaluated' : ''}</Text>
-    <Text style={ui.actionText}>{styleLabel}</Text>
+    <Text style={ui.actionText}>{card.route.engagementRules ? 'Airsoft / Geometry first' : styleLabel}</Text>
     <Copy>{card.label} · Compared with displayed candidates</Copy>
     <Text style={ui.statValue}>{card.estimatedTime === null ? 'Time unavailable' : `${card.estimatedTime.toFixed(2)} s`}</Text>
     <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} positions · ${card.reloads} reloads`}</Copy>
     <Copy>{card.comparison}</Copy>
+    {card.movingSegments !== null && <Copy>{card.positions} stationary positions / {card.movingSegments} moving engagement segments / {card.route.positions.length} route waypoints</Copy>}
     <Copy>Used {card.sourceCounts.auto} automatically discovered positions / {card.sourceCounts.manual} manual positions</Copy>
     {card.personalization && <><Copy>Personalized confidence: {card.personalization.confidence}</Copy><Copy>Using: {card.personalization.using.join(', ') || 'Generic factors for this route'}</Copy><Copy>Fallback: {card.personalization.fallback.join(', ') || 'None within recorded range'}</Copy></>}
     {card.personalizedFallback && <Copy>Personalized fell back to Balanced.</Copy>}

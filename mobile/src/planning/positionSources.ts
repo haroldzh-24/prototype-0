@@ -51,14 +51,14 @@ export function preparePositionSource(context: PlannerContext, mode: PositionSou
   }
   // Mirror the existing generator's effective pool for accurate readiness only.
   const start = stage.objects.find(o => o.type === 'start')?.position;
-  const searchPositions = positions.filter(p => p.visibleTargetIds.some(id => targetIds.has(id))).slice().sort((a, b) =>
+  const searchPositions = positions.filter(p => plan.route?.engagementRules || p.visibleTargetIds.some(id => targetIds.has(id))).slice().sort((a, b) =>
     new Set(b.visibleTargetIds.filter(id => targetIds.has(id))).size - new Set(a.visibleTargetIds.filter(id => targetIds.has(id))).size
     || (start ? Math.hypot(a.position.x - start.x, a.position.y - start.y) - Math.hypot(b.position.x - start.x, b.position.y - start.y) : 0)).slice(0, PLANNER_SEARCH_LIMITS.maxPositions);
   const covered = coveredIds(searchPositions).size;
   if (positions.length > PLANNER_SEARCH_LIMITS.maxPositions) warnings.push('Limited search: only 12 positions can be searched. All manual positions remain in your route.');
   if (!targets.length) warnings.push('No scoring targets. Add scoring targets before generating routes.');
-  else if (covered < targets.length) warnings.push(`Incomplete coverage: selected search positions cover ${covered} / ${targets.length} scoring targets.`);
-  return { context: mode === 'MANUAL' ? context : { ...context, plan: { ...plan, route: { ...createRoute('planner-position-pool'), positions } } },
+  else if (covered < targets.length && !plan.route?.engagementRules) warnings.push(`Incomplete coverage: selected search positions cover ${covered} / ${targets.length} scoring targets.`);
+  return { context: mode === 'MANUAL' ? context : { ...context, plan: { ...plan, route: { ...createRoute('planner-position-pool'), ...(plan.route?.engagementRules ? { engagementRules: plan.route.engagementRules } : {}), positions } } },
     metadata, warnings, manualCount: manual.length, autoCount: mode === 'MANUAL' ? (result?.candidates.length ?? 0) : auto.length,
     searchCount: searchPositions.length, covered, targetCount: targets.length, discovery: result };
 }
