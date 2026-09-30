@@ -81,10 +81,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Fit'); await click('Edit');
     assert.deepEqual(await evaluate(`[document.querySelector('input[aria-label="X"]').value, document.querySelector('input[aria-label="Y"]').value]`),physical,'Pinching from an object does not move its physical coordinates');
     await click('Done');
-    for (const label of ['Cardboard', 'No-Shoot', 'Steel Plate', 'Popper', 'Wall', 'Fault Line']) {
-      await click('Add'); await waitText('ADD OBJECT'); await click('Add ' + label);
+    for (const label of ['USPSA Metric (CHL)', 'USPSA 8-inch round plate', 'Mini Pepper Popper (Blue Steel)']) {
+      await click('Add Target'); await click(label);
+      const c = await rect('stage-canvas'), point = center(c);
+      await touch('touchStart',[point]); await touch('touchEnd',[]); await click('Done');
     }
-    await click('Add'); await click('Select Start Position');
+    for (const mode of ['Draw Wall','Draw Fault Line']) {
+      await click(mode); const c = await rect('stage-canvas');
+      const a = { x:c.x+c.width*.3,y:c.y+c.height*.5 }, b = { x:c.x+c.width*.6,y:a.y };
+      await touch('touchStart',[a]); await touch('touchMove',[b]); await touch('touchEnd',[]); await click('Done');
+    }
+    await click('Add Target'); await click('Select Start Position');
     await click('Rotate'); await click('Edit'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`), '15'); await click('Done');
     await click('View'); await click('2.5D'); await waitText('2.5D PREVIEW'); await click('View'); await click('Top Down');
     await click('Plan'); await click('ADD MAGAZINE');
@@ -106,7 +113,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await waitText(name); await click('Open ' + name);
     await waitText('STAGE EDITOR'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Stage name"]').value`), name);
     await send('Page.reload'); await waitText('STAGE EDITOR');
-    await click('Add'); await click('Select Start Position'); await click('Edit'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`), '15'); await click('Done');
+    await click('Add Target'); await click('Select Start Position'); await click('Edit'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`), '15'); await click('Done');
     await click('Plan'); await waitText('Total available'); assert.ok(await evaluate(`!!document.querySelector('[aria-label="Total available: 13"]')`)); await waitText('Starting in firearm'); await click('Done');
     const editorShot = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync('.expo/browser-editor.png', Buffer.from(editorShot.data, 'base64'));
@@ -125,6 +132,6 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const screenshot = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync('.expo/browser-home.png', Buffer.from(screenshot.data, 'base64'));
     assert.deepEqual(errors, []);
-    console.log('PASS: Phone layout, touch pan/pinch/object drag and handoff, all ADD tiles, inspectors, preview, loadout, route assignment/reload/summary, visibility controls, save/reopen, unsaved guard, stage CRUD, Training and Account.');
+    console.log('PASS: Phone layout, touch pan/pinch/object drag and handoff, target presets and drawing tools, inspectors, preview, loadout, route assignment/reload/summary, visibility controls, save/reopen, unsaved guard, stage CRUD, Training and Account.');
   } finally { socket.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

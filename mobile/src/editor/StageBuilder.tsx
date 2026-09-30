@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -45,6 +45,12 @@ import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
 import { OperationGate } from '../training/operationGate';
 import StageSettings from './StageSettings';
+import { formatLength } from '../stage/measurements';
+import { useDocumentHistory } from './useDocumentHistory';
+import { placeTarget, rotateTarget, isTarget } from '../stage/targetPlacement';
+import { targetPreset } from '../stage/targetPresets';
+import { addSegment, endpoints, isSegment, editSegmentMetrics, segmentMetrics, snapEndpoint } from '../stage/segments';
+import type { DesignerTool } from './designerTools';
 import { formatYards } from '../stage/measurements';
 import { outsideStage } from '../stage/resize';
 import type { StagePosition } from '../stage/coordinates';
@@ -54,7 +60,8 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const repo = useRepository(), navigation = useNavigation();
   const saveOperation = useRef(new OperationGate());
   useEffect(() => { saveOperation.current.activate(); return () => saveOperation.current.dispose(); }, []);
-  const [plan, setPlan] = useState(() => reconcilePlan(initial.plan, initial.document));
+  const documentHistory = useDocumentHistory(initial.document, initial.plan);
+  const { stage, plan, setStage, setPlan } = documentHistory;
   const [assignmentMode, setAssignmentMode] = useState<TargetAssignmentMode | null>(null);
   const [discoverySession, setDiscoverySession] = useState<DiscoverySession | null>(null);
   const [discoveryPreview, setDiscoveryPreview] = useState(false);
@@ -86,7 +93,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const [routeVisible, setRouteVisible] = useState(true);
   const [planSection, setPlanSection] = useState<'loadout' | 'targets' | 'summary'>('loadout');
   const [viewMode, setViewMode] = useState<'topDown' | '25d'>('topDown');
-  const [stage, setStage] = useState<StageDocument>(() => initial.document);
+
   const discovered = currentDiscovery(stage, discoverySession);
   const previewing = !!preview || discoveryPreview;
   useEffect(() => { setPreview(null); setDiscoveryPreview(false); }, [stage, plan, profile]);
@@ -126,16 +133,47 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
     if (selectedId && !selected) setSelectedId(validSelection(stage, selectedId));
   }, [selectedId, selected]);
 
+  const [tool, setTool] = useState<DesignerTool>('select');
+  const [placement, setPlacement] = useState<{ id: string; noShoot: boolean } | null>(null);
+  const [draft, setDraft] = useState<{ start: StagePosition; end: StagePosition } | null>(null);
+  const draftRef = useRef(draft);
+  const [chain, setChain] = useState<string[]>([]);
+  const [snapRule, setSnapRule] = useState('');
+  const updateDraft = (value: typeof draft) => { draftRef.current = value; setDraft(value); };
+  const switchTool = (next: DesignerTool) => { updateDraft(null); setChain([]); setTool(next); setSelectedId(null); setEditError(''); };
+  useEffect(() => { if (routeMode || previewing || viewMode !== 'topDown' || panel || showAdd) { setTool('select'); updateDraft(null); setChain([]); } }, [routeMode, previewing, viewMode, panel, showAdd]);
+  const onDragging = (value: boolean) => { if (value) documentHistory.begin(); else documentHistory.end(); setDragging(value); };
+  const draw = (phase: 'start' | 'preview' | 'commit' | 'cancel', point: StagePosition) => {
+    if (phase === 'cancel') { updateDraft(null); return; }
+    const current = draftRef.current;
+    const snapped = snapEndpoint(stage, point, current?.start ?? null, snapping); setSnapRule(snapped.rule);
+    if (!current) { if (phase === 'start') updateDraft({ start: snapped.point, end: snapped.point }); return; }
+    if (phase !== 'commit') { updateDraft({ ...current, end: snapped.point }); return; }
+    const id = uuid.v4(), result = addSegment(stage, tool === 'wall' ? 'wall' : 'faultLine', id, current.start, snapped.point);
+    setEditError(result.error ?? '');
+    if (!result.error) { setStage(result.stage); setChain(ids => [...ids,id]); updateDraft({ start: snapped.point, end: snapped.point }); }
+  };
+  const undoSegment = () => {
+    const id = chain.at(-1), object = stage.objects.find(o => o.id === id); if (!object || !isSegment(object)) return;
+    setStage({ ...stage, objects: stage.objects.filter(o => o.id !== id) }); setChain(chain.slice(0,-1));
+    const start = endpoints(object).start; updateDraft({ start, end: start });
+  };
   const act = (action: ObjectAction) => {
+    documentHistory.begin();
     const result = applyObjectAction(stage, selectedId, action, uuid.v4);
     setPlan(current => action.kind === 'reset' ? { ...current, engagements: {}, route: undefined } : reconcilePlan(current, result.stage));
     setStage(result.stage);
+    documentHistory.end();
     setSelectedId(result.selectedId);
     setEditError(result.error ?? '');
   };
   const applyEdit = (edit: ObjectEdit): string | null => {
     if (!selected) return 'Select an object first.';
-    const result = editObject(stage, selected.id, edit, snapping.enabled ? snapping.rotationIncrement : null);
+    const onlyRotation = edit.rotation !== undefined && !edit.position && !edit.geometry && !edit.ports && !edit.faceCut;
+    const segmentNumeric = isSegment(selected) && !edit.position && !edit.ports && (edit.rotation !== undefined || edit.geometry?.length !== undefined) && Object.keys(edit.geometry ?? {}).every(k => k === 'length');
+    const result = isTarget(selected) && onlyRotation ? rotateTarget(stage, selected.id, edit.rotation!)
+      : isSegment(selected) && segmentNumeric ? editSegmentMetrics(stage, selected, edit.geometry?.length ?? selected.geometry.length, edit.rotation ?? selected.rotation)
+      : editObject(stage, selected.id, edit, snapping.enabled ? snapping.rotationIncrement : null);
     if (result.error) return result.error;
     setStage(result.stage);
     setEditError('');
@@ -148,7 +186,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const zoom = (factor: number) => setViewport((current) => zoomViewport(current, current.zoom * factor, { x: 0, y: 0 }, { width: 0, height: 0 }));
 
   return <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.screen}>
-    <AddMenu visible={showAdd} targetFamily={targetFamily} close={() => setShowAdd(false)} create={(type, family) => act({ kind: 'create', type, targetFamily: family })} selectStart={() => setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null)} />
+    <AddMenu visible={showAdd} targetFamily={targetFamily} close={() => setShowAdd(false)} choose={(id, noShoot) => { setPlacement({ id, noShoot }); switchTool('target'); }} selectStart={() => { switchTool('select'); setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null); }} />
     <Modal visible={pendingExit !== null && !allowExit} transparent animationType="fade" onRequestClose={() => setPendingExit(null)}>
       <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#000b' }}><View style={ui.panel}>
         <Text style={styles.title}>{saving ? 'SAVE IN PROGRESS' : dirty ? 'UNSAVED CHANGES' : 'STAGE SAVED'}</Text>
@@ -172,15 +210,35 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
       <Text style={styles.status}>{formatYards(stage.stage.width)} × {formatYards(stage.stage.depth)}{outsideStage(stage, stage.stage, plan.route).length > 0 ? ' / ITEMS OUTSIDE' : ''}</Text>
       <Button title="Stage Settings" compact disabled={dragging} onPress={() => setPanel('settings')} />
     </View>}
+    {!previewing && !routeMode && viewMode === 'topDown' && <>
+      <ScrollView horizontal style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 4, paddingHorizontal: 8 }}>
+        <Button title="Select / Move" active={tool === 'select'} disabled={dragging} onPress={() => switchTool('select')} />
+        <Button title="Pan" active={tool === 'pan'} disabled={dragging} onPress={() => switchTool('pan')} />
+        <Button title="Add Target" active={tool === 'target'} disabled={dragging} onPress={() => setShowAdd(true)} />
+        <Button title="Draw Wall" active={tool === 'wall'} disabled={dragging} onPress={() => switchTool('wall')} />
+        <Button title="Draw Fault Line" active={tool === 'faultLine'} disabled={dragging} onPress={() => switchTool('faultLine')} />
+      </ScrollView>
+      {(tool === 'target' || tool === 'wall' || tool === 'faultLine') && <View style={{ padding: 8, gap: 4 }}>
+        <Text>{tool === 'target' ? (placement?.noShoot ? 'No-shoot / ' : '') + (targetPreset(placement?.id ?? '')?.name ?? '') + ' / Tap to place' : (tool === 'wall' ? 'Draw Wall' : 'Draw Fault Line') + ' / Tap start, drag or tap endpoint'}</Text>
+        {draft && <Text>{formatYards(segmentMetrics(draft.start,draft.end).length)} ({formatLength(segmentMetrics(draft.start,draft.end).length)}) / {segmentMetrics(draft.start,draft.end).angle.toFixed(1)}° / {snapRule}</Text>}
+        <View style={styles.controls}>
+          <Button title="Done" disabled={dragging} onPress={() => switchTool('select')} />
+          {tool !== 'target' && <><Button title="Undo last segment" disabled={dragging || !chain.length} onPress={undoSegment} /><Button title="Cancel current segment" disabled={dragging || !draft} onPress={() => updateDraft(null)} /><Button title={snapping.enabled ? 'Snap ON' : 'Snap OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} /></>}
+        </View>
+      </View>}
+    </>}
     <View style={styles.canvas}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> :
-        <StageViewport stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={gridVisible} focusPosition={focusPosition}
+        <StageViewport tool={tool} draft={draft} onDraw={draw} onPlace={point => {
+          if (!placement) return;
+          const result = placeTarget(stage,placement.id,uuid.v4(),point,placement.noShoot); setEditError(result.error ?? ''); if (!result.error) setStage(result.stage);
+        }} stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={gridVisible} focusPosition={focusPosition}
           selectedId={selectedId} snapping={snapping} routeEditing={routeMode} readOnly={previewing} autoPositions={discoveryPreview ? discovered?.candidates : undefined}
           routePlanning={discoveryPreview ? undefined : preview ? { preview: true, route: plannerPreviewRoute(plan, preview)!, selectedId: null, onSelect: () => {}, onChange: () => {}, onDragging: () => {} } : (routeMode || routeVisible) && plan.route ? { assignmentMode: routeMode ? assignmentMode : null, onTargetTap: id => {
             if (!assignmentMode || !positionId) return;
             setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
-          }, route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging: setDragging } : undefined}
-          onSelect={setSelectedId} onDragging={setDragging} setStage={setStage} />}
+          }, route: plan.route, selectedId: positionId, onSelect: setPositionId, onChange: changeRoute, onDragging } : undefined}
+          onSelect={setSelectedId} onDragging={onDragging} setStage={setStage} />}
     {!previewing && routeMode && assignmentMode && <View style={styles.context}>
       <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label} / TAP TO TOGGLE {assignmentMode.toUpperCase()} TARGETS</Text>
       <View style={styles.controls}>
@@ -189,7 +247,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title="Done" onPress={() => setAssignmentMode(null)} />
       </View>
     </View>}
-    {!previewing && selected && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
+    {!previewing && selected && tool === 'select' && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
       <View style={styles.readout}><Text style={styles.status}>{objectLabel(selected.type).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
       <View style={styles.controls}>
         <Button title="Move" disabled={dragging} onPress={() => setEditError('Drag the selected object, or use EDIT for exact X / Y.')} />
@@ -207,6 +265,10 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
       <Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} />
       <Text style={[styles.status, { flex: 1, textAlign: 'right' }]}>{previewing ? 'READ ONLY' : routeMode ? (plan.route?.positions.find(p => p.id === positionId)?.label ?? 'DRAG POSITIONS') : snapping.enabled ? 'SNAP ' + formatYards(snapping.gridIncrement) : 'FREE MOVE'}</Text>
     </View>}
+    {!previewing && <View style={styles.controls}>
+      <Button title="Undo" disabled={dragging || !documentHistory.canUndo} onPress={() => { updateDraft(null); setChain([]); documentHistory.undo(); }} />
+      <Button title="Redo" disabled={dragging || !documentHistory.canRedo} onPress={() => { updateDraft(null); setChain([]); documentHistory.redo(); }} />
+    </View>}
     {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
     <View style={styles.bottomBar}>
       {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered positions. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Candidate {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode ? <>
@@ -223,7 +285,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title="Summary" icon="summary" active={panel === 'summary'} displayTitle="Summary" disabled={dragging} onPress={() => setPanel('summary')} />
         <Button title="Exit route" icon="exit" displayTitle="Exit" disabled={dragging} onPress={() => setRouteMode(false)} />
       </> : <>
-        <Button title="Add" icon="add" displayTitle="Add" disabled={dragging || viewMode !== 'topDown'} onPress={() => setShowAdd(true)} />
+        <Button title="Add Target" icon="add" displayTitle="Target" disabled={dragging || viewMode !== 'topDown'} onPress={() => setShowAdd(true)} />
         <Button title="Edit" icon="edit" active={panel === 'edit'} displayTitle="Edit" disabled={dragging || !selected || viewMode !== 'topDown'} onPress={() => setPanel('edit')} />
         <Button title="Route" icon="route" displayTitle="Route" disabled={dragging} onPress={enterRoute} />
         <Button title="Plan" icon="plan" active={panel === 'plan'} displayTitle="Plan" disabled={dragging} onPress={() => setPanel('plan')} />

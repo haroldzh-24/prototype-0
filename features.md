@@ -1,3 +1,10 @@
+# Stage Designer presets/tools follow-up - 2026-09-29
+
+- Implementation is complete; see changelog.md. Perform the [phone checklist](mobile/docs/designer-tools-testing.md), especially pinch handoff, small-target selection, rotation wheel, endpoint handles and save/relaunch. Browser touch emulation does not establish native-device behavior.
+- Obtain dimensioned paper/popper outline drawings and reconcile vendor-size differences recorded in [target sources](docs/target-preset-sources.md). Current paper/popper shapes remain explicitly approximate.
+- Photo import, OCR, image reconstruction and new AI route work remain deferred.
+- No dated unresolved item is older than one month as of 2026-09-29. Undated older ideas cannot be aged reliably.
+
 # Planned Features
 
 ## Match hierarchy phone verification - 2026-09-29

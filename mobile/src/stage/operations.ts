@@ -1,3 +1,5 @@
+import { isSegment, derivedEndpoints } from './segments';
+import { copyOutline } from './targetShape';
 import { validFaceCut } from './targetFace';
 import type { FaceCut } from './model';
 import { validatePorts } from './ports';
@@ -72,6 +74,7 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   const bounded = constrainPosition(updated, position, stage.stage);
   if (edit.faceCut !== undefined && (Math.abs(bounded.x - position.x) > 1e-8 || Math.abs(bounded.y - position.y) > 1e-8)) return { stage, error: 'This preset does not fit at the current position. Move the target inward first.' };
   updated.position = edit.faceCut !== undefined ? position : bounded;
+  if (isSegment(updated) && updated.endpoints) updated.endpoints = derivedEndpoints(updated);
   return { stage: { ...stage, objects: stage.objects.map((object) => object.id === id ? updated : object) } };
 }
 
@@ -124,6 +127,8 @@ export function duplicateObject(stage: StageDocument, sourceId: string, id: stri
   const candidates = [[12, 12], [-12, -12], [12, -12], [-12, 12]].map(([x, y]) =>
     constrainPosition(copy, { ...copy.position, x: copy.position.x + x, y: copy.position.y + y }, stage.stage));
   copy.position = candidates.find(p => Math.hypot(p.x - source.position.x, p.y - source.position.y) > 1e-8) ?? candidates[0];
+  if (isSegment(copy) && copy.endpoints) copy.endpoints = derivedEndpoints(copy);
+  if ('outline' in copy && copy.outline) copy.outline = copyOutline(copy.outline);
   const index = stage.objects.findIndex(entry => entry.id === sourceId) + 1;
   return { stage: { ...stage, objects: [...stage.objects.slice(0, index), copy, ...stage.objects.slice(index)] } };
 }

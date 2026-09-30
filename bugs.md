@@ -1,3 +1,10 @@
+# Stage Designer verification - 2026-09-29
+
+- Fixed oversized target symbols, center-only segment placement and missing document undo through this phase; completed changes are recorded in changelog.md.
+- Browser reruns reproduced the existing web storage teardown/OPFS exclusive-handle issue before reaching the home screen. Restarting the isolated browser releases its worker handles; the previously logged investigation remains open.
+- Physical-device gesture behavior remains unverified; run [the phone checklist](mobile/docs/designer-tools-testing.md). Approximate target silhouettes and unresolved vendor dimensions are tracked in [target sources](docs/target-preset-sources.md), not represented as exact scoring geometry.
+- No dated unresolved bug is older than one month as of 2026-09-29; undated legacy reports cannot be aged reliably.
+
 # Match hierarchy verification - 2026-09-29
 
 - Fixed standalone stage organization and missing persistent match ownership; completed behavior is recorded in changelog.md. Match-family changes never rewrite placed targets. Deletion/duplication and upgrade migrations are atomic.

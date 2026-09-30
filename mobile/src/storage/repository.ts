@@ -1,3 +1,5 @@
+import { validOutline } from '../stage/targetShape';
+import { isSegment, validSavedEndpoints } from '../stage/segments';
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from '../planning/model';
 import { isStageRoute } from '../planning/route';
@@ -140,6 +142,9 @@ export class Repository {
         || !o.position || o.position.space !== 'stage' || ![o.position.x, o.position.y, o.position.z, o.rotation].every(Number.isFinite)
         || !o.geometry || !Object.values(o.geometry).every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0)
         || !['start', 'wall', 'faultLine', 'cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper'].includes(o.type)
+        || ('presetId' in o && o.presetId !== undefined && (typeof o.presetId !== 'string' || !o.presetId.trim()))
+        || ('outline' in o && o.outline !== undefined && !validOutline(o.outline))
+        || (isSegment(o) && !validSavedEndpoints(o))
         || ('targetFamily' in o && o.targetFamily !== undefined && !isTargetFamily(o.targetFamily))
         || !geometryFields[o.type].every(k => Object.hasOwn(o.geometry, k))
         || o.type === 'wall' && (!Array.isArray(o.ports) || o.ports.some(p => !p || ![p.offset, p.width, p.height, p.sill].every(Number.isFinite)))

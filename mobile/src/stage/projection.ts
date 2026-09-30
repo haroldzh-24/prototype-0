@@ -1,6 +1,7 @@
 import type { StageDocument, StageObject } from './model';
 import { footprint } from './geometry';
 import { activeFaceExtent } from './targetFace';
+import { presetFacePoints } from './presetFace';
 
 export type Point3 = { x: number; y: number; z: number };
 export type Surface = { objectId: string; points: Point3[]; color: string; ground?: boolean };
@@ -57,6 +58,7 @@ export function objectSurfaces(object: StageObject): Surface[] {
     const { width, depth } = footprint(object);
     return face([[-width/2,-depth/2,0],[width/2,-depth/2,0],[width/2,depth/2,0],[-width/2,depth/2,0]], object.type === 'start' ? '#64734d' : '#b9a663', true);
   }
+  if (object.outline) return face(presetFacePoints(object).map(([x,z]) => [x,0,z]), object.type === 'noShootTarget' ? object.targetFamily === 'PCSL' ? '#e65959' : '#dce0d5' : object.type === 'cardboardTarget' ? '#9d8255' : '#8aa4a0');
   if (object.type === 'cardboardTarget' || object.type === 'noShootTarget') {
     const f = activeFaceExtent(object);
     return face([[f.left,0,f.bottom],[f.right,0,f.bottom],[f.right,0,f.top],[f.left,0,f.top]], object.type === 'cardboardTarget' ? '#9d8255' : '#dce0d5');

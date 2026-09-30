@@ -1,3 +1,4 @@
+import { targetPreset } from '../stage/targetPresets';
 import { colors, typography } from '../ui/tokens';
 import { facePresets } from '@/stage/targetFace';
 import WallPortsInspector from './WallPortsInspector';
@@ -22,13 +23,15 @@ export default function ObjectInspector({ item, disabled, onApply }: {
     const result = parseInspectorEdit(item, draft);
     if (result.error !== undefined) { setNotice(result.error); return; }
     const error = onApply(result.edit);
-    setNotice(error ?? 'Applied. Positions adjust inward when needed to fit the stage.');
+    setNotice(error ?? 'Applied.');
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>Edit {objectLabel(item.type)}</Text>
     {'targetFamily' in item && item.targetFamily && <Text>Target family: {item.targetFamily}</Text>}
     <Text>Lengths are in yards. Decimals and fractions are supported.</Text>
-    <Text>Typed X/Y values are exact, subject to bounds. Rotation uses the current snap setting.</Text>
+    <Text>Typed X/Y values are exact, subject to bounds. Target angles are normalized to 0-360 degrees.</Text>
+    {'presetId' in item && item.presetId && <Text>Preset: {targetPreset(item.presetId)?.name ?? item.presetId}. Saved dimensions are retained; editing them creates a custom-sized instance.</Text>}
+    {(item.type === 'wall' || item.type === 'faultLine') && <Text>Length/angle-only edits keep the start endpoint fixed. Endpoint handles are available on the canvas.</Text>}
     {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View>
       <Text>Physical face cut (material removed, not hidden)</Text>
       <Text>Face width/height and position describe the full-face reference. Portion presets retain one half; upper portions begin halfway above the bottom reference.</Text>

@@ -1,3 +1,15 @@
+# Physically scaled presets and Stage Designer tools - 2026-09-29
+
+- Added 14 stable presets across USPSA, PCSL and IDPA, including multiple paper variants and explicit nominal steel sizes. Presets record inches, shape, source units, references and verification. Placed targets save their preset ID, family, dimensions and independent outline. Existing saved targets and match-family changes never trigger geometry replacement. See [sources and unresolved dimensions](docs/target-preset-sources.md).
+- Replaced fixed target badges with scaled face diagrams: both dimensions derive from inches x viewport scale; minimum touch regions remain invisible. Upright 2.5D previews use saved outlines with existing face cuts. Existing route/visibility calculations remain unchanged.
+- Added exclusive Select / Move, Pan, Add Target, Draw Wall and Draw Fault Line tools. Target choice starts repeated deliberate-tap placement. Movement, multi-touch and long presses do not place targets. Done and tool changes cancel temporary state.
+- Walls and fault lines support start/end taps or a press-and-drag preview, connected segments, Done, Undo last segment and Cancel current segment. Saved endpoints use inches, with compatible midpoint/length/rotation fields. Physical snap priority is endpoint (existing 3-inch tolerance), strong angle (within 5 degrees of a 45 degrees increment), then the configured grid. Snap can be disabled while drawing.
+- Added draggable segment endpoints and start-anchored numeric length/angle edits. Invalid, nonfinite, zero-length and out-of-stage endpoint changes reject atomically; walls retain firing-port validation. Moving/duplicating segments keeps saved endpoints synchronized.
+- Selected targets expose a rotation wheel and numeric angle input editing one normalized saved value. Wheel rotation retains the target anchor and crosses 359/0 smoothly.
+- Added bounded session document undo/redo, including planning references removed with objects. Each drag groups into one step. Target/segment placement, edits and deletions are reversible; viewport pan/zoom never enter history. New edits after undo clear redo.
+- Additive optional fields require no database migration. Legacy documents retain existing target data and derive old segment endpoints. Invalid saved outlines/endpoints reject without rewriting stored data.
+- Validation: npm.cmd run typecheck passed; npm.cmd test passed all 495 tests (32 new). A 390 x 844 browser touch check passed repeated placement, pan/pinch guards, connected walls/fault lines, tool changes, rotation, endpoint dragging/numeric segment edits, undo/redo and save/reopen. Native-device verification was not performed. [Phone testing instructions](mobile/docs/designer-tools-testing.md).
+
 # Match → Stages hierarchy - 2026-09-29
 
 - Stage Planner now opens match cards showing name, target family and stage count. Create a match with only name/family; open it to create, rename, duplicate, delete or open its stages. Match settings support renaming and USPSA/PCSL/IDPA defaults; match deletion requires confirmation and duplication includes its stages.

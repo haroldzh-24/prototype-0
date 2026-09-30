@@ -1,5 +1,8 @@
 import type { StagePosition, StageSize } from './coordinates';
 import type { TargetFamily } from './targetFamily';
+import type { TargetOutline } from './targetShape';
+export type SegmentEndpoints = Readonly<{ start: StagePosition; end: StagePosition }>;
+type TargetMetadata = { targetFamily?: TargetFamily; presetId?: string; outline?: TargetOutline };
 
 /** Local rectangular ground footprint and vertical extent, all in inches. */
 export type ObjectGeometry = Readonly<{ width: number; depth: number; height: number }>;
@@ -23,12 +26,12 @@ type ObjectBase = {
   rotation: number;
 };
 export type StageObject =
-  | (ObjectBase & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut; targetFamily?: TargetFamily })
-  | (ObjectBase & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut; targetFamily?: TargetFamily })
-  | (ObjectBase & { type: 'steelPlate'; geometry: TargetGeometry; targetFamily?: TargetFamily })
-  | (ObjectBase & { type: 'steelPopper'; geometry: TargetGeometry; targetFamily?: TargetFamily })
-  | (ObjectBase & { type: 'wall'; geometry: WallGeometry; ports: readonly FiringPort[] })
-  | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry })
+  | (ObjectBase & TargetMetadata & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut })
+  | (ObjectBase & TargetMetadata & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut })
+  | (ObjectBase & TargetMetadata & { type: 'steelPlate'; geometry: TargetGeometry })
+  | (ObjectBase & TargetMetadata & { type: 'steelPopper'; geometry: TargetGeometry })
+  | (ObjectBase & { type: 'wall'; geometry: WallGeometry; ports: readonly FiringPort[]; endpoints?: SegmentEndpoints })
+  | (ObjectBase & { type: 'faultLine'; geometry: FaultLineGeometry; endpoints?: SegmentEndpoints })
   | (ObjectBase & { type: 'start'; geometry: ObjectGeometry });
 export type StageDocument = {
   schemaVersion: 7;
