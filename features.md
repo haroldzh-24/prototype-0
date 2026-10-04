@@ -1,3 +1,9 @@
+# UI reorganization follow-up - 2026-10-04
+
+- Planned verification: exercise BUILD/ROUTE on a physical phone, including prerequisite sheets, candidate preview/adoption, layer toggles, ordered assignments, explicit Save, dirty exit and saved-stage reopen.
+- Future optional interaction: canvas-based firing polygon editing, retaining the coordinate fallback. This requires a separate focused editing feature and was deferred from this presentation pass.
+- Completed interface changes are recorded in changelog.md. No dated unresolved feature is more than one month old as of 2026-10-04; undated entries cannot be aged reliably.
+
 # Moving engagements follow-up - 2026-09-29
 
 - Moving/stationary engagement planning, explicit stage-brief legality, ordered arrows, analysis and persistence are implemented; see changelog.md. Complete the [phone/browser checklist](mobile/docs/moving-engagements.md) for circle/arrow legibility, pan/pinch, waypoint edits, order rejection and save/reopen.

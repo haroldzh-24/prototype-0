@@ -1,3 +1,10 @@
+# UI reorganization verification - 2026-10-04
+
+- Native verification remains open for small phones, large text, safe areas, keyboards, sheet dismissal, selected-node/window hit regions and gesture handoff. Use the phone checklist in the final implementation report.
+- Canvas firing-area editing remains deferred; polygon coordinates remain editable. A new saved-route stale banner was not added because saved routes have no reliable calculation fingerprint; existing discovery geometry-key invalidation remains authoritative.
+- The existing web storage teardown/OPFS investigation remains open. Successful browser runs do not establish that it is fixed.
+- Completed UI fixes are recorded in changelog.md. No dated unresolved item is more than one month old as of 2026-10-04; undated legacy entries cannot be aged reliably.
+
 # Moving engagement verification - 2026-09-29
 
 - Fixed endpoint-only target coverage, implied stops at every engagement, missing legal-area/safe-angle inputs and missing ordered engagement arrows; completed implementation is recorded in changelog.md.

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { TextInput } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Screen, Panel, Action, Copy, ui } from '@/ui/kit';
+import LibraryCard from '@/ui/LibraryCard';
 import EditorSheet from '@/editor/EditorSheet';
 import TargetFamilyPicker from '@/ui/TargetFamilyPicker';
 import { useRepository } from '@/storage/StorageProvider';
@@ -13,6 +14,7 @@ export default function Matches() {
   const [matches, setMatches] = useState<MatchSummary[]>([]), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), running = useRef(false);
   const [editing, setEditing] = useState<MatchSummary | 'new' | null>(null);
+  const [menu, setMenu] = useState<MatchSummary | null>(null);
   const [deleting, setDeleting] = useState<MatchSummary | null>(null);
   const [name, setName] = useState(''), [family, setFamily] = useState<TargetFamily>('USPSA');
   useFocusEffect(useCallback(() => {
@@ -33,17 +35,18 @@ export default function Matches() {
     setError(''); setEditing(match);
   };
   return <Screen title="MATCHES">
-    <Action title="+ Create Match" disabled={busy} onPress={() => edit('new')} />
+    <Action title="+ MATCH" disabled={busy} onPress={() => edit('new')} />
     {!!error && !editing && !deleting && <><Copy>{error}</Copy><Action title="Retry" disabled={busy} onPress={() => void run(async () => {})} /></>}
     {!loaded && !error && <Copy>Loading matches...</Copy>}
     {loaded && !matches.length && <Copy>No matches yet. Create a match to add stages.</Copy>}
-    {matches.map(match => <Panel key={match.id}>
-      <Copy>{match.name}</Copy><Copy>{match.targetFamily} / {match.stageCount} {match.stageCount === 1 ? 'stage' : 'stages'}</Copy>
-      <Action title={'Open ' + match.name} disabled={busy} onPress={() => router.push({ pathname: '/match', params: { id: match.id } })} />
-      <Action title="Rename / Target family" disabled={busy} onPress={() => edit(match)} />
-      <Action title="Duplicate match" disabled={busy} onPress={() => void run(() => repo.duplicateMatch(match.id))} />
-      <Action title="Delete match" disabled={busy} onPress={() => { setError(''); setDeleting(match); }} />
-    </Panel>)}
+    {matches.map(match => <LibraryCard key={match.id} name={match.name} category={match.targetFamily}
+      detail={match.stageCount + ' ' + (match.stageCount === 1 ? 'stage' : 'stages')} disabled={busy}
+      open={() => router.push({ pathname: '/match', params: { id: match.id } })} more={() => setMenu(match)} />)}
+    <EditorSheet title={menu?.name ?? 'Match actions'} visible={!!menu} close={() => setMenu(null)}>
+      <Action title="Edit match" onPress={() => { if (menu) edit(menu); setMenu(null); }} />
+      <Action title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateMatch(menu.id)); setMenu(null); }} />
+      <Action title="Delete" onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
+    </EditorSheet>
     <EditorSheet title={editing === 'new' ? 'Create Match' : 'Match Settings'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
       <Panel><Copy>Match name</Copy><TextInput accessibilityLabel="Match name" autoFocus style={ui.input} value={name} maxLength={100} editable={!busy} onChangeText={setName} />
         <Copy>Target family</Copy><TargetFamilyPicker value={family} onChange={setFamily} disabled={busy} />

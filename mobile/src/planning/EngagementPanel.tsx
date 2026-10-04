@@ -8,24 +8,24 @@ import { analyzeEngagements, reorderEngagement, suggestEngagements } from './eng
 import { formatYards } from '../stage/measurements';
 import EngagementSettings from './EngagementSettings';
 
-export default function EngagementPanel({ stage, route, onChange }: { stage: StageDocument; route: StageRoute; onChange: (route: StageRoute) => void }) {
+export default function EngagementPanel({ stage, route, onChange, authoring = true, selectedId }: { stage: StageDocument; route: StageRoute; onChange: (route: StageRoute) => void; authoring?: boolean; selectedId?: string | null }) {
   const [editing, setEditing] = useState(false), [error, setError] = useState('');
   const rules = route.engagementRules, analysis = rules ? analyzeEngagements(stage, route) : null;
   const edit = () => { setEditing(true); setError(''); };
   return <View style={{ gap: 8 }}>
-    <Copy>Airsoft engagement analysis</Copy>
-    <Action title={rules ? 'Edit firing areas and stage procedures' : 'Set up moving engagements'} onPress={edit} />
+    <Copy>Engagement order & details</Copy>
+    {authoring && <Action title={rules ? 'Edit firing areas and stage procedures' : 'Set up moving engagements'} onPress={edit} />}
     {editing && <EngagementSettings stage={stage} initial={rules} onCancel={() => setEditing(false)} onApply={value => { onChange({ ...route, engagementRules: value }); setEditing(false); setError(''); }} />}
     {!!error && <Copy>{error}</Copy>}
     {analysis && <>
       <Copy>{rules!.ruleset} / Circle = engagement. Dashed teal = moving; solid = stationary. Waypoints control the path and do not require stops.</Copy>
       <Action title="Recalculate engagement assignments and order" onPress={() => { onChange(suggestEngagements(stage, route)); setError(''); }} />
-      <DataRow label="Stationary positions" value={analysis.nodes.filter(n => n.kind === 'stationary').length} />
-      <DataRow label="Moving engagement segments" value={new Set(analysis.nodes.filter(n => n.kind === 'moving').map(n => n.waypointId)).size} />
-      <DataRow label="Total engagement nodes" value={analysis.nodes.length} />
+      <DataRow label="Stationary engagement nodes" value={analysis.nodes.filter(n => n.kind === 'stationary').length} />
+      <DataRow label="Moving sections" value={new Set(analysis.nodes.filter(n => n.kind === 'moving').map(n => n.waypointId)).size} />
+      <DataRow label="Engagement nodes" value={analysis.nodes.length} />
       <DataRow label="Targets covered" value={`${analysis.coveredTargetIds.length}/${analysis.alternatives.length}`} />
       <DataRow label="Movement" value={formatYards(analysis.segments.reduce((n, s) => n + s.distance, 0))} />
-      {analysis.nodes.map((node, index) => <View key={node.id} style={{ gap: 4 }}>
+      {analysis.nodes.filter(n => !selectedId || n.waypointId === selectedId).map((node, index) => <View key={node.id} style={{ gap: 4 }}>
         <Copy>NODE {index + 1} — {node.kind.toUpperCase()}</Copy>
         {node.targets.map(t => <View key={t.targetId} style={{ gap: 4 }}>
           <Copy>{t.orderLabel} — {targetLabel(stage, t.targetId)}. {t.reason}</Copy>

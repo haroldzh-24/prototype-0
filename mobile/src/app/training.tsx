@@ -57,7 +57,7 @@ export default function Training() {
     <TextInput style={ui.input} accessibilityLabel="Session or drill name" value={name} onChangeText={setName} />
     <Action title={`Context: ${context}`} disabled={busy} onPress={() => setContext(trainingContexts[(trainingContexts.indexOf(context) + 1) % trainingContexts.length])} />
     <Action title={startingTypes[startingType]} disabled={busy} onPress={() => { const keys = Object.keys(startingTypes) as StartingType[]; setStartingType(keys[(keys.indexOf(startingType) + 1) % keys.length]); }} />
-    <Action title="Start Training" disabled={busy} onPress={create} />
+    <Action title="CREATE SESSION" disabled={busy} onPress={create} />
   </Panel><Copy>RECENT SESSIONS</Copy>
     {!records.length && <Panel><Copy>No training sessions yet.</Copy></Panel>}
     {records.map(record => <Panel key={record.id}>

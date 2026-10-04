@@ -8,6 +8,7 @@ import type { EngagementRules, FiringArea } from './engagements';
 
 /** Stage-brief authoring. Coordinate pairs are physical yards, not screen pixels. */
 export default function EngagementSettings({ stage, initial, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
+  const [section, setSection] = useState<'areas' | 'safety' | 'targets' | null>(null), [advanced, setAdvanced] = useState(false);
   const [rules, setRules] = useState(() => initial ?? defaultEngagementRules());
   const [spacing, setSpacing] = useState(String(rules.sampleSpacingInches));
   const [direction, setDirection] = useState(String(rules.safeDirectionDegrees));
@@ -25,16 +26,25 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
     setAreas([...areas, { id: area.id, text: areaText(area) }]);
   };
   return <View style={{ gap: 8 }}>
-    <Copy>Airsoft stage brief</Copy>
+    <Copy>Ruleset</Copy>
     <View style={{ flexDirection: 'row', gap: 6 }}>{(['USPSA', 'PCSL', 'IDPA'] as const).map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? 'Selected: ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
     <Action title={`Moving engagement: ${rules.allowMoving ? 'allowed' : 'not allowed'}`} onPress={() => setRules({ ...rules, allowMoving: !rules.allowMoving })} />
     <Action title={`Travel outside firing areas: ${rules.allowOutsideTravel ? 'allowed' : 'not allowed'}`} onPress={() => setRules({ ...rules, allowOutsideTravel: !rules.allowOutsideTravel })} />
+    <Action title={'Firing Areas / ' + areas.length + ' configured / EDIT'} onPress={() => setSection(section === 'areas' ? null : 'areas')} />
+    <Action title={'Safety Direction / ' + direction + ' degrees / EDIT'} onPress={() => setSection(section === 'safety' ? null : 'safety')} />
+    <Action title={'Target Procedures / ' + Object.keys(rules.targetProcedures).length + ' custom / EDIT'} onPress={() => setSection(section === 'targets' ? null : 'targets')} />
+    {section === 'safety' && <>
     <Copy>Safe direction in degrees: 0 = right, 90 = down, -90 = up.</Copy>
     <TextInput accessibilityLabel="Safe direction degrees" style={ui.input} value={direction} onChangeText={setDirection} />
     <Copy>Safe half angle in degrees (90 gives a 180-degree limit).</Copy>
     <TextInput accessibilityLabel="Safe half angle degrees" style={ui.input} value={angle} onChangeText={setAngle} />
+    </>}
+    <Action title={advanced ? "Advanced -" : "Advanced +"} onPress={() => setAdvanced(!advanced)} />
+    {advanced && <>
     <Copy>Sample spacing in physical inches (0.25–24).</Copy>
     <TextInput accessibilityLabel="Engagement sample spacing inches" style={ui.input} value={spacing} onChangeText={setSpacing} />
+    </>}
+    {section === 'areas' && <>
     <Copy>Firing areas: list polygon corners as X, Y in yards, one corner per line. Areas exclude their boundary. Fault-line marks alone do not identify the legal side. The whole-stage button supplies a rectangle you can edit to follow your course boundaries.</Copy>
     {areas.map(a => <View key={a.id} style={{ gap: 4 }}>
       <Copy>Firing area {a.id}</Copy>
@@ -42,6 +52,8 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
       <Action title={`Remove ${a.id}`} onPress={() => setAreas(areas.filter(row => row.id !== a.id))} />
     </View>)}
     <Action title="Add whole-stage firing area" disabled={areas.length >= 32} onPress={addArea} />
+    </>}
+    {section === 'targets' && <>
     <Copy>Target procedures: restrict firing areas, require a stationary engagement, or choose targets that must be completed first. IDPA requires explicit areas for each target based on the brief's cover and exposure requirements.</Copy>
     <View style={{ gap: 4 }}>{targets.map(t => <Action key={t.id} title={`${targetId === t.id ? 'Selected: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => setTargetId(t.id)} />)}</View>
     {targetId && <>
@@ -51,6 +63,7 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
       {rules.ruleset !== 'IDPA' && <Action title="Allow all configured areas" onPress={() => updateProcedure({ areaIds: undefined })} />}
       <Copy>Engage these targets first:</Copy>
       {targets.filter(t => t.id !== targetId).map(t => <Action key={t.id} title={`${procedure.afterTargetIds?.includes(t.id) ? 'Required first: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => updateProcedure({ afterTargetIds: toggle(procedure.afterTargetIds, t.id) })} />)}
+    </>}
     </>}
     {!!error && <Copy>{error}</Copy>}
     <Action title="Apply engagement settings" onPress={() => {

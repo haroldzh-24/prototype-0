@@ -14,7 +14,7 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
     <Text style={ui.actionText}>{card.route.engagementRules ? 'Airsoft / Geometry first' : styleLabel}</Text>
     <Copy>{card.label} · Compared with displayed candidates</Copy>
     <Text style={ui.statValue}>{card.estimatedTime === null ? 'Time unavailable' : `${card.estimatedTime.toFixed(2)} s`}</Text>
-    <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} positions · ${card.reloads} reloads`}</Copy>
+    <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} ${card.route.engagementRules ? 'stationary nodes' : 'waypoints'} · ${card.reloads} reloads`}</Copy>
     <Copy>{card.comparison}</Copy>
     {card.movingSegments !== null && <Copy>{card.positions} stationary positions / {card.movingSegments} moving engagement segments / {card.route.positions.length} route waypoints</Copy>}
     <Copy>Used {card.sourceCounts.auto} automatically discovered positions / {card.sourceCounts.manual} manual positions</Copy>
