@@ -28,7 +28,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     return result.result.value;
   };
   const waitText = async text => {
-    for (let i = 0; i < 400; i++) { if ((await evaluate('document.body?.innerText ?? ""')).toLowerCase().includes(text.toLowerCase())) return; await sleep(300); }
+    for (let i = 0; i < 400; i++) { const body=await evaluate('document.body?.innerText ?? ""'); if (text === 'SAVED' ? body.split('\n').includes('SAVED') && !body.includes('Saving...') : body.toLowerCase().includes(text.toLowerCase())) return; await sleep(300); }
     throw new Error('Missing text: ' + text + '\n' + await evaluate('document.body.innerText'));
   };
   const click = async name => {
@@ -43,13 +43,13 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await send('Runtime.enable');
     await send('Page.enable');
     socket.addEventListener('message', e => { const d=JSON.parse(e.data); if(d.method==='Page.javascriptDialogOpening' && d.params.type==='beforeunload') void send('Page.handleJavaScriptDialog',{accept:true}); });
-    await send('Emulation.setDeviceMetricsOverride', { width:390,height:844,deviceScaleFactor:1,mobile:true });
+    await send('Emulation.setDeviceMetricsOverride', { width:Number(process.env.SMOKE_WIDTH||390),height:Number(process.env.SMOKE_HEIGHT||844),deviceScaleFactor:1,mobile:true });
     await send('Emulation.setTouchEmulationEnabled', { enabled:true });
-    await send('Page.navigate',{url:baseUrl+'/'}); await waitText('YOUR NEXT SESSION');
-    await click('STAGE PLANNER \u2192'); await waitText('MATCHES');
+    await send('Page.navigate',{url:baseUrl+'/'}); await waitText('Prepare for your next session.');
+    await click('Open STAGE PLANNER'); await waitText('MATCHES');
     const name='Designer tools '+Date.now();
-    await click('+ MATCH'); await fill('Match name',name); await click('Create Match'); await waitText('Back to Matches');
-    await click('+ STAGE'); await fill('Stage name',name); await click('Open Stage Designer'); await waitText('STAGE EDITOR');
+    await click('+ MATCH'); await fill('Match name',name); await click('Create Match'); await waitText('STAGES');
+    await click('+ STAGE'); await fill('Stage name',name); await click('Open Stage Designer'); await waitText('SELECT');
     const rect=selector=>evaluate('(()=>{const r=document.querySelector('+JSON.stringify(selector)+').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()');
     const objects=()=>evaluate('[...document.querySelectorAll("[data-testid^=stage-object-]")].map(e=>e.dataset.testid)');
     const canvas=()=>rect('[data-testid="stage-canvas"]');
@@ -71,12 +71,12 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const beforeWall=await objects();await drag(a,b);assert.equal((await objects()).length,base+3,'Wall drag commits');const newWall=(await objects()).find(id=>!beforeWall.includes(id));
     await tap({x:b.x,y:b.y+55});assert.equal((await objects()).length,base+4,'Connected second segment');
     await click('UNDO SEGMENT');assert.equal((await objects()).length,base+3);
-    await click('Cancel current segment');await click('Done');
+    if((await evaluate('document.body.innerText')).includes('Cancel Draft')) await click('Cancel Draft');await click('Done');
     await click('DRAW'); await click('FAULT LINE');c=await canvas();await drag({x:c.x+c.width*.35,y:c.y+c.height*.55},{x:c.x+c.width*.65,y:c.y+c.height*.65});assert.equal((await objects()).length,base+4);await click('Done');
     await click('ADD');await click('PCSL');await click('PCSL Mini Practical');c=await canvas();await tap({x:c.x+c.width*.72,y:c.y+c.height*.55});
     await click('Done');
     // Select the first newly placed target by its stable saved ID.
-    let r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await click('Advanced +'); await waitText('Preset: USPSA Metric');
+    let r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Metric');
     await fill('Rotation (degrees)','359');await click('Apply changes');await click('Done');
     const angle=await evaluate('document.body.innerText');assert.ok(angle.includes('359.0\u00b0'));
     const wheel=await rect('[aria-label="Drag target rotation wheel"]');const w={x:wheel.x+22,y:wheel.y+22};await drag(w,{x:w.x+18,y:w.y+2});
@@ -89,8 +89,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Edit');await fill('Length','2.125');await fill('Rotation (degrees)','45');await click('Apply changes');
     assert.equal(await evaluate(`document.querySelector('input[aria-label="Length"]').value`),'2.125');
     assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`),'45');await click('Done');
-    await click('Save');await waitText('Saved on this device.');const count=(await objects()).length;await send('Page.reload');await waitText('STAGE EDITOR');assert.equal((await objects()).length,count,'Reopen retains all objects');
-    r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await click('Advanced +'); await waitText('Preset: USPSA Metric');assert.equal(Number(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`)),rotation);await click('Done');
+    await click('Save');await waitText('SAVED');const count=(await objects()).length;await send('Page.reload');await waitText('SELECT');assert.equal((await objects()).length,count,'Reopen retains all objects');
+    r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Metric');assert.equal(Number(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`)),rotation);await click('Done');
     const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(__dirname, '../.expo/designer-tools.png'),Buffer.from(shot.data,'base64'));
     assert.deepEqual(errors,[]);console.log('PASS: 390x844 browser touch placement, pan/pinch guards, connected walls, fault line, tool changes, undo/redo, wheel and numeric rotation, endpoint dragging/numeric edits, save/reopen.');
   } finally { socket.close(); }

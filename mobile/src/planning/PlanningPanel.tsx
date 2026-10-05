@@ -1,7 +1,7 @@
-import { Stat, ui } from '../ui/kit';
+import { Action as SharedAction, Stat, ui } from '../ui/kit';
 import { colors, typography } from '../ui/tokens';
 import { useEffect, useState } from 'react';
-import { Pressable, Switch, TextInput, View } from 'react-native';
+import { Switch, TextInput, View } from 'react-native';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import type { StageDocument } from '../stage/model';
@@ -25,7 +25,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
     {section === 'loadout' && <>
     <Text>Magazine counts are rounds actually loaded, excluding the chamber. Other magazines are carried spares. These are totals, not an engagement order or reload plan.</Text>
     <Text>Chamber loaded: {plan.loadout.chamberLoaded ? 'Yes (1 round)' : 'No'}</Text>
-    <Switch trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
+    <Switch hitSlop={7} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
     <Action label="Add Magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
     <BatchMagazineForm plan={plan} onChange={onChange} />
     <Action label="Start without magazine" onPress={() => apply(designateMagazine(plan,null))} />
@@ -44,7 +44,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
       {scoringTypes.map(type => <Action key={type} label={`${type === targetType ? '✓ ' : ''}${targetTypeLabel(type)} / ${stage.objects.filter(o => o.type === type).length} targets`} onPress={() => { setTargetType(type); setApplied(''); }} />)}
       <Text>{targetTypeLabel(targetType).toUpperCase()} / {affected} TARGETS</Text>
       <Text>ROUNDS PER TARGET</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
         <Action label="−" onPress={() => { setRounds(n => Math.max(0, n - 1)); setApplied(''); }} /><Text>{rounds}</Text><Action label="+" onPress={() => { setRounds(n => n + 1); setApplied(''); }} />
       </View>
       <Action label={`Apply to ${affected} targets`} disabled={!affected} onPress={() => {
@@ -80,7 +80,7 @@ function BatchMagazineForm({ plan, onChange }: { plan: StagePlan; onChange: (pla
       <Text>Rounds loaded per magazine</Text>
       <TextInput accessibilityLabel="Batch rounds loaded per magazine" style={inputStyle} value={loaded} onChangeText={setLoaded} keyboardType="number-pad" />
       <Text>Start one in gun: {inserted ? 'Yes' : 'No'}</Text>
-      <Switch accessibilityLabel="Start one created magazine in gun" trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} value={inserted} onValueChange={setInserted} />
+      <Switch hitSlop={7} accessibilityLabel="Start one created magazine in gun" trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} value={inserted} onValueChange={setInserted} />
       <Text>{inserted ? 'The first new magazine starts inserted. Any previously inserted magazine becomes a carried spare.' : 'Keep the current starting magazine designation.'} Existing magazines are kept. The chamber setting is unchanged.</Text>
       <Action label="Add batch to loadout" onPress={() => {
         const result = addMagazineBatch(plan, numeric(quantity), numeric(capacity), numeric(loaded), inserted, uuid.v4);
@@ -114,7 +114,5 @@ export function RoundAssignment({ label, value, onSave }: { label: string; value
   </View>;
 }
 function Action({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={{ opacity: disabled ? 0.4 : 1, backgroundColor: colors.secondary, padding: 10, minHeight: 44, borderBottomWidth: 1, borderColor: colors.border, alignSelf: 'flex-start' }}>
-    <Text style={{ color: colors.text, ...typography.label }}>{label}</Text>
-  </Pressable>;
+  return <SharedAction accessibilityLabel={label === '+' ? 'Increase rounds per target' : label.codePointAt(0) === 8722 ? 'Decrease rounds per target' : undefined} title={label} onPress={onPress} disabled={disabled} variant={label.startsWith('Delete') ? 'destructive' : label.startsWith('Apply') ? 'primary' : 'secondary'} />;
 }

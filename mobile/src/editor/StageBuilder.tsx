@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -13,7 +13,7 @@ import { assignRounds, isEngageable, targetLabel } from '@/planning/model';
 import ToolIcon from '../ui/ToolIcon';
 import type { ToolIconName } from '../ui/ToolIcon';
 import { colors, typography } from '../ui/tokens';
-import { ui } from '@/ui/kit';
+import { ErrorState, ui } from '@/ui/kit';
 import AddMenu from './AddMenu';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
@@ -21,7 +21,7 @@ import PlanningPanel from '@/planning/PlanningPanel';
 import EngagementDetails from '@/planning/EngagementDetails';
 import RouteAnalysis from '@/planning/RouteAnalysis';
 import EngagementSettings from '@/planning/EngagementSettings';
-import EngagementPanel from '@/planning/EngagementPanel';
+
 import { evaluateRoute, reorderPosition } from '@/planning/route';
 import { defaultRouteLayers, meaningfulRoute } from './routePresentation';
 import RoutePanel from '@/planning/RoutePanel';
@@ -51,7 +51,6 @@ import type { StageDocument } from '@/stage/model';
 import { editObject } from '@/stage/operations';
 import { OperationGate } from '../training/operationGate';
 import StageSettings from './StageSettings';
-import { formatLength } from '../stage/measurements';
 import { useDocumentHistory } from './useDocumentHistory';
 import { placeTarget, rotateTarget, isTarget } from '../stage/targetPlacement';
 import { targetPreset } from '../stage/targetPresets';
@@ -79,6 +78,8 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   }, [preview, discoveryPreview]);
   const [routeMode, setRouteMode] = useState(false);
   const [routeEditing, setRouteEditing] = useState(false);
+  const [addingPoint, setAddingPoint] = useState(false);
+  useEffect(() => { if (!routeEditing || !routeMode) setAddingPoint(false); }, [routeEditing, routeMode]);
   const [layers, setLayers] = useState(defaultRouteLayers);
   const [nodeId, setNodeId] = useState<string | null>(null);
   const [positionId, setPositionId] = useState<string | null>(null);
@@ -96,7 +97,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
     if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
     setRouteMode(true); setRouteVisible(true); setSelectedId(null); setViewMode('topDown');
   };
-  const [panel, setPanel] = useState<'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | null>(null);
+  const [panel, setPanel] = useState<'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | null>(null);
   const [focusPosition, setFocusPosition] = useState<StagePosition | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
@@ -108,6 +109,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   useEffect(() => { setPreview(null); setDiscoveryPreview(false); }, [stage, plan, profile]);
   const stageId = initial.id;
   const [name, setName] = useState(initial.name);
+  const [editingName, setEditingName] = useState(false);
   const snapshot = JSON.stringify({ name, stage, plan });
   const [savedSnapshot, setSavedSnapshot] = useState(initial ? snapshot : '');
   const [saving, setSaving] = useState(false), [saveMessage, setSaveMessage] = useState('');
@@ -147,7 +149,6 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const [draft, setDraft] = useState<{ start: StagePosition; end: StagePosition } | null>(null);
   const draftRef = useRef(draft);
   const [chain, setChain] = useState<string[]>([]);
-  const [snapRule, setSnapRule] = useState('');
   const updateDraft = (value: typeof draft) => { draftRef.current = value; setDraft(value); };
   const switchTool = (next: DesignerTool) => { updateDraft(null); setChain([]); setTool(next); setSelectedId(null); setEditError(''); };
   useEffect(() => { if (routeMode || previewing || viewMode !== 'topDown' || panel || showAdd) { setTool('select'); updateDraft(null); setChain([]); } }, [routeMode, previewing, viewMode, panel, showAdd]);
@@ -155,7 +156,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const draw = (phase: 'start' | 'preview' | 'commit' | 'cancel', point: StagePosition) => {
     if (phase === 'cancel') { updateDraft(null); return; }
     const current = draftRef.current;
-    const snapped = snapEndpoint(stage, point, current?.start ?? null, snapping); setSnapRule(snapped.rule);
+    const snapped = snapEndpoint(stage, point, current?.start ?? null, snapping);
     if (!current) { if (phase === 'start') updateDraft({ start: snapped.point, end: snapped.point }); return; }
     if (phase !== 'commit') { updateDraft({ ...current, end: snapped.point }); return; }
     const id = uuid.v4(), result = addSegment(stage, tool === 'wall' ? 'wall' : 'faultLine', id, current.start, snapped.point);
@@ -198,44 +199,40 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
 
   return <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.screen}>
     <AddMenu visible={showAdd} targetFamily={targetFamily} close={() => setShowAdd(false)} choose={(id, noShoot) => { setPlacement({ id, noShoot }); switchTool('target'); }} selectStart={() => { switchTool('select'); setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null); }} />
-    <Modal visible={pendingExit !== null && !allowExit} transparent animationType="fade" onRequestClose={() => setPendingExit(null)}>
-      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#000b' }}><View style={ui.panel}>
+    <EditorSheet title="Close stage" visible={pendingExit !== null && !allowExit} close={() => setPendingExit(null)}>
+      <View style={ui.panel}>
         <Text style={styles.title}>{saving ? 'SAVE IN PROGRESS' : dirty ? 'UNSAVED CHANGES' : 'STAGE SAVED'}</Text>
-        <Text>Save your work before closing, or discard the changes.</Text>
+        <Text>{dirty ? 'Save your work before closing, or discard the changes.' : 'Your stage is saved on this device.'}</Text>
         <Button title="Keep editing" onPress={() => setPendingExit(null)} />
         <Button title={saving ? 'Saving...' : 'Save'} disabled={saving || !dirty} onPress={() => void save()} />
-        {!!saveMessage && <Text>{saveMessage}</Text>}
-        <Button title={dirty ? 'Discard changes and close' : 'Close stage'} disabled={saving} onPress={() => setAllowExit(true)} />
-      </View></View>
-    </Modal>
+        {saveMessage && saveMessage !== 'Saved on this device.' && <ErrorState title="Stage could not be saved." detail={saveMessage} />}
+        <Button title={dirty ? 'Discard changes and close' : 'Close stage'} danger={dirty} disabled={saving} onPress={() => setAllowExit(true)} />
+      </View>
+    </EditorSheet>
+    <EditorSheet title="Stage name" visible={editingName} close={() => setEditingName(false)}>
+      <View style={ui.panel}><TextInput accessibilityLabel="Stage name" autoFocus style={ui.input} value={name} maxLength={100} onChangeText={setName} onSubmitEditing={() => setEditingName(false)} /><Text>Use Save in Stage Designer to persist the name.</Text></View>
+    </EditorSheet>
     <View style={styles.topbar}>
       <Button title="Back" displayTitle={"\u2039"} compact disabled={saving || dragging} onPress={() => previewing ? (setPreview(null), setDiscoveryPreview(false)) : router.dismissTo({ pathname: '/match', params: { id: initial.matchId } })} />
-      <TextInput accessibilityLabel="Stage name" style={[ui.input, styles.name]} editable={!previewing} value={name} maxLength={100} onChangeText={setName} />
-      <Button title={saving ? 'Saving...' : 'Save'} accent compact disabled={saving || dragging || previewing} onPress={() => void save()} />
+      <View style={{ flex: 1, minWidth: 0 }}><Pressable accessibilityRole="button" accessibilityLabel="Edit stage name" accessibilityState={{ disabled: previewing }} style={{ minHeight: 44, justifyContent: 'center' }} disabled={previewing} onPress={() => setEditingName(true)}><Text numberOfLines={1} style={styles.name}>{name || 'Untitled stage'}</Text></Pressable><Text accessibilityLiveRegion="polite" style={[styles.status, { color: dirty ? colors.warning : colors.accent }]}>{dirty ? 'UNSAVED' : 'SAVED'}</Text></View>
+      {!previewing && <Button title={saving ? 'Saving...' : 'Save'} accent compact disabled={saving || dragging} onPress={() => void save()} />}
     </View>
-    <View style={styles.readout}>
-      <Text style={[styles.status, routeMode && styles.active]}>{discoveryPreview ? 'AUTO POSITIONS / READ ONLY' : preview ? 'CANDIDATE PREVIEW / READ ONLY' : routeMode ? 'ROUTE MODE' : viewMode === '25d' ? '2.5D PREVIEW' : 'STAGE EDITOR'}</Text>
-      <Text accessibilityLiveRegion="polite" style={styles.status}>{dirty ? 'UNSAVED' + (saveMessage && saveMessage !== 'Saved on this device.' ? ' / ' + saveMessage : '') : saveMessage || 'SAVED'}</Text>
-    </View>
+    {!!saveMessage && saveMessage !== 'Saved on this device.' && <View style={styles.controls}><Text style={styles.error}>Stage could not be saved.</Text><Button title="Save error details" onPress={() => setPanel('saveError')} /></View>}
     {<View style={styles.controls}>
       <Button title="BUILD" active={!routeMode} disabled={dragging || previewing} onPress={() => { setRouteMode(false); setRouteEditing(false); setPanel(null); setViewMode('topDown'); switchTool('select'); }} />
       <Button title="ROUTE" active={routeMode} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); enterRoute(); }} />
     </View>}
-    {!previewing && !routeMode && viewMode === 'topDown' && <>
-      {(tool === 'target' || tool === 'wall' || tool === 'faultLine') && <View style={{ padding: 8, gap: 4 }}>
-        <Text>{tool === 'target' ? (placement?.noShoot ? 'No-shoot / ' : '') + (targetPreset(placement?.id ?? '')?.name ?? '') + ' / Tap to place' : (tool === 'wall' ? 'Draw Wall' : 'Draw Fault Line') + ' / Tap start, drag or tap endpoint'}</Text>
-        {draft && <Text>{formatYards(segmentMetrics(draft.start,draft.end).length)} ({formatLength(segmentMetrics(draft.start,draft.end).length)}) / {segmentMetrics(draft.start,draft.end).angle.toFixed(1)}° / {snapRule}</Text>}
-        <View style={styles.controls}>
-          <Button title="Done" disabled={dragging} onPress={() => switchTool('select')} />
-          {tool !== 'target' && <><Button title="UNDO SEGMENT" disabled={dragging || !chain.length} onPress={undoSegment} /><Button title="Cancel current segment" disabled={dragging || !draft} onPress={() => updateDraft(null)} /><Button title={snapping.enabled ? 'Snap ON' : 'Snap OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} /></>}
-        </View>
-      </View>}
-    </>}
-    {routeMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>No route planned yet.</Text><Button title="GENERATE ROUTE" onPress={() => setPanel('aiPlan')} /><Button title="Edit Manually" onPress={() => setRouteEditing(true)} /></View>}
-    {routeMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>{formatYards(routeEvaluation?.distance ?? 0)} / {plan.route?.positions.length} waypoints</Text>}
+    {routeMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>NO ROUTE YET</Text><Button title="PLAN ROUTE" onPress={() => setPanel('aiPlan')} /><Button title="Edit manually" onPress={() => setRouteEditing(true)} /></View>}
+    {routeMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} waypoints {'\u2022'} {routeEvaluation?.engagementAnalysis?.coveredTargetIds.length ?? new Set(plan.route?.positions.flatMap(p => p.engagedTargetIds)).size}/{stage.objects.filter(isEngageable).length} targets</Text>}
     <View style={styles.canvas}>
-      {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} /> :
-        <StageViewport tool={tool} draft={draft} onDraw={draw} onPlace={point => {
+      {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
+        <StageViewport onRoutePoint={addingPoint ? point => {
+          if (!plan.route || point.x < 0 || point.y < 0 || point.x > stage.stage.width || point.y > stage.stage.depth) return;
+          const id = 'position-' + uuid.v4(); let number = 1;
+          while (plan.route.positions.some(p => p.label === 'P' + number)) number++;
+          changeRoute({ ...plan.route, positions: [...plan.route.positions, { id, label: 'P' + number, position: point, visibleTargetIds: [], engagedTargetIds: [] }] });
+          setPositionId(id); setNodeId(null); setAddingPoint(false);
+        } : undefined} tool={tool} draft={draft} onDraw={draw} onPlace={point => {
           if (!placement) return;
           const result = placeTarget(stage,placement.id,uuid.v4(),point,placement.noShoot); setEditError(result.error ?? ''); if (!result.error) setStage(result.stage);
         }} stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={routeMode ? layers.grid : gridVisible} focusPosition={focusPosition}
@@ -245,8 +242,13 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
             setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
           }, layers, selectedNodeId: nodeId, editing: routeEditing, onNodeSelect: (id, node) => { setPositionId(id); setNodeId(node); setPanel('engagement'); }, route: plan.route, selectedId: positionId, onSelect: id => { setPositionId(id); setNodeId(null); }, onChange: changeRoute, onDragging } : undefined}
           onSelect={setSelectedId} onDragging={onDragging} setStage={setStage} />}
+    {!previewing && !routeMode && viewMode === 'topDown' && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && <View style={styles.modeOverlay}>
+      <View style={styles.readout}><Text numberOfLines={2} style={[styles.title, { flex: 1 }]}>{tool === 'target' ? (placement?.noShoot ? 'NO-SHOOT / ' : '') + (targetPreset(placement?.id ?? '')?.name ?? '') : tool === 'wall' ? 'WALL' : 'FAULT LINE'}</Text><Button title="DONE" compact disabled={dragging} onPress={() => switchTool('select')} /></View>
+      {tool === 'target' ? <Text>Tap to place</Text> : <><Text>{draft ? formatYards(segmentMetrics(draft.start, draft.end).length) + ' \u2022 ' + segmentMetrics(draft.start, draft.end).angle.toFixed(1) + '\u00b0' : 'Tap start, then drag or tap endpoint'}</Text><View style={styles.controls}><Button title={snapping.enabled ? 'SNAP ON' : 'SNAP OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} /><Button title="UNDO SEGMENT" disabled={dragging || !chain.length} onPress={undoSegment} />{draft && <Button title="Cancel Draft" disabled={dragging} onPress={() => updateDraft(null)} />}</View></>}
+    </View>}
     {viewMode === 'topDown' && <View style={{ position: 'absolute', top: 8, right: 8 }}><Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} /></View>}
-    {!previewing && routeMode && selectedWaypoint && !assignmentMode && <View style={styles.context}><Button title={'WAYPOINT ' + (plan.route!.positions.indexOf(selectedWaypoint) + 1)} onPress={() => setPanel('waypoint')} /></View>}
+    {!previewing && routeMode && addingPoint && <View style={styles.context}><Text>ADD WAYPOINT / tap the canvas</Text><Button title="Cancel add waypoint" onPress={() => setAddingPoint(false)} /></View>}
+    {!previewing && routeMode && selectedWaypoint && !addingPoint && !assignmentMode && <View style={styles.context}><Button title={'WAYPOINT ' + (plan.route!.positions.indexOf(selectedWaypoint) + 1)} onPress={() => setPanel('waypoint')} /></View>}
     {!previewing && routeMode && assignmentMode && <View style={styles.context}>
       <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label} / TAP TO TOGGLE {assignmentMode.toUpperCase()} TARGETS</Text>
       <View style={styles.controls}>
@@ -256,30 +258,23 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
       </View>
     </View>}
     {!previewing && selected && tool === 'select' && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
-      <View style={styles.readout}><Text style={styles.status}>{objectLabel(selected.type).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
+      <View style={styles.readout}><Text style={styles.status}>{(isTarget(selected) ? targetPreset(selected.presetId ?? '')?.name ?? objectLabel(selected.type) : objectLabel(selected.type)).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
       <View style={styles.controls}>
-          <Button title={isSegment(selected) ? "Endpoints" : "Rotate"} disabled={dragging} onPress={() => isSegment(selected) ? setFocusPosition({ ...selected.position }) : rotate(rotationStep)} />
-        <Button title="Edit" disabled={dragging} onPress={() => setPanel('edit')} />
-        <Button title="Duplicate" disabled={dragging || selected.type === 'start'} onPress={() => act({ kind: 'duplicate' })} />
-        <Button title="Delete" danger disabled={dragging || selected.type === 'start'} onPress={() => setPanel('delete')} />
+        <Button title="EDIT" disabled={dragging} onPress={() => setPanel('edit')} />
+          <Button title={isSegment(selected) ? "ENDPOINTS" : "ROTATE"} disabled={dragging} onPress={() => isSegment(selected) ? setFocusPosition({ ...selected.position }) : rotate(rotationStep)} />
+        <Button title="DUPLICATE" disabled={dragging || selected.type === 'start'} onPress={() => act({ kind: 'duplicate' })} />
+        <Button title="DELETE" danger disabled={dragging || selected.type === 'start'} onPress={() => setPanel('delete')} />
       </View>
     </View>}
     </View>
 
     {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
-    <View style={[styles.bottomBar, !routeMode && !previewing && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && { display: 'none' }]}>
-      {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered positions. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Candidate {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode && routeEditing ? <>
-          <Button title="ADD POINT" icon="position" displayTitle="Add point" disabled={dragging} onPress={() => {
-          if (!plan.route) return;
-          const id = 'position-' + uuid.v4(); let number = 1;
-          while (plan.route.positions.some(p => p.label === 'P' + number)) number++;
-          changeRoute({ ...plan.route, positions: [...plan.route.positions, { id, label: 'P' + number, position: { space: 'stage', x: stage.stage.width / 2, y: stage.stage.depth / 2, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }] });
-          setPositionId(id);
-        }} />
-
-          <Button title="MOVE" onPress={() => setPanel(null)} />
-          <Button title="DELETE" danger disabled={!selectedWaypoint} onPress={() => setPanel('deleteWaypoint')} />
+    <View style={[styles.bottomBar, routeMode && routeEditing && { flexWrap: 'wrap' }, viewMode === '25d' && { display: 'none' }, !routeMode && !previewing && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && { display: 'none' }]}>
+      {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered waypoints. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Route {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode && routeEditing ? <>
+          <Button title="ADD WAYPOINT" active={addingPoint} disabled={dragging} onPress={() => { setAddingPoint(true); setAssignmentMode(null); setPanel(null); }} />
+          <Button title="MOVE" onPress={() => { setAddingPoint(false); setPanel(null); }} />
           <Button title="ORDER" onPress={() => setPanel('order')} />
+          <Button title="DELETE" danger disabled={!selectedWaypoint} onPress={() => setPanel('deleteWaypoint')} />
           <Button title="DONE" onPress={() => { setRouteEditing(false); setAssignmentMode(null); }} />
         </> : routeMode ? <>
         <Button title="PLAN" onPress={() => setPanel('aiPlan')} />
@@ -293,33 +288,33 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ settings: 'Stage Settings', aiPlan: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: 'View', snap: 'Grid & snap', summary: 'Route Analysis', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Engagement order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan'} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ settings: 'Stage Settings', aiPlan: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan'} close={() => setPanel(null)}>
+      {panel === 'saveError' && <ErrorState title="Stage could not be saved. Try Save again after reviewing the details." detail={saveMessage} />}
       {panel === 'engagement' && plan.route && <EngagementDetails stage={stage} route={plan.route} nodeId={nodeId} onChange={changeRoute} />}
       {panel === 'rules' && plan.route && <>
-        <TextInput accessibilityLabel="Route name" style={ui.input} value={plan.route.name} maxLength={100} onChangeText={name => plan.route && changeRoute({ ...plan.route, name })} />
         <EngagementSettings stage={stage} initial={plan.route.engagementRules} onCancel={() => setPanel('aiPlan')} onApply={rules => { if (plan.route) changeRoute({ ...plan.route, engagementRules: rules }); setPanel('aiPlan'); }} /></>}
-      {panel === 'resetRoute' && <><Text>Clear the route, waypoints, reloads and route rules?</Text><Button title="Keep route" onPress={() => setPanel(null)} /><Button title="Confirm reset route" danger onPress={() => { changeRoute(createRoute('route-' + uuid.v4())); setPositionId(null); setPanel(null); }} /></>}
+      {panel === 'resetRoute' && <><Text>Clear the route, waypoints, reloads and route rules?</Text><Button title="Cancel" onPress={() => setPanel(null)} /><Button title="Reset route" danger onPress={() => { changeRoute(createRoute('route-' + uuid.v4())); setPositionId(null); setPanel(null); }} /></>}
       {panel === 'waypoint' && selectedWaypoint && plan.route && <>
         <Text>WAYPOINT {plan.route.positions.indexOf(selectedWaypoint) + 1}</Text>
         <TextInput accessibilityLabel="Waypoint label" style={ui.input} value={selectedWaypoint.label} maxLength={30} onChangeText={label => { if (plan.route) changeRoute({ ...plan.route, positions: plan.route.positions.map(p => p.id === positionId ? { ...p, label } : p) }); }} />
-        <Text>From previous: {formatYards(routeEvaluation?.segments.find(s => s.toId === positionId)?.distance ?? 0)}</Text>
-        <Text>To next: {formatYards(routeEvaluation?.segments.find(s => s.fromId === positionId)?.distance ?? 0)}</Text>
+        <Text>{formatYards(routeEvaluation?.segments.find(s => s.toId === positionId)?.distance ?? 0)} from previous</Text>
+        <Text>{formatYards(routeEvaluation?.segments.find(s => s.fromId === positionId)?.distance ?? 0)} to next</Text>
         <Text>{selectedWaypoint.engagedTargetIds.length + (selectedWaypoint.movingTargetIds?.length ?? 0)} targets assigned</Text>
+        <Text>Reload: {(() => { const reload = plan.route.reloads.find(r => r.positionId === positionId); const index = plan.loadout.magazines.findIndex(m => m.id === reload?.magazineId); return !reload ? 'None' : index < 0 ? 'Missing magazine' : plan.loadout.magazines[index].label || 'Magazine ' + (index + 1); })()}</Text>
         <Button title="TARGETS" onPress={() => setPanel('assign')} />
         <Button title="RELOAD" onPress={() => setPanel('reload')} />
         <Button title="DELETE" danger onPress={() => setPanel('deleteWaypoint')} />
       </>}
-      {panel === 'deleteWaypoint' && <><Text>Delete this waypoint and its reload assignment?</Text><Button title="Keep waypoint" onPress={() => setPanel('waypoint')} /><Button title="Confirm delete waypoint" danger onPress={() => { if (plan.route) { changeRoute({ ...plan.route, positions: plan.route.positions.filter(p => p.id !== positionId), reloads: plan.route.reloads.filter(r => r.positionId !== positionId) }); setPositionId(null); setPanel(null); } }} />
+      {panel === 'deleteWaypoint' && <><Text>Delete this waypoint and its reload assignment?</Text><Button title="Cancel" onPress={() => setPanel('waypoint')} /><Button title="Delete waypoint" danger onPress={() => { if (plan.route) { changeRoute({ ...plan.route, positions: plan.route.positions.filter(p => p.id !== positionId), reloads: plan.route.reloads.filter(r => r.positionId !== positionId) }); setPositionId(null); setPanel(null); } }} />
       </>}
       {panel === 'order' && plan.route && <>
         <Text>WAYPOINT ORDER</Text>
         {plan.route.positions.map((p, i) => <View key={p.id}><Button title={String(i + 1) + ' ' + p.label} onPress={() => { setPositionId(p.id); setPanel('waypoint'); }} /><View style={styles.controls}><Button title="Earlier" disabled={!i} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, -1))} /><Button title="Later" disabled={i === plan.route!.positions.length - 1} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, 1))} /></View></View>)}
-        <EngagementPanel stage={stage} route={plan.route} onChange={changeRoute} authoring={false} selectedId={positionId} />
       </>}
       {panel === 'draw' && <>
         <Button title="WALL" onPress={() => { setPanel(null); switchTool('wall'); }} />
         <Button title="FAULT LINE" onPress={() => { setPanel(null); switchTool('faultLine'); }} />
-        <Button title={snapping.enabled ? 'Snap ON' : 'Snap OFF'} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} />
+
       </>}
       {panel === 'more' && <>
         {routeMode ? <>
@@ -329,19 +324,22 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
           <Button title="Overlay Layers" onPress={() => setPanel('view')} />
           <Button title="Reset Route" danger onPress={() => setPanel('resetRoute')} />
         </> : <>
+          <Text style={styles.title}>STAGE</Text>
           <Button title="Stage Dimensions" onPress={() => setPanel('settings')} />
           <Button title="Grid & Snapping" onPress={() => setPanel('snap')} />
           <Button title="2.5D Preview" onPress={() => { setViewMode('25d'); setPanel(null); }} />
-          <Button title="Loadout / Target Rounds" onPress={() => setPanel('plan')} />
-          <Button title="Pan" onPress={() => { setPanel(null); switchTool('pan'); }} />
-          <Button title="Reset Stage" danger onPress={() => setPanel('reset')} />
+          <Text style={styles.title}>PLANNING</Text><Button title="Loadout" onPress={() => { setPlanSection('loadout'); setPanel('plan'); }} /><Button title="Target Rounds" onPress={() => { setPlanSection('targets'); setPanel('plan'); }} /><Text style={styles.title}>VIEW</Text>
+
+
         </>}
         {!routeMode && <Button title="Overlay / View Settings" onPress={() => setPanel('view')} />}
         <Button title="Zoom out" disabled={viewport.zoom <= MIN_ZOOM} onPress={() => zoom(1 / 1.25)} />
         <Text testID="stage-zoom">{Math.round(viewport.zoom * 100)}%</Text>
         <Button title="Zoom in" disabled={viewport.zoom >= MAX_ZOOM} onPress={() => zoom(1.25)} />
+        {!routeMode && <Text style={styles.title}>EDIT HISTORY</Text>}
         <Button title="UNDO EDIT" disabled={!documentHistory.canUndo} onPress={() => { updateDraft(null); setChain([]); documentHistory.undo(); }} />
         <Button title="REDO EDIT" disabled={!documentHistory.canRedo} onPress={() => { updateDraft(null); setChain([]); documentHistory.redo(); }} />
+        {!routeMode && <><Text style={styles.title}>DANGER</Text><Button title="Reset Stage" danger onPress={() => setPanel('reset')} /></>}
       </>}
       {panel === 'settings' && <StageSettings stage={stage} route={plan.route} onApply={setStage} onSelect={item => {
         setViewMode('topDown'); setAssignmentMode(null);
@@ -377,19 +375,19 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title="Grid / Snap Settings" onPress={() => setPanel('snap')} />
       </>}
 
-      {panel === 'snap' && <SnapControls value={snapping} onChange={setSnapping} disabled={false} />}
+      {panel === 'snap' && <>{!routeMode && <Button title={'Grid ' + (gridVisible ? 'ON' : 'OFF')} onPress={() => setGridVisible(v => !v)} />}<SnapControls value={snapping} onChange={setSnapping} disabled={false} /></>}
       {(panel === 'assign' || panel === 'reload') && plan.route && <>
         <Button title="Back to waypoint" onPress={() => setPanel('waypoint')} />
-        {!!profileError && <Text>{profileError}</Text>}
+        {!!profileError && <ErrorState title="Profile unavailable. Route timing may be unavailable." detail={profileError} />}
         <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={plan.route} selectedId={positionId} onChange={changeRoute} />
       </>}
       {(panel === 'delete' || panel === 'reset') && <>
         <Text>{panel === 'delete' ? 'Delete this object and its planning references?' : 'Restore the default stage? This also clears the route and target assignments.'}</Text>
         <Button title="Cancel" onPress={() => setPanel(null)} />
-        <Button title={panel === 'delete' ? 'Confirm delete' : 'Confirm reset'} danger onPress={() => { act({ kind: panel }); setPanel(null); }} />
+        <Button title={panel === 'delete' ? 'Delete object' : 'Reset stage'} danger onPress={() => { act({ kind: panel }); setPanel(null); }} />
       </>}
     </EditorSheet>
-    {panel === 'aiPlan' && <AutoPlannerPanel onConfigure={section => { if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(next.route?.positions[0]?.id ?? null); setAssignmentMode(null); setPanel(null); }} />}
+    {panel === 'aiPlan' && <AutoPlannerPanel onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel(stage.objects.some(o => o.type === 'start') ? 'edit' : 'settings'); } else if (section === 'geometry') setPanel('settings'); else if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}
   </SafeAreaView>;
 }
 
@@ -404,16 +402,17 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   topbar: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   name: { ...typography.section, flex: 1, minWidth: 0, borderBottomWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0 },
-  readout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
+  readout: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
   canvas: { flex: 1, minHeight: 100, marginHorizontal: 0 },
   zoomBar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2 },
+  modeOverlay: { position: 'absolute', top: 60, left: 8, right: 8, padding: 8, gap: 4, backgroundColor: colors.panel },
   context: { position: 'absolute', bottom: 8, left: 8, right: 8, padding: 4, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel },
-  bottomBar: { flexDirection: 'row', gap: 0, paddingHorizontal: 4, paddingVertical: 4, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel },
+  bottomBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 0, paddingHorizontal: 4, paddingVertical: 4, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel },
   title: { ...typography.section, color: colors.text },
-  status: { ...typography.category, color: colors.muted, marginVertical: 6, flexShrink: 1 },
+  status: { ...typography.category, color: colors.muted, marginVertical: 4, flexShrink: 1 },
   active: { color: colors.accent },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  button: { flexGrow: 1, flexShrink: 1, backgroundColor: colors.secondary, paddingVertical: 10, paddingHorizontal: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  button: { flexGrow: 1, flexShrink: 1, maxWidth: '100%', backgroundColor: colors.secondary, paddingVertical: 10, paddingHorizontal: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
   compact: { flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, backgroundColor: 'transparent', borderBottomWidth: 0 },
   tool: { flex: 1, backgroundColor: 'transparent', gap: 4, paddingVertical: 6, paddingHorizontal: 2, minHeight: 54, borderBottomWidth: 0 },
   toolLabel: { fontSize: 10, lineHeight: 14, color: colors.muted, fontWeight: '400' },
@@ -423,6 +422,6 @@ const styles = StyleSheet.create({
   accentText: { color: colors.accent },
   pressed: { backgroundColor: colors.selected },
   disabled: { opacity: 0.4 },
-  error: { color: colors.text, padding: 8 },
+  error: { ...typography.body, color: colors.danger, padding: 8 },
   buttonText: { ...typography.label, color: colors.text, textAlign: 'center' },
 });

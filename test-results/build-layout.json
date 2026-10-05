@@ -1,0 +1,224 @@
+[
+  {
+    "label": "select",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 694
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••"
+  },
+  {
+    "label": "add",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 694
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nAdd\nDone\nTARGET FAMILY\nUSPSA ✓\nPCSL\nIDPA\nPaper role: Scoring target\nUSPSA Metric (CHL)\n0.503 yd × 0.831 yd / Paper\nInfo\nIPSC Classic (CHL)\n0.503 yd × 0.634 yd / Paper\nInfo\nReduced USPSA (Action Target)\n0.253 yd × 0.413 yd / Paper\nInfo\nUSPSA 8-inch round plate\n0.222 yd × 0.222 yd / Steel plate\nInfo\nMini Pepper Popper (Blue Steel)\n0.222 yd × 0.778 yd / Steel popper\nInfo\nOTHER\nStart Position"
+  },
+  {
+    "label": "placement",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 747
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nUSPSA Metric (CHL)\nDONE\nTap to place\nFit"
+  },
+  {
+    "label": "draw-chooser",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 694
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nDraw\nDone\nWALL\nFAULT LINE"
+  },
+  {
+    "label": "drawing",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 747
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nWALL\nDONE\nTap start, then drag or tap endpoint\nSNAP ON\nUNDO SEGMENT\nFit"
+  },
+  {
+    "label": "more",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": {
+      "width": 390,
+      "height": 694
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nStage tools\nDone\nSTAGE\nStage Dimensions\nGrid & Snapping\n2.5D Preview\nPLANNING\nLoadout\nTarget Rounds\nVIEW\nOverlay / View Settings\nZoom out\n100%\nZoom in\nEDIT HISTORY\nUNDO EDIT\nREDO EDIT\nDANGER\nReset Stage"
+  },
+  {
+    "label": "25d",
+    "width": 390,
+    "height": 844,
+    "overflow": false,
+    "canvas": null,
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n2.5D ? READ ONLY\nRotate left\nRotate right\nZoom out\nZoom in\nFit\nBack\nCamera 45° · 100%. Openings are cut through walls; surface ordering is approximate."
+  },
+  {
+    "label": "select",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 517
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••"
+  },
+  {
+    "label": "add",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 517
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nAdd\nDone\nTARGET FAMILY\nUSPSA ✓\nPCSL\nIDPA\nPaper role: Scoring target\nUSPSA Metric (CHL)\n0.503 yd × 0.831 yd / Paper\nInfo\nIPSC Classic (CHL)\n0.503 yd × 0.634 yd / Paper\nInfo\nReduced USPSA (Action Target)\n0.253 yd × 0.413 yd / Paper\nInfo\nUSPSA 8-inch round plate\n0.222 yd × 0.222 yd / Steel plate\nInfo\nMini Pepper Popper (Blue Steel)\n0.222 yd × 0.778 yd / Steel popper\nInfo\nOTHER\nStart Position"
+  },
+  {
+    "label": "placement",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 570
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nUSPSA Metric (CHL)\nDONE\nTap to place\nFit"
+  },
+  {
+    "label": "draw-chooser",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 517
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nDraw\nDone\nWALL\nFAULT LINE"
+  },
+  {
+    "label": "drawing",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 570
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nWALL\nDONE\nTap start, then drag or tap endpoint\nSNAP ON\nUNDO SEGMENT\nFit"
+  },
+  {
+    "label": "more",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": {
+      "width": 375,
+      "height": 517
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nStage tools\nDone\nSTAGE\nStage Dimensions\nGrid & Snapping\n2.5D Preview\nPLANNING\nLoadout\nTarget Rounds\nVIEW\nOverlay / View Settings\nZoom out\n100%\nZoom in\nEDIT HISTORY\nUNDO EDIT\nREDO EDIT\nDANGER\nReset Stage"
+  },
+  {
+    "label": "25d",
+    "width": 375,
+    "height": 667,
+    "overflow": false,
+    "canvas": null,
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n2.5D ? READ ONLY\nRotate left\nRotate right\nZoom out\nZoom in\nFit\nBack\nCamera 45° · 100%. Openings are cut through walls; surface ordering is approximate."
+  },
+  {
+    "label": "select",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 418
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••"
+  },
+  {
+    "label": "add",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 418
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nAdd\nDone\nTARGET FAMILY\nUSPSA ✓\nPCSL\nIDPA\nPaper role: Scoring target\nUSPSA Metric (CHL)\n0.503 yd × 0.831 yd / Paper\nInfo\nIPSC Classic (CHL)\n0.503 yd × 0.634 yd / Paper\nInfo\nReduced USPSA (Action Target)\n0.253 yd × 0.413 yd / Paper\nInfo\nUSPSA 8-inch round plate\n0.222 yd × 0.222 yd / Steel plate\nInfo\nMini Pepper Popper (Blue Steel)\n0.222 yd × 0.778 yd / Steel popper\nInfo\nOTHER\nStart Position"
+  },
+  {
+    "label": "placement",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 471
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nUSPSA Metric (CHL)\nDONE\nTap to place\nFit"
+  },
+  {
+    "label": "draw-chooser",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 418
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nDraw\nDone\nWALL\nFAULT LINE"
+  },
+  {
+    "label": "drawing",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 471
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nWALL\nDONE\nTap start, then drag or tap endpoint\nSNAP ON\nUNDO SEGMENT\nFit"
+  },
+  {
+    "label": "more",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": {
+      "width": 320,
+      "height": 418
+    },
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\n11.667 yd\n13.333 yd\n1.667 yd\n3.333 yd\n5 yd\n6.667 yd\n8.333 yd\n10 yd\nSTART\nFit\nSELECT\nADD\nDRAW\n•••\nStage tools\nDone\nSTAGE\nStage Dimensions\nGrid & Snapping\n2.5D Preview\nPLANNING\nLoadout\nTarget Rounds\nVIEW\nOverlay / View Settings\nZoom out\n100%\nZoom in\nEDIT HISTORY\nUNDO EDIT\nREDO EDIT\nDANGER\nReset Stage"
+  },
+  {
+    "label": "25d",
+    "width": 320,
+    "height": 568,
+    "overflow": false,
+    "canvas": null,
+    "text": "‹\nSegment 2 BUILD review\nSAVED\nSave\nBUILD\nROUTE\n2.5D ? READ ONLY\nRotate left\nRotate right\nZoom out\nZoom in\nFit\nBack\nCamera 45° · 100%. Openings are cut through walls; surface ordering is approximate."
+  }
+]

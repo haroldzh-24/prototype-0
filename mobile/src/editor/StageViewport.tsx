@@ -23,6 +23,7 @@ import type { RouteOverlayProps } from './RouteOverlay';
 type Props = {
   tool?: DesignerTool;
   draft?: { start: StagePosition; end: StagePosition } | null;
+  onRoutePoint?: (point: StagePosition) => void;
   onPlace?: (point: StagePosition) => void;
   onDraw?: (phase: 'start' | 'preview' | 'commit' | 'cancel', point: StagePosition) => void;
   focusPosition?: StagePosition | null;
@@ -114,6 +115,8 @@ export default function StageViewport(props: Props) {
       if (drawing()) {
         if (inside && !intent.current.multiple && (hadAnchor.current || intent.current.moved)) p.onDraw?.('commit',point);
         else if (!inside || intent.current.multiple) p.onDraw?.('cancel',point);
+      } else if (!p.readOnly && p.routeEditing && p.onRoutePoint) {
+        if (inside && deliberateTap(intent.current, Date.now())) p.onRoutePoint(point);
       } else if (!p.readOnly && !p.routeEditing && p.tool === 'target') {
         if (inside && deliberateTap(intent.current,Date.now())) p.onPlace?.(point);
       } else if (!moving.current && (!p.tool || p.tool === 'select')) p.onSelect(null);
@@ -151,7 +154,7 @@ export default function StageViewport(props: Props) {
           })()}
           {props.autoPositions && <AutoPositionOverlay positions={props.autoPositions} transform={transform} />}
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
-          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.readOnly ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
+          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.readOnly && !props.onRoutePoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />
           </View>}
         </>}

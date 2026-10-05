@@ -13,7 +13,7 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const selected = wall.ports.find(port => port.id === selectedId) ?? wall.ports[0];
+  const selected = wall.ports.find(port => port.id === selectedId);
   const add = () => {
     const port = createPort(wall.geometry, createPortId(uuid.v4));
     const error = onApply({ ports: [...wall.ports, port] });
@@ -27,21 +27,20 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
     if (!error) setSelectedId(null);
   };
   return <View style={styles.panel}>
-    <Text style={styles.title}>Firing ports ({wall.ports.length})</Text>
-    <Text>Offset is the opening center from the wall center. Negative is toward the local left end. Sill is above the wall bottom. All lengths are in yards; decimals and fractions are supported.</Text>
-    <View style={styles.row}>
-      <Control title="Add Port" disabled={disabled} onPress={add} />
-      <Control title="Remove Port" disabled={disabled || !selected} onPress={remove} />
-    </View>
+    <Text style={styles.title}>PORTS</Text>
+    <Text>{wall.ports.length} openings</Text>
+    {selected && <Text>Offset is the opening center from the wall center. Negative is toward the local left end. Sill is above the wall bottom. All lengths are in yards; decimals and fractions are supported.</Text>}
+
     <View style={styles.row}>{wall.ports.map((port, index) => <Pressable key={port.id}
       accessibilityRole="button" accessibilityState={{ selected: selected?.id === port.id, disabled }} disabled={disabled}
       onPress={() => { setSelectedId(port.id); setNotice(''); }} style={[styles.button, selected?.id === port.id && styles.selected]}>
-      <Text style={styles.buttonText}>Port {index + 1}</Text>
+      <Text style={styles.buttonText}>Port {index + 1} &gt;</Text>
     </Pressable>)}</View>
-    {selected && <PortForm key={selected.id} port={selected} disabled={disabled} onApply={port => {
+    <Control title="ADD PORT" disabled={disabled} onPress={add} />
+    {selected && <><Control title="Back to ports" disabled={disabled} onPress={() => setSelectedId(null)} /><Control title="Remove Port" disabled={disabled} onPress={remove} /><PortForm key={selected.id} port={selected} disabled={disabled} onApply={port => {
       const error = onApply({ ports: wall.ports.map(current => current.id === port.id ? port : current) });
       setNotice(error ?? 'Port updated.');
-    }} onError={setNotice} />}
+    }} onError={setNotice} /></>}
     {notice !== '' && <Text accessibilityLiveRegion="polite">{notice}</Text>}
   </View>;
 }
@@ -66,12 +65,12 @@ function PortForm({ port, disabled, onApply, onError }: {
 }
 function Control({ title, disabled, onPress }: { title: string; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={[styles.button, disabled && { opacity: 0.4 }]}><Text style={styles.buttonText}>{title}</Text></Pressable>;
+    style={[styles.button, title.startsWith('Remove') && { borderColor: colors.danger }, disabled && { opacity: 0.4 }]}><Text style={[styles.buttonText, title.startsWith('Remove') && { color: colors.danger }]}>{title}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
   panel: { gap: 8, marginTop: 12 }, title: { ...typography.section, color: colors.text },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, field: { flexBasis: '40%', flexGrow: 1, minWidth: 120 },
   input: { borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.secondary, padding: 8, minHeight: 44, color: colors.text, borderRadius: 2 },
-  button: { backgroundColor: colors.secondary, padding: 10, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
+  button: { backgroundColor: colors.secondary, padding: 10, minHeight: 44, minWidth: 44, maxWidth: '100%', flexShrink: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
   selected: { backgroundColor: colors.selected, borderColor: colors.accent }, buttonText: { color: colors.text, ...typography.label },
 });

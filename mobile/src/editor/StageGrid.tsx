@@ -1,12 +1,12 @@
 import { colors } from '../ui/tokens';
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
 import { measurementGrid } from '@/stage/grid';
-import { formatYards } from '../stage/measurements';
 
 export default memo(function StageGrid({ stage, transform: t }: { stage: StageSize; transform: ViewportTransform }) {
+  const { fontScale } = useWindowDimensions();
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {measurementGrid(stage).map((line) => {
       const vertical = line.axis === 'x';
@@ -16,9 +16,9 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
         width: vertical ? 1 : stage.width * t.scale,
         height: vertical ? stage.depth * t.scale : 1,
         backgroundColor: line.major ? colors.grid : colors.gridMinor }}>
-        {line.value > 0 && line.value % 60 === 0 && <Text style={styles.label}>{formatYards(line.value)}</Text>}
+        {line.value > 0 && line.value % (60 * Math.max(1, Math.ceil((vertical ? 64 : 24) * fontScale / (60 * t.scale)))) === 0 && <Text style={[styles.label, { width: 60 * fontScale }]}>{(line.value / 36).toFixed(1)} yd</Text>}
       </View>;
     })}
   </View>;
 });
-const styles = StyleSheet.create({ label: { position: 'absolute', left: 2, top: 2, width: 40, fontSize: 9, color: colors.muted, backgroundColor: colors.panel } });
+const styles = StyleSheet.create({ label: { position: 'absolute', left: 2, top: 2, width: 60, fontSize: 10, color: colors.muted, backgroundColor: colors.panel } });

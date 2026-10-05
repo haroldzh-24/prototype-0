@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { Text } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Screen, Panel, Action, Copy, ui } from '@/ui/kit';
+import { Screen, Panel, Action, Copy, EmptyState, Loading, Notice, ErrorState, ScreenHeader, MenuRow, Input, DeleteConfirmation, ui } from '@/ui/kit';
 import LibraryCard from '@/ui/LibraryCard';
 import EditorSheet from '@/editor/EditorSheet';
 import { useRepository } from '@/storage/StorageProvider';
@@ -38,39 +38,35 @@ function MatchStages({ id }: { id?: string }) {
     catch (cause) { setError(String(cause)); }
     finally { running.current = false; setBusy(false); }
   }
-  return <Screen title="STAGES">
-    <Action title="Back to Matches" disabled={busy} onPress={() => router.dismissTo('/planner')} />
-    {!!error && !editing && !deleting && <Copy>{error}</Copy>}
-    {!match && !error && <Copy>Loading match...</Copy>}
+  return <Screen safeTop header={<ScreenHeader title="STAGES" back={() => router.dismissTo('/planner')} action={<Action title="+ STAGE" variant="primary" disabled={busy || !match} onPress={() => { setEditing('new'); setName(''); setError(''); }} />} />}>
+    {!!error && !editing && !deleting && <ErrorState title="Couldn’t load or update stages." detail={error} busy={busy} retry={() => void run(async () => {})} />}
+    {!match && !error && <Loading label="Loading stages…" />}
     {match && <>
-      <Copy>{match.name}</Copy>
+      <Text style={ui.title}>{match.name}</Text>
       <Copy>{match.targetFamily} · {stages.length} {stages.length === 1 ? 'stage' : 'stages'}</Copy>
-      <Action title="+ STAGE" disabled={busy} onPress={() => { setEditing('new'); setName(''); setError(''); }} />
-      {!stages.length && <Copy>No stages yet. Add your first stage.</Copy>}
+
+      {!stages.length && <EmptyState title="No stages" detail="Add your first stage to this match." />}
       {stages.map(stage => <LibraryCard key={stage.id} name={stage.name} detail={'Edited ' + new Date(stage.updatedAt).toLocaleString()}
         disabled={busy} open={() => router.push({ pathname: '/builder', params: { id: stage.id } })} more={() => setMenu(stage)} />)}
     </>}
     <EditorSheet title={menu?.name ?? 'Stage actions'} visible={!!menu} close={() => setMenu(null)}>
-      <Action title="Rename" onPress={() => { if (menu) { setEditing(menu); setName(menu.name); setError(''); } setMenu(null); }} />
-      <Action title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateStage(menu.id)); setMenu(null); }} />
-      <Action title="Delete" onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
+      <MenuRow title="Rename" onPress={() => { if (menu) { setEditing(menu); setName(menu.name); setError(''); } setMenu(null); }} />
+      <MenuRow title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateStage(menu.id)); setMenu(null); }} />
+      <MenuRow title="Delete" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
     </EditorSheet>
     <EditorSheet title={editing === 'new' ? 'Add Stage' : 'Rename Stage'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
-      <Panel><Copy>Stage name</Copy><TextInput accessibilityLabel="Stage name" autoFocus style={ui.input} value={name} maxLength={100} editable={!busy} onChangeText={setName} />
-        <Action title={busy ? 'Saving...' : editing === 'new' ? 'Open Stage Designer' : 'Apply name'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
+      <Panel><Input label="Stage name" value={name} disabled={busy} onChange={setName} />
+        <Action variant="primary" title={busy ? 'Saving...' : editing === 'new' ? 'Open Stage Designer' : 'Apply name'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
           if (editing === 'new' && match) {
             const current = await repo.loadMatch(match.id);
             const stageId = await repo.createStage(name, createDefaultStage(current.targetFamily), createPlan(), current.id);
             setEditing(null); router.push({ pathname: '/builder', params: { id: stageId } });
           } else if (editing && editing !== 'new') await repo.renameStage(editing.id, name);
-        })} />{!!error && <Copy>{error}</Copy>}
+        })} />{!!error && <ErrorState title="Changes could not be saved." detail={error} />}
       </Panel>
     </EditorSheet>
     <EditorSheet title="Delete stage" visible={deleting !== null} close={() => { if (!running.current) setDeleting(null); }}>
-      <Panel><Copy>Delete “{deleting?.name}” permanently?</Copy><Action title="Keep stage" disabled={busy} onPress={() => setDeleting(null)} />
-        <Action title={busy ? 'Deleting...' : 'Confirm delete stage'} disabled={busy} onPress={() => { if (deleting) void run(() => repo.deleteStage(deleting.id)); }} />
-        {!!error && <Copy>{error}</Copy>}
-      </Panel>
+      <DeleteConfirmation noun="stage" detail={'Delete ' + deleting?.name + ' and its saved planning data?'} busy={busy} onKeep={() => setDeleting(null)} onDelete={() => { if (deleting) void run(() => repo.deleteStage(deleting.id)); }} error={error} />
     </EditorSheet>
   </Screen>;
 }

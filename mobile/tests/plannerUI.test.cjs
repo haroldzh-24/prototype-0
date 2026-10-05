@@ -132,6 +132,6 @@ test('ruleset choices retain typed identity and explicitly declare shared neutra
     assert.match(state.description, /not modeled/);
     assert.match(state.description, /behave identically/);
   }
-  assert.equal(rulesetMetadata('CUSTOM').label, 'Custom / Vanilla');
+  assert.equal(rulesetMetadata('CUSTOM').label, 'Custom');
   assert.equal(JSON.stringify(context), before);
 });

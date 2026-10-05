@@ -56,7 +56,7 @@ export default function DraggableObject(props: ObjectProps) {
   const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper';
   const width = isTarget(item) ? Math.max(44, item.geometry.faceWidth * transform.scale) : dimensions.width * transform.scale;
   const height = isTarget(item) ? Math.max(44, item.geometry.faceHeight * transform.scale) : dimensions.depth * transform.scale;
-  return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={10}
+  return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
     style={[styles.object, target ? styles.targetMarker

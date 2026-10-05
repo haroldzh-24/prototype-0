@@ -1,15 +1,19 @@
 import { View } from 'react-native';
+import { useState } from 'react';
 import { Action, Copy } from '../ui/kit';
 import type { ExecutionComparison } from './executionComparison';
 import type { TrainingVideo } from './videoModel';
 import { generateMappingCandidates, reviewMappingSuggestion, suggestionsAreStale } from './mappingSuggestions';
 import type { MappingPair } from './mappingSuggestions';
+import { labeledPlanElements as plannedElements } from './presentation';
 
 export function MappingSuggestionReview({ comparison, video, disabled, onChange, onSelect, guard }: {
   comparison: ExecutionComparison; video: TrainingVideo; disabled: boolean;
   onChange: (c: ExecutionComparison) => void; onSelect: (p: MappingPair) => void; guard: (fn: () => void) => void;
 }) {
   const set = comparison.mappingSuggestions, stale = suggestionsAreStale(comparison, video);
+  const [alternatives, setAlternatives] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
   // Historical/foreign algorithm payloads stay stored but are not rendered as current results.
   const candidates = !stale && Array.isArray(set?.candidates) ? set.candidates.slice(0, 3) : [];
   return <>
@@ -22,13 +26,14 @@ export function MappingSuggestionReview({ comparison, video, disabled, onChange,
     {set && !stale && <>
       <Copy>{set.status.replaceAll('_', ' ')}</Copy>
       {set.warnings.map((w, i) => <Copy key={i}>{w}</Copy>)}
-      {candidates.map((candidate, index) => <View key={candidate.id}>
-        <Copy>{index === 0 ? 'BEST SUGGESTED MAPPING' : 'ALTERNATIVE'} · {candidate.confidence} · {(candidate.coverage * 100).toFixed(0)}% route coverage</Copy>
-        {candidate.reasons.map((r, i) => <Copy key={i}>{r}</Copy>)}
+      {candidates.length > 1 && <Action title={alternatives ? 'Hide alternatives' : 'Alternative mappings'} onPress={() => setAlternatives(!alternatives)} />}
+      {candidates.filter((_, index) => index === 0 || alternatives).map((candidate, index) => <View key={candidate.id}>
+        <Copy>{candidate.pairs.length} mapped / {candidate.unmatchedPlanned.length} unmatched</Copy><Copy>{index === 0 ? 'BEST SUGGESTED MAPPING' : 'ALTERNATIVE'} · {candidate.confidence} · {(candidate.coverage * 100).toFixed(0)}% route coverage</Copy>
+        <Action title={expanded === candidate.id ? 'Hide mapping details' : 'Review mapping details'} onPress={() => setExpanded(expanded === candidate.id ? null : candidate.id)} />
         <Action title="Accept all pending mappings" disabled={disabled || !candidate.pairs.some(p => p.decision === 'PENDING')}
           onPress={() => guard(() => onChange(reviewMappingSuggestion(comparison, video, candidate.id, 'ALL', 'ACCEPTED', new Date().toISOString())))} />
-        {candidate.pairs.map(pair => <View key={pair.id}>
-          <Action title={`${pair.kind} → ${pair.planElementId} · ${pair.confidence} · ${pair.decision}`}
+        {expanded === candidate.id && <>{candidate.reasons.map((r, i) => <Copy key={i}>{r}</Copy>)}{candidate.pairs.map(pair => <View key={pair.id}>
+          <Action title={`${plannedElements(comparison, pair.kind).find(element => element.id === pair.planElementId)?.label ?? 'Unmatched element'} · ${pair.confidence} · ${pair.decision}`}
             disabled={disabled} onPress={() => onSelect(pair)} />
           <Copy>{(pair.startMs / 1000).toFixed(3)}–{(pair.endMs / 1000).toFixed(3)} s · {pair.observedIntervalIds.length} interval(s)
             {pair.timingDeltaMs === null ? '' : ` · timing delta ${(pair.timingDeltaMs / 1000).toFixed(3)} s`}</Copy>
@@ -42,8 +47,8 @@ export function MappingSuggestionReview({ comparison, video, disabled, onChange,
           </>}
           <Action title="Edit / manually remap below" disabled={disabled} onPress={() => onSelect(pair)} />
         </View>)}
-        {!!candidate.unmatchedPlanned.length && <Copy>Unmapped plan: {candidate.unmatchedPlanned.join(', ')}</Copy>}
-        {!!candidate.extraObserved.length && <Copy>Extra observed: {candidate.extraObserved.join(', ')}</Copy>}
+        {!!candidate.unmatchedPlanned.length && <Copy>{candidate.unmatchedPlanned.length} unmapped planned elements</Copy>}
+        {!!candidate.extraObserved.length && <Copy>{candidate.extraObserved.length} extra observed intervals</Copy>}</>}
       </View>)}
     </>}
   </>;

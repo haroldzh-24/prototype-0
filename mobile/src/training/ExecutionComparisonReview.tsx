@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { labeledPlanElements as plannedElements } from './presentation';
 import { OperationGate } from './operationGate';
 import { View } from 'react-native';
 import { uuid } from 'expo-modules-core';
-import { Action, Copy, Panel } from '../ui/kit';
+import { Action, Copy, Panel, DataRow, Notice, ErrorState, Loading } from '../ui/kit';
 import { useRepository } from '../storage/StorageProvider';
 import type { SavedStage, StageSummary } from '../storage/repository';
 import StageViewport from '../editor/StageViewport';
@@ -10,8 +11,9 @@ import { DEFAULT_SNAPPING } from '../stage/snapping';
 import type { ViewportState } from '../stage/coordinates';
 import type { TrainingVideo } from './videoModel';
 import { createExecutionComparison, createExecutionComparisonResult, isExecutionComparison, mapObservedEventsToPlan,
-  observedExecution, plannedElements, removeExecutionMapping } from './executionComparison';
+  observedExecution, removeExecutionMapping } from './executionComparison';
 import type { ExecutionComparison, MappingKind } from './executionComparison';
+import EditorSheet from '../editor/EditorSheet';
 import { MappingSuggestionReview } from './MappingSuggestionReview';
 
 const seconds = (value: number | null) => value === null ? 'Not measured' : `${(value / 1000).toFixed(3)} s`;
@@ -45,28 +47,33 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
   const repo = useRepository(), [open, setOpen] = useState(false), [stages, setStages] = useState<StageSummary[]>([]);
   const operation = useRef(new OperationGate());
   useEffect(() => { operation.current.activate(); return () => operation.current.dispose(); }, []);
+  const [changingPlan, setChangingPlan] = useState(false);
   const [chosen, setChosen] = useState<SavedStage | null>(null), [live, setLive] = useState<SavedStage | null | undefined>();
   const [loading, setLoading] = useState(false), [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState(''), [attempt, setAttempt] = useState(0);
   const [kind, setKind] = useState<MappingKind>('MOVEMENT'), [planId, setPlanId] = useState(''), [intervalId, setIntervalId] = useState('');
   const [stringIds, setStringIds] = useState<string[]>([]);
+  const [mappingEditing, setMappingEditing] = useState(false), [details, setDetails] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, pan: { x: 0, y: 0 } });
   const comparison = isExecutionComparison(video.executionComparison) ? video.executionComparison : undefined;
   const stageId = comparison?.snapshot.stageId;
   const result = useMemo(() => createExecutionComparisonResult(video.executionComparison, video, live), [video, live]);
   const observed = useMemo(() => observedExecution(video), [video]);
+  const elementLabel = (kind: MappingKind, id: string) => comparison ? plannedElements(comparison, kind).find(element => element.id === id)?.label ?? 'Unmatched element' : 'Unmatched element';
   useEffect(() => {
     if (!open) return;
     let active = true;
-    setLoading(true); setMessage(''); setLive(undefined);
+    setLoading(true); setMessage(''); setLoadError(''); setLive(undefined);
     const load = async () => {
       try {
-        if (stageId) { const stage = await repo.loadStage(stageId); if (active) setLive(stage); }
+        if (stageId && !changingPlan) { const stage = await repo.loadStage(stageId); if (active) setLive(stage); }
         else { const rows = await repo.listStages(); if (active) setStages(rows); }
-      } catch (error) { if (active) { if (stageId) setLive(null); setMessage(String(error)); } }
+      } catch (error) { if (active) { if (stageId) setLive(null); setLoadError(String(error)); } }
       finally { if (active) setLoading(false); }
     };
     void load(); return () => { active = false; };
-  }, [open, stageId, repo]);
+  }, [open, stageId, changingPlan, repo, attempt]);
   const guard = (fn: () => void) => { try { fn(); setMessage(''); } catch (error) {
     setMessage((error instanceof Error ? error.message : String(error)).split(', ').map(w => warnings[w] ?? w).join(' '));
   } };
@@ -85,7 +92,7 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
       const profile = await repo.loadProfile();
       if (!operation.current.current(token)) return;
       onChange(createExecutionComparison(uuid.v4(), chosen, video, profile.performance, new Date().toISOString()));
-      setPlanId(''); setIntervalId(''); setMessage('Snapshot linked. Map confirmed intervals, then Save analysis to retain changes.');
+      setChangingPlan(false); setChosen(null); setPlanId(''); setIntervalId(''); setMessage('Snapshot linked. Map confirmed intervals, then Save analysis to retain changes.');
     } catch (error) { if (operation.current.current(token)) setMessage(String(error)); }
     finally { if (operation.current.current(token)) setLoading(false); operation.current.finish(token); }
   };
@@ -100,26 +107,27 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
     if (interval) onPreview(interval.startMs);
   };
   return <Panel>
-    <Action title={open ? 'Close plan comparison' : 'COMPARE TO PLAN'} disabled={busy} onPress={() => setOpen(!open)} />
+    {!comparison && <Copy>No plan linked</Copy>}<Action title={open ? 'Close plan comparison' : comparison ? 'LINKED PLAN' : 'SELECT STAGE'} disabled={busy} onPress={() => setOpen(!open)} />
     {open && <>
       <Copy>Map confirmed execution to a saved route. Video does not identify stage coordinates. Changes are saved with Save analysis.</Copy>
-      {loading && <Copy>Loading saved stage…</Copy>}
-      {!comparison && !video.executionComparison && <>
-        <Copy>SELECT STAGE</Copy>
-        {!loading && !stages.length && <Copy>No saved stages. Save a stage and accept or create a route in Stage Planner first.</Copy>}
+      {loading && <Loading label="Loading saved stages…" />}
+      {!!loadError && <ErrorState title="Couldn’t load saved stages." detail={loadError} retry={() => setAttempt(value => value + 1)} />}
+      {((!comparison && !video.executionComparison) || changingPlan) && <>
+        <Copy>SELECT STAGE</Copy>{changingPlan && <Action title="Keep linked plan" onPress={() => { setChangingPlan(false); setChosen(null); }} />}
+        {!loading && !loadError && !stages.length && <Copy>No saved stages. Save a stage and accept or create a route in Stage Planner first.</Copy>}
         {stages.map(s => <Action key={s.id} title={s.name} disabled={disabled} onPress={() => chooseStage(s.id)} />)}
         {chosen && <>
           <Copy>SELECT SAVED / ACCEPTED ROUTE · {chosen.name}</Copy>
           {chosen.plan.route ? <>
-            <Copy>{chosen.plan.route.name} · {chosen.plan.route.positions.length} positions. The estimate will use the current saved profile at linking time.</Copy>
-            <Action title={`Link snapshot: ${chosen.plan.route.name}`} disabled={disabled} onPress={link} />
+            <Copy>{chosen.plan.route.name} · {chosen.plan.route.positions.length} waypoints. The estimate will use the current saved profile at linking time.</Copy>
+            <Action title={`Link snapshot: ${chosen.plan.route.name}`} variant="primary" disabled={disabled} onPress={link} />
           </> : <Copy>This stage has no saved route. Save or accept a route in Stage Planner first.</Copy>}
         </>}
       </>}
       {comparison && <>
-        <Copy>{comparison.snapshot.stageName} · {comparison.snapshot.plan.route.name} · Snapshot {comparison.snapshot.capturedAt}</Copy>
-        <Copy>Saved route revision {comparison.snapshot.revision}. Historical timing inputs remain fixed.</Copy>
-        <View style={{ height: 260 }}>
+        <Action title="CHANGE PLAN" disabled={disabled} onPress={() => { setChosen(null); setChangingPlan(true); }} /><DataRow label="Linked stage" value={comparison.snapshot.stageName} /><DataRow label="Linked route" value={comparison.snapshot.plan.route.name} />
+        <Copy>{result.completeness.percent.toFixed(0)}% of route elements mapped</Copy>
+        <Copy>Uses the saved route snapshot; unsaved editor changes are excluded.</Copy><Action title={showPlan ? 'Hide plan' : 'VIEW PLAN'} onPress={() => setShowPlan(!showPlan)} />{showPlan && <><View style={{ height: 260 }}>
           <StageViewport stage={comparison.snapshot.document} viewport={viewport} onViewportChange={setViewport}
             readOnly routeEditing={false} gridVisible snapping={DEFAULT_SNAPPING} selectedId={null} onSelect={() => {}}
             onDragging={() => {}} setStage={() => {}}
@@ -128,9 +136,12 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
               onSelect: selectElement, onChange: () => {}, onDragging: () => {} }} />
         </View>
         <Action title="Fit snapshot route" onPress={() => setViewport({ zoom: 1, pan: { x: 0, y: 0 } })} />
-        <MappingSuggestionReview comparison={comparison} video={video} disabled={disabled} onChange={onChange} guard={guard}
-          onSelect={pair => { setKind(pair.kind); setPlanId(pair.planElementId); setIntervalId(pair.observedIntervalIds[0]);
+        </>}<MappingSuggestionReview comparison={comparison} video={video} disabled={disabled} onChange={onChange} guard={guard}
+          onSelect={pair => { setMappingEditing(true); setKind(pair.kind); setPlanId(pair.planElementId); setIntervalId(pair.observedIntervalIds[0]);
             setStringIds((pair.kind === 'STRING' || pair.kind === 'POSITION') ? pair.observedIntervalIds : []); onPreview(pair.startMs); }} />
+        <Action title={mappingEditing ? 'Close mapping editor' : 'Edit mappings'} onPress={() => setMappingEditing(!mappingEditing)} />
+        <EditorSheet title="Mapping" visible={mappingEditing} close={() => setMappingEditing(false)}><View style={{ gap: 12 }}>
+        {!!message && <Notice tone="warning">{message}</Notice>}
         <Copy>MAP EXECUTION · Select an element below to highlight its planned position and mapped timeline interval.</Copy>
         {(['MOVEMENT', 'POSITION', 'RELOAD', 'STRING', 'TOTAL'] as MappingKind[]).map(k => <Action key={k} title={`${kind === k ? 'Selected: ' : ''}${k}`} disabled={disabled}
           onPress={() => { setKind(k); setPlanId(''); setIntervalId(''); setStringIds([]); }} />)}
@@ -146,20 +157,27 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
           <Action title={`${intervalId === i.id ? 'Selected · ' : ''}${seconds(i.startMs)} → ${seconds(i.endMs)} · ${seconds(i.durationMs)}`}
             disabled={disabled} onPress={() => { setIntervalId(i.id); onPreview(i.startMs);
               if (kind === 'STRING' || kind === 'POSITION') setStringIds(ids => ids.includes(i.id) ? ids.filter(id => id !== i.id) : [...ids, i.id]); }} />
-          <Copy>{i.eventIds.join(' → ')}</Copy>
+          {details && <Copy>{i.eventIds.length} supporting events</Copy>}
         </View>)}
-        <Action title={selectedMapping ? 'Update mapping' : 'Assign confirmed interval'} disabled={disabled || !planId || !intervalId || (kind === 'STRING' || kind === 'POSITION') && !stringIds.length} onPress={() => guard(() => {
+        <Action title={selectedMapping ? 'Update mapping' : 'Assign confirmed interval'} variant="primary" disabled={disabled || !planId || !intervalId || (kind === 'STRING' || kind === 'POSITION') && !stringIds.length} onPress={() => guard(() => {
           const at = new Date().toISOString();
           onChange(mapObservedEventsToPlan(comparison, video, { id: selectedMapping?.id ?? uuid.v4(), kind, planElementId: planId,
             observedIntervalId: (kind === 'STRING' || kind === 'POSITION') ? stringIds[0] : intervalId,
             ...((kind === 'STRING' || kind === 'POSITION') ? { observedIntervalIds: stringIds } : {}), source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true,
             createdAt: selectedMapping?.createdAt ?? at, updatedAt: at }));
         })} />
-        {selectedMapping && <Action title="Remove selected mapping" disabled={disabled} onPress={() => guard(() => {
+        {selectedMapping && <Action title="Remove selected mapping" variant="destructive" disabled={disabled} onPress={() => guard(() => {
           onChange(removeExecutionMapping(comparison, selectedMapping.id, new Date().toISOString())); setIntervalId('');
         })} />}
-        <Copy>PLAN VS OBSERVED</Copy>
-        <Copy>Plan: {seconds(result.plannedTotalMs)}</Copy><Copy>Observed: {seconds(result.observedTotalMs)}</Copy><Copy>Delta: {delta(result.totalDeltaMs)}</Copy>
+        </View>
+        </EditorSheet>
+        {comparison.mappings.length > 0 && <><Copy>PLAN VS OBSERVED</Copy>
+        {result.segmentComparisons.map(r => <Panel key={r.mappingId}><Copy>{elementLabel('MOVEMENT', r.planElementId)}</Copy><DataRow label="Planned" value={seconds(r.plannedMs)} /><DataRow label="Observed" value={seconds(r.observedMs)} /><DataRow label="Delta" value={delta(r.deltaMs)} /></Panel>)}
+        <DataRow label="Movement delta" value={delta(result.buckets.movementDeltaMs)} /><DataRow label="Engagement delta" value={delta(result.buckets.engagementDeltaMs)} /><DataRow label="Reload delta" value={delta(result.buckets.reloadDeltaMs)} /><DataRow label="Residual delta" value={delta(result.buckets.residualDeltaMs)} />
+        <DataRow label="Planned" value={seconds(result.plannedTotalMs)} /><DataRow label="Observed" value={seconds(result.observedTotalMs)} /><DataRow label="Delta" value={delta(result.totalDeltaMs)} />
+        </>}
+        <Action title={details ? 'Hide comparison details' : 'Comparison details'} onPress={() => setDetails(!details)} />
+        {details && <><Copy>Snapshot captured {new Date(comparison.snapshot.capturedAt).toLocaleString()}. Historical inputs remain fixed.</Copy>
         <Copy>Attributed movement: {delta(result.buckets.movementDeltaMs)}</Copy>
         <Copy>Attributed engagements: {delta(result.buckets.engagementDeltaMs)}</Copy>
         <Copy>Attributed reload penalty: {delta(result.buckets.reloadDeltaMs)}</Copy>
@@ -167,14 +185,15 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
         <Copy>Unattributed observed time: {seconds(result.unmappedTimeMs)} · Unattributed plan time: {seconds(result.plannedUnattributedMs)}. Residual includes unmapped intervals and unpaired components such as draw; zero attributed delta does not imply complete mapping.</Copy>
         <Copy>Mapping coverage: {result.completeness.percent.toFixed(0)}% (element counts, not timing certainty).</Copy>
         {(['positions', 'movements', 'reloads', 'strings'] as const).map(k => <Copy key={k}>{k}: {result.completeness[k].mapped} / {result.completeness[k].total}</Copy>)}
-        {result.segmentComparisons.map(r => <Copy key={r.mappingId}>Movement to {r.planElementId}: plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)} · planned distance {r.plannedDistanceInches.toFixed(1)} in · mapping {r.mappingConfidence}</Copy>)}
-        {result.positionComparisons.map(r => <Copy key={r.mappingId}>Position {r.planElementId}: observed dwell {seconds(r.observedMs)}; planned dwell unavailable. Engagement estimate {seconds(r.plannedEngagementMs)} · {r.plannedEngagementCount} planned targets / {r.plannedRounds ?? '?'} rounds · {r.observedConfirmedShotCount} confirmed shots / {r.observedStringCount} strings.</Copy>)}
-        {result.reloadComparisons.map(r => <Copy key={r.mappingId}>Reload at {r.planElementId}: raw plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)}. Plan overlap {seconds(r.plannedOverlapMs)}, additional {seconds(r.plannedAdditionalMs)}; observed overlap {seconds(r.observedOverlapMs)}, additional {seconds(r.observedAdditionalMs)}; additional delta {delta(r.additionalDeltaMs)}.</Copy>)}
-        {result.stringComparisons.map(r => <View key={r.mappingId}><Copy>Engagement at {r.planElementId}: plan {seconds(r.plannedMs)}, observed span {seconds(r.observedMs)}, delta {delta(r.deltaMs)}.
+        {result.segmentComparisons.map(r => <Copy key={r.mappingId}>{elementLabel('MOVEMENT', r.planElementId)}: plan {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)} · planned distance {r.plannedDistanceInches.toFixed(1)} in · mapping {r.mappingConfidence}</Copy>)}
+        {result.positionComparisons.map(r => <Copy key={r.mappingId}>{elementLabel('POSITION', r.planElementId)}: observed dwell {seconds(r.observedMs)}; planned dwell unavailable. Engagement estimate {seconds(r.plannedEngagementMs)} · {r.plannedEngagementCount} planned targets / {r.plannedRounds ?? '?'} rounds · {r.observedConfirmedShotCount} confirmed shots / {r.observedStringCount} strings.</Copy>)}
+        {result.reloadComparisons.map(r => <Copy key={r.mappingId}>{elementLabel('RELOAD', r.planElementId)}: planned {seconds(r.plannedMs)}, observed {seconds(r.observedMs)}, delta {delta(r.deltaMs)}. Plan overlap {seconds(r.plannedOverlapMs)}, additional {seconds(r.plannedAdditionalMs)}; observed overlap {seconds(r.observedOverlapMs)}, additional {seconds(r.observedAdditionalMs)}; additional delta {delta(r.additionalDeltaMs)}.</Copy>)}
+        {result.stringComparisons.map(r => <View key={r.mappingId}><Copy>{elementLabel('STRING', r.planElementId)}: plan {seconds(r.plannedMs)}, observed span {seconds(r.observedMs)}, delta {delta(r.deltaMs)}.
           {r.stringCount} strings · {r.totalShots} shots · summed string time {seconds(r.engagementDurationMs ?? null)}.</Copy>
           {r.strings?.map(s => <Copy key={s.id}>{seconds(s.startMs)} → {seconds(s.endMs)} · {s.confirmedShotCount} shots</Copy>)}</View>)}
+        </>}
       </>}
-      {result.warnings.map(w => <Copy key={w}>{warnings[w] ?? w}</Copy>)}
+      {result.warnings.map(w => <Notice tone="warning" key={w}>{warnings[w] ?? w.replaceAll('_', ' ').toLowerCase()}</Notice>)}
       {video.executionComparison && <Action title="Remove comparison link and mappings" disabled={disabled} onPress={() => { onChange(undefined); setChosen(null); setPlanId(''); setIntervalId(''); }} />}
       {!!message && <Copy>{message}</Copy>}
     </>}

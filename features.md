@@ -1,3 +1,46 @@
+# Final UI device follow-up - 2026-10-05
+
+- Final source-level UI cleanup is complete; implementation and verification results moved to changelog.md and docs/ui-overhaul.md. No known source-fixable overhaul feature-path or presentation issue remains.
+- Planned: physical-device verification of safe areas, software/hardware keyboards, native large text, VoiceOver, touch/gesture handoff, platform Back/modal behavior and real media/extraction/review/Save-reopen. Browser text stress does not replace these checks.
+- Canvas polygon authoring, cloud sync, durable browser media and improved planning/analysis models remain separately planned features; current coordinate editing, local Profile and media fallbacks remain available. This pass did not implement new storage or algorithms.
+- No dated unresolved item exceeds one month as of October 5, 2026; undated legacy entries cannot be aged reliably.
+
+# Video Analysis device follow-up - 2026-10-05
+
+- Interface work is complete and recorded in changelog.md.
+- Planned: physical iOS verification of populated review/Results/Compare states, rotated selected-region overlays, playback precision, detector cancellation, keyboard/large text/safe areas, explicit Save/reopen/relink and profile contribution. See mobile/src/training/videoAnalysis.md.
+- Durable browser media and existing detector calibration/platform support remain future work.
+
+# Segment 4 Training/Profile follow-up - 2026-10-05
+
+- Completed Training home, session cards, Create Session and read-only Profile presentation are in changelog.md.
+- Planned verification: physical-phone keyboard/safe-area and large-text behavior at the three requested sizes, explicit context/start choices, contextual video import/open, Profile refresh after saved contribution and sheet dismissal timing.
+- Video Analysis interface work is complete; see changelog.md. Cloud/account implementation and durable browser media remain existing future features; no new persistence was added.
+
+# Segment 3 ROUTE follow-up - 2026-10-05
+
+- Completed ROUTE interface refinements are in changelog.md.
+- Planned verification: physical-phone readiness/configuration return paths, tap-to-add cancellation and pinch rejection, selected-node arrows, moving-window selection, coordinate keyboards, large text, preview Back to Results, adoption and save/reopen.
+- Future feature: dedicated firing-area canvas editing with structured coordinates as fallback, preserving polygon semantics.
+
+# Segment 2 BUILD follow-up - 2026-10-05
+
+- Completed BUILD organization has moved to changelog.md.
+- Planned: physical-phone verification of compact stage-name editing, inspector keyboard/large-text behavior, repeated placement safeguards, rotation wheel, wall endpoint handles and progressive port selection.
+- ROUTE UI Segment 3 is complete; verification follow-up is recorded above.
+
+# Segment 1 library follow-up - 2026-10-05
+
+- Planned verification: physical-phone safe areas, large text, short-screen keyboard coverage, sheet dismissal/back timing, overflow menus and delete confirmations on Home/Matches/Stages.
+- Completed shared-kit and library refinements are recorded in changelog.md. No dated unresolved item exceeds one month; undated entries cannot be aged reliably.
+
+# Application UI overhaul follow-up - 2026-10-04
+
+- Complete physical-phone verification in [docs/ui-overhaul.md](docs/ui-overhaul.md), including all four video tasks, comparison mapping details, large text and short-screen keyboard behavior.
+- Canvas firing-area authoring, durable browser video storage and cloud sync remain future features. Coordinate editing and missing-media/manual-analysis fallbacks remain available.
+- Completed design-system, dashboard, library, route presentation, Training, video-task and Profile work is recorded in changelog.md.
+- No dated unresolved feature is older than one month as of October 4, 2026; undated legacy ideas cannot be aged reliably.
+
 # UI reorganization follow-up - 2026-10-04
 
 - Planned verification: exercise BUILD/ROUTE on a physical phone, including prerequisite sheets, candidate preview/adoption, layer toggles, ordered assignments, explicit Save, dirty exit and saved-stage reopen.

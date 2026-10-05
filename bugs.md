@@ -1,3 +1,54 @@
+# Final UI verification - 2026-10-05
+
+- Source-fixable overhaul defects found in the final pass were fixed and moved to changelog.md. No known source-fixable UI overhaul issue remains after the final journey/source audit.
+- Remaining UI verification needs native evidence: iOS safe areas, keyboards/focused-input scrolling, Dynamic Type, gesture handoff/crowded hit regions, physical touch, VoiceOver, platform Back/modal behavior and real AV/detector/overlay/Save-reopen flows. See docs/ui-overhaul.md.
+- Browser layout passed at 390×844, 375×667 and 320×568, including doubled-browser-text stress and fixed video Save. Both existing browser smoke suites passed, including Save/reload. An earlier isolated-browser navigation timeout recovered after restart; it was not treated as a layout failure or a storage fix.
+- Existing browser SQLite/OPFS teardown and temporary browser media limitations remain open outside the UI cleanup scope. Calculations and persistence were preserved.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026; undated legacy entries cannot be aged reliably.
+
+# Video Analysis interface verification - 2026-10-05
+
+- Completed presentation fixes are in changelog.md. Browser layout checks passed at 390x844, 375x667 and 320x568, including fixed Save after scrolling and event sheets.
+- Physical iOS media/extraction, overlays, cancellation, keyboard, safe-area, populated review/mapping and save/reopen verification remain open; see mobile/src/training/videoAnalysis.md.
+- Existing browser SQLite/OPFS teardown and durable browser media limitations remain open.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026. Undated legacy entries cannot be aged reliably.
+
+# Segment 4 Training/Profile verification - 2026-10-05
+
+- Completed session-library, blank-name validation, load-error retry, context wording and unavailable-metric presentation fixes are recorded in changelog.md.
+- Source layout reviewed at 390x844, 375x667 and 320x568. Native keyboard coverage, large text, safe areas, selector wrapping and immediate sheet-to-analysis transitions remain unverified; see docs/segment-4-training-profile.md.
+- Existing native video import/playback/Save-reopen and browser SQLite/OPFS issues remain tracked; no storage or analysis changes were made.
+- No dated unresolved item exceeds one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
+# Segment 3 ROUTE verification - 2026-10-05
+
+- Fixed remaining ROUTE readiness, coordinate-entry, narrow EDIT toolbar, assignment feedback and moving-timing disclosure issues; completed fixes are in changelog.md.
+- Source layout reviewed at 390x844, 375x667 and 320x568. Physical-phone tap placement, marker/window hit regions, keyboard coverage and large text remain unverified. This segment did not run browser screenshots.
+- Canvas polygon editing remains deferred; structured point coordinates use the existing parser and validation.
+- No dated unresolved item is over one month old as of October 5, 2026; undated legacy items cannot be aged reliably.
+
+# Segment 2 BUILD verification - 2026-10-05
+
+- Completed BUILD presentation fixes are in changelog.md. Browser checks cover default toolbar, Add, placement, Draw chooser, drawing, More and read-only 2.5D at all three requested sizes.
+- Remaining verification: native rotation/endpoint gesture handoff, large text, safe areas, inspector keyboard coverage and progressive port fields. The browser canvas overlay occupies usable space on the smallest screen; native usability still needs review.
+- Existing browser SQLite/OPFS teardown issue remains open; no storage changes were made.
+- No dated unresolved bugs or features are over one month old as of October 5, 2026. Undated legacy items cannot be aged reliably.
+
+# Segment 1 library verification - 2026-10-05
+
+- Fixed duplicate library headings, missing Stages Retry, inconsistent inline error styling, and unconstrained long card names; completed fixes are in changelog.md.
+- Browser review passed 15 layout checks: Home, Matches, Stages, create-match sheet and name-only stage sheet at 390 ? 844, 375 ? 667 and 320 ? 568. No page-level horizontal overflow.
+- Rapid automated back navigation immediately after sheet closure was unreliable; verify sheet-close/back timing on native devices. Existing browser SQLite/OPFS teardown remains unresolved; this pass does not change storage.
+- No dated unresolved item is over one month old as of October 5, 2026. Undated legacy entries cannot be aged reliably.
+
+# Application UI overhaul verification - 2026-10-04
+
+- Browser full reload remained unreliable during 375 × 667 and 320 × 568 smoke runs: the editor reopened before reload, then reload left a blank page or “Opening your saved data…”. The existing SQLite/OPFS teardown investigation remains open; no storage behavior was changed in this presentation pass.
+- Captured Expo web teardown logs show `ReferenceError: SharedArrayBuffer is not defined` in the existing `StorageProvider.tsx:18` pagehide callback calling `db.closeSync()`. This is concrete follow-up evidence, not a confirmed explanation for every startup timeout.
+- Verify native safe areas, large text, keyboard coverage, event sheets, fixed video Save/dirty-close choices, media overlays and detector cancellation. See [the exact checklist](docs/ui-overhaul.md).
+- Fixed presentation issues (buried video Save, cyclic session selectors and stale Profile focus data) are recorded in changelog.md.
+- No dated unresolved bug is older than one month as of October 4, 2026. Undated legacy entries cannot be aged reliably.
+
 # UI reorganization verification - 2026-10-04
 
 - Native verification remains open for small phones, large text, safe areas, keyboards, sheet dismissal, selected-node/window hit regions and gesture handoff. Use the phone checklist in the final implementation report.

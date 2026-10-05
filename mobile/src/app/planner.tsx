@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Screen, Panel, Action, Copy, ui } from '@/ui/kit';
+import { Screen, Panel, Action, Copy, EmptyState, Loading, Notice, ErrorState, ScreenHeader, MenuRow, Input, DeleteConfirmation } from '@/ui/kit';
 import LibraryCard from '@/ui/LibraryCard';
 import EditorSheet from '@/editor/EditorSheet';
 import TargetFamilyPicker from '@/ui/TargetFamilyPicker';
@@ -34,35 +33,31 @@ export default function Matches() {
     setName(match === 'new' ? '' : match.name); setFamily(match === 'new' ? 'USPSA' : match.targetFamily);
     setError(''); setEditing(match);
   };
-  return <Screen title="MATCHES">
-    <Action title="+ MATCH" disabled={busy} onPress={() => edit('new')} />
-    {!!error && !editing && !deleting && <><Copy>{error}</Copy><Action title="Retry" disabled={busy} onPress={() => void run(async () => {})} /></>}
-    {!loaded && !error && <Copy>Loading matches...</Copy>}
-    {loaded && !matches.length && <Copy>No matches yet. Create a match to add stages.</Copy>}
+  return <Screen safeTop header={<ScreenHeader title="MATCHES" back={() => router.dismissTo('/')} action={<Action title="+ MATCH" variant="primary" disabled={busy} onPress={() => edit('new')} />} />}>
+    <Copy>Competition stage libraries</Copy>
+    {!!error && !editing && !deleting && <ErrorState title="Couldn’t load or update matches." detail={error} busy={busy} retry={() => void run(async () => {})} />}
+    {!loaded && !error && <Loading label="Loading matches…" />}
+    {loaded && !error && !matches.length && <EmptyState title="No matches" detail="Create a match to start organizing stages." />}
     {matches.map(match => <LibraryCard key={match.id} name={match.name} category={match.targetFamily}
       detail={match.stageCount + ' ' + (match.stageCount === 1 ? 'stage' : 'stages')} disabled={busy}
       open={() => router.push({ pathname: '/match', params: { id: match.id } })} more={() => setMenu(match)} />)}
     <EditorSheet title={menu?.name ?? 'Match actions'} visible={!!menu} close={() => setMenu(null)}>
-      <Action title="Edit match" onPress={() => { if (menu) edit(menu); setMenu(null); }} />
-      <Action title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateMatch(menu.id)); setMenu(null); }} />
-      <Action title="Delete" onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
+      <MenuRow title="Edit match" onPress={() => { if (menu) edit(menu); setMenu(null); }} />
+      <MenuRow title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateMatch(menu.id)); setMenu(null); }} />
+      <MenuRow title="Delete" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
     </EditorSheet>
     <EditorSheet title={editing === 'new' ? 'Create Match' : 'Match Settings'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
-      <Panel><Copy>Match name</Copy><TextInput accessibilityLabel="Match name" autoFocus style={ui.input} value={name} maxLength={100} editable={!busy} onChangeText={setName} />
+      <Panel><Input label="Match name" value={name} disabled={busy} onChange={setName} />
         <Copy>Target family</Copy><TargetFamilyPicker value={family} onChange={setFamily} disabled={busy} />
         {editing !== 'new' && <Copy>This sets the default for new targets. Existing targets keep their family and geometry.</Copy>}
-        <Action title={busy ? 'Saving...' : editing === 'new' ? 'Create Match' : 'Save match'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
+        <Action variant="primary" title={busy ? 'Saving...' : editing === 'new' ? 'Create Match' : 'Save match'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
           if (editing === 'new') { const id = await repo.createMatch(name, family); setEditing(null); router.push({ pathname: '/match', params: { id } }); }
           else if (editing) await repo.updateMatch(editing.id, name, family);
-        })} />{!!error && <Copy>{error}</Copy>}
+        })} />{!!error && <ErrorState title="Changes could not be saved." detail={error} />}
       </Panel>
     </EditorSheet>
     <EditorSheet title="Delete match" visible={deleting !== null} close={() => { if (!running.current) setDeleting(null); }}>
-      <Panel><Copy>Delete {deleting?.name} and all its stages permanently? Other matches will be kept.</Copy>
-        <Action title="Keep match" disabled={busy} onPress={() => setDeleting(null)} />
-        <Action title={busy ? 'Deleting...' : 'Confirm delete match'} disabled={busy} onPress={() => { if (deleting) void run(() => repo.deleteMatch(deleting.id)); }} />
-        {!!error && <Copy>{error}</Copy>}
-      </Panel>
+      <DeleteConfirmation noun="match" detail={'Delete ' + deleting?.name + ' and all its stages? Saved planning data will be removed.'} busy={busy} onKeep={() => setDeleting(null)} onDelete={() => { if (deleting) void run(() => repo.deleteMatch(deleting.id)); }} error={error} />
     </EditorSheet>
   </Screen>;
 }

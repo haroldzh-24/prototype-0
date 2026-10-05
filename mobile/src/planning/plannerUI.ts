@@ -11,7 +11,7 @@ export function mapPlannerResults(result: PlannerResult, sources: Record<string,
     number: index + 1,
     label: candidates.length > 1 && candidates.every(other => other === item || item.metrics.movementDistance < other.metrics.movementDistance) ? 'Lowest Movement'
       : candidates.length > 1 && candidates.every(other => other === item || item.metrics.averageShootingDifficulty < other.metrics.averageShootingDifficulty) ? 'Easier Shooting'
-      : index === 0 ? 'Recommended Candidate' : 'Alternative Candidate',
+      : index === 0 ? 'Recommended route' : 'Alternative route',
     sourceCounts: { auto: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source === 'AUTO_DISCOVERED').length, manual: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source !== 'AUTO_DISCOVERED').length },
     id: item.originalCandidate.id, route: item.originalCandidate.route,
     estimatedTime: item.metrics.estimatedTotalTime, movementDistance: item.metrics.movementDistance,
@@ -48,9 +48,9 @@ export type PlannerRuleConstraints = Readonly<{
 }>;
 /** Session metadata only. Add independently modeled constraints here when supported. */
 export function rulesetMetadata(choice: PlannerRuleset) {
-  return { choice, label: choice === 'CUSTOM' ? 'Custom / Vanilla' : choice,
+  return { choice, label: choice === 'CUSTOM' ? 'Custom' : choice,
     constraints: {} as PlannerRuleConstraints,
-    description: 'General ammunition and timing evaluation only. USPSA, IDPA and PCSL currently behave identically to Custom / Vanilla. Competition capacity, reload, engagement-order and penalty rules are not modeled.' };
+    description: 'Choices behave identically here. Competition capacity, reload and penalty rules are not modeled. Use Route Settings for firing areas, safety and target procedures.' };
 }
 export function plannerSearchWarning(warnings: readonly PlannerWarning[]) {
   return warnings.find(w => w.code === 'SEARCH_LIMIT') ?? null;

@@ -25,11 +25,11 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
     </>;
   };
   return <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, top: 0 }}>
-    {layers.windows && analysis.nodes.flatMap(n => n.targets.filter(t => t.window).map(t => <View pointerEvents="box-none" key={`window-${n.id}-${t.targetId}`}>{line(t.window!.startPosition, t.window!.endPosition, '#148578', 6)}
+    {layers.windows && analysis.nodes.flatMap(n => n.targets.filter(t => t.window).map(t => <View pointerEvents="box-none" key={`window-${n.id}-${t.targetId}`}>{line(t.window!.startPosition, t.window!.endPosition, colors.movement, 6)}
       {onSelect && (() => {
         const a = stageToViewport(t.window!.startPosition, transform), b = stageToViewport(t.window!.endPosition, transform);
         const width = Math.max(44, Math.hypot(b.x - a.x, b.y - a.y));
-        return <Pressable accessibilityRole="button" accessibilityLabel="Moving section targets and order" onPress={() => onSelect(n.waypointId, n.id)}
+        return <Pressable accessibilityRole="button" accessibilityLabel="Moving window targets and order" onPress={() => onSelect(n.waypointId, n.id)}
           style={{ position: 'absolute', left: (a.x + b.x) / 2 - width / 2, top: (a.y + b.y) / 2 - 22, width, height: 44, transform: [{ rotate: `${Math.atan2(b.y - a.y, b.x - a.x)}rad` }] }} />;
       })()}</View>))}
     {layers.nodes && analysis.nodes.map((node, i) => {
@@ -37,8 +37,8 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
       return <View key={node.id} pointerEvents="box-none">
         {(layers.arrows === 'ALL' || layers.arrows === 'SELECTED' && (selectedNodeId ? selectedNodeId === node.id : node.waypointId === selectedId)) && node.targets.map(t => { const target = stage.objects.find(o => o.id === t.targetId); return target ? <View key={t.targetId}>{line(node.position, target.position, color, 2, t.orderLabel)}</View> : null; })}
         <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />
-        <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, width: 110, color, fontSize: 10, backgroundColor: colors.background }}>{i + 1} {moving ? 'MOVING' : ''}</Text>
-        {onSelect && <Pressable accessibilityRole="button" accessibilityLabel={moving ? "Moving section" : "Engagement node"} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
+        <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{selectedNodeId === node.id ? (moving ? 'MOVING ' : 'ENGAGEMENT ') + (i + 1) : (moving ? 'M' : 'E') + (i + 1)}</Text>
+        {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={(moving ? "Moving window " : "Engagement node ") + (i + 1)} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
       </View>;
     })}
   </View>;

@@ -6,7 +6,6 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Text from '@/editor/FieldText';
-import { objectLabel } from '@/stage/model';
 import type { StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
 import { formatYards, parseYards } from '@/stage/measurements';
@@ -18,6 +17,9 @@ export default function ObjectInspector({ item, disabled, onApply, advancedConte
 }) {
   const [draft, setDraft] = useState(() => inspectorValues(item));
   const [advanced, setAdvanced] = useState(false);
+  const [portsOpen, setPortsOpen] = useState(false);
+  const target = ['cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper'].includes(item.type);
+  const preset = 'presetId' in item ? targetPreset(item.presetId ?? '') : undefined;
   const [notice, setNotice] = useState('');
   useEffect(() => { setDraft(inspectorValues(item)); }, [item]);
   const fields = inspectorFields(item);
@@ -28,39 +30,27 @@ export default function ObjectInspector({ item, disabled, onApply, advancedConte
     setNotice(error ?? 'Applied.');
   };
   return <View style={styles.panel}>
-    <Text style={styles.title}>Edit {objectLabel(item.type)}</Text>
-    <Text>Position, rotation and dimensions / lengths in yards</Text>
-    <View style={styles.fields}>{fields.filter(f => advanced || !['z', 'thickness'].includes(f.key)).map(({ key, label }) => {
+    <Text style={styles.title}>{target ? 'BASIC' : 'GEOMETRY'}</Text>
+
+    <Text style={styles.hint}>{target ? 'Position, rotation and dimensions (yards)' : 'Position, length, angle and height (yards)'}</Text>
+    <View style={styles.fields}>{fields.filter(f => !['z', 'thickness'].includes(f.key)).map(({ key, label }) => {
       const parsed = key === 'rotation' ? null : parseYards(draft[key]);
       return <View style={styles.field} key={key}>
-        <Text>{label}{key === 'rotation' ? '' : ' (yards)'}</Text>
+        <Text>{key === 'rotation' && (item.type === 'wall' || item.type === 'faultLine') ? 'Angle (degrees)' : label}{key === 'rotation' ? '' : ' (yards)'}</Text>
         <TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]}
           autoCorrect={false} autoCapitalize="none" style={styles.input}
           onChangeText={(text) => { setDraft((current) => ({ ...current, [key]: text })); setNotice(''); }} />
         {parsed !== null && <Text style={styles.hint}>{formatYards(parsed)}</Text>}
       </View>;
     })}</View>
-    <Pressable accessibilityRole="button" disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>Apply changes</Text></Pressable>
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded: advanced }} onPress={() => setAdvanced(!advanced)} style={styles.button}><Text>Advanced {advanced ? '-' : '+'}</Text></Pressable>
-    {advanced && <>    {'targetFamily' in item && item.targetFamily && <Text>Target family: {item.targetFamily}</Text>}
-    <Text>Lengths are in yards. Decimals and fractions are supported.</Text>
-    <Text>Typed X/Y values are exact, subject to bounds. Target angles are normalized to 0-360 degrees.</Text>
-    {'presetId' in item && item.presetId && <Text>Preset: {targetPreset(item.presetId)?.name ?? item.presetId}. Saved dimensions are retained; editing them creates a custom-sized instance.</Text>}
-    {(item.type === 'wall' || item.type === 'faultLine') && <Text>Length/angle-only edits keep the start endpoint fixed. Endpoint handles are available on the canvas.</Text>}
-    {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View>
-      <Text>Physical face cut (material removed, not hidden)</Text>
-      <Text>Face width/height and position describe the full-face reference. Portion presets retain one half; upper portions begin halfway above the bottom reference.</Text>
-      <View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset}
-        accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }}
-        disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: colors.selected, borderColor: colors.accent }]}
-        onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}>
-        <Text style={styles.buttonText}>{label}</Text>
-      </Pressable>)}</View>
-    </View>}
-
-    {item.type === 'wall' && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} />}
-    {advancedContent}
-    </>}
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>Apply changes</Text></Pressable>
+    {target && advancedContent && <><Text style={styles.title}>PLANNING</Text>{advancedContent}</>}
+    {target && <><Text style={styles.title}>TARGET</Text><Text>{item.type === 'noShootTarget' ? 'No-shoot' : 'Scoring target'}</Text></>}
+    {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View><Text>Face cuts / material removed</Text><View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset} accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }} disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: colors.selected }]} onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}><Text style={styles.buttonText}>{label}</Text></Pressable>)}</View></View>}
+    {target && <><Text style={styles.title}>PRESET INFO</Text><Text>Family: {'targetFamily' in item ? item.targetFamily : 'Custom'}</Text><Text>Preset: {preset?.name ?? 'Custom'}</Text><Text>{preset?.verification ?? 'Unverified'}{preset ? ' / ' + preset.reference + '\n' + preset.source : ''}</Text><Text>Editing dimensions creates a custom-sized instance.</Text></>}
+    {item.type === 'wall' && <><Text style={styles.title}>PORTS</Text><Text>{item.ports.length} openings</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: portsOpen }} onPress={() => setPortsOpen(!portsOpen)} style={styles.button}><Text>{portsOpen ? 'Close Ports' : 'Edit Ports >'}</Text></Pressable>{portsOpen && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} />}</>}
+    {(item.type === 'wall' || item.type === 'faultLine') && <Text>Length and angle edits keep the start endpoint fixed. Drag endpoint handles on the canvas.</Text>}
+    {fields.some(f => ['z', 'thickness'].includes(f.key)) && <><Pressable accessibilityRole="button" accessibilityState={{ expanded: advanced }} onPress={() => setAdvanced(!advanced)} style={styles.button}><Text>ADVANCED {advanced ? '-' : '+'}</Text></Pressable>{advanced && <><View style={styles.fields}>{fields.filter(f => ['z', 'thickness'].includes(f.key)).map(({ key, label }) => <View style={styles.field} key={key}><Text>{label} (yards)</Text><TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]} style={styles.input} onChangeText={text => { setDraft(current => ({ ...current, [key]: text })); setNotice(''); }} /></View>)}</View><Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={apply} style={styles.button}><Text>Apply changes</Text></Pressable></>}</>}
     {notice !== '' && <Text accessibilityLiveRegion="polite">{notice}</Text>}
   </View>;
 }
@@ -69,6 +59,6 @@ const styles = StyleSheet.create({
   title: { ...typography.section, color: colors.text }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { minWidth: 120, flexGrow: 1, flexBasis: '40%' },
   input: { borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.secondary, padding: 8, minHeight: 44, color: colors.text, borderRadius: 2 },
-  hint: { fontSize: 12, color: colors.muted }, button: { backgroundColor: colors.secondary, padding: 12, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
+  hint: { fontSize: 12, color: colors.muted }, button: { backgroundColor: colors.secondary, padding: 12, minHeight: 44, minWidth: 44, maxWidth: '100%', flexShrink: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
   buttonText: { color: colors.text, ...typography.label },
 });

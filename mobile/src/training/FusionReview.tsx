@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { Action, Copy, ui } from '../ui/kit';
+import { Action, Copy, StatusBadge, ui } from '../ui/kit';
 import { eventTypes } from './videoModel';
 import type { EventType } from './videoModel';
 import type { FusionResult, FusedHypothesis } from './eventFusion';
@@ -15,8 +15,8 @@ function EvidenceCard({ h, fusion, busy, onPreview, onReview }: {
   const [showTypes, setShowTypes] = useState(false);
   const suggested = h.status === 'SUGGESTED';
   return <View style={{ gap: 6, borderLeftWidth: 3, borderLeftColor: suggested ? '#eab54d' : '#58c9b9', paddingLeft: 8 }}>
-    <Copy>{h.status === 'REJECTED' ? 'REJECTED' : h.status === 'CONFIRMED' ? 'CONFIRMED EVENT SUPPORT' : h.evidenceIds.length > 1 ? 'FUSED SUGGESTION' : 'RAW SUGGESTION'} · {h.type} · {(h.timestampMs / 1000).toFixed(3)} s · {h.confidence} · {h.families.map(f => labels[f]).join(' + ')}</Copy>
-    <Action title={expanded ? 'Hide evidence' : 'Inspect evidence'} onPress={() => setExpanded(!expanded)} />
+    <StatusBadge tone={suggested ? 'warning' : h.status === 'CONFIRMED' ? 'success' : 'inactive'} label={h.status} /><Copy>{h.type.replaceAll('_', ' ')}</Copy><Copy>{(h.timestampMs / 1000).toFixed(2)} s</Copy><Copy>{h.confidence} CONFIDENCE</Copy><Copy>{h.families.map(f => labels[f]).join(' + ')}</Copy>
+    <Action title={expanded ? 'Hide details' : 'Details'} onPress={() => setExpanded(!expanded)} />
     {expanded && <>
       <Copy>Temporal spread: {h.temporalSpreadMs.toFixed(1)} ms. Score: {h.score.toFixed(2)}. {h.explanations.join(' · ')}</Copy>
       <Copy>Types: {h.disagreement.types.join(', ')} · {h.fusionVersion} / config {h.configVersion}</Copy>
@@ -28,15 +28,15 @@ function EvidenceCard({ h, fusion, busy, onPreview, onReview }: {
       <Action title="Preview event" onPress={() => onPreview(h.timestampMs)} />
     </>}
     {suggested && <>
-      <Action title="Confirm event" disabled={busy} onPress={() => onReview(h.id, 'CONFIRM')} />
+      <Action title="Confirm event" variant="primary" disabled={busy} onPress={() => onReview(h.id, 'CONFIRM')} />
       <Action title="Edit type / timestamp" disabled={busy} onPress={() => { setEditing(!editing); setType(h.type); setTimestamp(String(h.timestampMs)); }} />
       {editing && <>
-        <Action title={`Event type: ${type}`} onPress={() => setShowTypes(!showTypes)} />
-        {showTypes && eventTypes.map(t => <Action key={t} title={t} onPress={() => { setType(t); setShowTypes(false); }} />)}
+        <Action title={`Event type: ${type.replaceAll('_', ' ')}`} onPress={() => setShowTypes(!showTypes)} />
+        {showTypes && eventTypes.map(t => <Action key={t} title={t.replaceAll('_', ' ')} onPress={() => { setType(t); setShowTypes(false); }} />)}
         <TextInput style={ui.input} accessibilityLabel="Fused event milliseconds" value={timestamp} onChangeText={setTimestamp} keyboardType="decimal-pad" />
         <Action title="Confirm edited event" disabled={busy} onPress={() => onReview(h.id, 'CONFIRM', { type, timestampMs: timestamp.trim() ? Number(timestamp) : NaN })} />
       </>}
-      <Action title="Reject suggestion" disabled={busy} onPress={() => onReview(h.id, 'REJECT')} />
+      <Action title="Reject suggestion" variant="destructive" disabled={busy} onPress={() => onReview(h.id, 'REJECT')} />
     </>}
   </View>;
 }

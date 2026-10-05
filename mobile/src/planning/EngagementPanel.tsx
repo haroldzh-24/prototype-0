@@ -14,7 +14,7 @@ export default function EngagementPanel({ stage, route, onChange, authoring = tr
   const edit = () => { setEditing(true); setError(''); };
   return <View style={{ gap: 8 }}>
     <Copy>Engagement order & details</Copy>
-    {authoring && <Action title={rules ? 'Edit firing areas and stage procedures' : 'Set up moving engagements'} onPress={edit} />}
+    {authoring && <Action title={rules ? 'Route Settings' : 'Set up moving engagements'} onPress={edit} />}
     {editing && <EngagementSettings stage={stage} initial={rules} onCancel={() => setEditing(false)} onApply={value => { onChange({ ...route, engagementRules: value }); setEditing(false); setError(''); }} />}
     {!!error && <Copy>{error}</Copy>}
     {analysis && <>
@@ -29,7 +29,7 @@ export default function EngagementPanel({ stage, route, onChange, authoring = tr
         <Copy>NODE {index + 1} — {node.kind.toUpperCase()}</Copy>
         {node.targets.map(t => <View key={t.targetId} style={{ gap: 4 }}>
           <Copy>{t.orderLabel} — {targetLabel(stage, t.targetId)}. {t.reason}</Copy>
-          <View style={{ flexDirection: 'row', gap: 6 }}>{([-1, 1] as const).map(direction => <Action key={direction} title={direction < 0 ? 'Engage earlier' : 'Engage later'} onPress={() => {
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{([-1, 1] as const).map(direction => <Action key={direction} title={direction < 0 ? 'Engage earlier' : 'Engage later'} onPress={() => {
             const change = reorderEngagement(stage, route, node.waypointId, t.targetId, direction); setError(change.error ?? ''); if (!change.error) onChange(change.route);
           }} />)}</View>
         </View>)}

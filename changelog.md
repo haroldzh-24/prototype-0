@@ -1,3 +1,73 @@
+# Final source-level UI cleanup - 2026-10-05
+
+- Retraced every requested normal Home/library/BUILD/ROUTE/Training/Video/Profile path while preserving completed Segments 1–5, calculations, geometry, SQLite, schemas, ownership and explicit Save boundaries.
+- Unified responsive headers and safe-top Back controls; removed duplicate Training/Profile navigator headings. Shared actions, metric rows and family selectors wrap/constrain long content. Shared ErrorState puts technical details behind disclosure and supplies existing recovery actions; Profile, builder startup and comparison stage loads now have Retry.
+- Moved stage-name editing and dirty Stage/Video close choices into keyboard-safe scrolling sheets. Failed video Save remains visible in the close sheet; invalid event timestamps retain the draft and show feedback inside the event sheet. Removed sheet/video modal animation. Done, local Apply and persistent Save retain distinct roles.
+- Removed Save from route preview; standardized waypoint copy, numbered area names, concise delete/reset actions and simplified candidate/Vanilla copy. Comparison movement labels use Start/Waypoint names instead of stored IDs. Firing areas reveal one selected area's vertices. Ranking diagnostics stay under Details and alternatives remain collapsed.
+- Added intentional empty Profile sample/calibration and reload-magazine guidance; suppressed load-error/empty flicker. Removed duplicate close-up help, applied semantic video review/error/confirmed tones, and improved destructive text contrast.
+- Spaced short grid readings by zoom/font scale, separated waypoint labels from engagement circles, compacted unselected engagement labels and reused shared teal movement color. Expanded invisible thin-object hit regions without changing physical geometry; ensured Fit/snap/preview controls have 44-point targets and improved handle/disabled accessibility.
+- TypeScript passed; **570/570 tests passed** (original 567 preserved plus three regressions). Expo web export passed. Both existing browser smoke suites passed, including gestures/history and Save/reopen/reload. The final responsive runner covers every mandatory surface at 390×844, 375×667 and 320×568, plus doubled-browser-text stress, with no page-level horizontal overflow and video Save visible.
+- Updated docs/ui-overhaul.md, bugs.md and features.md; docs/current-ui-audit.md remains the BEFORE snapshot. Native evidence is still required for real safe areas/keyboards/Dynamic Type/VoiceOver/gestures/platform behavior/AV analysis. Existing browser storage/media limitations remain tracked separately. No commit or push.
+
+# Video Analysis interface completion - 2026-10-05
+
+- Retained TIMELINE / ANALYZE / COMPARE / RESULTS, fixed explicit Save and dirty-close choices, with local drafts preserved across sections. Long filenames truncate; duplicate Play/Pause is removed and precision controls expand.
+- Timeline uses event/status/seconds rows, fused evidence review and collapsed historical diagnostics. Add/Edit opens an immediate focused sheet with relevant fields and validation preserving invalid timestamp drafts.
+- Audio/Movement/Close-up share status presentation, progressive review and Details. Close-up exposes region/window/run steps, a selected-frame outline and compact confidence/settle summary; detector and cancellation behavior is preserved.
+- Results group existing metrics and attach endpoint review to tentative measurements. Profile data is separate with eligible count and Add/Update contribution state, using unchanged repository eligibility and persistence.
+- Compare progressively selects or changes the saved plan, reviews suggestions/alternatives, edits mappings in a sheet and displays planned/observed/delta and grouped deltas once mappings exist. Historical pan/pinch/Fit viewport opens through View Plan.
+- TypeScript passed; all 567 tests passed (13 new component-state tests); Expo web export passed. Chromium checks at 390x844, 375x667 and 320x568 found no horizontal page overflow in all four sections, scrolled states and Add Event sheets. Fixed Save remained visible at 44px height. Invalid browser video fixture verifies presentation only.
+- Updated bugs.md/features.md; physical iOS verification and existing browser storage limitations remain tracked. Detailed scope and phone checklist are in mobile/src/training/videoAnalysis.md. No algorithm, schema, SQLite or native extraction changes; no commit/push.
+
+# Segment 4 Training and Profile - 2026-10-05
+
+- Training reuses fixed shared header, library cards and context badges. Card tap opens the first existing video analysis or contextual video actions; overflow lists ADD VIDEO and all videos with Analysis saved/Needs review labels. No session-detail route or analysis editor changes.
+- CREATE SESSION uses shared Input and wrapping selectors with explicit unchanged enum mapping, concise start labels, blank-name validation and busy controls. Creation still persists immediately; import/open behavior and explicit analysis Save are preserved.
+- Loading and load-error Retry suppress the empty state until a successful read. Empty state includes deliberate guidance and CREATE SESSION.
+- Profile presents LOCAL PROFILE / On this device, PERFORMANCE in tabular metric rows, factual TRAINING DATA counts, secondary CALIBRATION and CLOUD SYNC / Not available yet. Missing/nonfinite metrics show an em dash; stored zero stays zero. Calculations and defaults are unchanged.
+- TypeScript passed. npm.cmd test passed 554/554 tests; focused UI suite passed 29/29, including four added Training/Profile regressions. Source layout reviewed at 390x844, 375x667 and 320x568; browser/native testing was not performed for this segment. Details and file list: docs/segment-4-training-profile.md.
+- Segments 1-3, analysis algorithms, schemas, SQLite and persistence semantics were preserved. No commit or push.
+
+# Segment 3 ROUTE interface - 2026-10-05
+
+- Preserved PLAN / EDIT / ANALYZE / overflow. Added ROUTE distance/waypoint/coverage summary and NO ROUTE YET with PLAN ROUTE and manual edit.
+- PLAN groups readiness and setup links inside ROUTE, keeps generation before Advanced, hides inert legacy planner controls in geometry-first mode, and presents compact results with collapsed alternatives. Preview Save remains disabled.
+- ADD POINT now uses the existing deliberate-tap and viewport-to-stage conversion, with bounds checks, cancellation and marker interaction suppression while placing. EDIT wraps on narrow screens; waypoint details show neighboring distances, assignments and reload. Removed duplicate engagement management from waypoint order.
+- Firing areas use structured point X/Y yard fields with add/remove, retaining the exact existing text parser and geometry validation. Route Settings progressively discloses firing areas, safety, target procedures and sampling settings.
+- Analysis stays read-only-first with explicit Warnings and moving-fire timing Unavailable; its technical timing explanation is under Details. Route terms now use waypoints, engagement nodes and moving windows.
+- Validation: npm.cmd run typecheck passed; npm.cmd test passed all 550 tests, including structured-coordinate and candidate-preview Save regressions. Final presentation changes also received focused UI verification. Source layout reviewed for 390x844, 375x667 and 320x568; device checks remain tracked. Algorithms, calculations, persistence and StagePlan semantics unchanged. No commit or push.
+
+# Segment 2 Stage Designer BUILD - 2026-10-05
+
+- Compact Back / intentional stage-name editing / Save header with SAVED or UNSAVED under the name. BUILD / ROUTE remains available.
+- Canvas overlays expose placement and drawing controls only in their modes; normal toolbar remains SELECT / ADD / DRAW / More. Fit stays on canvas, edit history and secondary zoom live in More.
+- Target inspectors separate BASIC, PLANNING, TARGET, PRESET INFO and advanced elevation. Walls separate GEOMETRY, PORTS and ADVANCED; ground objects retain only relevant fields. Direct dragging, rotation wheel and endpoint handles remain intact.
+- Add sheet lists family, preset dimensions and type; source and verification details expand under Info. Choosing closes the sheet and retains repeated deliberate placement.
+- Ports open through a summary, then individual port selection reveals fields; existing IDs and validation remain unchanged.
+- More groups STAGE, PLANNING, VIEW, EDIT HISTORY and DANGER. 2.5D is explicitly read-only with rotate, zoom, fit and back.
+- Typecheck passed; all 548 tests passed after updating five old UI expectations. Browser review passed 21 surfaces at 390x844, 375x667 and 320x568 without horizontal page overflow. Default canvas heights: 694 / 517 / 418 pixels; placement and drawing reclaim 53 pixels.
+- No route algorithm, persistence, geometry math, StageDocument semantics or SQLite changes. No commit or push.
+
+# Segment 1 design system and libraries - 2026-10-05
+
+- Added ScreenHeader, StatusBadge, MenuRow, Input, ToolButton and DeleteConfirmation; reused dark semantic tokens, Action, Screen, Panel, Loading, EmptyState, Segmented, Section, Stat/DataRow and EditorSheet. Notices now support success.
+- Home now has a two-line PRACTICAL / SHOOTING identity and full-width Stage Planner, Training and Profile launch cards with short descriptions.
+- Matches and Stages use fixed shared headers with creation actions, consistent destructive overflow rows, shared name fields/delete confirmations and semantic error notices. Stages includes Retry. Card titles truncate deliberately after two lines; overflow has a separate 44-point full-height hit area with disabled accessibility.
+- Existing match/stage creation, editing, duplication, deletion and repository callbacks are preserved. No algorithms, geometry, document/plan semantics, SQLite, persistence or explicit Save changes. No commit or push.
+- Validation: npm.cmd run typecheck passed; npm.cmd test passed all 548 tests. Browser checked Home/Matches/Stages and both creation sheets at all three requested sizes (15 overflow assertions), with screenshots under mobile/.expo/segment1-*.png. Physical-device checks remain planned.
+
+# Application UI presentation overhaul - 2026-10-04
+
+- Added semantic movement/warning colors, shared spacing, Action variants, sections, empty/loading/status messages, wrapping selection controls and keyboard/safe-area-aware screen chrome. Library titles and quiet sheet Done controls now share a consistent hierarchy.
+- Home emphasizes Stage Planner with compact Training/Profile paths. Matches and Stages use primary creation actions and deliberate empty/loading states; card overflow/ownership flows are preserved.
+- BUILD/ROUTE and SELECT/ADD/DRAW/PLAN/EDIT/ANALYZE remain intact. Designer status spacing is tighter; errors use danger color. Route planning shows real activity, primary Generate/Use actions, clearer movement-led alternatives and tabular analysis metrics with amber warnings.
+- Training creation moves to New Session with explicit context/start choices, loading/empty guidance and no timer implication. Existing training persistence/import behavior is retained.
+- Video Analysis now has TIMELINE/ANALYZE/COMPARE/RESULTS, confirmed versus suggested event presentation, event editing sheets, a fixed top-safe Save and fixed dirty-close choices. Tabs retain the same video draft and child state. Failed Save leaves the editor open; no autosave was added.
+- Comparison editing, suggestion pairs and detailed timing information are progressive. User-facing mapping labels replace raw identifiers on suggestion actions. Existing acceptance/staleness/multi-interval/history behavior is retained.
+- Profile is intentionally local/read-only, shows performance and context-separated sample counts, uses a compact unavailable cloud status and refreshes on focus after contribution.
+- Existing algorithms, geometry, schemas, saved-data compatibility, explicit Save and stage dirty exit are unchanged. No required capability was intentionally removed. Before audit is preserved; design notes, all-file register, journey trace, validation and phone checklist are in [docs/ui-overhaul.md](docs/ui-overhaul.md).
+- TypeScript and all 548 automated tests passed; Expo web export passed. The 390 × 844 full browser smoke passed. At 375 × 667 and 320 × 568, captured Home/library/Designer layouts had no horizontal page overflow and editing/Save/in-app reopen proceeded, but full reload hit the existing blank/storage-opening issue. Further fresh-page review hit navigation timeouts. Smaller Training/Profile/media review remains incomplete; native testing was not performed. Full results are recorded in the report.
+
 # Canvas-first UI reorganization - 2026-10-04
 
 - Match/stage card bodies open their existing destinations; separate overflow sheets expose edit/rename, duplicate and confirmed delete. Primary creation actions are + MATCH and + STAGE; stage creation still asks only for a name.

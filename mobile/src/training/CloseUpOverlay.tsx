@@ -3,16 +3,16 @@ import { View } from 'react-native';
 import { containedVideoRect } from './poseModel';
 import type { CloseRun, CloseSelection, Point, Region } from './closeUp';
 
-export function CloseUpOverlay({ run, timeMs, width, height, videoWidth, videoHeight, selecting, onSelect }: {
+export function CloseUpOverlay({ run, timeMs, width, height, videoWidth, videoHeight, selecting, onSelect, selectedRegion }: {
   run?: CloseRun; timeMs: number; width: number; height: number; videoWidth: number; videoHeight: number;
-  selecting: boolean; onSelect: (selection: CloseSelection) => void;
+  selectedRegion?: Region; selecting: boolean; onSelect: (selection: CloseSelection) => void;
 }) {
   const start = useRef<Point | null>(null), [region, setRegion] = useState<Region | null>(null);
   const sample = run?.preview.find(f => Math.abs(f.timestampMs - timeMs) <= 50);
   const rect = containedVideoRect(width, height, sample?.width ?? videoWidth, sample?.height ?? videoHeight);
   if (!rect.width || !rect.height) return null;
   const normalized = (x: number, y: number) => ({ x: Math.max(0, Math.min(1, (x - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (y - rect.top) / rect.height)) });
-  const box = selecting ? region : sample?.object.status === 'TRACKED' ? sample.object.region : null;
+  const box = selecting ? region : selectedRegion ?? (sample?.object.status === 'TRACKED' ? sample.object.region : null);
   return <View style={{ position: 'absolute', inset: 0 }} pointerEvents={selecting ? 'auto' : 'none'}
     onStartShouldSetResponder={() => selecting} onMoveShouldSetResponder={() => selecting}
     onResponderGrant={e => { start.current = normalized(e.nativeEvent.locationX, e.nativeEvent.locationY); setRegion(null); }}

@@ -17,7 +17,7 @@ function Handle({ x, y, label, begin, move, finish }: { x: number; y: number; la
     onPanResponderTerminationRequest: e => e.nativeEvent.touches.length > 1,
     onPanResponderRelease: () => latest.current.finish(), onPanResponderTerminate: () => latest.current.finish(),
   }));
-  return <View {...responder.panHandlers} accessibilityLabel={label} style={{ position: 'absolute', left: x - 22, top: y - 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+  return <View {...responder.panHandlers} accessible accessibilityLabel={label} accessibilityHint="Drag to adjust, or use Edit for numeric entry." style={{ position: 'absolute', left: x - 22, top: y - 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
     <View pointerEvents="none" style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#69d5df', borderWidth: 2, borderColor: '#101611' }} />
   </View>;
 }

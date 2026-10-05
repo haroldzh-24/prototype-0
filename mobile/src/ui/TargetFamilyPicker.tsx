@@ -6,10 +6,10 @@ import type { TargetFamily } from '../stage/targetFamily';
 export default function TargetFamilyPicker({ value, onChange, disabled = false }: {
   value: TargetFamily; onChange: (value: TargetFamily) => void; disabled?: boolean;
 }) {
-  return <View accessibilityRole="radiogroup" accessibilityLabel="Target family" style={{ flexDirection: 'row', gap: 8 }}>
+  return <View accessibilityRole="radiogroup" accessibilityLabel="Target family" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
     {targetFamilies.map(family => <Pressable key={family} accessibilityRole="radio" accessibilityLabel={family}
       accessibilityState={{ checked: value === family, disabled }} disabled={disabled} onPress={() => onChange(family)}
-      style={[ui.action, { flex: 1, backgroundColor: value === family ? colors.selected : colors.secondary, opacity: disabled ? 0.4 : 1 }]}>
+      style={[ui.action, { flexGrow: 1, minWidth: 80, backgroundColor: value === family ? colors.selected : colors.secondary, opacity: disabled ? 0.4 : 1 }]}>
       <Text style={ui.actionText}>{family}{value === family ? ' ✓' : ''}</Text>
     </Pressable>)}
   </View>;
