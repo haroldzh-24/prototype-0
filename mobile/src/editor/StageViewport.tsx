@@ -19,8 +19,11 @@ import RouteOverlay from './RouteOverlay';
 import AutoPositionOverlay from './AutoPositionOverlay';
 import type { DiscoveredPosition } from '../planning/positionDiscovery';
 import type { RouteOverlayProps } from './RouteOverlay';
+import RouteAIOverlay from './RouteAIOverlay';
+import type { RouteAssistantContext, RouteChangePreview, Highlights } from '../planning/routeAssistant/types';
 
 type Props = {
+  routeAI?: {context:RouteAssistantContext;preview?:RouteChangePreview;highlights?:Highlights};
   tool?: DesignerTool;
   draft?: { start: StagePosition; end: StagePosition } | null;
   onRoutePoint?: (point: StagePosition) => void;
@@ -157,6 +160,7 @@ export default function StageViewport(props: Props) {
           {props.routePlanning && <View pointerEvents={props.routeEditing && !props.readOnly && !props.onRoutePoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />
           </View>}
+          {props.routeAI && <RouteAIOverlay {...props.routeAI} stage={props.stage} transform={transform} />}
         </>}
       </View>
     </View>

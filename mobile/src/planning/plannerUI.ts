@@ -29,7 +29,7 @@ export function mapPlannerResults(result: PlannerResult, sources: Record<string,
     comparison: `Average difficulty ${item.metrics.averageShootingDifficulty.toFixed(1)} · Ammo margin ${item.metrics.ammoMargin} rounds`,
   }));
 }
-export type PlannerCard = ReturnType<typeof mapPlannerResults>[number];
+export type PlannerCard = Omit<ReturnType<typeof mapPlannerResults>[number], 'routeStyle'> & { routeStyle: ReturnType<typeof mapPlannerResults>[number]['routeStyle'] | 'GEOMETRY' };
 
 export function generatePlannerCards(context: PlannerContext, config: RoutePlannerConfig, sources: Record<string, PositionMetadata> = {}) {
   const generated = generateCandidates(context, config);

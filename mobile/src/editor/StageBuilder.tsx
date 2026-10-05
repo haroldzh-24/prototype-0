@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -60,8 +60,16 @@ import { formatYards } from '../stage/measurements';
 import { outsideStage } from '../stage/resize';
 import type { StagePosition } from '../stage/coordinates';
 import type { TargetFamily } from '../stage/targetFamily';
+import RouteAISheet from '../planning/routeAI/RouteAISheet';
+import { RouteAIController } from '../planning/routeAI/controller';
+import type { AIState } from '../planning/routeAI/controller';
+import { productionAdapter } from '../planning/routeAI/nativeAdapter';
+import type { RouteAIAdapter } from '../planning/routeAI/types';
+import { createRouteAssistantContext, fingerprint } from '../planning/routeAssistant/context';
+import { solverInputFromPlan } from '../planning/routeSolver/adoption';
+import type { RouteSolverResult } from '../planning/routeSolver/types';
 
-export default function StageBuilder({ initial, targetFamily }: { initial: SavedStage; targetFamily: TargetFamily }) {
+export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: { initial: SavedStage; targetFamily: TargetFamily; routeAIAdapter?: RouteAIAdapter }) {
   const repo = useRepository(), navigation = useNavigation();
   const saveOperation = useRef(new OperationGate());
   useEffect(() => { saveOperation.current.activate(); return () => saveOperation.current.dispose(); }, []);
@@ -83,6 +91,20 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
   const [layers, setLayers] = useState(defaultRouteLayers);
   const [nodeId, setNodeId] = useState<string | null>(null);
   const [positionId, setPositionId] = useState<string | null>(null);
+  const [aiOpen,setAIOpen]=useState(false);
+  const [aiState,setAIState]=useState<AIState>({availability:'UNKNOWN',messages:[],lifecycle:'IDLE',phase:''});
+  const [solverEvidence,setSolverEvidence]=useState<{key:string;result:RouteSolverResult}|null>(null);
+  const solverKey=useMemo(()=>fingerprint(solverInputFromPlan(stage,plan)),[stage,plan]);
+  const aiContext=useMemo(()=>createRouteAssistantContext(stage,plan,{stageId:initial.id,selectedWaypointId:positionId??undefined,solverResult:solverEvidence?.key===solverKey?solverEvidence.result:undefined}),[initial.id,stage,plan,positionId,solverEvidence,solverKey]);
+  const aiLatest=useRef({context:aiContext,documentHistory});aiLatest.current={context:aiContext,documentHistory};
+  const [aiController]=useState(()=>new RouteAIController(routeAIAdapter??productionAdapter(),`stage-${initial.id}`,()=>aiLatest.current.context,()=>aiLatest.current.documentHistory.getAssistantHistory(),setAIState,routeAIAdapter?'mock':'on-device'));
+  useEffect(()=>{void aiController.initialize();return()=>aiController.dispose();},[aiController]);
+  useEffect(()=>{if(!aiState.highlights||aiState.preview)return;const timer=setTimeout(()=>aiController.clearHighlights(),15000);return()=>clearTimeout(timer);},[aiState.highlights,aiState.preview,aiController]);
+  const aiPreview=aiState.preview?.sourceRevision===aiContext.revision?aiState.preview:undefined;
+  useEffect(()=>{aiController.contextChanged();},[aiContext.revision,aiController]);
+  useEffect(()=>{aiController.invalidate();},[initial.id,aiController]);
+  useEffect(()=>{if(!routeMode){aiController.invalidate();setAIOpen(false);}},[routeMode,aiController]);
+  useEffect(()=>{const listener=AppState.addEventListener('change',state=>{if(state!=='active')aiController.background();});return()=>listener.remove();},[aiController]);
   const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
   const [profileError, setProfileError] = useState('');
   useEffect(() => {
@@ -235,7 +257,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         } : undefined} tool={tool} draft={draft} onDraw={draw} onPlace={point => {
           if (!placement) return;
           const result = placeTarget(stage,placement.id,uuid.v4(),point,placement.noShoot); setEditError(result.error ?? ''); if (!result.error) setStage(result.stage);
-        }} stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={routeMode ? layers.grid : gridVisible} focusPosition={focusPosition}
+        }} routeAI={routeMode?{context:aiContext,preview:aiPreview,highlights:aiState.preview&&!aiPreview?undefined:aiState.highlights}:undefined} stage={stage} viewport={viewport} onViewportChange={setViewport} gridVisible={routeMode ? layers.grid : gridVisible} focusPosition={focusPosition}
           selectedId={selectedId} snapping={snapping} routeEditing={routeMode} readOnly={previewing} autoPositions={discoveryPreview ? discovered?.candidates : undefined}
           routePlanning={discoveryPreview ? undefined : preview ? { preview: true, route: plannerPreviewRoute(plan, preview)!, selectedId: null, onSelect: () => {}, onChange: () => {}, onDragging: () => {} } : (routeMode || routeVisible) && plan.route ? { assignmentMode: routeMode ? assignmentMode : null, onTargetTap: id => {
             if (!assignmentMode || !positionId) return;
@@ -269,6 +291,9 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
     </View>
 
     {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
+    <RouteAISheet visible={aiOpen} close={()=>{aiController.close();setAIOpen(false);}} state={aiState} controller={aiController} revision={aiContext.revision} inspect={()=>setAIOpen(false)} apply={()=>{
+      return aiController.apply(preview=>aiLatest.current.documentHistory.applyAssistantPreview(preview));
+    }} />
     <View style={[styles.bottomBar, routeMode && routeEditing && { flexWrap: 'wrap' }, viewMode === '25d' && { display: 'none' }, !routeMode && !previewing && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && { display: 'none' }]}>
       {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered waypoints. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Route {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode && routeEditing ? <>
           <Button title="ADD WAYPOINT" active={addingPoint} disabled={dragging} onPress={() => { setAddingPoint(true); setAssignmentMode(null); setPanel(null); }} />
@@ -280,6 +305,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title="PLAN" onPress={() => setPanel('aiPlan')} />
         <Button title="EDIT" active={routeEditing} onPress={() => { setRouteEditing(true); setPanel(null); }} />
         <Button title="ANALYZE" onPress={() => setPanel('summary')} />
+        <Button title="ASK" onPress={() => {setAIOpen(true);setPanel(null);}} />
         <Button title="&#8226;&#8226;&#8226;" label="Route tools" onPress={() => setPanel('more')} />
       </> : <>
         <Button title="SELECT" active={tool === 'select'} disabled={dragging} onPress={() => switchTool('select')} />
@@ -387,7 +413,7 @@ export default function StageBuilder({ initial, targetFamily }: { initial: Saved
         <Button title={panel === 'delete' ? 'Delete object' : 'Reset stage'} danger onPress={() => { act({ kind: panel }); setPanel(null); }} />
       </>}
     </EditorSheet>
-    {panel === 'aiPlan' && <AutoPlannerPanel onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel(stage.objects.some(o => o.type === 'start') ? 'edit' : 'settings'); } else if (section === 'geometry') setPanel('settings'); else if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}
+    {panel === 'aiPlan' && <AutoPlannerPanel onSolverResult={result=>setSolverEvidence({key:solverKey,result})} onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel(stage.objects.some(o => o.type === 'start') ? 'edit' : 'settings'); } else if (section === 'geometry') setPanel('settings'); else if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}
   </SafeAreaView>;
 }
 

@@ -36,6 +36,30 @@ function fixture() {
   return { document, plan };
 }
 
+test('new geometry solver route remains editable after explicit Save and SQLite close/reopen', async () => {
+  const { solveRoute } = require('../src/planning/routeSolver/solveRoute.ts');
+  const { candidateToStageRoute, solverInputFromPlan } = require('../src/planning/routeSolver/adoption.ts');
+  const { movePosition, isStageRoute } = require('../src/planning/route.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'route-solver-')), file = path.join(dir, 'stage.db');
+  let connection = open(file);
+  try {
+    await connection.repo.initialize();
+    const document = createDefaultStage(), plan = createPlan();
+    document.objects = [createObject('start', 'start', 40, 100)];
+    const solved = solveRoute({ stage: document, start: document.objects[0].position, requiredAreas: [{ id: 'goal', polygon: [{ x: 180, y: 100 }] }] });
+    assert.equal(solved.status, 'success');
+    plan.route = candidateToStageRoute(solved.bestRoute, plan);
+    const id = await connection.repo.createStage('Solver route', document, createPlan(), await connection.repo.createMatch('Solver match', 'USPSA'));
+    await connection.repo.saveStage(id, 'Solver route', document, plan);
+    connection.db.close(); connection = open(file); await connection.repo.initialize();
+    const loaded = await connection.repo.loadStage(id);
+    assert.deepEqual(loaded.plan, plan); assert.ok(isStageRoute(loaded.plan.route));
+    const edited = movePosition(loaded.plan.route, loaded.plan.route.positions[0].id, { space: 'stage', x: 200, y: 110, z: 0 }, document.stage);
+    assert.equal(edited.positions[0].position.x, 200);
+    assert.equal(solverInputFromPlan(loaded.document, loaded.plan).requiredAreas.length, 1);
+  } finally { connection.db.close(); fs.rmSync(dir, { recursive: true }); }
+});
+
 test('moving engagements, saved order and stage-brief rules survive SQLite close/reopen', async () => {
   const { defaultEngagementRules, suggestEngagements, analyzeEngagements, reorderEngagement } = require('../src/planning/engagements.ts');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'moving-engagements-')), file = path.join(dir, 'test.db');

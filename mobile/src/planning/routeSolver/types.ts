@@ -1,0 +1,12 @@
+import type { StageDocument } from '../../stage/model';
+export type Point = Readonly<{ x: number; y: number }>;
+export type RequiredArea = Readonly<{ id: string; polygon: readonly Point[]; preferredPoint?: Point }>;
+export type Barrier = Readonly<{ id: string; polygon: readonly Point[] }>;
+export type SolverOptions = { clearanceInches?: number; maxNodes?: number; maxSearchIterations?: number; exactAreaLimit?: number; maxAlternatives?: number; tolerances?: Partial<FaultTolerances> };
+export type FaultTolerances = { endpointMergeInches: number; smallGapInches: number; collinearInches: number; angleDegrees: number; minimumRegionAreaSquareInches: number };
+export type RouteSolverInput = { stage: Readonly<StageDocument>; start: Point; requiredAreas: readonly RequiredArea[]; barriers?: readonly Barrier[]; restrictedRegions?: readonly Barrier[]; allowedTravelRegions?: readonly (readonly Point[])[]; options?: SolverOptions };
+export type Diagnostics = { solverVersion: string; rawFaultSegmentCount: number; interpretedFaultRegionCount: number; endpointMerges: number; inferredGapClosures: number; graphNodeCount: number; graphEdgeCount: number; searchIterations: number; routesEvaluated: number; prunedCandidates: number; waypointReductions: number; finalDistance: number | null; solveDurationMs: number; warnings: string[]; unresolvedRequiredAreas: string[] };
+export type Explanation = { kind: 'required-area' | 'obstruction'; waypointIndex: number; areaIds?: string[]; barrierIds?: string[] };
+export type RouteCandidate = { id: string; waypoints: Point[]; totalDistanceInches: number; requiredAreasVisited: string[]; requiredAreasMissed: string[]; waypointCount: number; score: number; explanationData: Explanation[] };
+export type RouteSolverResult = { status: 'success' | 'invalid-input' | 'unreachable' | 'limit'; bestRoute: RouteCandidate | null; alternatives: RouteCandidate[]; diagnostics: Diagnostics };
+export type Geometry = { bounds: { width: number; depth: number }; start: Point; barriers: Barrier[]; restrictedRegions: Barrier[]; allowedTravelRegions?: Point[][]; requiredAreas: RequiredArea[]; faultRegions: Point[][]; openFaultBoundaries: { a: Point; b: Point }[]; clearance: number };

@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Action, colors, ui } from '../ui/kit';
 
 /** Scrolling belongs to the modal, never to the canvas beneath it. */
-export default function EditorSheet({ title, visible, close, children }: {
-  title: string; visible: boolean; close: () => void; children: ReactNode;
+export default function EditorSheet({ title, visible, close, children, footer }: {
+  title: string; visible: boolean; close: () => void; children: ReactNode; footer?: ReactNode;
 }) {
   return <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
     <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -13,6 +13,7 @@ export default function EditorSheet({ title, visible, close, children }: {
       <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.sheet} accessibilityViewIsModal onAccessibilityEscape={close}>
         <View style={styles.header}><Text accessibilityRole="header" style={[ui.title, { flex: 1, flexShrink: 1, fontSize: 18 }]}>{title}</Text><Action title="Done" variant="quiet" onPress={close} /></View>
         <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={styles.content}>{children}</ScrollView>
+        {footer}
       </SafeAreaView>
     </KeyboardAvoidingView>
   </Modal>;

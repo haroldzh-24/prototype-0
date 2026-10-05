@@ -33,7 +33,7 @@ function harness(entry, props = {}, overrides = {}, exportName) {
       if (id === 'react-native-safe-area-context') return { SafeAreaView: 'SafeAreaView' };
       if (id === 'expo-router') return { router: { push: v => pushes.push(v), dismissTo: v => pushes.push(v) }, useNavigation: () => navigation, useFocusEffect: fn => react.useEffect(fn, [fn]), useLocalSearchParams: () => ({ id: 'match' }) };
       if (id === 'expo-router/react-navigation') return { usePreventRemove: (enabled, callback) => { guard = { enabled, callback }; } };
-      if (id === 'expo-modules-core') return { uuid: { v4: () => 'new-' + (++serial) } };
+      if (id === 'expo-modules-core') return { requireOptionalNativeModule: () => null, uuid: { v4: () => 'new-' + (++serial) } };
       if (id.endsWith('StorageProvider')) return { useRepository: () => repo };
       if (id.endsWith('ui/kit') || id === './kit') return { Input: load(path.resolve(__dirname, '../src/ui/kit.tsx')).Input, DeleteConfirmation: load(path.resolve(__dirname, '../src/ui/kit.tsx')).DeleteConfirmation, ErrorState: 'ErrorState', ScreenHeader: 'ScreenHeader', MenuRow: 'MenuRow', StatusBadge: 'StatusBadge', Action: 'Action', Copy: 'Copy', Panel: 'Panel', Screen: 'Screen', DataRow: 'DataRow', Stat: 'Stat', Segmented: 'Segmented', EmptyState: 'EmptyState', Loading: 'Loading', Notice: 'Notice', Section: 'Section', ui: {}, colors: {} };
       let target = id.startsWith('@/') ? path.resolve(__dirname, '../src', id.slice(2)) : path.resolve(path.dirname(file), id);
@@ -71,6 +71,22 @@ require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule
 const stage = () => require('../src/stage/defaults.ts').createDefaultStage();
 const plan = route => ({ ...require('../src/planning/model.ts').createPlan(), ...(route ? { route } : {}) });
 const route = () => require('../src/planning/route.ts').createRoute('r');
+
+test('ASK integrates controlled Apply dirty state explicit Save and normal undo in StageBuilder', async () => {
+  const document=stage();document.objects=document.objects.filter(o=>o.type==='start');
+  const r=route();r.positions=[{id:'W1',label:'W1',position:{space:'stage',x:150,y:60,z:0},visibleTargetIds:[],engagedTargetIds:[]}];
+  r.engagementRules={...require('../src/planning/engagements.ts').defaultEngagementRules(),firingAreas:[{id:'goal',vertices:[{x:50,y:50},{x:160,y:50},{x:160,y:70},{x:50,y:70}]}]};
+  const mock=require('../src/planning/routeAI/testing/mockAdapter.ts').mockAdapter([{intent:'MOVE_WAYPOINT',waypointReference:'waypoint 1',distanceValue:2,distanceUnit:'yards',direction:'left'},{intent:'UNDO'}]);
+  const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA',routeAIAdapter:mock.adapter});
+  await h.settle();h.press('ROUTE');h.press('ASK');
+  let sheet=h.child('RouteAISheet');await sheet.controller.send('Move waypoint 1 two yards left');h.render();
+  assert.equal(h.saved.length,0);assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,150);
+  assert.equal(h.child('StageViewport').routeAI.preview.proposedRoute.positions[0].position.x,78);
+  await h.child('RouteAISheet').apply();h.render();assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,78);assert.equal(h.saved.length,0);assert.equal(h.guard.enabled,true);
+  await sheet.controller.send('Undo that');h.render();await h.child('RouteAISheet').apply();h.render();assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,150);
+  await sheet.controller.send('Move waypoint 1 two yards left');h.render(); // default mock query: no extra mutation
+  h.child('RouteAISheet').close();h.render();h.press('Save');await h.settle();assert.equal(h.saved.length,1);
+});
 
 test('library card body opens and separate overflow does not open the card', () => {
   let opens = 0, menus = 0;
@@ -243,14 +259,32 @@ test('planner results adopt empty routes directly and confirm meaningful replace
     let adopted;
     const document = stage(), savedPlan = plan(existing);
     const h = harness('planning/AutoPlannerPanel.tsx', { stage: document, plan: savedPlan, profile: null, preview: null, discoveryPreview: false, discoverySession: null, onClose() {}, onUse: value => adopted = value, onConfigure() {}, onDiscovery() {} }, {
-      './positionSources': { preparePositionSource: () => ({ context: { stage: document, plan: savedPlan, profile: null }, metadata: {}, discovery: {}, searchCount: 1, warnings: [] }) },
-      './plannerUI': { copyPlannerRoute, generatePlannerCards: () => ({ cards: [card] }) },
+      './routeSolver/solveRoute': { solveRoute: () => ({ status: 'success', bestRoute: { id: 'best' }, alternatives: [] }) },
+      './routeSolver/adoption': { solverInputFromPlan: () => ({ start: { x: 0, y: 0 }, requiredAreas: [] }), solverPreviewCard: () => card },
+      './plannerUI': { copyPlannerRoute },
     });
     h.press('GENERATE ROUTE'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
     assert.ok(h.nodes().some(n => n.props.children === 'ROUTE FOUND')); h.press('USE ROUTE');
     if (existing.positions.length) { assert.equal(adopted, undefined); h.press('Confirm replacement'); }
     assert.deepEqual(adopted.route, candidate); assert.notEqual(adopted.route, candidate); assert.equal(h.saved.length, 0);
   }
+});
+
+test('PLAN executes real offline solve, previews it and adopts an editable route without saving', async () => {
+  const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
+  const { createPlan } = require('../src/planning/model.ts');
+  const { createRoute, isStageRoute } = require('../src/planning/route.ts');
+  const { defaultEngagementRules } = require('../src/planning/engagements.ts');
+  const document = createDefaultStage(), savedPlan = createPlan();
+  document.objects = [createObject('start', 'start', 40, 100)];
+  savedPlan.route = createRoute('editable');
+  savedPlan.route.engagementRules = { ...defaultEngagementRules(), firingAreas: [{ id: 'required', vertices: [{ x: 180, y: 90 }, { x: 200, y: 90 }, { x: 200, y: 110 }, { x: 180, y: 110 }] }] };
+  let adopted, preview;
+  const h = harness('planning/AutoPlannerPanel.tsx', { stage: document, plan: savedPlan, profile: null, preview: null, discoveryPreview: false, discoverySession: null, onClose() {}, onUse: value => adopted = value, onPreview: value => preview = value, onConfigure() {}, onDiscovery() {} });
+  h.press('GENERATE ROUTE'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
+  h.press('VIEW ON STAGE'); assert.equal(preview.routeStyle, 'GEOMETRY'); assert.equal(preview.movementDistance, 140);
+  h.press('USE ROUTE'); assert.ok(isStageRoute(adopted.route)); assert.equal(adopted.route.positions[0].position.x, 180); assert.equal(h.saved.length, 0);
+  assert.equal(savedPlan.route.positions.length, 0);
 });
 
 test('inspector separates visible planned rounds and face cuts from advanced elevation', () => {

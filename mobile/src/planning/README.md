@@ -1,3 +1,10 @@
+# Active offline solver
+
+PLAN ROUTE now uses `routeSolver.solveRoute`, an offline geometry-only solver.
+See [the solver report](../../../docs/offline-route-solver.md) for algorithms,
+limits, normalization, compatibility and validation. Legacy generators/ranking
+remain for old tests and saved-route compatibility; PLAN no longer calls them.
+
 # Manual route planning
 
 `StagePlan.route` is optional so Phase 1 saved stages remain valid. `StageDocument`
@@ -99,3 +106,10 @@ different target ownership. Different subsets/orders/reloads survive; small chan
 in assignments on larger stages can be suppressed. Visibility-only and cosmetic
 changes do not create diversity. No optimality, collision or automatic visibility
 guarantee is added; the search remains bounded and timing remains evaluator-owned.
+# Headless route assistant
+
+`routeAssistant/index.ts` exports `createRouteAssistantContext`, structured queries,
+`executeRouteAssistantCommand`, and controlled `applyRoutePreview` acceptance through
+existing document history. All changes are preview-first, remain in physical inches,
+and require explicit Save. See [API and verification](../../../docs/route-assistant.md).
+No conversational interface or language model is connected.
