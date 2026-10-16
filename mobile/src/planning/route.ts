@@ -1,3 +1,7 @@
+import { validManualEngagements } from './manualEngagements';
+import type { ManualEngagement } from './manualEngagements';
+import { connectionPoints, pathLength, validConnections, retainConnections } from './routeGeometry';
+import type { RouteConnection } from './routeGeometry';
 import type { StagePosition, StageSize } from '../stage/coordinates';
 import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
@@ -16,6 +20,8 @@ export type ShootingPosition = {
  * By default they overlap the incoming segment; stationary explicitly opts out. */
 export type StageRoute = {
   version: 1; id: string; name: string; positions: ShootingPosition[];
+  connections?: RouteConnection[];
+  manualEngagements?: ManualEngagement[];
   engagementRules?: EngagementRules;
   reloads: { positionId: string; magazineId: string; mode?: 'moving' | 'stationary' }[];
 };
@@ -41,7 +47,7 @@ export function isStageRoute(value: unknown): value is StageRoute {
   if (!value || typeof value !== 'object') return false;
   const r = value as StageRoute;
   const ids = (values: unknown): values is string[] => Array.isArray(values) && values.every(id => typeof id === 'string') && new Set(values).size === values.length;
-  return (r.engagementRules === undefined || validEngagementRules(r.engagementRules)) && r.version === 1 && typeof r.id === 'string' && !!r.id && typeof r.name === 'string' && Array.isArray(r.positions) &&
+  return validConnections(r.connections, r.positions) && validManualEngagements(r.manualEngagements, r, true) && (r.engagementRules === undefined || validEngagementRules(r.engagementRules)) && r.version === 1 && typeof r.id === 'string' && !!r.id && typeof r.name === 'string' && Array.isArray(r.positions) &&
     r.positions.every(p => p && typeof p.id === 'string' && !!p.id && typeof p.label === 'string' && p.position?.space === 'stage' && p.position.z === 0 && [p.position.x, p.position.y].every(Number.isFinite) && ids(p.visibleTargetIds) && ids(p.engagedTargetIds)) &&
     r.positions.every(p => p.movingTargetIds === undefined || (ids(p.movingTargetIds) && (!p.movingTargetIds.length || !!r.engagementRules) && p.movingTargetIds.every(id => p.engagedTargetIds.includes(id)))) &&
     new Set(r.positions.map(p => p.id)).size === r.positions.length && Array.isArray(r.reloads) && r.reloads.every(r => r && typeof r.positionId === 'string' && typeof r.magazineId === 'string' && (r.mode === undefined || r.mode === 'moving' || r.mode === 'stationary'));
@@ -54,7 +60,7 @@ export function reorderPosition(route: StageRoute, id: string, direction: -1 | 1
   const positions = [...route.positions], index = positions.findIndex(p => p.id === id), next = index + direction;
   if (index < 0 || next < 0 || next >= positions.length) return route;
   [positions[index], positions[next]] = [positions[next], positions[index]];
-  return { ...route, positions };
+  return retainConnections({ ...route, positions });
 }
 /** A target can be visible at several positions, but has exactly one intended engagement. */
 export function engageAt(route: StageRoute, positionId: string, targetId: string): StageRoute {
@@ -102,7 +108,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   for (const p of route.positions) {
     let incomingSeconds = 0;
     if (origin) {
-      const distance = Math.hypot(p.position.x - origin.x, p.position.y - origin.y);
+      const distance = pathLength(connectionPoints(route, fromId, p.id, origin, p.position));
       segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? distance / profile.movementSpeed : null });
       incomingSeconds = segments[segments.length - 1].seconds ?? 0;
     }

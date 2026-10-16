@@ -1,0 +1,5 @@
+{
+  "id":"connected-boundary", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"line","a":[40,40],"b":[40,160],"stroke":2},{"kind":"line","a":[40,160],"b":[160,160],"stroke":2}],
+  "expected":[{"id":"vertical","type":"unknown","shape":"line","center":{"x":0.15625,"y":0.390625},"rotation":90},{"id":"horizontal","type":"unknown","shape":"line","center":{"x":0.390625,"y":0.625},"rotation":0}]
+}

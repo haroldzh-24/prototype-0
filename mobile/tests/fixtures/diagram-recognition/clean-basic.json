@@ -1,0 +1,13 @@
+{
+  "id":"clean-basic", "origin":"synthetic", "width":256, "height":256,
+  "primitives":[
+    {"kind":"rect","x":32,"y":48,"width":96,"height":6,"fill":true},
+    {"kind":"circle","x":184,"y":76,"radius":14,"stroke":2},
+    {"kind":"rect","x":40,"y":152,"width":40,"height":32,"stroke":2}
+  ],
+  "expected":[
+    {"id":"wall-like","type":"wall","shape":"line","center":{"x":0.310546875,"y":0.197265625},"rotation":0},
+    {"id":"round-unknown","type":"unknown","shape":"circle","center":{"x":0.71875,"y":0.296875}},
+    {"id":"box-unknown","type":"unknown","shape":"rectangle","center":{"x":0.232421875,"y":0.654296875},"rotation":0}
+  ]
+}

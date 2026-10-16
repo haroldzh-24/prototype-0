@@ -1,0 +1,7 @@
+{
+  "id":"grid-and-text", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"grid","spacing":32,"gray":210},{"kind":"rect","x":44,"y":76,"width":100,"height":6,"fill":true},{"kind":"rect","x":30,"y":12,"width":8,"height":16,"stroke":1},{"kind":"rect","x":44,"y":12,"width":8,"height":16,"stroke":1},{"kind":"rect","x":58,"y":12,"width":8,"height":16,"stroke":1}],
+  "expected":[{"id":"wall-like","type":"wall","shape":"line","center":{"x":0.365234375,"y":0.306640625},"rotation":0}],
+  "scale":{"expectedInchesPerPixel":1},
+  "notes":"Grid pixels alone cannot supply inches. Missing calibration must be reported."
+}

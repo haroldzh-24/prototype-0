@@ -1,0 +1,6 @@
+{
+  "id":"annotation-ambiguity", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"line","a":[40,30],"b":[210,30],"stroke":1},{"kind":"circle","x":80,"y":160,"radius":10,"stroke":1}],
+  "expected":[],
+  "notes":"Negative example: a dimension baseline and isolated O/logo glyph. Geometry alone cannot establish meaning; false detections are expected and must remain unclassified."
+}

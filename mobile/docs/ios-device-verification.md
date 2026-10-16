@@ -1,23 +1,10 @@
+# Historical iOS verification report
+
+Current unperformed checks are consolidated in [the RC hardware checklist](rc-hardware-validation.md). September scheduling/status statements below are historical, not current release evidence. No native check was closed by consolidation.
+
 # Phase 9A iOS verification
 
 Status: **physical-device checks below have not been run**. Rebuild the iOS client: native analysis now requires synchronous prepare/release, cancellation hooks and transformed display-size metadata. Existing clients fail recoverably and retain manual editing. Record device model, iOS version, app build, media dimensions/orientation/codec and outcome for each failure.
-
-## Device checklist
-
-- [ ] Fresh launch, force-quit/relaunch, background/foreground; stored stages, sessions and profile remain readable.
-- [ ] Stage: create, edit, save/reopen; double-tap Save; leave while saving; confirm no duplicate stage or navigation.
-- [ ] Stage: auto-discover positions, edit geometry and verify discovery invalidation; generate AI plans; preview, return, accept and reopen a route.
-- [ ] Video: import MOV/MP4 from Files/iCloud; play, seek and step; rotate/mirror source recordings; verify fractional timestamps against visible events. Delete the original source after import and reopen the durable copy.
-- [ ] Missing/corrupt media: retain annotations, explain playback failure, retry/relink and leave. Cancel the picker, navigate away during import, discard an unsaved relink and test low-storage import failure.
-- [ ] Audio: no track, unsupported/corrupt audio, short clip, delayed audio track, repeated runs, cancellation immediately and mid-decode, then retry. Verify progress and alignment with playback; inspect first-60-second truncation.
-- [ ] Pose: portrait/landscape/mirrored/VFR video, no person, intermittent/multiple people, occlusion and long clip; verify overlay orientation, gaps, timestamps and bounded sample count.
-- [ ] Close-up: draw boxes at all displayed video edges, including letterboxing; verify transformed portrait dimensions, hand/object tracking, tracking loss, camera motion and frame-size changes. No NaN or out-of-frame region reaches Vision.
-- [ ] Lifecycle: rapidly tap different analysis buttons, cancel each detector, background during extraction, close/discard during extraction and reopen immediately. No simultaneous decoding, stale result application or permanently busy state; retry once the prior native job settles.
-- [ ] Fusion: confirm/edit/reject evidence; rerun each detector and verify affected suggestions refresh while authoritative markers remain intact.
-- [ ] Save/reopen: retain analysis, previews and confirmed markers; cancel/discard must not persist partial extraction. Repeat under memory pressure and low storage.
-- [ ] Comparison: select saved plan, suggest mapping, preview route/timeline, accept individual/all, edit/reject; save/reopen. Edit confirmed markers and verify stale suggestions require regeneration. Live route edits must retain historical geometry.
-- [ ] Profile: contribute reviewed observations, rebuild, relaunch and verify values persist. Edit/remove contributed evidence and verify its old contribution is withdrawn. Exercise a failed write and verify no partial profile/analysis update.
-- [ ] Recovery: retry storage/media errors, continue manual annotation and leave the screen. Corrupt/unsupported saved records must remain unchanged and readable healthy sessions must remain listed.
 
 ## Code audit and changes
 

@@ -292,3 +292,52 @@ test('optional performance evidence and difficulty observations survive SQLite r
     assert.equal(buildPersonalizedModel((await connection.repo.loadProfile()).performance).usable, true);
   } finally { connection.db.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('manual bend geometry survives SQLite close/reopen independently of stage objects',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'manual-bends-')),file=path.join(dir,'stage.db');let c=open(file);
+ try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();plan.route=createRoute('manual');
+ plan.route.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
+ plan.route.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:250,z:0}}]}];
+ const match=await c.repo.createMatch('Manual','USPSA'),id=await c.repo.createStage('Bends',document,createPlan(),match);await c.repo.saveStage(id,'Bends',document,plan);c.db.close();c=open(file);await c.repo.initialize();const loaded=await c.repo.loadStage(id);assert.deepEqual(loaded.plan,plan);assert.deepEqual(loaded.document,document);
+ }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
+});
+
+test('manual engagements retain IDs, waypoint order, section fractions, targets and directions after SQLite reopen',async()=>{
+ const {addManualEngagement,routeSectionId}=require('../src/planning/manualEngagements.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'engage-')),file=path.join(dir,'stage.db');let c=open(file);
+ try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();document.objects=[createObject('start','start',10,300),createObject('cardboardTarget','target',150,80)];plan.route=createRoute('r');plan.route.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:250,z:0},visibleTargetIds:[],engagedTargetIds:[]}));plan.route.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:180,z:0}}]}];
+ for(const [id,anchor]of [['one',{kind:'waypoint',waypointId:'a'}],['two',{kind:'waypoint',waypointId:'a'}],['travel',{kind:'section',sectionId:routeSectionId('a','b'),fraction:.37}]])plan.route=addManualEngagement(document,plan.route,{id,anchor,targetId:'target',direction:-1.23});
+ const match=await c.repo.createMatch('Engage','USPSA'),id=await c.repo.createStage('Manual',document,createPlan(),match);await c.repo.saveStage(id,'Manual',document,plan);c.db.close();c=open(file);await c.repo.initialize();const loaded=await c.repo.loadStage(id);assert.deepEqual(loaded.plan,plan);assert.deepEqual(loaded.document,document);
+ const {reviewManualRoute}=require('../src/planning/manualRouteReview.ts');const {manualEngagementLabel,resolveAnchor}=require('../src/planning/manualEngagements.ts');assert.deepEqual(reviewManualRoute(loaded.document,loaded.plan.route),reviewManualRoute(document,plan.route));assert.deepEqual(loaded.plan.route.manualEngagements.map(e=>manualEngagementLabel(loaded.plan.route,e)),['A','B','']);for(const e of loaded.plan.route.manualEngagements)assert.deepEqual(resolveAnchor(loaded.document,loaded.plan.route,e.anchor),resolveAnchor(document,plan.route,e.anchor));
+ const invalid={...plan,route:{...plan.route,manualEngagements:[{...plan.route.manualEngagements[0],anchor:{kind:'section',sectionId:'malformed',fraction:2}}]}};await assert.rejects(c.repo.saveStage(id,'Bad',document,invalid));assert.deepEqual((await c.repo.loadStage(id)).plan,plan);
+ }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
+});
+
+test('REVIEW can reopen and explicitly remove well-formed stale target and anchor references',async()=>{
+ const {reviewManualRoute}=require('../src/planning/manualRouteReview.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'review-')),file=path.join(dir,'stage.db');let c=open(file);
+ try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();plan.route=createRoute('r');plan.route.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];plan.route.manualEngagements=[{id:'bad',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'deleted-waypoint'},direction:0}];const match=await c.repo.createMatch('Review','USPSA'),id=await c.repo.createStage('Stale',document,plan,match);c.db.close();c=open(file);await c.repo.initialize();const loaded=await c.repo.loadStage(id);assert.deepEqual(loaded.plan,plan);assert.equal(reviewManualRoute(loaded.document,loaded.plan.route).invalid.length,1);loaded.plan.route.manualEngagements=[];await c.repo.saveStage(id,'Cleaned',loaded.document,loaded.plan);assert.equal(reviewManualRoute((await c.repo.loadStage(id)).document,(await c.repo.loadStage(id)).plan.route).invalid.length,0);
+ }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
+});
+
+function diagramDraft(){const asset={path:'diagram-imports/source.pdf',name:'Stage briefing.pdf',mime:'application/pdf',size:200};return {version:1,id:'diagram',source:asset,sourceKind:'pdf',alignment:{corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],rotation:0,crop:{x:0,y:0,width:1,height:1}},projection:'unknown',origin:{x:0,y:0},proposals:[]};}
+test('diagram references survive SQLite reopen independently of stage geometry, plan, ownership and immutable original',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'diagram-storage-')),file=path.join(dir,'stage.db');let c=open(file);
+ try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();plan.route=createRoute('existing');const match=await c.repo.createMatch('Diagrams','USPSA'),id=await c.repo.createStage('Existing',document,plan,match),before=c.db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,draft=diagramDraft();
+ await c.repo.saveDiagramImport(id,draft);assert.equal(c.db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,before);c.db.close();c=open(file);await c.repo.initialize();assert.deepEqual(await c.repo.loadDiagramImports(id),[draft]);assert.deepEqual((await c.repo.loadStage(id)).plan,plan);
+ const copy=await c.repo.duplicateStage(id);assert.deepEqual(await c.repo.loadDiagramImports(copy),[draft]);const edited={...draft,projection:'perspective'};await c.repo.saveDiagramImport(copy,edited);assert.deepEqual(await c.repo.loadDiagramImports(id),[draft]);assert.deepEqual(await c.repo.loadDiagramImports(copy),[edited]);await c.repo.deleteStage(copy);assert.deepEqual(await c.repo.loadDiagramImports(copy),[]);assert.deepEqual(await c.repo.loadDiagramImports(id),[draft]);
+ const matchCopy=await c.repo.duplicateMatch(match),copied=(await c.repo.listStages(matchCopy))[0];assert.deepEqual(await c.repo.loadDiagramImports(copied.id),[draft]);await c.repo.deleteMatch(matchCopy);assert.deepEqual(await c.repo.loadDiagramImports(copied.id),[]);
+ }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
+});
+test('invalid and orphan document drafts reject writes and import-copy failure rolls back stage duplication',async()=>{
+ const c=open();try{await c.repo.initialize();const match=await c.repo.createMatch('Import','USPSA'),id=await c.repo.createStage('Existing',createDefaultStage(),createPlan(),match),draft=diagramDraft();await c.repo.saveDiagramImport(id,draft);
+ await assert.rejects(c.repo.saveDiagramImport(id,{...draft,source:{...draft.source,path:'../stage.db'}}));await assert.rejects(c.repo.saveDiagramImport('missing',draft));assert.deepEqual(await c.repo.loadDiagramImports(id),[draft]);
+ c.db.exec("CREATE TRIGGER prevent_diagram_copy BEFORE INSERT ON diagram_imports WHEN NEW.stageId != '"+id+"' BEGIN SELECT RAISE(ABORT,'copy failed'); END;");const before=await c.repo.listStages();await assert.rejects(c.repo.duplicateStage(id),/copy failed/);assert.deepEqual(await c.repo.listStages(),before);
+ }finally{c.db.close();}
+});
+
+test('recognition bounds, provenance, scale status and corrected decisions survive reopen without rewriting stage or route',async()=>{
+ const {render}=require('./fixtures/diagram-recognition/render.cjs'),raster=render(require('./fixtures/diagram-recognition/clean-basic.json')),{propose,recognizers}=require('../src/diagramImport/recognition.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'recognition-storage-')),file=path.join(dir,'stage.db');let c=open(file);
+ try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();plan.route=createRoute('keep-route');const match=await c.repo.createMatch('Recognition','USPSA'),id=await c.repo.createStage('Keep geometry',document,plan,match),before=c.db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,draft=diagramDraft();draft.aligned={asset:{path:'diagram-imports/aligned.png',name:'Aligned.png',mime:'image/png',size:20},width:256,height:256,page:2,pageCount:3};draft.projection='top-down';
+ const result=await propose(draft,raster,recognizers[0],new AbortController().signal);draft.proposals=result.proposals.map((p,i)=>i===1?{...p,type:'steelPlate',extent:{width:.2,height:.2},rotation:45}:p);await c.repo.saveDiagramImport(id,draft);c.db.close();c=open(file);await c.repo.initialize();const reopened=(await c.repo.loadDiagramImports(id))[0];assert.deepEqual(reopened,draft);assert.equal(reopened.proposals[1].recognition.scaleStatus,'uncalibrated');assert.equal(reopened.proposals[1].recognition.sourceImage.page,2);assert.notEqual(reopened.proposals[1].extent.width,reopened.proposals[1].recognition.bounds.width);assert.equal(c.db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,before);assert.deepEqual((await c.repo.loadStage(id)).plan,plan);
+ await assert.rejects(c.repo.saveDiagramImport(id,{...draft,proposals:[{...draft.proposals[0],confidence:NaN}]}));assert.deepEqual(await c.repo.loadDiagramImports(id),[draft]);
+ }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
+});

@@ -1,3 +1,48 @@
+# RC1 release blockers ? 2026-10-15
+
+No crash/persistence blocker has been reproduced by automated checks so far. Dependency security review remains open: npm reports 30 advisories (18 high, 12 moderate), including router URL decoding; critical shell-quote was patched. See release notes before wider distribution. Native release qualification is unfinished: a signed EAS build, install/upgrade, persistence/lifecycle smoke tests and device memory/gesture/accessibility checks remain required. The web SQLite worker/OPFS reload issue remains open; web is experimental and is not the RC demonstration target.
+
+[One current hardware checklist](mobile/docs/rc-hardware-validation.md) replaces all dated scheduling reminders below. September 9?10 device checks and September 9 snapping checks are over one month overdue and remain unperformed. Experimental recognition's known false candidates and lack of real samples remain documented limitations, with manual reconstruction available.
+
+Completed RC fixes are recorded in changelog.md; [release notes](mobile/docs/release-candidate.md) contain current validation evidence. The October 15 repeat audit passed 786/786 automated tests and TypeScript without further runtime changes. Older entries below retain historical context; use only the consolidated checklist for current hardware status.
+
+# Clean-diagram recognition verification - 2026-10-15
+
+Current release status: [1.0.0 RC1](mobile/docs/release-candidate.md). The [single hardware checklist](mobile/docs/rc-hardware-validation.md) supersedes dated device reminders below; historical automated counts are not current RC results.
+
+- Fixed the synthetic connected-L boundary being mistaken for a circle by requiring angular coverage, and fixed rounded wide-image downsampling being rejected by aspect validation; fixed rapid duplicate detection actions replacing the active cancellation controller. Completed changes and tests are in changelog.md.
+- Known prototype errors: an isolated O-like glyph and dimension baseline produce two unknown false candidates in the negative fixture. Text/border suppression is heuristic and may also hide genuine small/repeated shapes or cropped boundaries. All proposals require review; unknown types cannot commit.
+- No real diagrams or native execution were tested. Bounds/yield/timeout protections do not establish iPhone memory, latency, raster orientation, Swift compilation or cancellation quality. See [the report and unchecked native list](mobile/docs/diagram-recognition.md).
+- Real icon classification, automatic units/scale, OCR and projection classification remain unfinished. September 9-10 device checks and September 9 snapping assessment remain more than one month overdue.
+
+# Stage diagram import verification - 2026-10-15
+
+- Source implementation and completed preservation/validation protections are recorded in changelog.md. No real-diagram recognition accuracy or native execution has been established.
+- Remaining limitations: automatic layout/projection/semantic-symbol/real-scale detection is unavailable; basic geometric candidates are now supported; PDF/camera/native alignment require an unverified rebuilt iPhone client; browser PDF and Android preparation need adapters. Originals remain referenceable after preparation failure.
+- Filesystem/IndexedDB and SQLite are separate stores; failed preparation can leave unreferenced files. Shared immutable originals are retained deliberately; safe cleanup/relinking remains planned. Existing browser SQLite/OPFS issues are unchanged.
+- Physical-device and sample requirements: [stage diagram import](mobile/docs/stage-diagram-import.md). September 9-10 native checks and September 9 snapping assessment remain more than one month overdue; none were completed by this import work.
+
+## Route planner iPhone follow-up - 2026-10-15
+
+- Unperformed physical checks and the overdue September 9-10 backlog are consolidated in [the current checklist](mobile/docs/rc-hardware-validation.md). No device checks have been marked complete. September 9 snapping refinement also remains overdue.
+- Completed interaction/accessibility fixes are recorded in changelog.md. Native focus, gesture interruption, safe areas, large text, latency and force-close restoration still require an iPhone.
+
+# Route AI verification - 2026-10-05
+
+- ASK, local Swift module, deterministic interpretation handoff, controlled preview acceptance and browser mock/unavailable journeys are implemented; completed work is in changelog.md and docs/route-ai.md.
+- Native Foundation Models compilation/runtime linkage (local autolinking resolves), guided-generation accuracy, OS availability/error transitions, physical keyboard/gesture behavior, airplane-mode execution and model latency remain unverified on this Windows workspace. Use the Windows/EAS commands and device checklist in docs/route-ai.md.
+- ASK now schedules RouteAssistant work after a UI yield, guards cancellation/timeouts/stale results, and avoids duplicate genuine replan solving on Apply. The solver CPU call is still synchronous JavaScript and can pause interaction on complex stages; true background execution and native cancellation responsiveness remain open. Ambiguous references clarify; avoiding a still-required area can remain impossible.
+- Existing browser SQLite/OPFS and durable-media issues remain open. No schema/storage changes were made.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
+# Offline route solver verification - 2026-10-05
+
+- Active legacy generation/ranking was replaced; completed implementation and benchmark-driven search fixes are recorded in changelog.md.
+- Known model limits: finite candidate geometry rather than globally optimal continuous region paths, point movement/default zero body clearance, inferred fault connections requiring review, and target/reload assignment editing after adoption. See docs/offline-route-solver.md.
+- Native end-to-end solver interaction/performance and browser journey execution are unverified. The browser audit script now uses the new Configure action; this pass verified real component solving/adoption and SQLite save/reopen automatically.
+- Existing browser SQLite/OPFS teardown and media persistence issues remain open; no storage schema or teardown change was made.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
 # Final UI verification - 2026-10-05
 
 - Source-fixable overhaul defects found in the final pass were fixed and moved to changelog.md. No known source-fixable UI overhaul issue remains after the final journey/source audit.
@@ -303,7 +348,7 @@ Use this file to document known defects from discovery through resolution.
 - Browser smoke checks pass for navigation, every ADD tile, rotation/preview, stage save/reopen/reload, ammunition retention, unsaved-edit protection, rename/duplicate/delete, Training and Account.
 - SQLite web is experimental and uses exclusive file handles; use one app tab at a time. Native storage does not use this web backend. Fixed startup/page-navigation issues are recorded in `changelog.md`.
 - Native-device checks remain pending for back/swipe unsaved-edit protection, SQLite persistence across app restarts, ADD tiles, dragging, inspector keyboard interaction and 2.5D rendering.
-- Existing dated follow-up items are from September 9–10, 2026; none are over one month old. Older undated ideas cannot be aged reliably.
+- Current status (October 15, 2026): September 9-10 physical-device checks remain overdue and unperformed. Use mobile/docs/rc-hardware-validation.md; no replacement testing date has been scheduled.
 
 ## Bug Entry Template
 
@@ -351,3 +396,33 @@ Use this file to document known defects from discovery through resolution.
 - Device mapping/viewport/save/reopen verification remains pending in features.md. Unsupported dwell prediction and multi-string aggregation are explicit limitations, not inferred measurements.
 - No dated unresolved item exceeds one month; undated legacy ideas cannot be aged reliably.
 - Final validation: TypeScript passed once; the full suite passed once with 398/398 tests, including 34 new comparison tests. No screenshots, browser automation, iOS export, commit or push were performed.
+# Headless route assistant verification - 2026-10-05
+
+- Preview tampering, outdated document revisions, invalid physical coordinates and intervening-manual-edit undo are guarded; completed behavior is in changelog.md.
+- Large solver previews and acceptance recomputation remain synchronous; ten-region desktop medians measured 438–486 ms. Native/background scheduling and physical-device timing remain follow-up work. See docs/route-assistant.md.
+- Inherited solver/adoption limits remain: finite candidates, point movement, required-point fallback and reset assignments/reloads on replan. No storage, schema or solver algorithm change was made.
+- No dated unresolved item is older than one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
+# Manual PATH verification - 2026-10-15
+
+- Fixed straight-only manual rendering and distance evaluation; completed work is in changelog.md.
+- Native bend/waypoint touch and pinch handoff remain unverified in this Windows workspace. Existing browser SQLite/OPFS teardown issues remain open; repository close/reopen tests do not establish browser reliability.
+- Older moving-engagement windows/analysis follow waypoint chords. Manual ENGAGE now uses authored-curve anchors independently; Manual REVIEW coverage is complete; timing/legality integration remains separate. PATH hides older engagement controls/overlays while editing.
+- Reminder: September 9-10 physical-device verification items in features.md are now more than one month overdue.
+
+- Validation: TypeScript passed. Initial full suite: 710/713 passed; three navigation regressions from automatic PATH entry were fixed by retaining explicit PATH entry. Relevant route/storage/UI rerun: 83/83 passed. Git whitespace check passed. Native gesture testing remains pending.
+
+# ENGAGE verification - 2026-10-15
+
+- Completed fixes (curve attachment, orphan references, temporary-guide cleanup and gesture isolation) are recorded in changelog.md.
+- Physical iPhone touch, VoiceOver and layout verification remain open; see features.md. Existing browser SQLite/OPFS issues remain open. SQLite close/reopen tests do not certify browser storage reliability.
+- Manual ENGAGE annotations do not feed the older ammunition/timing/legality calculations; the analysis screen explicitly identifies this limitation. Manual REVIEW now inspects saved assignments independently.
+
+- Final ENGAGE verification: complete suite 726/726 passed, TypeScript passed, and git whitespace check passed. No test failures remain. Source-level responder tests cover creation, invalid release, pinch cancellation, normal pan, termination and guide cleanup; physical iPhone verification is still pending.
+
+# Manual REVIEW verification - 2026-10-15
+
+- Completed fixes for discarded stale saved references, misleading arrow counts and chord-only review distances are in changelog.md. Missing target/anchor references remain inspectable, never count toward coverage and require explicit confirmed removal. Deliberate deletion of valid targets/waypoints retains existing annotation cleanup.
+- Physical iPhone layout, VoiceOver, hit regions and gesture checks remain pending in features.md. Existing browser SQLite/OPFS issues remain unresolved; successful repository round trips do not certify browser storage behavior.
+
+- Final REVIEW verification: complete suite 740/740 passed (14 added over the 726 baseline), TypeScript passed, and whitespace check passed. Expo production web export and iOS Hermes bytecode export passed. The initial iOS export was blocked by sandbox compiler permissions; the approved outside-sandbox retry passed. Native compilation/device interaction and existing browser OPFS reliability remain unverified.

@@ -1,3 +1,4 @@
+import { reconcileManualEngagements } from './manualEngagements';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StageRoute } from './route';
 
@@ -66,7 +67,8 @@ export function assignRounds(plan: StagePlan, stage: StageDocument, id: string, 
   return { plan: { ...plan, engagements } };
 }
 /** Deleted/unsupported references cannot consume ammunition or reappear after Reset. */
-export function reconcilePlan(plan: StagePlan, stage: StageDocument): StagePlan {
+export function reconcilePlan(plan: StagePlan, stage: StageDocument, previous?: { stage: StageDocument; route?: StageRoute }): StagePlan {
+  if (plan.route) { const route = reconcileManualEngagements(stage, plan.route, previous?.route, previous?.stage); if (route !== plan.route) plan = { ...plan, route }; }
   const valid = new Set(stage.objects.filter(isEngageable).map(o => o.id));
   const entries = Object.entries(plan.engagements).filter(([id]) => valid.has(id));
   const staleRoute = plan.route?.positions.some(p => [...p.visibleTargetIds, ...p.engagedTargetIds].some(id => !valid.has(id)));

@@ -26,6 +26,7 @@ export default function RouteAnalysis({ stage, plan, route, profile, edit }: {
   const result = evaluateRoute(stage, plan, route, profile), analysis = result.engagementAnalysis;
   const covered = analysis?.coveredTargetIds.length ?? new Set(route.positions.flatMap(p => p.engagedTargetIds)).size;
   return <Panel>
+    {!!route.manualEngagements?.length && <Notice tone="warning">Manual ENGAGE arrows are not included in these timing, target coverage and ammunition estimates. Use REVIEW to inspect saved manual assignments.</Notice>}
     <Section title="OVERVIEW"><View style={ui.statGroup}>
     <Stat label="Movement" value={formatYards(result.distance)} />
     <Stat label="Targets" value={`${covered} / ${stage.objects.filter(isEngageable).length}`} />

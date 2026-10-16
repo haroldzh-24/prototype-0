@@ -1,3 +1,44 @@
+# RC1 feature freeze ? 2026-10-15
+
+All implemented features are frozen for 1.0.0 RC1. No OCR, recognition expansion, automatic route planning or training expansion is authorized for this release. Future ideas below are deferred backlog, not RC commitments. Older dated verification reminders are historical; track all current hardware outcomes only in the RC checklist. September statements that no items exceed one month no longer describe current status.
+
+The only remaining release work is native build/TestFlight and hardware qualification in [one current checklist](mobile/docs/rc-hardware-validation.md). September 9?10 checks and dense snapping assessment remain over one month overdue. Documentation consolidation does not mark any check complete. Completed release hardening is in changelog.md.
+
+# Clean-diagram recognition follow-up - 2026-10-15
+
+Current release status: [1.0.0 RC1](mobile/docs/release-candidate.md). The [single hardware checklist](mobile/docs/rc-hardware-validation.md) supersedes dated device reminders below; historical automated counts are not current RC results.
+
+- Basic deterministic geometry detection, provenance, unknown-shape review, batch decisions and synthetic evaluation are complete; details moved to changelog.md and [the recognition report](mobile/docs/diagram-recognition.md).
+- Planned: real sample evaluation across applications, evaluated semantic templates, robust text/logo/dimension suppression, curved/oblique connected networks, OCR/units and reliable projection/quality detection. Current circle/rectangle/repeated silhouettes remain unclassified; grid spacing is image-only.
+- Physical-device raster orientation/channel order, Swift compilation, memory/latency, cancellation, accessibility and Save/relaunch remain unverified. Android raster/preparation support remains planned. No service, training or new permission was added.
+
+# Stage diagram import follow-up - 2026-10-15
+
+- Completed document preparation, separate reference/draft persistence, calibrated manual overlays and modular recognition contract are recorded in changelog.md and [the implementation notes](mobile/docs/stage-diagram-import.md).
+- Scope: imports accept documents from any stage-building application; automatic recognition must be evaluated across applications and unknown icon conventions must remain reviewable.
+- Planned: real sample collection/evaluation, evaluated semantic templates by application/version, robust layout/projection/grid-unit/dimension detection, explicit port/unsupported-prop mapping, browser PDF rendering, Android preparation, relinking and safe orphan-file cleanup. No AI service or custom training is enabled.
+- Native Swift build, real PDFs, paper boundaries, camera permissions/cancellation, memory, accessibility, Save/relaunch and low-storage checks remain unperformed; use the unchecked native checklist in the notes.
+
+## Route planner iPhone follow-up - 2026-10-15
+
+- Unperformed physical checks and the overdue September 9-10 backlog are consolidated in [the current checklist](mobile/docs/rc-hardware-validation.md). No device checks have been marked complete. September 9 snapping refinement also remains overdue.
+- Completed interaction/accessibility fixes are recorded in changelog.md. Native focus, gesture interruption, safe areas, large text, latency and force-close restoration still require an iPhone.
+
+# Route AI hardening device follow-up - 2026-10-05
+
+- Request lifecycle, guarded async execution, cancellation, timeout/retry, compact context, solver caching and Apply races are implemented; completed work moved to changelog.md.
+- Planned: EAS Swift build and physical-device tests of Foundation Models availability/generation/cancellation/session recovery, native performance, stage/navigation/background invalidation, composer keyboards/large text, and Apply/explicit Save/reopen. Exact Windows commands and checklist: docs/route-ai.md.
+- True off-main-thread solver execution remains future work; this pass introduces a replaceable executor and UI yield while preserving route algorithms.
+- No dated unresolved bug or feature is over one month old as of October 5, 2026; undated legacy entries cannot be aged reliably.
+
+# Offline route solver follow-up - 2026-10-05
+
+- Completed geometry solver and active PLAN integration moved to changelog.md; see docs/offline-route-solver.md.
+- Planned: native device performance and PLAN/preview/adopt/edit/explicit Save/reopen verification; run the updated browser journey for the new geometry-only readiness flow.
+- Future improvements: adaptive area candidate refinement, body/vertical clearance, dedicated required-region authoring, separate persisted required-waypoint intent, background/cancellable solving for larger stages and further exact-search performance tuning.
+- On-device conversational Route AI now uses the structured assistant/solver API; native rebuild/device verification remains planned. Diagram document preparation/manual reconstruction is implemented separately; evaluated automatic recognition and 3D remain deferred. Do not revive style ranking or backward preferences.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
 # Final UI device follow-up - 2026-10-05
 
 - Final source-level UI cleanup is complete; implementation and verification results moved to changelog.md and docs/ui-overhaul.md. No known source-fixable overhaul feature-path or presentation issue remains.
@@ -57,7 +98,7 @@
 
 - Implementation is complete; see changelog.md. Perform the [phone checklist](mobile/docs/designer-tools-testing.md), especially pinch handoff, small-target selection, rotation wheel, endpoint handles and save/relaunch. Browser touch emulation does not establish native-device behavior.
 - Obtain dimensioned paper/popper outline drawings and reconcile vendor-size differences recorded in [target sources](docs/target-preset-sources.md). Current paper/popper shapes remain explicitly approximate.
-- Photo import, OCR and image reconstruction remain deferred. Deterministic moving-engagement route work is recorded above and in changelog.md.
+- Diagram PDF/image/paper preparation and manual reconstruction preview are implemented; OCR and semantic object recognition remain deferred pending samples and native verification; basic geometric candidate detection is now implemented. Deterministic moving-engagement route work is recorded above and in changelog.md.
 - No dated unresolved item is older than one month as of 2026-09-29. Undated older ideas cannot be aged reliably.
 
 # Planned Features
@@ -75,14 +116,10 @@
 
 ## Automatic route optimizer follow-up - 2026-09-21
 
-- **Status:** Planned. Typed foundation, bounded candidate generation and Phase 3 ranking are complete; see changelog.md.
-- Phase 6A discovery and Phase 6B planner integration are complete; see changelog.md. Verify discovery controls, amber read-only markers, native pan/zoom, stale-geometry feedback and auto-route adoption on a physical device. Optional selected-auto-position visibility connections remain a future preview enhancement.
-- Future geometry: legal shooting-area representation, body clearance, movement-path reachability, muzzle elevation/vertical port clearance, target-face occlusion and refined sampling near small openings. Current discovery provides only bounded 2D modeled-geometry estimates.
-- Phase 4 evaluator movement/reload overlap is complete; see changelog.md.
-- Phase 7A deterministic partial-profile personalization and difficulty/split observations are complete; see changelog.md. Future work: non-video measurement entry UI, recency weighting, difficulty-dependent first-shot acquisition, richer transition contexts, and curve-aware accepted manual-route summaries. Expand distance-only difficulty with target type, partial geometry and visibility difficulty only when supported by data. Verify Personalized status/details on a physical device.
-- Phase 5A minimal planner UI is complete; selected routes use existing manual editing and persistence.
-- Phase 5B planner presentation is complete; see changelog.md. Verify candidate A/B previews, pan/zoom, reload markers, Back to Results, expanded details, ruleset selection and confirmed route adoption on a physical device.
-- Future ruleset constraints: presets currently store session-only typed metadata and share neutral evaluation; competition capacity, reload, engagement-order and penalty rules remain unimplemented.
+- **Status:** Superseded by the geometry-first offline solver on 2026-10-05. Legacy discovery/generation/style ranking/personalization remain isolated for compatibility and historical regression coverage; their controls are retired from PLAN. Completion history remains in changelog.md.
+- Movement reachability and explicit legal-area travel constraints are implemented in the new solver. Future body/vertical clearance and target-face occlusion work remains planned.
+- Manual-route analysis, reload-overlap evaluation, training observations and existing Profile data remain available; they do not rank or alter the active solver's movement objective.
+- Native verification now follows the offline solver entry above. Competition capacity, reload scheduling, engagement-order and penalty optimization are not part of the new movement solver.
 
 ## Batch magazine device verification
 
@@ -264,3 +301,26 @@ Track features that are proposed or planned but not yet implemented.
 - Code hardening is recorded in changelog.md. Rebuild the native client for prepare/release/cancellation and display-geometry changes.
 - Run the unchecked [iOS verification checklist](mobile/docs/ios-device-verification.md), especially portrait/mirrored region selection, immediate cancel/rerun, backgrounding, low storage/memory, missing media, transaction recovery and persistence across relaunch.
 - Swift compilation and physical-device audio/Vision execution remain unverified. Historical damaged-record repair and durable browser media storage remain future work.
+# Route assistant follow-up - 2026-10-05
+
+- Headless typed commands, factual queries, previews, controlled acceptance and normal-history undo are complete; moved to changelog.md. See docs/route-assistant.md.
+- Host integration, atomic acceptance and conversational Route AI are implemented; see changelog.md and docs/route-ai.md. Planned: native rebuild/device verification, physical-device latency, Save/reopen journeys, streaming, optional background solver scheduling and canvas avoidance-region entry.
+- Apple Foundation Models interpretation and ASK UI now call `executeRouteAssistantCommand`; native compilation and real model execution remain unverified.
+- No dated unresolved bug or feature exceeds one month as of October 5, 2026; undated legacy items cannot be aged reliably.
+
+# Manual route follow-up - 2026-10-15
+
+- Completed ENGAGE annotations are recorded in changelog.md. Manual REVIEW coverage and authored-path summaries are complete; see changelog.md. Future optional timing/legality integration remains separate. Existing engagement metadata remains compatible; older moving-engagement analysis still uses waypoint chords.
+- Verify PATH on a physical phone: select incoming sections, insert/drag/delete bends, toggle styles, reorder/delete waypoints, pinch handoff, pan/zoom, undo/redo, Save and relaunch. Implementation is recorded in changelog.md.
+- Overdue reminder: September 9-10 device checks (paper/steel symbols, wall ports, partial targets, object actions, 2.5D and loadout) and September 9 snapping refinement are more than one month old as of October 15. Resolve or reschedule these entries.
+
+# ENGAGE follow-up - 2026-10-15
+
+- Verify on physical iPhone: 44-point selection areas with overlapping arrows/targets, several arrows at one waypoint, continuous creation on rounded sections, pinch interruption and remaining-finger pan, out-of-canvas release, temporary-guide cleanup, large text/short screens, VoiceOver engagement list, Save and app relaunch.
+- Manual REVIEW is complete; see changelog.md. Manual annotations remain separate from older target assignment/legality/timing data; no automatic selection, legality inference, or timing integration was added.
+
+# Manual REVIEW follow-up - 2026-10-15
+
+- Verify on physical iPhone: assigned check/unassigned exclamation symbols, amber outlines on rotated targets, crowded-target taps at 50-300% zoom, pan/pinch without target selection, summary/inspector sheets on short screens and large text, VoiceOver status and source entries, route-location highlighting, invalid removal/Undo, and Save/relaunch.
+- Completed coverage, filter, inspector and summary behavior is recorded in changelog.md. Optional future timing/visibility/feasibility analysis remains separate from manual assignment inspection.
+- Reminder: September 9-10 device checks and September 9 snapping refinement remain more than one month overdue.

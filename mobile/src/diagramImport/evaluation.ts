@@ -1,0 +1,13 @@
+import type { Proposal, Point } from './model';
+export type ExpectedDetection = { id:string; type:Proposal['type']; shape:NonNullable<Proposal['recognition']>['shape']; center:Point; rotation?:number };
+export type Evaluation = { expected:number; detected:number; matched:number; correctClassifications:number; wrongClassifications:number; falseDetections:number; missedElements:number; meanPositionErrorPixels:number|null; meanRotationErrorDegrees:number|null; scaleCalibrationFailures:number; scaleStatus:'not-tested'|'missing'|'within-tolerance'|'outside-tolerance' };
+/** Match by image location/shape, then score semantic type separately so wrong labels cannot hide as misses. */
+export function evaluateDetections(expected:ExpectedDetection[],proposals:Proposal[],image:{width:number;height:number},scale?:{expectedInchesPerPixel:number;actualInchesPerPixel?:number},tolerancePixels=12):Evaluation {
+  const edges:{e:number;p:number;distance:number}[]=[];
+  const center=(p:Proposal)=>p.end?{x:(p.position.x+p.end.x)/2,y:(p.position.y+p.end.y)/2}:p.position;
+  expected.forEach((e,i)=>proposals.forEach((p,j)=>{if(e.shape!==p.recognition?.shape)return;const c=center(p),distance=Math.hypot((e.center.x-c.x)*image.width,(e.center.y-c.y)*image.height);if(distance<=tolerancePixels)edges.push({e:i,p:j,distance});}));
+  edges.sort((a,b)=>a.distance-b.distance||a.e-b.e||a.p-b.p);const usedE=new Set<number>(),usedP=new Set<number>();let correct=0,position=0,rotation=0,rotations=0;
+  for(const pair of edges){if(usedE.has(pair.e)||usedP.has(pair.p))continue;usedE.add(pair.e);usedP.add(pair.p);const e=expected[pair.e],p=proposals[pair.p];if(e.type===p.type)correct++;position+=pair.distance;if(e.rotation!==undefined){const period=e.shape==='line'?180:360;let error=Math.abs(((p.rotation-e.rotation)%period+period)%period);error=Math.min(error,period-error);rotation+=error;rotations++;}}
+  const scaleStatus:Evaluation['scaleStatus']=!scale?'not-tested':scale.actualInchesPerPixel===undefined?'missing':!Number.isFinite(scale.actualInchesPerPixel)||scale.actualInchesPerPixel<=0||Math.abs(scale.actualInchesPerPixel/scale.expectedInchesPerPixel-1)>.05?'outside-tolerance':'within-tolerance';
+  return {expected:expected.length,detected:proposals.length,matched:usedE.size,correctClassifications:correct,wrongClassifications:usedE.size-correct,falseDetections:proposals.length-usedP.size,missedElements:expected.length-usedE.size,meanPositionErrorPixels:usedE.size?position/usedE.size:null,meanRotationErrorDegrees:rotations?rotation/rotations:null,scaleCalibrationFailures:scaleStatus==='missing'||scaleStatus==='outside-tolerance'?1:0,scaleStatus};
+}

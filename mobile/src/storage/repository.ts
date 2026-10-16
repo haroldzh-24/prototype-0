@@ -13,6 +13,8 @@ import type { PerformanceObservation, TrainingContext } from '../training/observ
 import type { TimingFactor } from '../profile/model';
 import { isTargetFamily } from '../stage/targetFamily';
 import type { TargetFamily } from '../stage/targetFamily';
+import type { Reconstruction } from '../diagramImport/model';
+import { validateReconstruction } from '../diagramImport/model';
 
 /** Small interface also allows repository tests against real SQLite on Node. */
 export interface Database {
@@ -58,6 +60,10 @@ export class Repository {
     const columns = await this.db.getAllAsync<{ name: string }>('PRAGMA table_info(stages)');
     if (!columns.some(column => column.name === 'matchId'))
       await this.db.execAsync('ALTER TABLE stages ADD COLUMN matchId TEXT REFERENCES matches(id) ON DELETE CASCADE;');
+    // Additive reference storage; never migrate or rewrite the inch-based stage/plan payload.
+    await this.db.execAsync(`CREATE TABLE IF NOT EXISTS diagram_imports (
+      stageId TEXT NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+      id TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(stageId, id));`);
     const standalone = await this.db.getFirstAsync<{ count: number }>("SELECT COUNT(*) AS count FROM stages WHERE matchId IS NULL OR matchId = ''");
     if (standalone?.count) {
       const now = new Date().toISOString();
@@ -117,7 +123,11 @@ export class Repository {
       const match = await this.loadMatch(id), copyId = this.newId(), now = new Date().toISOString();
       await this.db.runAsync('INSERT INTO matches (id, name, targetFamily, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', copyId, match.name.slice(0, 93) + ' (copy)', match.targetFamily, now, now);
       const stages = await this.db.getAllAsync<StageRow>('SELECT * FROM stages WHERE matchId = ? ORDER BY id', id);
-      for (const stage of stages) await this.db.runAsync('INSERT INTO stages (id, matchId, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?, ?)', this.newId(), copyId, stage.name, now, now, stage.payload);
+      for (const stage of stages) {
+        const stageId = this.newId();
+        await this.db.runAsync('INSERT INTO stages (id, matchId, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?, ?)', stageId, copyId, stage.name, now, now, stage.payload);
+        await this.copyDiagramImports(stage.id, stageId);
+      }
       return copyId;
     }));
   }
@@ -177,8 +187,30 @@ export class Repository {
     if (!result.changes) throw new Error('Stage no longer exists.');
   }
   async duplicateStage(id: string) {
-    const stage = await this.loadStage(id);
-    return this.createStage(stage.name.slice(0, 93) + ' (copy)', stage.document, stage.plan, stage.matchId);
+    return this.serializeWrite(() => this.transaction(async () => {
+      const stage = await this.loadStage(id), copyId = this.newId(), now = new Date().toISOString();
+      await this.db.runAsync('INSERT INTO stages (id, matchId, name, createdAt, updatedAt, payload) VALUES (?, ?, ?, ?, ?, ?)', copyId, stage.matchId, stage.name.slice(0, 93) + ' (copy)', now, now, this.payload(stage.document, stage.plan));
+      await this.copyDiagramImports(id, copyId);
+      return copyId;
+    }));
+  }
+  private copyDiagramImports(from: string, to: string) {
+    return this.db.runAsync('INSERT INTO diagram_imports (stageId, id, payload) SELECT ?, id, payload FROM diagram_imports WHERE stageId = ?', to, from);
+  }
+  async loadDiagramImports(stageId: string): Promise<Reconstruction[]> {
+    const rows = await this.db.getAllAsync<{ payload: string }>('SELECT payload FROM diagram_imports WHERE stageId = ? ORDER BY id', stageId);
+    return rows.map(row => { const draft = JSON.parse(row.payload); validateReconstruction(draft); return draft; });
+  }
+  async saveDiagramImport(stageId: string, draft: Reconstruction): Promise<void> {
+    validateReconstruction(draft);
+    const payload = JSON.stringify(draft);
+    if (payload.length > 2_000_000) throw new Error('Reconstruction draft is too large.');
+    await this.serializeWrite(async () => {
+      await this.loadStage(stageId);
+      const count = await this.db.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM diagram_imports WHERE stageId = ? AND id != ?', stageId, draft.id);
+      if ((count?.count ?? 0) >= 20) throw new Error('This stage already has 20 document references.');
+      await this.db.runAsync('INSERT INTO diagram_imports (stageId, id, payload) VALUES (?, ?, ?) ON CONFLICT(stageId, id) DO UPDATE SET payload = excluded.payload', stageId, draft.id, payload);
+    });
   }
   async deleteStage(id: string) { await this.serializeWrite(() => this.db.runAsync('DELETE FROM stages WHERE id = ?', id)); }
   async listTraining(userId: string) {

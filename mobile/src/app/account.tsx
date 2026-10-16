@@ -25,6 +25,6 @@ export default function Account() {
       <Copy>Stage loadouts are configured independently in each stage.</Copy></Panel>}
     {profile && <Panel><Text style={ui.eyebrow}>TRAINING DATA</Text>{!(profile.performanceObservations ?? []).length && <Copy>No samples yet. Review video measurements in Training and add eligible measurements to your profile.</Copy>}{trainingContexts.map(context => <DataRow key={context} label={contextLabels[context]} value={(profile.performanceObservations ?? []).filter(sample => sample.context === context).length + ' samples'} />)}</Panel>}
     {profile && <Panel><Text style={ui.eyebrow}>CALIBRATION</Text>{profile.calibrationContext ? <DataRow label="Active context" value={contextLabels[profile.calibrationContext]} /> : <Copy>No training calibration yet. Add eligible measurements from Video Results.</Copy>}</Panel>}
-    <Panel><Text style={ui.eyebrow}>CLOUD SYNC</Text><Copy>Not available yet.</Copy></Panel>
+    <Panel><Text style={ui.eyebrow}>CLOUD SYNC</Text><Copy>Data is stored on this device. Cloud sync is not included in this release.</Copy></Panel>
   </Screen>;
 }

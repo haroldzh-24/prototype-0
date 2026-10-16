@@ -1,142 +1,37 @@
-# Welcome to your Expo app 👋
+# Mobile release candidate — 1.0.0 RC1
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Feature frozen as of October 15, 2026. The native app is the demonstration target. Automated validation does not certify an installable or device-tested release.
 
-## Get started
+The app includes local Matches → Stages, the stage editor and target presets, manual PATH/ENGAGE/REVIEW, document-first PDF/image/paper import, calibration and editable reconstruction overlays. Existing route, training, timing and ammunition tools remain available. Data stays in local SQLite; there is no cloud backup or sync. Save editor changes before leaving or force-closing; undo history is session-local.
 
-1. Install dependencies
+Automatic diagram geometry detection is **EXPERIMENTAL**, opt-in, and tested with synthetic diagrams only. It proposes editable candidates; it does not reliably recognize vendor icons, read dimensions, or infer target size. Manual reconstruction remains available after detection errors or cancellation. Perspective/isometric references do not become metrically accurate plans. Only explicitly accepted, classified, calibrated elements are added to the editor; then use the editor's Save action. Existing stage objects and manual route data are preserved.
 
-   ```bash
-   npm install
-   ```
+## Local validation
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-## Prototype 2 Phase 1
-
-Home opens Stage Planner (New Stage / Saved Stages), Training and Account.
-The builder uses an explicit Save button: name the stage, edit, save, and close.
-Back navigation warns about unsaved edits. Changes are not automatically saved;
-force-closing the app can lose edits since the last successful save.
-Saved Stages supports rename, independent copies, and confirmed deletion.
-
-`src/storage/repository.ts` owns parameterized SQL and schema initialization.
-`practical-shooting.db` contains stages, training records and local profiles.
-Each stage row stores the complete StageDocument and StagePlan in one versioned
-JSON payload, so IDs, wall ports, partial faces and ammunition references remain
-intact. Duplicate stages keep internal object IDs in a separate stage record.
-Storage is local to this installation; there is no cloud backup or account sync.
-
-Training has typed records, six starting types, timing segments and repository
-save/list methods. Recording sessions and drills are deferred. Account displays
-an independent performance baseline, currently estimates rather than measurements.
-Route planning and Apple sign-in are intentionally deferred.
-
-Checks (Node 22.13+; Node 24 recommended for built-in SQLite tests):
+From this directory, use Node 24 (the tests use node:sqlite) and the committed lockfile:
 
 ```sh
+npm ci
 npm test
 npm run typecheck
-npx expo start
+npx expo install --check
+npx expo config --type introspect
+npx expo-modules-autolinking resolve --platform apple
+npx expo export --platform ios --output-dir .expo/rc-ios
 ```
 
-Start Expo once after adding routes to refresh `.expo/types/router.d.ts`.
-Expo SQLite adds native code: create a new development/TestFlight build.
-For web, Metro config supplies WASM support and cross-origin isolation headers.
-Production web hosting must also send `Cross-Origin-Embedder-Policy: credentialless`
-and `Cross-Origin-Opener-Policy: same-origin` (SQLite web support is experimental).
-Web uses single-page output to avoid SDK 57 static-development worker bundling
-errors. Configure hosting to serve `index.html` for app routes. A web exit handler
-releases SQLite connections and opts out of page caching to avoid retained worker
-file locks. Multiple simultaneously open browser tabs are not supported by the
-experimental SQLite web backend.
+Use `npx expo start --dev-client` with a freshly rebuilt development client. Expo Go does not contain the local Swift modules. See [release notes](docs/release-candidate.md) for actual validation results and [the single hardware checklist](docs/rc-hardware-validation.md) for unfinished checks.
 
-`tests/browser-smoke.cjs` can check the running app using an isolated Chromium
-profile with remote debugging port 9228 and an open app tab. Run it from `mobile`;
-set `SMOKE_BASE_URL` if using a different local origin. It creates test stages in
-that profile and saves a Home screenshot under `.expo/browser-home.png`.
+## Native release configuration
 
+Expo SDK 57 / React Native 0.86.3 / React 19.2.3; iOS minimum 16.4. Production EAS pins `macos-tahoe-26.5-xcode-26.6`, the documented SDK 57 image. React Native builds from source as configured. [SDK requirements](https://docs.expo.dev/versions/v57.0.0/) and [EAS images](https://docs.expo.dev/build-reference/infrastructure/).
 
-## Canvas-first editor iteration (2026-09-21)
+Marketing version remains **1.0.0**, bundle ID `com.haroldzh24.mobile`, EAS project `87b6f255-2d2a-4bc6-ad18-578ae3e2f64b`. Production uses store distribution, remote build versions and automatic build-number increments. Do not reset the remote build number. “RC1” is a release label, not a changed Apple version string.
 
-The builder uses a fixed Back / stage name / Save bar and Add / Edit / Route / Plan / View actions below a flexible canvas. Selection reveals an overlay action strip without changing viewport dimensions. EDIT opens the existing per-object fields and scoring-target rounds in a slide-up sheet. Delete and Reset ask for confirmation. Sheets close with Done, a backdrop tap, Android back, or accessibility escape; their forms scroll independently of the stage.
+When ready to build: `eas build --platform ios --profile production`. Submission is a separate action: `eas submit --platform ios --profile production`. Neither action was performed during this audit. Apple membership, signing credentials, App Store Connect app ownership/record, privacy declarations and TestFlight acceptance remain unverified. Submission configuration is interactive; account/app IDs have not been invented.
 
-Pinch zoom is anchored at the two-finger midpoint and clamped to 50-300%. One-finger empty-canvas dragging pans in screen layout units. One-finger object dragging retains the existing physical/snap calculation; adding a second finger hands ownership to the canvas and stops object movement. Finger-count changes rebase before further movement. Fit resets zoom to 100% and pan to zero; screen layout then fits and centers the physical stage. Zoom/pan state is temporary and never enters saved documents or route distances.
+Camera permission is requested only for Photograph paper. Files import uses the document picker; no broad photo-library, microphone, location or background permission was added. The document module uses PDFKit, Vision, CoreImage and UIKit; training uses AVFoundation/Vision, and optional on-device route assistance requires compatible iOS 26 hardware. Unsupported native capabilities must leave manual workflows usable.
 
-ROUTE replaces the normal action bar with + Position / Assign / Reload / Summary / Exit route. Assignment and reload sheets show the selected position only. Summary contains order, distance, ammunition, warnings and profile timing. PLAN separates loadout/starting ammunition, target rounds and route summary. VIEW contains Top Down, 2.5D, grid/route visibility, Fit/reset and Grid/Snap settings.
+Documents are limited to 50 MB; native image headers are limited to 80 megapixels and page derivatives to 2048 pixels. PDFs must be unlocked, readable and at most 500 pages. Originals are retained separately from geometry, including preparation failures. Recognition consumes bounded 1024-pixel rasters and can still require noticeable processing time on older phones. Memory pressure, native decoding and cancellation latency require hardware validation. Web remains experimental, including its unresolved SQLite worker/OPFS reload behavior.
 
-Changed implementation files:
-
-- Layout/theme: src/app/_layout.tsx, src/ui/kit.tsx, src/editor/FieldText.tsx.
-- Editor: StageBuilder.tsx, StageViewport.tsx, viewportGestures.ts, EditorSheet.tsx, AddMenu.tsx, DraggableObject.tsx, ObjectInspector.tsx, WallPortsInspector.tsx, SnapControls.tsx, StageGrid.tsx, Stage25D.tsx, RouteOverlay.tsx (all under src/editor).
-- Planning UI: src/planning/PlanningPanel.tsx and src/planning/RoutePanel.tsx.
-- Verification: tests/viewport.test.cjs and tests/browser-smoke.cjs; project bugs.md, features.md, changelog.md and this README.
-
-Physical iPhone acceptance checklist (pending; Windows has no iOS simulator/device access):
-
-1. At 50%, 100%, and 300%, drag every object kind and route marker, including rotated thin objects and overlapping markers. The page and native navigation must stay still until release.
-2. Pinch on empty space and starting directly on an object/marker. Lift either finger first, continue panning, then drag again. No jump or unintended object movement should occur.
-3. Zoom/pan, open/dismiss sheets, rotate the phone and press Fit. Save/reopen and confirm physical dimensions, coordinates, ammunition and route distances remain correct.
-4. Check inspector/port/round/magazine fields with the iPhone keyboard; Done, backdrop dismissal, VoiceOver and home-indicator spacing. Check all action targets at the smallest supported phone size and with larger text.
-5. Check route assignments, reloads, reorder/delete confirmation and summary; switch Top Down/2.5D and grid/route visibility.
-6. Confirm native edge/full-screen swipe-back is disabled throughout Builder, including between gestures. Test the explicit Back button with saved and unsaved stages; cancel/save/discard. Verify other routes retain normal swipe navigation. Confirm native launch never installs browser unload handlers.
-
-Validation: 104 automated tests (97 retained + 7 viewport tests). TypeScript and iOS production Hermes export passed. The updated browser smoke test passed at 390 x 844: touch pan/pinch/object drag and object-to-pinch handoff, fixed canvas bounds, all ADD tiles, inspectors, preview, loadout, route assignment/reload/summary, visibility controls, save/reopen, unsaved guard, stage CRUD, Training and Account. Screenshots were inspected. git diff --check passed. Browser touch emulation is supplementary and does not certify native iOS responder behavior.
-
-Development server logs also contained a web-only SQLite pagehide teardown error involving SharedArrayBuffer; the final smoke passed. Investigation is tracked in bugs.md, and storage code is unchanged.
-
-
-## Companion-app visual refinement (2026-09-21)
-
-This pass changes presentation only. Shared tokens live in src/ui/tokens.ts; original toolbar symbols live in src/ui/ToolIcon.tsx. The platform's native sans-serif is retained, with 22px/600 primary titles, 16px/500 section titles, 13px regular body copy, 12px/500 action labels, 10px uppercase categories and 25px/500 metric values. Main navigation uses normal case; category/readout labels remain compact uppercase.
-
-Colors: background #0A0A0A; primary surface #171717; secondary surface #212121; selected surface #2A2A2A; divider #333333; primary text #F1F1F1; secondary text #9B9B9B; muted text #696969; accent #28BFE8; danger #B84B4B. Thin separators and flat surfaces replace enclosing card borders. Cyan is limited to active states, Save, route mode and selection/snap feedback.
-
-The Builder uses a small Back chevron and Save text action. Toolbars use 22px original line symbols with 10px labels, retaining accessible action names and at least 44px touch targets. Route mode uses Position / Targets / Reload / Summary / Exit. The panels, existing ADD silhouettes, previews and controls are restyled in place; no Port Wall creation behavior or other new feature was added.
-
-Route, ammo and profile metrics display existing values in number/label groups and aligned rows. Physical object/material colors and the existing generated 2.5D scene colors remain intentionally unchanged; some secondary-screen/category copy retains uppercase wording. No image assets, fonts or dependencies were added. The reference image was absent from the attachment, so the written brief supplied the visual direction.
-
-Protected models, storage, coordinate/viewport math, gestures and callbacks are unchanged from the start of this visual pass. Safe areas, panel dismissal, explicit Back, usePreventRemove, browser guards and Builder-only disabled swipe-back remain intact. Automated checks: TypeScript and all 104 tests pass. Physical iPhone visual checks remain pending in features.md.
+[Import workflow](docs/stage-diagram-import.md) · [Experimental detection and synthetic evaluation](docs/diagram-recognition.md)

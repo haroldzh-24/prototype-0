@@ -1,0 +1,5 @@
+{
+  "id":"repeated-symbols", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"polygon","points":[[80,40],[94,54],[80,68],[66,54]]},{"kind":"polygon","points":[[176,40],[190,54],[176,68],[162,54]]}],
+  "expected":[{"id":"left-unknown","type":"unknown","shape":"symbol","center":{"x":0.3125,"y":0.2109375}},{"id":"right-unknown","type":"unknown","shape":"symbol","center":{"x":0.6875,"y":0.2109375}}]
+}

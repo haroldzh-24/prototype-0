@@ -199,3 +199,28 @@ test('separate reload segments cannot share unused movement overlap', () => {
   assert.ok(Math.abs(t.reloads - 0.3) < 1e-10);
   assert.equal(t.reloadDetails.length, 2);
 });
+
+const {connectionPoints,pathLength,setConnection,retainConnections}=require('../src/planning/routeGeometry.ts');
+test('manual bends remain separate, bounded and reversible across stage-space edits',()=>{
+ const f=fixture(), before=JSON.stringify(f.stage), a={space:'stage',x:0,y:0,z:0},b={space:'stage',x:36,y:48,z:0};
+ const c={fromId:f.stage.objects.find(o=>o.type==='start').id,toId:'A',style:'STRAIGHT',bends:[{id:'bend',position:{...a,y:48}}]};
+ const shaped=setConnection(f.route,c), rounded=setConnection(shaped,{...c,style:'ROUNDED'});
+ assert.equal(pathLength(connectionPoints(shaped,c.fromId,'A',a,b)),84);
+ assert.equal(evaluateRoute(f.stage,f.plan,shaped,f.profile).segments[0].distance,84);
+ const samples=connectionPoints(rounded,c.fromId,'A',a,b);
+ assert.deepEqual(samples[0],a);assert.deepEqual(samples.at(-1),b);
+ assert.ok(samples.every(p=>p.x>=0&&p.x<=36&&p.y>=0&&p.y<=48));
+ assert.ok(pathLength(samples)<84&&pathLength(samples)>75);
+ assert.deepEqual(rounded.positions,f.route.positions);assert.equal(JSON.stringify(f.stage),before);
+ assert.ok(isStageRoute(rounded));assert.ok(isStageRoute(f.route));
+ assert.equal(isStageRoute({...rounded,connections:[{...c,style:'BAD'}]}),false);
+ assert.equal(isStageRoute({...rounded,connections:[{...c,bends:[{id:'x',position:{...a,x:NaN}}]}]}),false);
+ assert.equal(reorderPosition(rounded,'A',1).connections.length,0);
+ assert.equal(retainConnections({...rounded,positions:rounded.positions.slice(1)}).connections.length,0);
+ const {history,begin,record,end,undo,redo}=require('../src/editor/history.ts');
+ let h=begin(history(f.route));h=record(h,shaped);h=record(h,rounded);h=end(h);
+ assert.equal(h.past.length,1);assert.deepEqual(undo(h).present,f.route);assert.deepEqual(redo(undo(h)).present,rounded);
+ const {createViewportTransform,stageToViewport,viewportToStage,moveByViewportDelta}=require('../src/stage/coordinates.ts');
+ for(const zoom of [.5,1,3]){const t=createViewportTransform(f.stage.stage,{width:400,height:600},{zoom,pan:{x:55,y:-40}});const p=viewportToStage(stageToViewport(b,t),t);assert.ok(Math.abs(p.x-b.x)<1e-9&&Math.abs(p.y-b.y)<1e-9);assert.ok(Math.abs(moveByViewportDelta(b,{x:12*t.scale,y:0},t).x-48)<1e-9);}
+ const degenerate=setConnection(f.route,{...c,style:'ROUNDED',bends:[{id:'a',position:a},{id:'b',position:a}]});assert.ok(connectionPoints(degenerate,c.fromId,'A',a,a).every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)));
+});

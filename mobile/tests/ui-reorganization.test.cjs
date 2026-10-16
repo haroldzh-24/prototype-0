@@ -372,7 +372,7 @@ test('Training library cards open existing video and contextual video actions', 
   card.open(); h.render(); assert.ok(h.nodes().some(n => n.props.initialVideo === record.videos[0]));
 });
 
-test('Profile renders stored zero, unavailable metrics, factual counts and cloud placeholder', async () => {
+test('Profile renders stored zero, unavailable metrics, factual counts and local-storage limitation', async () => {
   const profile = { displayName: 'Local shooter', performance: { drawTime: 0, reloadTime: 1.12, averageSplitTime: undefined, movementSpeed: null, transitionTime: NaN }, calibrationContext: 'PRESSURE_MATCH', performanceObservations: [{ context: 'LIVE_FIRE' }] };
   const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => profile } });
   await h.settle(); const rows = h.nodes().filter(n => n.type === 'DataRow');
@@ -381,7 +381,7 @@ test('Profile renders stored zero, unavailable metrics, factual counts and cloud
   assert.equal(rows.find(n => n.props.label === 'MOVEMENT').props.value, '—');
   assert.equal(rows.find(n => n.props.label === 'Live Fire').props.value, '1 samples');
   assert.equal(rows.find(n => n.props.label === 'Active context').props.value, 'Pressure / Match');
-  assert.ok(h.nodes().some(n => n.props.children === 'Not available yet.'));
+  assert.ok(h.nodes().some(n => n.props.children === 'Data is stored on this device. Cloud sync is not included in this release.'));
   assert.ok(!h.nodes().some(n => /sign.?in/i.test(n.props.title ?? '')));
 });
 
@@ -466,4 +466,151 @@ test('Video Results show confirmed values and hold tentative values behind endpo
  const session={id:'v',trainingSessionId:'t',asset:{name:'v.mp4',uri:'training-videos/v.mp4',storage:'DOCUMENTS'},durationMs:10000,fps:null,context:'LIVE_FIRE',drillId:null,createdAt:'2026-10-05T12:00:00.000Z',importedAt:'2026-10-05T12:00:00.000Z',analysisStatus:'ANNOTATING',analysisVersion:1};
  const analysis={analysisVersion:1,videoId:'v',trainingSessionId:'t',confidence:'LOW',events:[],movementSegments:[],shotStrings:[],warnings:[],completeness:{},measurements:[{id:'r',kind:'REACTION',durationMs:240,eventIds:[],eligible:true,confidence:'CONFIRMED'},{id:'d',kind:'DRAW',durationMs:910,eventIds:[],eligible:false,confidence:'HIGH'}]};
  const h=videoHarness({},()=>{},{initialVideo:{session,analysis}});await h.settle();h.child('Segmented').onChange('RESULTS');h.render();const stats=h.nodes().filter(n=>n.type==='Stat');assert.equal(stats.length,2);assert.equal(stats[0].props.value,'0.24');assert.equal(stats[1].props.value,'\u2014');assert.ok(h.nodes().some(n=>n.props.children==='Endpoints need review'));
+});
+
+test('PATH exposes connection editing and preserves stage objects through style edits',()=>{
+ const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*50,y:100,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
+ const h=initial(r);h.press('ROUTE');h.press('PATH');
+ const before=JSON.stringify(h.child('StageViewport').stage);
+ assert.equal(h.child('StageViewport').routePlanning.editing,true);
+ assert.ok(h.nodes().some(n=>n.props.title==='ENGAGE'&&!n.props.disabled));
+ h.child('StageViewport').routePlanning.onSelect('b');h.render();h.press('CONNECTION');h.press('ROUNDED');
+ const edited=h.child('StageViewport').routePlanning.route;assert.deepEqual(edited.positions,r.positions);assert.equal(edited.connections[0].style,'ROUNDED');assert.equal(JSON.stringify(h.child('StageViewport').stage),before);assert.equal(h.saved.length,0);
+});
+
+test('ENGAGE preserves PATH and supports contextual assignment, order, direction, delete, undo and Save', async()=>{
+ const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
+ r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
+ const h=initial(r);await h.settle();h.press('ROUTE');h.press('PATH');h.press('ENGAGE');
+ let v=h.child('StageViewport');const before=JSON.stringify(v.stage),targets=v.stage.objects.filter(require('../src/planning/model.ts').isEngageable);
+ assert.equal(v.routePlanning.editing,false);assert.ok(v.manualEngage);assert.equal(v.routePlanning.layers.nodes,false);
+ v.manualEngage.onCreate({kind:'waypoint',waypointId:'a'},targets[0].id,0);h.render();
+ const first=h.child('StageViewport').routePlanning.route.manualEngagements[0];assert.ok(first.id.startsWith('engagement-'));assert.ok(!h.nodes().some(n=>n.props.title==='Earlier engagement'));assert.ok(h.nodes().some(n=>n.props.title==='Edit engagement'));
+ h.child('StageViewport').manualEngage.onCreate({kind:'waypoint',waypointId:'a'},targets[0].id,1);h.render();h.press('Edit engagement');h.press('Earlier engagement');
+ assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements[0].direction,1);
+ h.press('Turn right');assert.ok(h.child('StageViewport').routePlanning.route.manualEngagements[0].direction>1);
+ h.press('Reassign target');h.press(require('../src/planning/model.ts').targetLabel(v.stage,targets[1].id));
+ assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements[0].targetId,targets[1].id);
+ h.press('Delete engagement');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,1);
+ h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,2);h.press('Redo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,1);
+ h.press('PATH');v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route.positions,r.positions);assert.deepEqual(v.routePlanning.route.connections,r.connections);assert.equal(JSON.stringify(v.stage),before);
+ h.press('Save');await h.settle();assert.equal(h.saved.length,1);assert.equal(h.saved[0][3].route.manualEngagements.length,1);
+});
+test('ENGAGE canvas owns creation, cancels on pinch, cleans drafts and keeps geometry untouched',()=>{
+ const {createDefaultStage,createObject}=require('../src/stage/defaults.ts');const document=createDefaultStage();document.stage={width:400,depth:400};document.objects=[createObject('start','start',20,300),createObject('cardboardTarget','target',200,70)];
+ const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:300,z:0},visibleTargetIds:[],engagedTargetIds:[]}];
+ const created=[],directions=[],pans=[],dragging=[],selected=[];
+ const props={stage:document,viewport:{zoom:1,pan:{x:0,y:0}},routeEditing:true,gridVisible:false,selectedId:null,snapping:{enabled:false},onSelect(){},setStage(){assert.fail('ENGAGE moved stage object');},onDragging:v=>dragging.push(v),onViewportChange:v=>pans.push(v),routePlanning:{route:r,selectedId:null,onSelect(){assert.fail('ENGAGE selected PATH marker');},onChange(){assert.fail('ENGAGE moved route');},onDragging(){},editing:false},manualEngage:{selectedId:null,onSelect:id=>selected.push(id),onCreate:(...args)=>created.push(args),onDirection:(...args)=>directions.push(args)}};
+ const rn={View:'View',Text:'Text',Platform:{OS:'ios'},StyleSheet:{create:s=>s,absoluteFill:{}},PanResponder:{create:handlers=>({panHandlers:handlers})}};
+ const h=harness('editor/StageViewport.tsx',props,{'react-native':rn});h.find(n=>n.props.testID==='stage-canvas').props.onLayout({nativeEvent:{layout:{width:400,height:400}}});h.render();
+ const event=(points,changed=points[0])=>({nativeEvent:{touches:points.map(([x,y])=>({pageX:x,pageY:y})),changedTouches:changed?[{pageX:changed[0],pageY:changed[1]}]:[]}});
+ const canvas=()=>h.find(n=>n.props.testID==='stage-canvas').props;
+ canvas().onPanResponderGrant(event([[100,300]]));canvas().onPanResponderMove(event([[200,70]]),{dx:100,dy:-230});h.render();
+ assert.equal(h.child('ManualEngagementOverlay').draft.targetId,'target');assert.equal(pans.length,0);canvas().onPanResponderRelease(event([],[200,70]));h.render();assert.equal(created.length,1);assert.equal(created[0][0].waypointId,'w');assert.equal(h.child('ManualEngagementOverlay').draft,null);
+ canvas().onPanResponderGrant(event([[100,300]]));canvas().onPanResponderMove(event([[350,350]]),{dx:250,dy:50});canvas().onPanResponderRelease(event([],[350,350]));h.render();assert.equal(created.length,1);assert.equal(h.child('ManualEngagementOverlay').draft,null);
+ canvas().onPanResponderGrant(event([[100,300]]));canvas().onPanResponderStart(event([[100,300],[160,300]]));canvas().onPanResponderMove(event([[90,300],[180,300]]),{dx:0,dy:0});h.render();assert.ok(pans.length);assert.equal(h.child('ManualEngagementOverlay').draft,null);canvas().onPanResponderEnd(event([[200,70]]));canvas().onPanResponderMove(event([[200,70]]),{dx:100,dy:-230});canvas().onPanResponderRelease(event([],[200,70]));h.render();assert.equal(created.length,1);
+ canvas().onPanResponderGrant(event([[100,300]]));canvas().onPanResponderMove(event([[200,70]]),{dx:100,dy:-230});canvas().onPanResponderTerminate(event([[200,70]]));h.render();assert.equal(created.length,1);assert.equal(h.child('ManualEngagementOverlay').draft,null);assert.equal(dragging.at(-1),false);
+ canvas().onPanResponderGrant(event([[380,380]]));canvas().onPanResponderMove(event([[370,370]]),{dx:-10,dy:-10});canvas().onPanResponderRelease(event([],[370,370]));assert.ok(pans.length>1);assert.equal(created.length,1);
+});
+
+test('manual overlay shows short arrows, selected target and temporary dotted guide only during active drag',()=>{
+ const document=stage(),r=route(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);
+ r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'travel',targetId:target.id,anchor:{kind:'section',sectionId:JSON.stringify([document.objects.find(o=>o.type==='start').id,'w']),fraction:.5},direction:1}];
+ const props={stage:document,route:r,transform:{scale:1,offsetX:0,offsetY:0},selectedId:'e',draft:null};const h=harness('editor/ManualEngagementOverlay.tsx',props);
+ assert.ok(h.nodes().some(n=>n.props.testID==='engagement-target-'+target.id));assert.ok(h.nodes().some(n=>n.type==='Text'&&n.props.children==='A'));assert.equal(h.nodes().filter(n=>n.type==='Text').length,1);
+ assert.equal(h.nodes().filter(n=>n.props.testID==='engagement-dotted-guide').length,0);
+ const arrows=h.nodes().filter(n=>typeof n.type==='function'&&n.type.name==='Arrow');assert.equal(arrows.length,2);assert.equal(arrows[0].props.selected,true);assert.equal(arrows[1].props.selected,false);
+ props.draft={anchor:r.manualEngagements[0].anchor,point:r.positions[0].position,origin:{x:100,y:200},cursor:{x:200,y:100},direction:-Math.PI/4,targetId:target.id,moved:true,cancelled:false};h.render();assert.ok(h.nodes().some(n=>n.props.testID==='engagement-dotted-guide'));
+ props.draft={...props.draft,cancelled:true};h.render();assert.ok(!h.nodes().some(n=>n.props.testID==='engagement-dotted-guide'));
+ props.draft=null;h.render();assert.ok(!h.nodes().some(n=>n.props.testID==='engagement-dotted-guide'));
+});
+
+test('REVIEW derives manual coverage, preserves canvas and annotations across modes, and highlights saved anchors',()=>{
+ const r=route(),document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
+ const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('ROUTE');h.press('PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();h.press('ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();h.press('REVIEW');
+ let v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,false);assert.deepEqual(v.viewport,pan);assert.equal(v.manualReview.review.assignedTargets,1);assert.equal(v.manualReview.selectedEngagementId,'e');
+ v.manualReview.onSelectTarget(target.id);h.render();let panel=h.child('ManualReviewPanel');assert.equal(panel.selectedTargetId,target.id);panel.onHighlight(panel.review.engagements[0]);h.render();assert.deepEqual(h.child('StageViewport').focusPosition,r.positions[0].position);
+ h.child('ManualReviewPanel').onToggle();h.render();assert.equal(h.child('StageViewport').manualReview.onlyUnassigned,true);assert.equal(h.child('StageViewport').manualReview.selectedTargetId,null);
+ h.press('PATH');v=h.child('StageViewport');assert.equal(v.manualReview,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route,r);assert.deepEqual(v.viewport,pan);h.press('ENGAGE');assert.equal(h.child('StageViewport').manualEngage.selectedId,'e');assert.equal(h.saved.length,0);
+});
+test('REVIEW retains invalid loaded entries for explicit removal and restores them through document undo',()=>{
+ const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'missing',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'orphan',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'gone'},direction:0}];
+ const h=initial(r);h.press('ROUTE');h.press('REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);h.child('ManualReviewPanel').onUndo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.child('ManualReviewPanel').onRedo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
+});
+test('REVIEW overlay distinguishes status with symbols and filters assigned highlights',()=>{
+ const document=stage(),r=route(),targets=document.objects.filter(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:targets[0].id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
+ const review=require('../src/planning/manualRouteReview.ts').reviewManualRoute(document,r),props={review,transform:{scale:2,offsetX:25,offsetY:30},selectedId:targets[0].id,onlyUnassigned:false,onSelect(){}};const h=harness('editor/ManualReviewOverlay.tsx',props);assert.equal(h.nodes().filter(n=>n.props.testID?.startsWith('review-target-')).length,review.totalTargets);assert.ok(h.nodes().some(n=>n.type==='Text'&&n.props.children==='!'));assert.ok(h.nodes().some(n=>n.props.accessibilityState?.selected));
+ props.onlyUnassigned=true;h.render();assert.ok(!h.nodes().some(n=>n.props.testID==='review-target-'+targets[0].id));assert.equal(h.nodes().filter(n=>n.props.testID?.startsWith('review-target-')).length,review.unassignedTargets);
+});
+test('REVIEW panel exposes sources and requires confirmation before removing invalid saved data',()=>{
+ const document=stage(),r=route(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'good',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'bad',targetId:'missing',anchor:{kind:'waypoint',waypointId:'gone'},direction:0}];const highlighted=[],removed=[];
+ const props={review:require('../src/planning/manualRouteReview.ts').reviewManualRoute(document,r),stage:document,selectedTargetId:target.id,selectedEngagementId:null,onlyUnassigned:false,onToggle(){},onSelectTarget(){},onHighlight:e=>highlighted.push(e),onRemove:id=>removed.push(id),onUndo(){},onRedo(){},canUndo:true,canRedo:false,disabled:false};const h=harness('editor/ManualReviewPanel.tsx',props);h.press('Target assignments');h.press('Waypoint 1 / A');assert.equal(highlighted[0].engagement.id,'good');assert.ok(!h.nodes().some(n=>n.type==='EditorSheet'));
+ h.press('Review summary');assert.ok(h.nodes().some(n=>n.props.label==='Manual route distance'));h.child('EditorSheet').close();h.render();h.press('Invalid references (1)');h.press('Remove invalid entry bad');assert.deepEqual(removed,[]);h.press('Cancel removal');assert.deepEqual(removed,[]);h.press('Remove invalid entry bad');h.press('Confirm removal');assert.deepEqual(removed,['bad']);
+});
+test('REVIEW canvas taps inspect targets while drags and pinch keep navigation and never edit PATH or ENGAGE',()=>{
+ const {createDefaultStage,createObject}=require('../src/stage/defaults.ts');const document=createDefaultStage();document.stage={width:400,depth:400};document.objects=[createObject('start','start',20,300),createObject('cardboardTarget','target',200,70)];const r=route(),selected=[],pans=[];
+ const props={stage:document,viewport:{zoom:1,pan:{x:0,y:0}},routeEditing:true,gridVisible:false,selectedId:null,snapping:{enabled:false},onSelect(){assert.fail('object selected');},setStage(){assert.fail('object moved');},onDragging(){},onViewportChange:v=>pans.push(v),routePlanning:{route:r,selectedId:null,onSelect(){assert.fail('waypoint selected');},onChange(){assert.fail('route changed');},onDragging(){},editing:false},manualReview:{review:require('../src/planning/manualRouteReview.ts').reviewManualRoute(document,r),selectedTargetId:null,selectedEngagementId:null,onlyUnassigned:false,onSelectTarget:id=>selected.push(id)}};
+ const rn={View:'View',Text:'Text',Platform:{OS:'ios'},StyleSheet:{create:s=>s,absoluteFill:{}},PanResponder:{create:handlers=>({panHandlers:handlers})}};const h=harness('editor/StageViewport.tsx',props,{'react-native':rn});h.find(n=>n.props.testID==='stage-canvas').props.onLayout({nativeEvent:{layout:{width:400,height:400}}});h.render();const canvas=()=>h.find(n=>n.props.testID==='stage-canvas').props,event=(points,changed=points[0])=>({nativeEvent:{touches:points.map(([x,y])=>({pageX:x,pageY:y})),changedTouches:changed?[{pageX:changed[0],pageY:changed[1]}]:[]}});
+ canvas().onPanResponderGrant(event([[200,70]]));canvas().onPanResponderRelease(event([],[200,70]));assert.deepEqual(selected,['target']);canvas().onPanResponderGrant(event([[200,70]]));canvas().onPanResponderMove(event([[240,80]]),{dx:40,dy:10});canvas().onPanResponderRelease(event([],[240,80]));assert.equal(selected.length,1);assert.ok(pans.length);
+ canvas().onPanResponderGrant(event([[180,70],[220,70]]));canvas().onPanResponderMove(event([[160,70],[240,70]]),{dx:0,dy:0});canvas().onPanResponderRelease(event([],[200,70]));assert.equal(selected.length,1);assert.ok(pans.at(-1).zoom>1);
+ props.readOnly=true;h.render();canvas().onPanResponderGrant(event([[200,70]]));canvas().onPanResponderRelease(event([],[200,70]));assert.equal(selected.length,1);
+});
+
+test('PATH marker ignores tap jitter, latches pinch interruption, and exposes bounded movement actions',()=>{
+ const moved=[],dragging=[];const props={editing:true,bend:true,position:{id:'b',label:'Bend',position:{space:'stage',x:100,y:100,z:0}},index:0,transform:{scale:2,offsetX:0,offsetY:0},selected:false,select(){},move:p=>moved.push(p),onDragging:v=>dragging.push(v)};
+ const rn={View:'View',Text:'Text',PanResponder:{create:handlers=>({panHandlers:handlers})}};
+ const h=harness('editor/RouteOverlay.tsx',props,{'react-native':rn},'Marker'), marker=()=>h.find(n=>n.props.onPanResponderGrant).props, event=n=>({nativeEvent:{touches:Array(n).fill({})}});
+ marker().onPanResponderGrant();marker().onPanResponderMove(event(1),{dx:3,dy:2});assert.equal(moved.length,0);assert.equal(dragging.length,0);
+ marker().onPanResponderMove(event(1),{dx:12,dy:0});assert.equal(moved[0].x,106);assert.equal(dragging[0],true);
+ marker().onPanResponderMove(event(2),{dx:20,dy:0});marker().onPanResponderMove(event(1),{dx:30,dy:0});assert.equal(moved.length,1);
+ marker().onPanResponderTerminate();assert.equal(dragging.at(-1),false);
+ marker().onAccessibilityAction({nativeEvent:{actionName:'left'}});assert.equal(moved.at(-1).x,99);
+ props.editing=false;h.render();marker().onAccessibilityAction({nativeEvent:{actionName:'right'}});assert.equal(moved.length,2);
+});
+
+test('ENGAGE button creation on rounded sections survives dismissal, mode changes, undo, redo and Save',async()=>{
+ const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
+ const h=initial(r);await h.settle();h.press('ROUTE');h.press('ENGAGE');h.press('ENGAGEMENTS');h.press('Create engagement without dragging');h.press('Anchor: Route section 1 midpoint');
+ const create=h.nodes().find(n=>n.props.title?.startsWith('Create engagement to '));h.press(create.props.title);h.child('EditorSheet').close();h.render();
+ const created=h.child('StageViewport').routePlanning.route;assert.equal(created.manualEngagements.length,1);assert.equal(created.manualEngagements[0].anchor.fraction,.5);assert.deepEqual(created.connections,r.connections);
+ h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements?.length??0,0);h.press('Redo');h.press('REVIEW');h.press('PATH');assert.deepEqual(h.child('StageViewport').routePlanning.route,created);h.press('Save');await h.settle();assert.deepEqual(h.saved[0][3].route,created);
+});
+
+test('document import previews selected PDF pages, invalidates stale alignment/scale, and commits only accepted overlays',async()=>{
+ const asset={path:'diagram-imports/source.pdf',name:'Printed briefing.pdf',mime:'application/pdf',size:100},image={asset:{...asset,path:'diagram-imports/page.png',mime:'image/png'},width:1000,height:500,page:1,pageCount:4},stored=[],applied=[],pages=[],alignments=[],opened=[];
+ const props={visible:true,stageId:'s',stage:stage(),family:'USPSA',close(){},apply:d=>applied.push(d)};
+ const h=harness('diagramImport/DiagramImportScreen.tsx',props,{repo:{loadDiagramImports:async()=>[],saveDiagramImport:async(id,d)=>stored.push(JSON.parse(JSON.stringify(d)))},'./assets':{pickDocument:async()=>({asset,kind:'pdf'}),photographPaper:async()=>null,assetUri:async()=>'',openOriginal:async asset=>opened.push(asset)},'./preparation':{preparePage:async(source,page)=>{pages.push(page);return {page:{...image,page}};},alignPage:async(page,alignment)=>{alignments.push(alignment);return page;}}});
+ await h.settle();h.press('Import PDF or image');await h.settle();assert.equal(stored[0].source.path,asset.path);assert.equal(stored[0].page,undefined);assert.equal(applied.length,0);h.press('Open or download original document');await h.settle();assert.deepEqual(opened,[asset]);
+ h.find(n=>n.props.label?.startsWith('PDF page')).props.change(3);h.render();h.press('Render selected page');await h.settle();assert.deepEqual(pages,[1,3]);h.press('Align page');await h.settle();h.press('Use layout region');await h.settle();assert.equal(alignments.length,2);
+ h.press('Top-down plan');h.press('Confirm approximate scale');h.press('Add missing element');h.find(n=>n.props.label==='Element X percent').props.change(NaN);h.render();assert.ok(!h.nodes().some(n=>n.type?.name==='ProposalOverlay'));h.find(n=>n.props.label==='Element X percent').props.change(50);h.render();assert.ok(h.nodes().some(n=>n.type?.name==='ProposalOverlay'));assert.ok(h.nodes().find(n=>n.props.title==='Add accepted elements to editor').props.disabled);h.press('Accept selected element');h.press('Add accepted elements to editor');await h.settle();assert.equal(applied.length,1);assert.equal(applied[0].objects.length,props.stage.objects.length+1);assert.deepEqual(applied[0].objects.slice(0,-1),props.stage.objects);
+ h.find(n=>n.props.label==='Known real distance').props.change(240);h.render();assert.ok(h.nodes().find(n=>n.props.title==='Add accepted elements to editor').props.disabled);h.press('Confirm approximate scale');h.press('1. Page and corners');h.press('Rotate page clockwise / 0 degrees');assert.ok(h.nodes().find(n=>n.props.title==='3. Reconstruction preview').props.disabled);h.press('Close import');h.press('Close without saving preview changes');assert.ok(!h.nodes().some(n=>n.props.title==='Align page'));assert.equal(stored.at(-1).proposals.length,1);
+});
+
+test('stage diagram acceptance is undoable, additive and preserves manual route/engagement bytes until explicit Save',async()=>{
+ const r=route();r.positions=[{id:'waypoint',label:'Keep',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'invalid-preserved',targetId:'missing-target',anchor:{kind:'waypoint',waypointId:'missing-waypoint'},direction:1}];const h=initial(r);await h.settle();h.press('Stage tools');h.press('Import stage diagram');
+ const screen=h.child('DiagramImportScreen');assert.equal(screen.visible,true);const before=JSON.stringify(h.child('StageViewport').routePlanning.route),added=require('../src/stage/defaults.ts').createObject('steelPlate','import-test',200,200);
+ screen.apply({...screen.stage,objects:[...screen.stage.objects,added]});h.render();assert.equal(JSON.stringify(h.child('StageViewport').routePlanning.route),before);assert.equal(h.saved.length,0);h.child('DiagramImportScreen').close();h.render();h.press('Stage tools');h.press('UNDO EDIT');assert.equal(h.child('StageViewport').stage.objects.some(o=>o.id===added.id),false);h.press('REDO EDIT');assert.equal(h.child('StageViewport').stage.objects.some(o=>o.id===added.id),true);h.press('Save');await h.settle();assert.equal(JSON.stringify(h.saved[0][3].route),before);
+});
+
+test('automatic geometry preview supports classification, overlay edits, reruns, batch acceptance and calibrated additive commit',async()=>{
+ const {render}=require('./fixtures/diagram-recognition/render.cjs'),raster=render(require('./fixtures/diagram-recognition/clean-basic.json')),asset={path:'diagram-imports/clean.png',name:'Synthetic.png',mime:'image/png',size:100},page={asset,width:256,height:256,page:1,pageCount:1};
+ const draft={version:1,id:'drawing',source:asset,sourceKind:'image',page,aligned:page,alignment:{corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],rotation:0,crop:{x:0,y:0,width:1,height:1}},projection:'top-down',origin:{x:20,y:20},proposals:[]},saved=[],applied=[];
+ const h=harness('diagramImport/DiagramImportScreen.tsx',{visible:true,stageId:'s',stage:stage(),family:'USPSA',close(){},apply:d=>applied.push(d)},{repo:{loadDiagramImports:async()=>[draft],saveDiagramImport:async(id,d)=>saved.push(d)},'./assets':{},'./preparation':{},'./rasterReader':{readRaster:async()=>raster}});await h.settle();h.press('Reference: Synthetic.png');
+ async function detect(){h.press('EXPERIMENTAL: Detect clean diagram geometry');for(let i=0;i<100&&h.nodes().some(n=>n.props.title==='Cancel recognition');i++){await new Promise(resolve=>setTimeout(resolve,10));h.render();}assert.ok(!h.nodes().some(n=>n.props.title==='Cancel recognition'));}
+ await detect();assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,3);assert.ok(h.nodes().find(n=>n.props.title==='Add accepted elements to editor').props.disabled);
+ h.press(h.nodes().find(n=>n.props.title?.startsWith('Overlay 2 /')).props.title);assert.ok(h.nodes().find(n=>n.props.title==='Accept selected element').props.disabled);h.press('Type: Steel plate');h.find(n=>n.props.label==='Overlay width percent (not physical target size)').props.change(20);h.render();h.find(n=>n.props.label==='Element rotation degrees').props.change(30);h.render();
+ h.press('Add missing element');await detect();assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,4);assert.ok(h.nodes().some(n=>n.props.title?.startsWith('Overlay 2 / Steel plate')));
+ h.press('Batch overlay 1 / Not selected');h.press('Batch overlay 2 / Not selected');h.press('Accept selected proposals');h.press('Confirm approximate scale');h.press('Add accepted elements to editor');await h.settle();assert.equal(applied.length,1);assert.equal(applied[0].objects.length,stage().objects.length+2);assert.equal(saved[0].proposals[1].recognition.scaleStatus,'uncalibrated');assert.equal(saved[0].proposals[1].extent.width,.2);assert.equal(applied[0].objects.at(-1).geometry.faceWidth,12);
+});
+test('recognition cancellation and perspective guards leave existing preview decisions untouched',async()=>{
+ const asset={path:'diagram-imports/cancel.png',name:'Cancel.png',mime:'image/png',size:10},page={asset,width:256,height:256,page:1,pageCount:1},draft={version:1,id:'cancel',source:asset,sourceKind:'image',aligned:page,alignment:{corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],rotation:0,crop:{x:0,y:0,width:1,height:1}},projection:'perspective',origin:{x:0,y:0},proposals:[]};let aborted=false;
+ const h=harness('diagramImport/DiagramImportScreen.tsx',{visible:true,stageId:'s',stage:stage(),family:'USPSA',close(){},apply(){assert.fail('applied');}},{repo:{loadDiagramImports:async()=>[draft]},'./assets':{},'./preparation':{},'./rasterReader':{readRaster:async(page,signal)=>new Promise((resolve,reject)=>signal.addEventListener('abort',()=>{aborted=true;reject(Error('Recognition cancelled.'));}))}});await h.settle();h.press('Reference: Cancel.png');assert.ok(h.nodes().find(n=>n.props.title==='EXPERIMENTAL: Detect clean diagram geometry').props.disabled);h.press('Top-down plan');h.press('Add missing element');const start=h.find(n=>n.props.title==='EXPERIMENTAL: Detect clean diagram geometry').props.onPress;start();start();h.render();h.press('Cancel recognition');await h.settle();assert.ok(aborted);assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,1);assert.ok(!h.nodes().some(n=>n.props.title==='Cancel recognition'));
+});
+
+for(const failure of ['Image exceeds decoder limits.', 'Unsupported PDF raster.', 'Recognition interrupted.'])test('experimental detection recovers without losing manual reconstruction: '+failure,async()=>{
+ const asset={path:'diagram-imports/recover.png',name:'Recover.png',mime:'image/png',size:10},page={asset,width:256,height:256,page:1,pageCount:1};
+ const draft={version:1,id:'recover',source:asset,sourceKind:'image',aligned:page,alignment:{corners:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],rotation:0,crop:{x:0,y:0,width:1,height:1}},projection:'top-down',origin:{x:0,y:0},proposals:[]};
+ let writes=0;const before=JSON.stringify(draft),h=harness('diagramImport/DiagramImportScreen.tsx',{visible:true,stageId:'s',stage:stage(),family:'USPSA',close(){},apply(){assert.fail('Detection must not apply geometry');}},{repo:{loadDiagramImports:async()=>[draft],saveDiagramImport:async()=>{writes++;}},'./assets':{},'./preparation':{},'./rasterReader':{readRaster:async()=>{throw Error(failure);}}});
+ await h.settle();h.press('Reference: Recover.png');h.press('Add missing element');h.press('EXPERIMENTAL: Detect clean diagram geometry');await h.settle();
+ assert.equal(writes,0);assert.ok(h.nodes().some(n=>n.type==='Notice'&&String(n.props.children).includes('Manual reconstruction remains available')));assert.equal(JSON.stringify(draft),before);assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,1);assert.ok(!h.find(n=>n.props.title==='Add missing element').props.disabled);h.press('Add missing element');assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,2);assert.ok(!h.nodes().some(n=>n.props.title==='Cancel recognition'));
 });

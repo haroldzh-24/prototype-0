@@ -1,0 +1,5 @@
+{
+  "id":"dense-unsupported", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"rect","x":0,"y":0,"width":256,"height":256,"fill":true}],"expected":[],
+  "notes":"Dark/dense crops must fall back rather than inventing objects."
+}

@@ -1,0 +1,5 @@
+{
+  "id":"diagonal-wall", "origin":"synthetic", "width":256,"height":256,
+  "primitives":[{"kind":"line","a":[40,170],"b":[160,90],"stroke":6}],
+  "expected":[{"id":"oblique-wall-like","type":"wall","shape":"line","center":{"x":0.390625,"y":0.5078125},"rotation":146.30993247402023}]
+}
