@@ -364,6 +364,8 @@ Save analysis persists video and comparison. Add eligible measurements to profil
 
 ### Camera / import status
 
+> Update 2026-10-22: this audit predates release candidate `720a108`. Camera capture is now reachable through **Photograph paper** in stage diagram import (custom iOS module, permission requested on tap), and document/photo import with manual reconstruction exists. The template files referenced below (`explore.tsx`, `app-tabs`, `mobile/mobile/`) were removed. See `mobile/docs/stage-diagram-import.md`.
+
 | Function | Implementation status |
 |---|---|
 | Video import/manual annotation/playback UI | WORKING source path; playback depends on file/codec/platform |

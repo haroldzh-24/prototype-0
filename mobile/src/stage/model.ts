@@ -37,6 +37,11 @@ export type StageDocument = {
   schemaVersion: 7;
   coordinateSystem: 'inches';
   stage: StageSize;
+  /**
+   * Heading of the backstop in stage-plane degrees (0 = +X/right, 90 = +Y/down the screen, 270 = up the screen).
+   * Optional so documents saved before it existed still load; read it through `stageDownrange()`.
+   */
+  downrangeDegrees?: number;
   /** Drawing order, back to front. */
   objects: StageObject[];
 };

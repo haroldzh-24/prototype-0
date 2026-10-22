@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { Action, Copy, ui } from '../ui/kit';
+import { Action, Copy, Segmented, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
 import { objectLabel } from '../stage/model';
 import type { StageRoute } from '../planning/route';
 import { formatYards, parseYards, yardInput } from '../stage/measurements';
 import { outsideStage, resizeStage } from '../stage/resize';
 import type { OutsideItem } from '../stage/resize';
+import { DOWNRANGE_CHOICES, downrangeLabel, setStageDownrange, stageDownrange } from '../stage/orientation';
 
 export default function StageSettings({ stage, route, onApply, onSelect }: {
   stage: StageDocument; route?: StageRoute; onApply: (stage: StageDocument) => void; onSelect: (item: OutsideItem) => void;
@@ -32,6 +33,13 @@ export default function StageSettings({ stage, route, onApply, onSelect }: {
   };
   return <View style={{ gap: 12, paddingHorizontal: 16 }}>
     <Copy>{formatYards(stage.stage.width)} wide × {formatYards(stage.stage.depth)} deep</Copy>
+    <Copy>Downrange (toward the backstop) on screen</Copy>
+    <Segmented options={DOWNRANGE_CHOICES.map(c => c.label)} value={downrangeLabel(stageDownrange(stage))} onChange={label => {
+      const choice = DOWNRANGE_CHOICES.find(c => c.label === label); if (!choice) return;
+      const result = setStageDownrange(stage, choice.degrees);
+      if (result.error) { setNotice(result.error); return; }
+      onApply(result.stage); setNotice(`Downrange set to ${label.toLowerCase()}. Objects did not move.`);
+    }} />
     <Copy>Changing dimensions only changes the stage boundary. Objects keep their sizes and positions.</Copy>
     <Copy>Stage width (yards)</Copy>
     <TextInput accessibilityLabel="Stage width in yards" keyboardType="decimal-pad" style={ui.input} value={width}

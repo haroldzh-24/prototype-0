@@ -4,6 +4,7 @@ import EditorSheet from '../../editor/EditorSheet';
 import { Action, Copy, DataRow, ErrorState, Loading, Notice, Panel, StatusBadge, ui } from '../../ui/kit';
 import type { AIState, RouteAIController } from './controller';
 import { quickPrompts, isBusy } from './controller';
+import { formatYardsFixed } from '../../stage/measurements';
 export default function RouteAISheet({visible,close,state,controller,revision,apply,inspect}: {
   visible:boolean;close:()=>void;state:AIState;controller:RouteAIController;revision:string;apply:()=>void;inspect:()=>void;
 }) {
@@ -26,9 +27,9 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
       <StatusBadge label={stale?'ROUTE CHANGED':'PROPOSED CHANGE'} tone={stale?'warning':'selected'} />
       <Copy>{preview.command.type.replaceAll('_',' ')}</Copy>
       {stale?<><Copy>This proposal was based on an earlier route.</Copy><Action title="RECALCULATE" disabled={busy} onPress={()=>void controller.recalculate()} /><Action title="DISMISS" onPress={()=>controller.cancel()} /></>:<>
-        <DataRow label="BEFORE" value={`${(preview.before.distanceInches/36).toFixed(2)} yd`} />
-        <DataRow label="AFTER" value={`${(preview.after.distanceInches/36).toFixed(2)} yd`} />
-        <DataRow label="CHANGE" value={`${(preview.delta.distanceDifferenceInches/36).toFixed(2)} yd`} />
+        <DataRow label="BEFORE" value={formatYardsFixed(preview.before.distanceInches)} />
+        <DataRow label="AFTER" value={formatYardsFixed(preview.after.distanceInches)} />
+        <DataRow label="CHANGE" value={formatYardsFixed(preview.delta.distanceDifferenceInches)} />
         {!preview.valid&&<Notice tone="error">This proposal is invalid. {preview.warnings.join(', ')}</Notice>}
         <Copy>The stage shows the proposed path in amber. Apply changes the draft; Save is still required.</Copy>
         <Action title="VIEW ON STAGE" disabled={busy} onPress={inspect} />

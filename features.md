@@ -204,12 +204,6 @@ Track features that are proposed or planned but not yet implemented.
 
 ## Future Ideas
 
-### Edit physical workspace dimensions
-
-- **Recorded:** 2026-09-09
-- **Description:** Add controls for the document width/depth and a policy for oversized objects. Physical coordinates and rotation are complete in the mobile editor.
-- **Status:** Proposed
-
 ### Prototype 2 follow-up
 
 - **Recorded:** 2026-09-17

@@ -101,7 +101,7 @@ No arbitrary polygon editor, scoring zones, route/ammunition planning, line-of-s
 
 ## Editor object operations
 
-The six-entry palette creates Cardboard, No-Shoot, Steel Plate, Popper, Wall and Fault Line at the physical stage center (visible with the current centered zoom UI), constrained by existing bounds, and selects the new object. Selected-object Duplicate and Delete replace last-of-type removal in the UI. The old removeLastObject helper remains for existing regression coverage.
+(Historical, 2026-09: the current UI places targets from family presets via the Add menu and draws walls/fault lines with the DRAW tool; `objectPalette`/`addObject` now only back regression tests.) The six-entry palette created Cardboard, No-Shoot, Steel Plate, Popper, Wall and Fault Line at the physical stage center (visible with the current centered zoom UI), constrained by existing bounds, and selects the new object. Selected-object Duplicate and Delete replace last-of-type removal in the UI. The old removeLastObject helper remains for existing regression coverage.
 
 Start Position is protected from deletion and duplication; all other standalone kinds are supported. Ports remain wall children and use their own existing inspector controls. Duplication clones geometry, cut presets and ports independently, retains rotation/elevation and all physical properties, and allocates fresh UUID IDs for both the object and every child port. Copies are inserted immediately after the source to preserve drawing layers.
 

@@ -1,3 +1,19 @@
+# RC2 batch 1: stage correctness, downrange, cleanup - 2026-10-22
+
+- Fixed unit entry: `36in`, `5ft` and similar values typed without a space were read as yards (36 in became 1296 in). Explicit feet/inch units are now honored with or without a space.
+- Reset keeps the match's target family, the custom stage size and the downrange direction instead of restoring a generic 480 x 360 USPSA-less stage.
+- Added a stage-level downrange direction (`downrangeDegrees`, default up the screen) with a Stage Settings control. Documents saved before it existed load unchanged and read as up the screen. New default stages put the start uprange (bottom) and targets downrange, use the match family's default target preset, and lay out correctly for all four directions.
+- Rotation snapping now applies to targets and wall/fault-line angle edits, not only the start box. Wall length always pivots on the start endpoint, including when height or thickness change in the same edit.
+- Grid snapping clamps endpoints to the stage edge when the stage size is not a grid multiple, so they are no longer rejected.
+- Grid labels fall on whole yards; firing-area and planner summaries convert through `measurements.ts`.
+- Loading and saving reject zero-size objects, duplicate object IDs, empty/duplicate port IDs, closed ports and non-finite downrange; a document is never saved in a form that cannot be reopened.
+- Route AI context now carries downrange, so assistant undo stays consistent.
+- App display name is PSP; deep-link scheme is `practicalshootingpartner` (slug and bundle ID unchanged to keep the EAS project and App Store identity).
+- Removed unused Expo starter code (Explore screen, tab/animated-icon/themed components, `reset-project` script, starter-only images) and the stray `mobile/mobile` package; stopped tracking generated `test-results/`.
+- Completed feature: editable physical workspace dimensions (recorded 2026-09-09; already implemented in Stage Settings).
+- Updated AGENTS.md with current product direction; added GitHub Actions CI (tests and type check). Refreshed stale notes in the planning/stage READMEs and the UI audit.
+- Validation: 802/802 tests (15 new regression tests in `tests/stageFixes.test.cjs`), TypeScript passed, `expo config` resolves. No device testing.
+
 # 1.0.0 RC1 preparation ? 2026-10-15
 
 - Feature freeze preserves stage geometry, SQLite compatibility, PATH/ENGAGE/REVIEW, document import/manual reconstruction and existing analysis.

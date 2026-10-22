@@ -6,7 +6,7 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const ts = require('typescript');
 require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, file);
 const { Repository } = require('../src/storage/repository.ts');
-const { createDefaultStage } = require('../src/stage/defaults.ts');
+const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
 const { applyObjectAction } = require('../src/editor/objectActions.ts');
 const { createPlan } = require('../src/planning/model.ts');
 const { createRoute } = require('../src/planning/route.ts');
@@ -75,7 +75,8 @@ test('match rename and family changes persist without changing any placed target
       const action = applyObjectAction(original, null, { kind: 'create', type: 'cardboardTarget', targetFamily: family }, randomUUID);
       const target = action.stage.objects.find(o => o.id === action.selectedId);
       assert.equal(target.targetFamily, family);
-      assert.deepEqual(target.geometry, original.objects.find(o => o.type === 'cardboardTarget').geometry);
+      // The legacy create action makes a generic target; the default stage's targets use the match family's preset.
+      assert.deepEqual(target.geometry, createObject('cardboardTarget', 'reference', 0, 0).geometry);
       assert.deepEqual(action.stage.objects.filter(o => o.id !== action.selectedId), original.objects);
       const copy = applyObjectAction(action.stage, target.id, { kind: 'duplicate' }, randomUUID);
       assert.equal(copy.stage.objects.find(o => o.id === copy.selectedId).targetFamily, family);

@@ -1,3 +1,10 @@
+# RC2 batch 1 verification - 2026-10-22
+
+- Fixed: unit suffix without a space parsed as yards; Reset dropping family/size; rotation snapping ignored for targets and segments; inconsistent wall pivot; off-stage grid snaps; zero-size/duplicate-ID documents accepted. Details in changelog.md.
+- Not changed by design: rotating a target does not bounds-check its face, matching placement, which deliberately keeps the exact tap even when a face overhangs the edge.
+- New finding: the iOS app icon (`assets/expo.icon`, `assets/images/icon.png`) is still Expo's default logo. Replace before wider TestFlight distribution.
+- Reminder (open more than one month): September 9-10 device checks and the September 9 dense-snapping assessment remain unperformed; see mobile/docs/rc-hardware-validation.md.
+
 # RC1 release blockers ? 2026-10-15
 
 No crash/persistence blocker has been reproduced by automated checks so far. Dependency security review remains open: npm reports 30 advisories (18 high, 12 moderate), including router URL decoding; critical shell-quote was patched. See release notes before wider distribution. Native release qualification is unfinished: a signed EAS build, install/upgrade, persistence/lifecycle smoke tests and device memory/gesture/accessibility checks remain required. The web SQLite worker/OPFS reload issue remains open; web is experimental and is not the RC demonstration target.

@@ -4,6 +4,7 @@ import { footprint, footprintCenterOffset, segmentRectangleInterval, stageToObje
 import { isEngageable } from './model';
 import type { StageRoute, ShootingPosition } from './route';
 import { hasLineOfSight, isPointInsideAllowedArea } from './positionDiscovery';
+import { formatYardsFixed } from '../stage/measurements';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -197,7 +198,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
       const same = result.nodes.find(n => n.kind === 'moving' && n.waypointId === waypoint.id && length(n.position, next.position) < 1e-6);
       const earliest = options.every(o => o.w.endDistanceAlongSegment >= next.w.endDistanceAlongSegment);
       const entry = { targetId: next.w.targetId, orderLabel: engagementLabel(movingIndex++),
-        reason: `${earliest ? 'Earliest closing eligible visibility window' : 'Saved engagement order'}; window closes ${(next.w.endDistanceAlongSegment / 36).toFixed(2)} yd along this segment.`, window: next.w };
+        reason: `${earliest ? 'Earliest closing eligible visibility window' : 'Saved engagement order'}; window closes ${formatYardsFixed(next.w.endDistanceAlongSegment)} along this segment.`, window: next.w };
       if (same) same.targets.push(entry);
       else result.nodes.push({ id: `moving-${waypoint.id}-${next.w.targetId}`, waypointId: waypoint.id, kind: 'moving', position: next.position, targets: [entry] });
       completed.add(next.w.targetId); pending.splice(pending.indexOf(next.w.targetId), 1);

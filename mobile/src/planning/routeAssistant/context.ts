@@ -17,8 +17,10 @@ export function fingerprint(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 export function createRouteAssistantContext(stage: StageDocument, plan: StagePlan, options: { stageId?: string; solverResult?: RouteSolverResult; selectedWaypointId?: string } = {}): RouteAssistantContext {
+  // Copy every document-level field the planner and safety checks depend on, including downrange.
   const snapshot: StageDocument = {schemaVersion:stage.schemaVersion,coordinateSystem:stage.coordinateSystem,
-    stage:{width:stage.stage.width,depth:stage.stage.depth},objects:stage.objects};
+    stage:{width:stage.stage.width,depth:stage.stage.depth},
+    ...(stage.downrangeDegrees!==undefined?{downrangeDegrees:stage.downrangeDegrees}:{}),objects:stage.objects};
   const input = solverInputFromPlan(snapshot, plan);
   return freeze(clone({ stageId:options.stageId, stage:snapshot, plan, route: plan.route ?? createRoute('assistant-route'), solverInput: input,
     revision: fingerprint({ stage:snapshot, plan, input }),

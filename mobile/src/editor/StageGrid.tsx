@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
-import { measurementGrid } from '@/stage/grid';
+import { gridLabel, gridLabelStepInches, isGridLabel, measurementGrid } from '@/stage/grid';
 
 export default memo(function StageGrid({ stage, transform: t }: { stage: StageSize; transform: ViewportTransform }) {
   const { fontScale } = useWindowDimensions();
@@ -16,7 +16,7 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
         width: vertical ? 1 : stage.width * t.scale,
         height: vertical ? stage.depth * t.scale : 1,
         backgroundColor: line.major ? colors.grid : colors.gridMinor }}>
-        {line.value > 0 && line.value % (60 * Math.max(1, Math.ceil((vertical ? 64 : 24) * fontScale / (60 * t.scale)))) === 0 && <Text style={[styles.label, { width: 60 * fontScale }]}>{(line.value / 36).toFixed(1)} yd</Text>}
+        {isGridLabel(line.value, gridLabelStepInches(t.scale, (vertical ? 64 : 24) * fontScale)) && <Text style={[styles.label, { width: 60 * fontScale }]}>{gridLabel(line.value)}</Text>}
       </View>;
     })}
   </View>;

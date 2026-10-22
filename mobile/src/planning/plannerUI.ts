@@ -3,6 +3,7 @@ import { evaluateCandidate, generateCandidates, rankCandidates } from './planner
 import type { PlannerContext, PlannerResult, RoutePlannerConfig, RankingMetrics, PlannerWarning } from './planner';
 import type { StagePlan } from './model';
 import type { StageRoute } from './route';
+import { formatYardsFixed } from '../stage/measurements';
 
 /** Presentation mapping only; all metrics and route decisions come from the planner. */
 export function mapPlannerResults(result: PlannerResult, sources: Record<string, PositionMetadata> = {}) {
@@ -65,8 +66,8 @@ export function plannerDetails(m: RankingMetrics) {
     ['Minimum ammo margin', `${m.ammoMargin} rounds`],
     ['Movement complexity (index)', m.movementComplexityScore.toFixed(1)],
     ['Direction changes / sharp reversals', `${m.directionChangeCount} / ${m.sharpReversalCount}`],
-    ['Backward movement (estimate)', `${(m.backwardDistance / 36).toFixed(2)} yd / ${m.backwardSegmentCount} segments`],
-    ['Sustained retreat (estimate)', `${(m.sustainedBackwardDistance / 36).toFixed(2)} yd`],
+    ['Backward movement (estimate)', `${formatYardsFixed(m.backwardDistance)} / ${m.backwardSegmentCount} segments`],
+    ['Sustained retreat (estimate)', formatYardsFixed(m.sustainedBackwardDistance)],
     ['Raw reload duration', seconds(m.rawReloadDuration)],
     ['Movement available for reloads', seconds(m.reloadMovementAvailable)],
     ['Reload overlap with movement', seconds(m.reloadOverlap)],

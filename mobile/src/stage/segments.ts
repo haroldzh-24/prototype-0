@@ -63,5 +63,8 @@ export function snapEndpoint(stage: StageDocument, point: StagePosition, start: 
     }
   }
   const grid = settings.gridIncrement;
-  return { point: { ...point, x: Math.round(point.x / grid) * grid, y: Math.round(point.y / grid) * grid }, rule: 'Grid' };
+  // When the stage size is not a grid multiple, rounding near the far edge would land outside the stage and
+  // setEndpoints would reject it; the stage edge itself is the nearest valid snap there.
+  const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
+  return { point: { ...point, x: clamp(Math.round(point.x / grid) * grid, stage.stage.width), y: clamp(Math.round(point.y / grid) * grid, stage.stage.depth) }, rule: 'Grid' };
 }

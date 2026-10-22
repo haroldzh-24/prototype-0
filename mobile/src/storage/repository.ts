@@ -12,6 +12,7 @@ import { changeObservation, setManualOverride, trainingContexts, withPerformance
 import type { PerformanceObservation, TrainingContext } from '../training/observations';
 import type { TimingFactor } from '../profile/model';
 import { isTargetFamily } from '../stage/targetFamily';
+import { validDownrange } from '../stage/orientation';
 import type { TargetFamily } from '../stage/targetFamily';
 import type { Reconstruction } from '../diagramImport/model';
 import { validateReconstruction } from '../diagramImport/model';
@@ -33,6 +34,32 @@ const nameOf = (name: string, kind = 'stage') => {
   if (!clean || clean.length > 100) throw new Error(`Enter a ${kind} name between 1 and 100 characters.`);
   return clean;
 };
+/** Dimensions that must be strictly positive for each object type; zero-size objects break geometry and rendering. */
+const POSITIVE_GEOMETRY: Record<StageDocument['objects'][number]['type'], readonly string[]> = {
+  start: ['width', 'depth'], wall: ['length', 'thickness', 'height'], faultLine: ['length'],
+  cardboardTarget: ['faceWidth', 'faceHeight'], noShootTarget: ['faceWidth', 'faceHeight'], steelPlate: ['faceWidth', 'faceHeight'], steelPopper: ['faceWidth', 'faceHeight'],
+};
+/**
+ * Structural checks beyond the field-type checks in loadStage: positive dimensions, unique non-empty object IDs,
+ * string, unique port IDs with positive openings, and a finite downrange when present. Returns a reason or null.
+ */
+export function savedDocumentProblem(d: StageDocument): string | null {
+  const ids = new Set<string>(), portIds = new Set<string>();
+  for (const o of d.objects) {
+    const geometry = o.geometry as Record<string, number>;
+    if (!POSITIVE_GEOMETRY[o.type].every(key => geometry[key] > 0)) return `Object ${o.id} has a zero or negative dimension.`;
+    if (!o.id.trim() || ids.has(o.id)) return 'Object IDs must be non-empty and unique.';
+    ids.add(o.id);
+    if (o.type === 'wall') for (const port of o.ports) {
+      if (typeof port.id !== 'string' || !port.id.trim() || portIds.has(port.id)) return 'Port IDs must be non-empty and unique.';
+      if (!(port.width > 0 && port.height > 0)) return 'Port openings must have positive width and height.';
+      portIds.add(port.id);
+    }
+  }
+  if (d.downrangeDegrees !== undefined && !validDownrange(d.downrangeDegrees)) return 'Downrange must be a finite angle.';
+  return null;
+}
+
 export class Repository {
   private trainingWrites: Promise<unknown> = Promise.resolve();
   trainingReadWarnings: string[] = [];
@@ -162,11 +189,15 @@ export class Repository {
       || !Array.isArray(data.plan.loadout.magazines) || data.plan.loadout.magazines.some((m: StagePlan['loadout']['magazines'][number]) =>
         !m || typeof m.id !== 'string' || ![m.capacity, m.startingRounds].every(n => Number.isFinite(n) && n >= 0)))
       throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
+    if (savedDocumentProblem(d)) throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
     if (data.plan.route !== undefined && !isStageRoute(data.plan.route)) throw new Error('Unsupported or damaged route data. The saved copy has not been changed.');
     return { ...summary, document: data.document, plan: data.plan };
   }
   private payload(document: StageDocument, plan: StagePlan) {
     if (plan.route !== undefined && !isStageRoute(plan.route)) throw new Error('Invalid route data.');
+    // Never write a document that loadStage would refuse to reopen.
+    const problem = savedDocumentProblem(document);
+    if (problem) throw new Error(problem);
     return JSON.stringify({ version: 1, document, plan });
   }
   async createStage(name: string, document: StageDocument, plan: StagePlan, matchId: string): Promise<string> {

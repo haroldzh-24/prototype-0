@@ -49,18 +49,17 @@ import type { SnapSettings } from '@/stage/snapping';
 import type { ObjectEdit } from '@/stage/operations';
 import { MAX_ZOOM, MIN_ZOOM } from '@/stage/coordinates';
 import type { ViewportState } from '@/stage/coordinates';
-import { applyObjectAction, validSelection } from '@/editor/objectActions';
+import { applyInspectorEdit, applyObjectAction, validSelection } from '@/editor/objectActions';
 import type { ObjectAction } from '@/editor/objectActions';
 import { shouldInstallBeforeUnload } from './browserGuards';
 import { objectLabel } from '@/stage/model';
 import type { StageDocument } from '@/stage/model';
-import { editObject } from '@/stage/operations';
 import { OperationGate } from '../training/operationGate';
 import StageSettings from './StageSettings';
 import { useDocumentHistory } from './useDocumentHistory';
-import { placeTarget, rotateTarget, isTarget } from '../stage/targetPlacement';
+import { placeTarget, isTarget } from '../stage/targetPlacement';
 import { targetPreset } from '../stage/targetPresets';
-import { addSegment, endpoints, isSegment, editSegmentMetrics, segmentMetrics, snapEndpoint } from '../stage/segments';
+import { addSegment, endpoints, isSegment, segmentMetrics, snapEndpoint } from '../stage/segments';
 import type { DesignerTool } from './designerTools';
 import { formatYards } from '../stage/measurements';
 import { outsideStage } from '../stage/resize';
@@ -216,11 +215,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   };
   const applyEdit = (edit: ObjectEdit): string | null => {
     if (!selected) return 'Select an object first.';
-    const onlyRotation = edit.rotation !== undefined && !edit.position && !edit.geometry && !edit.ports && !edit.faceCut;
-    const segmentNumeric = isSegment(selected) && !edit.position && !edit.ports && (edit.rotation !== undefined || edit.geometry?.length !== undefined) && Object.keys(edit.geometry ?? {}).every(k => k === 'length');
-    const result = isTarget(selected) && onlyRotation ? rotateTarget(stage, selected.id, edit.rotation!)
-      : isSegment(selected) && segmentNumeric ? editSegmentMetrics(stage, selected, edit.geometry?.length ?? selected.geometry.length, edit.rotation ?? selected.rotation)
-      : editObject(stage, selected.id, edit, snapping.enabled ? snapping.rotationIncrement : null);
+    const result = applyInspectorEdit(stage, selected.id, edit, snapping.enabled ? snapping.rotationIncrement : null);
     if (result.error) return result.error;
     setStage(result.stage);
     setEditError('');
@@ -488,9 +483,9 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={plan.route} selectedId={positionId} onChange={changeRoute} />
       </>}
       {(panel === 'delete' || panel === 'reset') && <>
-        <Text>{panel === 'delete' ? 'Delete this object and its planning references?' : 'Restore the default stage? This also clears the route and target assignments.'}</Text>
+        <Text>{panel === 'delete' ? 'Delete this object and its planning references?' : 'Restore the default layout? Stage size, downrange and target family are kept. This also clears the route and target assignments.'}</Text>
         <Button title="Cancel" onPress={() => setPanel(null)} />
-        <Button title={panel === 'delete' ? 'Delete object' : 'Reset stage'} danger onPress={() => { act({ kind: panel }); setPanel(null); }} />
+        <Button title={panel === 'delete' ? 'Delete object' : 'Reset stage'} danger onPress={() => { act(panel === 'reset' ? { kind: 'reset', targetFamily } : { kind: 'delete' }); setPanel(null); }} />
       </>}
     </EditorSheet>
     {panel === 'aiPlan' && <AutoPlannerPanel onSolverResult={result=>setSolverEvidence({key:solverKey,result})} onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel(stage.objects.some(o => o.type === 'start') ? 'edit' : 'settings'); } else if (section === 'geometry') setPanel('settings'); else if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}

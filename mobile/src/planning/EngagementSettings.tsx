@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { Action, Copy, Notice, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
+import { inchesToYards, yardsToInches } from '../stage/measurements';
 import { isEngageable, targetLabel } from './model';
 import { defaultEngagementRules, validEngagementRules } from './engagements';
 import type { EngagementRules, FiringArea } from './engagements';
@@ -13,7 +14,7 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
   const [spacing, setSpacing] = useState(String(rules.sampleSpacingInches));
   const [direction, setDirection] = useState(String(rules.safeDirectionDegrees));
   const [angle, setAngle] = useState(String(rules.safeHalfAngleDegrees));
-  const areaText = (area: FiringArea) => area.vertices.map(p => `${p.x / 36}, ${p.y / 36}`).join('\n');
+  const areaText = (area: FiringArea) => area.vertices.map(p => `${inchesToYards(p.x)}, ${inchesToYards(p.y)}`).join('\n');
   const [areas, setAreas] = useState(() => rules.firingAreas.map(a => ({ id: a.id, text: areaText(a) })));
   const [areaId, setAreaId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null), [error, setError] = useState('');
@@ -82,7 +83,7 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
     <Action title="APPLY ROUTE SETTINGS" variant="primary" onPress={() => {
       const firingAreas = areas.map(a => ({ id: a.id, vertices: a.text.trim().split(/\n/).map(line => {
         const parts = line.split(',').map(s => s.trim());
-        return { x: parts.length === 2 && parts[0] ? Number(parts[0]) * 36 : NaN, y: parts.length === 2 && parts[1] ? Number(parts[1]) * 36 : NaN };
+        return { x: parts.length === 2 && parts[0] ? yardsToInches(Number(parts[0])) : NaN, y: parts.length === 2 && parts[1] ? yardsToInches(Number(parts[1])) : NaN };
       }) }));
       const next = { ...rules, firingAreas, sampleSpacingInches: Number(spacing), safeDirectionDegrees: direction.trim() ? Number(direction) : NaN, safeHalfAngleDegrees: Number(angle) };
       if (!validEngagementRules(next)) { setError('Check the numeric settings and enter at least three X, Y corners for each area.'); return; }

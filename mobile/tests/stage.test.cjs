@@ -30,6 +30,14 @@ test('yard entry converts without rounding fractional inches and rejects invalid
   for (const text of ['', 'NaN', 'Infinity', '1e309', '3abc', '1/0']) assert.equal(parseYards(text), null);
 });
 
+test('explicit feet/inch units are honored with or without a space before the unit', () => {
+  // Regression: "36in" was read as 36 yards (1296 in) because \b never matches between a digit and a letter.
+  for (const [text, inches] of [['36in', 36], ['36 in', 36], ['5ft', 60], ['5 ft', 60], ['5ft 6in', 66],
+    ["5'6\"", 66], ['6 1/2in', 6.5], ['.5in', 0.5], ['5 inches', 5], ['3yd', 108], ['2 yards', 72], ['1.5', 54]]) {
+    assert.equal(parseYards(text), inches, text);
+  }
+});
+
 test('resize cancellation and confirmation preserve every object and route reference', () => {
   const document = createDefaultStage();
   document.objects.push(createObject('faultLine', 'fault', 400, 250));
@@ -164,7 +172,8 @@ test('default/reset factories are independent and all defaults fit',()=>{
   const a=createDefaultStage(),b=createDefaultStage();
   assert.equal(a.schemaVersion,7); assert.equal(a.coordinateSystem,'inches'); assert.deepEqual(a.stage,size);
   assert.deepEqual(a,b); assert.notEqual(a.objects[0].geometry,b.objects[0].geometry);
-  a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,60);
+  const startX=createDefaultStage().objects[0].position.x;
+  a.objects[0].position={...a.objects[0].position,x:999}; assert.equal(b.objects[0].position.x,startX);
   for(const o of b.objects) assert.deepEqual(constrainPosition(o,o.position,b.stage),o.position);
 });
 test('beforeunload protection is web-only even when window exists on native',()=>{

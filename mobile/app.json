@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "PSP",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "practicalshootingpartner",
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",

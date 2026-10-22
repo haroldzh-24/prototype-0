@@ -10,6 +10,7 @@ import { solveRoute } from './routeSolver/solveRoute';
 import { solverInputFromPlan, solverPreviewCard } from './routeSolver/adoption';
 import type { RouteSolverResult } from './routeSolver/types';
 import { meaningfulRoute } from '../editor/routePresentation';
+import { formatYardsFixed } from '../stage/measurements';
 
 export default function AutoPlannerPanel({stage,plan,onUse,preview,onPreview,onClose,discoveryPreview,onConfigure,onSolverResult}:PlannerContext & {onSolverResult?:(result:RouteSolverResult)=>void;onConfigure:(section:'loadout'|'targets'|'rules'|'geometry'|'start')=>void;discoverySession:DiscoverySession|null;onDiscovery:(session:DiscoverySession)=>void;discoveryPreview:boolean;onDiscoveryPreview:()=>void;preview:PlannerCard|null;onPreview:(card:PlannerCard)=>void;onClose:()=>void;onUse:(plan:StagePlan)=>void}) {
   const [result,setResult]=useState<RouteSolverResult|null>(null),[generating,setGenerating]=useState(false),[alternatives,setAlternatives]=useState(false),[pending,setPending]=useState<PlannerCard|null>(null);
@@ -42,7 +43,7 @@ export default function AutoPlannerPanel({stage,plan,onUse,preview,onPreview,onC
       <Copy>ROUTE FOUND</Copy>
       {(alternatives?cards:cards.slice(0,1)).map((card,i)=><Panel key={card.id}>
         {alternatives&&<Copy>{i===0?'Best route':`Alternative ${i}`}</Copy>}
-        <DataRow label="Movement" value={`${(card.movementDistance/36).toFixed(2)} yd`} />
+        <DataRow label="Movement" value={formatYardsFixed(card.movementDistance)} />
         <DataRow label="Waypoints" value={card.positions} />
         <Copy>{card.comparison}</Copy>
         {pending?.id===card.id?<><Copy>Replace your existing route?</Copy><Action title="Keep route" onPress={()=>setPending(null)} /><Action variant="primary" title="Confirm replacement" onPress={()=>useRoute(card,true)} /></>:<Action variant="primary" title="USE ROUTE" onPress={()=>useRoute(card)} />}

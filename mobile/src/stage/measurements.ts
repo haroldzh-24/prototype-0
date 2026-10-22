@@ -30,9 +30,16 @@ export const inchesToYards = (inches: number): number => inches / 36;
 /** Display rounding never changes stored geometry. */
 export const yardInput = (inches: number): string => String(Number(inchesToYards(inches).toFixed(6)));
 export const formatYards = (inches: number): string => `${Number(inchesToYards(inches).toFixed(3))} yd`;
-/** Bare decimals/fractions are yards; explicit legacy units remain accepted. */
+/** Fixed-digit yard text for summaries (e.g. "12.50 yd"); display only, never stored. */
+export const formatYardsFixed = (inches: number, digits = 2): string => `${inchesToYards(inches).toFixed(digits)} yd`;
+/**
+ * Bare decimals/fractions are yards; explicit legacy units remain accepted.
+ * A unit may follow a digit directly ("36in", "5ft"), so the unit check cannot use `\b`,
+ * which never matches between a digit and a letter.
+ */
+const EXPLICIT_FEET_OR_INCHES = /["']|(?:^|[\d\s./])(?:feet|foot|ft|inches|inch|in)(?![a-z])/i;
 export function parseYards(text: string): number | null {
-  if (/["']|\b(?:ft|feet|foot|in|inch|inches)\b/i.test(text)) return parseLength(text);
+  if (EXPLICIT_FEET_OR_INCHES.test(text)) return parseLength(text);
   const yards = parseLength(text.trim().replace(/\s*(?:yards?|yd)\s*$/i, ''));
   if (yards === null) return null;
   const inches = yardsToInches(yards);

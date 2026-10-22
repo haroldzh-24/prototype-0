@@ -71,11 +71,13 @@ Missing timing disables time terms across the batch so missing data is not rewar
 Insufficient ammunition is excluded; other evaluator warnings remain visible.
 The normal input is the generator's feasible, complete candidates.
 
-Personalized currently always falls back to Balanced: even a valid current
-ShooterPerformanceProfile has no difficulty-dependent shooting calibration.
-Average split time cannot establish the extra time this shooter needs for harder
-shots. PROFILE_FALLBACK explicitly reports this missing capability. Existing
-profile timing is still used honestly through the evaluator.
+Personalized ranking uses each candidate's personalized evaluation when every
+candidate has one and at least one is usable; otherwise it falls back to Balanced
+and reports PROFILE_FALLBACK. (Updated 2026-10-22: an earlier version of this note
+said it always fell back.) This ranking pipeline (`planner.ts`, `candidateGeneration.ts`,
+`ranking.ts`, `personalizedRoute.ts`) is not reachable from the current UI; the PLAN
+button uses `routeSolver/solveRoute`. It is kept as reference until Route Planner V2
+replaces it. Existing profile timing is still used honestly through the evaluator.
 
 Movement facing is the coherent mean of unit bearings to targets engaged at the
 position being left (mean length at least 0.85). START, empty positions, coincident
