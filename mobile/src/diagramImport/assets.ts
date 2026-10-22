@@ -3,6 +3,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { uuid, requireOptionalNativeModule } from 'expo-modules-core';
 import type { DocumentAsset, Reconstruction } from './model';
 import { assetValid } from './model';
+import { DOCUMENT_PATH, unreferencedPaths } from './sessionFiles';
 
 export async function assetUri(asset: DocumentAsset) {
   if (!assetValid(asset)) throw new Error('Invalid document reference.');
@@ -18,6 +19,8 @@ export async function preserveFile(uri: string, name: string, mime: string): Pro
   const path = `diagram-imports/${uuid.v4()}.${extension}`, destination = new File(Paths.document, path);
   try { source.copy(destination); }
   catch (error) { if (destination.exists) destination.delete(); throw error; }
+  // Native renders, camera photos and picker copies are temporary files the app created; remove them once preserved.
+  try { if (!source.uri.startsWith(Paths.document.uri) && source.exists) source.delete(); } catch { /* best effort */ }
   return { path, name: name.slice(0, 300), mime, size: destination.size };
 }
 export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> {
@@ -40,4 +43,14 @@ export async function openOriginal(asset: DocumentAsset): Promise<void> {
   const module = requireOptionalNativeModule<{ openOriginal(uri: string): Promise<void> }>('DiagramImport');
   if (!module) throw new Error('Opening the preserved original needs the rebuilt iPhone app.');
   await module.openOriginal(await assetUri(asset));
+}
+
+/** Deletes app-owned document files that no saved draft references. Returns how many were removed. */
+export async function deleteDocumentFiles(paths: readonly string[], inUse: ReadonlySet<string>): Promise<number> {
+  let removed = 0;
+  for (const path of unreferencedPaths(paths, inUse)) {
+    if (!DOCUMENT_PATH.test(path)) continue;
+    try { const file = new File(Paths.document, path); if (file.exists) { file.delete(); removed++; } } catch { /* best effort */ }
+  }
+  return removed;
 }

@@ -2,7 +2,7 @@ import { recognizers, propose } from './recognition';
 import { readRaster } from './rasterReader';
 import { mergeDetections, acceptSelection, editSegmentOverlay } from './proposalEdits';
 import { useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, Notice, colors, ui } from '../ui/kit';
@@ -12,7 +12,8 @@ import { objectLabel } from '../stage/model';
 import type { StageDocument } from '../stage/model';
 import type { TargetFamily } from '../stage/targetFamily';
 import { presetsForFamily } from '../stage/targetPresets';
-import { assetUri, pickDocument, photographPaper, openOriginal } from './assets';
+import { assetUri, deleteDocumentFiles, pickDocument, photographPaper, openOriginal } from './assets';
+import { takeDerivatives } from './sessionFiles';
 import { alignPage, preparePage } from './preparation';
 import { fullCrop, fullQuad, reconstruct, validQuad, validCrop, validProposal, imagePoint, validateReconstruction } from './model';
 import type { DocumentAsset, Point, Proposal, Reconstruction } from './model';
@@ -63,6 +64,21 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
   const [pageNumber, setPageNumber] = useState(1), [distance, setDistance] = useState(120), [unit, setUnit] = useState<'in' | 'ft' | 'yd'>('in');
   const [a, setA] = useState<Point>({ x: .1, y: .5 }), [b, setB] = useState<Point>({ x: .9, y: .5 });
   const [evidence, setEvidence] = useState<'grid' | 'labeled-dimension' | 'user'>('user');
+  const [damagedIds, setDamagedIds] = useState<string[]>([]), [cameraDenied, setCameraDenied] = useState(false), [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const draftPaths = (d: Reconstruction) => [d.source, d.page?.asset, d.rectified?.asset, d.aligned?.asset].flatMap(a => a?.path ? [a.path] : []);
+  const refresh = async (current: (callback: () => void) => void) => { const report = await repo.loadDiagramImportsReport(stageId); current(() => { setReferences(report.drafts); setDamagedIds(report.damagedIds); }); };
+  const deleteReference = (value: Reconstruction) => void run(async current => {
+    await repo.deleteDiagramImport(stageId, value.id);
+    // Shared originals (duplicated stages) are kept while any other draft still references them.
+    await deleteDocumentFiles(draftPaths(value), await repo.diagramAssetPathsInUse());
+    current(() => { setConfirmDeleteId(null); if (draft?.id === value.id) setDraft(null); setMessage('Reference deleted. Stage geometry and route were not changed.'); });
+    await refresh(current);
+  });
+  const removeDamaged = () => void run(async current => {
+    for (const id of damagedIds) await repo.deleteDiagramImport(stageId, id);
+    current(() => setMessage(damagedIds.length + ' unreadable reference(s) removed.'));
+    await refresh(current);
+  });
   async function run(work: (current: (callback: () => void) => void) => Promise<void>) {
     const token = gate.current.begin(); if (token === null) return;
     setBusy(true); setError(''); setMessage('');
@@ -71,9 +87,15 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     finally { current(() => setBusy(false)); gate.current.finish(token); }
   }
   useEffect(() => {
-    if (!visible) { recognitionAbort.current?.abort(); gate.current.dispose(); return; }
-    gate.current.activate(); setRecognizing(false); setBusy(false); setConfirmClose(false); setError('');
-    void run(async current => { const saved = await repo.loadDiagramImports(stageId); current(() => setReferences(saved)); });
+    if (!visible) {
+      recognitionAbort.current?.abort(); gate.current.dispose();
+      // Derivative images made this session but not referenced by any saved draft are discarded.
+      const created = takeDerivatives();
+      if (created.length) void repo.diagramAssetPathsInUse().then(inUse => deleteDocumentFiles(created, inUse)).catch(() => {});
+      return;
+    }
+    gate.current.activate(); setRecognizing(false); setBusy(false); setConfirmClose(false); setError(''); setCameraDenied(false); setConfirmDeleteId(null);
+    void run(refresh);
     return () => { recognitionAbort.current?.abort(); gate.current.dispose(); };
   }, [visible, stageId, repo]);
   const exit = () => { setDraft(null); setSelectedId(null); close(); };
@@ -92,7 +114,11 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
   const saveDraft = async (value: Reconstruction) => { validateReconstruction(value); await repo.saveDiagramImport(stageId, value); };
   const load = (value: Reconstruction) => { setDraft(value); setBatchIds([]); setSelectedId(null); setStep(value.aligned ? 'preview' : value.rectified ? 'layout' : 'page'); setPageNumber(value.page?.page ?? 1); setShowOriginal(false); if (value.calibration) { setA(value.calibration.a); setB(value.calibration.b); setDistance(value.calibration.inches); setUnit('in'); setEvidence(value.calibration.evidence); } };
   const importSource = (camera: boolean) => void run(async current => {
-    const picked = await (camera ? photographPaper() : pickDocument()); if (!picked) return;
+    current(() => setCameraDenied(false));
+    let picked;
+    try { picked = await (camera ? photographPaper() : pickDocument()); }
+    catch (error) { if ((error as { code?: string }).code === 'CAMERA_DENIED') current(() => setCameraDenied(true)); throw error; }
+    if (!picked) return;
     const value: Reconstruction = { version: 1, id: uuid.v4(), source: picked.asset, sourceKind: picked.kind, alignment: { corners: fullQuad(), rotation: 0, crop: fullCrop() }, projection: 'unknown', origin: { x: 0, y: 0 }, proposals: [] };
     await saveDraft(value); // Preserve the original even if rasterization is unavailable or fails.
     current(() => { load(value); setReferences(old => [...old, value]); });
@@ -125,7 +151,13 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
         {confirmClose && <View><Notice>Reference drafts are saved separately. Geometry added to the editor still needs the editor Save action.</Notice><Action title="Keep editing import" onPress={() => setConfirmClose(false)} /><Action title="Save reference draft and close" disabled={!draft || busy} onPress={() => void run(async current => { await saveDraft(draft!); current(exit); })} /><Action title="Close without saving preview changes" onPress={exit} /></View>}
         <Copy>Import a stage briefing PDF, exported plan, screenshot, or photograph of printed paper. Top-down plans are required for reconstruction.</Copy>
         <View style={row}><Action title="Import PDF or image" disabled={busy} onPress={() => importSource(false)} /><Action title="Photograph paper" disabled={busy} onPress={() => importSource(true)} /></View>
-        {references.map(value => <Action key={value.id} title={'Reference: ' + value.source.name} disabled={busy} onPress={() => load(value)} />)}
+        {cameraDenied && <Action title="Open Settings to allow camera" onPress={() => { void Linking.openSettings(); }} />}
+        {references.map(value => <View key={value.id} style={row}>
+          <Action title={'Reference: ' + value.source.name} disabled={busy} onPress={() => load(value)} />
+          {confirmDeleteId === value.id ? <><Action title="Keep" disabled={busy} onPress={() => setConfirmDeleteId(null)} /><Action title="Delete reference" variant="destructive" disabled={busy} onPress={() => deleteReference(value)} /></>
+            : <Action title="Delete" accessibilityLabel={'Delete reference ' + value.source.name} disabled={busy} onPress={() => setConfirmDeleteId(value.id)} />}
+        </View>)}
+        {!!damagedIds.length && <><Notice>{damagedIds.length} saved reference(s) could not be read and are hidden. Their data has not been changed.</Notice><Action title="Remove unreadable references" disabled={busy} onPress={removeDamaged} /></>}
         {!!error && <Notice>{error}</Notice>}{!!message && <Notice>{message}</Notice>}{busy && <Copy>Preparing document...</Copy>}
         {draft && <>
           <Copy>{draft.source.name}</Copy>

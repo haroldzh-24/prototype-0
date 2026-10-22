@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { uuid } from 'expo-modules-core';
 import type { DocumentAsset, Reconstruction } from './model';
 import { assetValid } from './model';
+import { DOCUMENT_PATH, unreferencedPaths } from './sessionFiles';
 
 // Durable blobs, not session object URLs. Separate from SQLite stage payloads.
 function database(): Promise<IDBDatabase> {
@@ -56,4 +57,19 @@ export async function openOriginal(asset: DocumentAsset): Promise<void> {
   try {
     const link = document.createElement('a'); link.href = url; link.download = asset.name; link.click();
   } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+
+/** Deletes browser-stored document blobs that no saved draft references. Returns how many were removed. */
+export async function deleteDocumentFiles(paths: readonly string[], inUse: ReadonlySet<string>): Promise<number> {
+  const targets = unreferencedPaths(paths, inUse).filter(path => DOCUMENT_PATH.test(path));
+  if (!targets.length) return 0;
+  const db = await database();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction('assets', 'readwrite');
+      for (const path of targets) transaction.objectStore('assets').delete(path);
+      transaction.oncomplete = () => resolve(); transaction.onerror = () => reject(transaction.error); transaction.onabort = () => reject(transaction.error);
+    });
+  } finally { db.close(); }
+  return targets.length;
 }

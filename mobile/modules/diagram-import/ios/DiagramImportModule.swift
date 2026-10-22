@@ -88,12 +88,20 @@ public class DiagramImportModule: Module {
       AVCaptureDevice.requestAccess(for: .video) { granted in
         DispatchQueue.main.async {
           guard granted else { promise.reject("CAMERA_DENIED", "Camera access was denied. Import an existing photograph instead."); return }
-          guard let controller = self.appContext?.utilities?.currentViewController(), controller.viewIfLoaded?.window != nil else { promise.reject("CAMERA_UNAVAILABLE", "Close the current panel and try again."); return }
+          guard let controller = self.appContext?.utilities?.currentViewController(), controller.viewIfLoaded?.window != nil, controller.presentedViewController == nil else { promise.reject("CAMERA_UNAVAILABLE", "Close the current panel and try again."); return }
           let picker = UIImagePickerController(); picker.sourceType = .camera; picker.cameraCaptureMode = .photo; picker.delegate = self.camera
           self.camera.completion = { result in
             switch result { case .success(let uri): promise.resolve(uri); case .failure(let error): promise.reject(error) }
           }
           controller.present(picker, animated: false)
+          // If UIKit silently refuses the presentation, no delegate callback ever arrives; settle the call so the
+          // import screen does not stay busy and later captures are not refused as "already open".
+          DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if picker.presentingViewController == nil, let pending = self.camera.completion {
+              self.camera.completion = nil
+              pending(.failure(failure("The camera could not open. Close other panels and try again.")))
+            }
+          }
         }
       }
     }.runOnQueue(.main)

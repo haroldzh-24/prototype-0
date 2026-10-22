@@ -2,6 +2,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 import { preserveFile, assetUri } from './assets';
 import type { Alignment, DocumentAsset, PageImage, Quad } from './model';
 import { validCrop, validQuad } from './model';
+import { recordDerivative } from './sessionFiles';
 
 type Result = { uri: string; width: number; height: number; pageCount: number; corners?: Quad };
 interface NativeDiagramImport {
@@ -21,11 +22,13 @@ export async function preparePage(source: DocumentAsset, page: number): Promise<
   const result = await native().page(await assetUri(source), source.mime === 'application/pdf', page);
   validateResult(result);
   if (page > result.pageCount) throw new Error('The selected PDF page does not exist.');
-  return { page: { asset: await preserveFile(result.uri, 'Page.png', 'image/png'), width: result.width, height: result.height, page, pageCount: result.pageCount }, corners: result.corners };
+  const asset = await preserveFile(result.uri, 'Page.png', 'image/png'); recordDerivative(asset.path);
+  return { page: { asset, width: result.width, height: result.height, page, pageCount: result.pageCount }, corners: result.corners };
 }
 export async function alignPage(page: PageImage, alignment: Alignment): Promise<PageImage> {
   if (!validQuad(alignment.corners) || !validCrop(alignment.crop) || ![0, 90, 180, 270].includes(alignment.rotation)) throw new Error('Set four non-crossing page corners and a crop inside the rotated page.');
   const result = await native().align(await assetUri(page.asset), alignment.corners, alignment.rotation, alignment.crop);
   validateResult(result);
-  return { ...page, asset: await preserveFile(result.uri, 'Aligned diagram.png', 'image/png'), width: result.width, height: result.height };
+  const asset = await preserveFile(result.uri, 'Aligned diagram.png', 'image/png'); recordDerivative(asset.path);
+  return { ...page, asset, width: result.width, height: result.height };
 }

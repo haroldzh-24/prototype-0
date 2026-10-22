@@ -1,3 +1,14 @@
+# RC2 batch 3: diagram import, camera and training data - 2026-10-22
+
+- Training videos can be imported from **Photos** (iOS) through the system photo picker, which runs out of process and needs no photo library permission; Files import remains. New local native module `modules/training-media` (PHPicker). No permission strings were added.
+- Training sessions can be deleted. The delete also withdraws that session's profile measurements in the same transaction and then removes its app-owned video copies; videos in Photos/Files are untouched.
+- Diagram import: saved references can be deleted (files are removed only when no draft on any stage still uses them, so duplicated stages keep shared originals); one damaged draft no longer hides the stage's other references, and unreadable ones can be removed; the 20-reference limit message explains what to do.
+- Import cleanup: temporary renders, camera photos and picker copies are deleted once preserved; derivative images created during an import session are deleted on close unless a saved draft references them.
+- Camera: "Open Settings to allow camera" appears after a denial; capture refuses while another sheet is presented and settles if iOS silently refuses to show the camera, so the import screen cannot stay busy.
+- Performance: the diagram raster decoder uses a lookup table (about 2.6x faster in Node on a 1024 x 1024 raster; not yet measured on device). Audio for analysis now crosses from Swift as base64 16-bit PCM instead of a JS array of up to 960,000 numbers; the JS side still accepts the old format.
+- Very thin crops now get a clear "too small to analyze" message.
+- Validation: 822/822 tests (10 new in `tests/importTrainingFixes.test.cjs`), TypeScript passed, Expo autolinking resolves the new module. Swift changes (TrainingMedia, TrainingAudio PCM, DiagramImport camera guard) are not compiled or device-tested; see the hardware checklist.
+
 # RC2 batch 2: honest movement optimizer and planner fixes - 2026-10-22
 
 - PLAN is now the **Movement optimizer** (buttons OPTIMIZE / OPTIMIZE MOVEMENT). The sheet states it optimizes movement only and does not check targets, line of sight or safe angles.

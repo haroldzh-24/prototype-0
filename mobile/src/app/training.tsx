@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Text } from 'react-native';
+import { Platform, Text } from 'react-native';
 import LibraryCard from '@/ui/LibraryCard';
 import { contextLabels, startLabels } from '@/training/presentation';
 import { OperationGate } from '@/training/operationGate';
@@ -48,8 +48,8 @@ export default function Training() {
     await refresh(token);
     if (operation.current.current(token)) setCreating(false);
   });
-  const importVideo = (record: TrainingRecord) => run(async token => {
-    const id = uuid.v4(), asset = await importVideoAsset(id);
+  const importVideo = (record: TrainingRecord, from: 'files' | 'photos' = 'files') => run(async token => {
+    const id = uuid.v4(), asset = await importVideoAsset(id, from);
     if (!asset) return;
     if (!operation.current.current(token)) { discardVideoAsset(asset); return; }
     const now = new Date().toISOString();
@@ -59,6 +59,14 @@ export default function Training() {
     try { await repo.saveTraining({ ...record, context: session.context, videos: [...(record.videos ?? []), { session, analysis: analyzeVideo(session, []) }] }); }
     catch (error) { discardVideoAsset(asset); throw error; }
     await refresh(token); if (operation.current.current(token)) { setSessionId(null); setSelected({ recordId: record.id, videoId: id }); }
+  });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteSession = (record: TrainingRecord) => run(async token => {
+    await repo.deleteTraining(record.id);
+    // The record is gone; remove its app-owned video copies (best effort, after the database commit).
+    for (const video of record.videos ?? []) { try { discardVideoAsset(video.session.asset); } catch { /* already removed */ } }
+    await refresh(token);
+    if (operation.current.current(token)) { setConfirmDelete(false); setSessionId(null); }
   });
   const selectedRecord = records.find(r => r.id === selected?.recordId), selectedVideo = selectedRecord?.videos?.find(v => v.session.id === selected?.videoId);
   const activeSession = records.find(record => record.id === sessionId);
@@ -90,14 +98,22 @@ export default function Training() {
       category={contextLabels[record.context ?? 'DRY_FIRE'].toUpperCase()}
       detail={new Date(record.occurredAt).toLocaleDateString() + ' • ' + startLabels[record.startingType] + '\n' + (record.videos?.length ?? 0) + ((record.videos?.length ?? 0) === 1 ? ' video' : ' videos')}
       disabled={busy} open={() => openSession(record)} more={() => setSessionId(record.id)} />)}
-    <EditorSheet title="SESSION" visible={!!activeSession} close={() => { if (!busy) setSessionId(null); }}>
+    <EditorSheet title="SESSION" visible={!!activeSession} close={() => { if (!busy) { setSessionId(null); setConfirmDelete(false); } }}>
       {activeSession && <Panel><Text style={ui.sectionTitle}>{activeSession.drillName || 'Practice Session'}</Text>
         <Copy>VIDEOS · {activeSession.videos?.length ?? 0}</Copy>
-        <Action title="ADD VIDEO" variant="primary" disabled={busy} onPress={() => importVideo(activeSession)} />
+        {Platform.OS === 'ios' ? <>
+          <Action title="ADD VIDEO FROM PHOTOS" variant="primary" disabled={busy} onPress={() => importVideo(activeSession, 'photos')} />
+          <Action title="ADD VIDEO FROM FILES" disabled={busy} onPress={() => importVideo(activeSession, 'files')} />
+        </> : <Action title="ADD VIDEO" variant="primary" disabled={busy} onPress={() => importVideo(activeSession)} />}
         {!activeSession.videos?.length && <Copy>No videos. Add a video to begin analysis.</Copy>}
         {activeSession.videos?.map((video, index) => <Action key={video.session.id}
           title={'Video ' + (index + 1) + ' · ' + (video.session.analysisStatus === 'REVIEWED' ? 'Analysis saved' : 'Needs review')}
           disabled={busy} onPress={() => { setSessionId(null); setSelected({ recordId: activeSession.id, videoId: video.session.id }); }} />)}
+        {confirmDelete ? <>
+          <Notice tone="warning">Delete this session, its {activeSession.videos?.length ?? 0} imported video copies and any profile measurements contributed from it? This cannot be undone. Videos in Photos or Files are not touched.</Notice>
+          <Action title="Keep session" disabled={busy} onPress={() => setConfirmDelete(false)} />
+          <Action title="Delete session" variant="destructive" disabled={busy} onPress={() => deleteSession(activeSession)} />
+        </> : <Action title="DELETE SESSION" variant="destructive" disabled={busy} onPress={() => setConfirmDelete(true)} />}
         {!!message && <Notice tone="error">{message}</Notice>}
       </Panel>}
     </EditorSheet>

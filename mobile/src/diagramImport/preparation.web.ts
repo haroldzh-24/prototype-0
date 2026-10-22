@@ -2,6 +2,7 @@ import type { Alignment, DocumentAsset, PageImage } from './model';
 import { fullQuad, validCrop, validQuad } from './model';
 import { assetUri, storeBlob } from './assets.web';
 import { quadMapping } from './warp';
+import { recordDerivative } from './sessionFiles';
 
 async function image(asset: DocumentAsset) {
   const element = new Image(); element.src = await assetUri(asset); await element.decode();
@@ -15,7 +16,8 @@ function canvas(w: number, h: number) {
 }
 async function saved(element: HTMLCanvasElement, page: number, pageCount: number): Promise<PageImage> {
   const blob = await new Promise<Blob>((resolve,reject) => element.toBlob(b => b ? resolve(b) : reject(new Error('Could not save the image.')), 'image/png'));
-  return { asset: await storeBlob(blob,'Diagram.png'), width: element.width, height: element.height, page, pageCount };
+  const asset = await storeBlob(blob,'Diagram.png'); recordDerivative(asset.path);
+  return { asset, width: element.width, height: element.height, page, pageCount };
 }
 export async function preparePage(source: DocumentAsset, page: number) {
   if (source.mime === 'application/pdf') throw new Error('PDF page rendering currently needs the rebuilt iPhone app. Import a PNG/JPEG page export here, or save this PDF as a reference.');

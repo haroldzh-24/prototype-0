@@ -146,6 +146,7 @@ function mockedAssets(failMove = false) {
   const filename = require('node:path').resolve(__dirname, '../src/training/videoAssets.ts');
   const module = new (require('node:module'))(filename);
   module.require = id => id === 'expo-file-system' ? { File, Directory, Paths: paths }
+    : id === 'expo-modules-core' ? { requireOptionalNativeModule: () => null }
     : id === 'expo-document-picker' ? { getDocumentAsync: async () => ({ canceled: false, assets: [{ uri: 'file:///cache/source.mp4', name: 'source.mp4', size: 10 }] }) } : require(id);
   module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename);
   return { assets: module.exports, files };

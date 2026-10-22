@@ -228,9 +228,41 @@ export class Repository {
   private copyDiagramImports(from: string, to: string) {
     return this.db.runAsync('INSERT INTO diagram_imports (stageId, id, payload) SELECT ?, id, payload FROM diagram_imports WHERE stageId = ?', to, from);
   }
+  /** Valid drafts only; a single damaged draft no longer hides the stage's other references. */
   async loadDiagramImports(stageId: string): Promise<Reconstruction[]> {
-    const rows = await this.db.getAllAsync<{ payload: string }>('SELECT payload FROM diagram_imports WHERE stageId = ? ORDER BY id', stageId);
-    return rows.map(row => { const draft = JSON.parse(row.payload); validateReconstruction(draft); return draft; });
+    return (await this.loadDiagramImportsReport(stageId)).drafts;
+  }
+  /** Valid drafts plus the IDs of saved rows that could not be read (left unchanged on disk). */
+  async loadDiagramImportsReport(stageId: string): Promise<{ drafts: Reconstruction[]; damagedIds: string[] }> {
+    const rows = await this.db.getAllAsync<{ id: string; payload: string }>('SELECT id, payload FROM diagram_imports WHERE stageId = ? ORDER BY id', stageId);
+    const drafts: Reconstruction[] = [], damagedIds: string[] = [];
+    for (const row of rows) {
+      try { const draft = JSON.parse(row.payload); validateReconstruction(draft); drafts.push(draft); }
+      catch { damagedIds.push(row.id); }
+    }
+    return { drafts, damagedIds };
+  }
+  /** Removes one saved reference (valid or damaged) from a stage. Files are cleaned up by the caller. */
+  async deleteDiagramImport(stageId: string, id: string): Promise<void> {
+    await this.serializeWrite(() => this.db.runAsync('DELETE FROM diagram_imports WHERE stageId = ? AND id = ?', stageId, id));
+  }
+  /**
+   * Every document path referenced by any saved draft on any stage. Originals are shared when stages are duplicated,
+   * so a file may be deleted only when no draft anywhere still references it.
+   */
+  async diagramAssetPathsInUse(): Promise<Set<string>> {
+    const rows = await this.db.getAllAsync<{ payload: string }>('SELECT payload FROM diagram_imports');
+    const paths = new Set<string>();
+    for (const row of rows) {
+      try {
+        const draft = JSON.parse(row.payload) as Reconstruction;
+        for (const asset of [draft.source, draft.page?.asset, draft.rectified?.asset, draft.aligned?.asset]) if (asset?.path) paths.add(asset.path);
+      } catch {
+        // A damaged row might still reference files: keep everything it mentions.
+        for (const match of row.payload.matchAll(/diagram-imports\/[A-Za-z0-9._-]+/g)) paths.add(match[0]);
+      }
+    }
+    return paths;
   }
   async saveDiagramImport(stageId: string, draft: Reconstruction): Promise<void> {
     validateReconstruction(draft);
@@ -239,7 +271,7 @@ export class Repository {
     await this.serializeWrite(async () => {
       await this.loadStage(stageId);
       const count = await this.db.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM diagram_imports WHERE stageId = ? AND id != ?', stageId, draft.id);
-      if ((count?.count ?? 0) >= 20) throw new Error('This stage already has 20 document references.');
+      if ((count?.count ?? 0) >= 20) throw new Error('This stage already has 20 document references. Delete one to save another.');
       await this.db.runAsync('INSERT INTO diagram_imports (stageId, id, payload) VALUES (?, ?, ?) ON CONFLICT(stageId, id) DO UPDATE SET payload = excluded.payload', stageId, draft.id, payload);
     });
   }
@@ -271,6 +303,26 @@ export class Repository {
     return { ...record, videos };
   }
   saveTraining(record: TrainingRecord): Promise<void> { return this.writeTraining(record); }
+  /**
+   * Deletes one training session and, in the same transaction, withdraws every profile measurement contributed from
+   * it. Video files are app-owned copies; the caller removes them after this commits.
+   */
+  deleteTraining(id: string): Promise<void> {
+    const work = this.trainingWrites.then(async () => {
+      await this.db.execAsync('BEGIN TRANSACTION;');
+      try {
+        const profile = await this.loadProfile();
+        const observations = profile.performanceObservations ?? [];
+        const remaining = observations.filter(o => o.trainingSessionId !== id);
+        if (remaining.length !== observations.length)
+          await this.persistProfile(withVideoObservations(profile, remaining, profile.calibrationContext ?? 'LIVE_FIRE'));
+        await this.db.runAsync('DELETE FROM training WHERE id = ?', id);
+        await this.db.execAsync('COMMIT;');
+      } catch (error) { await this.db.execAsync('ROLLBACK;'); throw error; }
+    });
+    this.trainingWrites = work.catch(() => {});
+    return work;
+  }
   /** Explicit contribution is atomic with annotation persistence, and idempotent by measurement ID. */
   contributeTrainingVideo(record: TrainingRecord, videoId: string): Promise<void> { return this.writeTraining(record, videoId); }
   private writeTraining(input: TrainingRecord, contributeId?: string): Promise<void> {

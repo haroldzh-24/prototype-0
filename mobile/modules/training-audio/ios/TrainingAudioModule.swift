@@ -2,6 +2,19 @@ import ExpoModulesCore
 import AVFoundation
 import AudioToolbox
 
+/// Floats in [-1, 1] to base64 little-endian signed 16-bit PCM. Non-finite samples become silence.
+private func pcm16Base64(_ samples: [Float]) -> String {
+  var data = Data(count: samples.count * 2)
+  data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) in
+    let out = raw.bindMemory(to: Int16.self)
+    for i in 0..<samples.count {
+      let v = samples[i].isFinite ? max(-1, min(1, samples[i])) : 0
+      out[i] = Int16(v * 32767).littleEndian
+    }
+  }
+  return data.base64EncodedString()
+}
+
 public final class TrainingAudioModule: Module {
   private let lock = NSLock()
   private var cancelled = Set<String>()
@@ -88,7 +101,7 @@ public final class TrainingAudioModule: Module {
     var warnings: [String] = durationMs > limitMs ? ["Duration limit reached; only the first \(Int(limitMs / 1000)) seconds were analyzed."] : []
     let tracks = asset.tracks(withMediaType: .audio)
     guard let track = tracks.first else {
-      return ["samples": [Float](), "sampleRate": rate, "offsetMs": 0,
+      return ["pcm16": "", "sampleRate": rate, "offsetMs": 0,
         "durationMs": duration, "warnings": warnings, "noAudio": true]
     }
     if tracks.count > 1 { warnings.append("Multiple audio tracks: only the first track was analyzed.") }
@@ -147,7 +160,8 @@ public final class TrainingAudioModule: Module {
     try checkCancellation(jobId)
     guard reader.status == .completed else { throw failure("Audio decode failed: \(reader.error?.localizedDescription ?? "incomplete stream")") }
     if !decoded { warnings.append("Audio track contains no samples in the analyzed interval.") }
-    return ["samples": samples, "sampleRate": rate, "offsetMs": 0,
+    // Compact transfer: base64 little-endian Int16 PCM instead of a large JS number array.
+    return ["pcm16": pcm16Base64(samples), "sampleRate": rate, "offsetMs": 0,
       "durationMs": duration, "warnings": warnings, "noAudio": false]
   }
 }

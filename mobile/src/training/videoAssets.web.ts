@@ -7,7 +7,8 @@ export async function assetExists(uri: string) { return currentAssets.has(uri); 
 export function discardVideoAsset(asset: VideoSession['asset']) {
   if (currentAssets.delete(asset.uri)) URL.revokeObjectURL(asset.uri);
 }
-export async function importVideoAsset(_id: string): Promise<VideoSession['asset'] | null> {
+/** Browsers have no separate photo picker; both sources use the browser file chooser. */
+export async function importVideoAsset(_id: string, _from: 'files' | 'photos' = 'files'): Promise<VideoSession['asset'] | null> {
   const result = await DocumentPicker.getDocumentAsync({ type: 'video/*', multiple: false, base64: false });
   if (result.canceled) return null;
   const picked = result.assets[0];
