@@ -1,10 +1,28 @@
-import type { RouteSolverInput, RouteSolverResult, Diagnostics } from './types';
+import type { RouteSolverInput, RouteSolverResult, Diagnostics, RouteCandidate, Geometry } from './types';
 import { stageGeometry } from './stageGeometry';
 import { navigationGraph } from './navigationGraph';
 import { orderRoute } from './routeOrdering';
 import { scoreRoute, compareRoutes } from './scoring';
-import { isPointTraversable, isSegmentTraversable, distanceBetweenPoints, project } from './traversability';
-export const SOLVER_VERSION='1.0.0';
+import { isPointTraversable, isSegmentTraversable, distanceBetweenPoints, project, inside, strictlyInside, nudgeInside, visited } from './traversability';
+export const SOLVER_VERSION='1.1.0';
+/**
+ * A waypoint the search places exactly on a required area's boundary counts as inside for travel but outside for
+ * shooting (see strictlyInside). Step such waypoints a little inward so a stationary engagement there is legal.
+ * A step is kept only when both adjoining segments stay traversable and every visited area remains visited.
+ */
+export function settleInsideAreas(c: RouteCandidate, g: Geometry): RouteCandidate {
+  const points=c.waypoints.map(p=>({...p}));let moved=false;
+  for(let i=1;i<points.length;i++)for(const area of g.requiredAreas){
+    if(area.polygon.length<3||!inside(points[i],area.polygon)||strictlyInside(points[i],area.polygon))continue;
+    const q=nudgeInside(points[i],area.polygon);if(!q)continue;
+    const trial=points.map((p,j)=>j===i?q:p);
+    const traversable=isSegmentTraversable(points[i-1],q,g)&&(i===points.length-1||isSegmentTraversable(q,points[i+1],g));
+    if(traversable&&c.requiredAreasVisited.every(id=>visited(trial,g.requiredAreas).includes(id))){points[i]=q;moved=true;}
+  }
+  if(!moved)return c;
+  const distance=points.slice(1).reduce((n,p,i)=>n+distanceBetweenPoints(points[i],p),0);
+  return {...c,waypoints:points,totalDistanceInches:distance,score:distance};
+}
 export function solveRoute(input: RouteSolverInput): RouteSolverResult {
   const started=Date.now();
   const diagnostics:Diagnostics={solverVersion:SOLVER_VERSION,rawFaultSegmentCount:0,interpretedFaultRegionCount:0,endpointMerges:0,inferredGapClosures:0,graphNodeCount:0,graphEdgeCount:0,searchIterations:0,routesEvaluated:0,prunedCandidates:0,waypointReductions:0,finalDistance:null,solveDurationMs:0,warnings:[],unresolvedRequiredAreas:[]};
@@ -19,7 +37,8 @@ export function solveRoute(input: RouteSolverInput): RouteSolverResult {
   if(input.stage.objects.length>512||input.requiredAreas.length>32||input.requiredAreas.some(a=>a.polygon.length>64)||[...(input.barriers??[]),...(input.restrictedRegions??[])].some(b=>b.polygon.length>64)||(input.allowedTravelRegions?.some(r=>r.length>64))||input.requiredAreas.reduce((n,a)=>n+a.polygon.length,0)+[...(input.barriers??[]),...(input.restrictedRegions??[])].reduce((n,b)=>n+b.polygon.length,0)+(input.allowedTravelRegions?.reduce((n,r)=>n+r.length,0)??0)>256) {diagnostics.warnings.push('Geometry intake limit exceeded.');return finish('limit');}
   const g=stageGeometry(input,diagnostics);
   g.requiredAreas.sort((a,b)=>a.id.localeCompare(b.id));
-  if(!isPointTraversable(g.start,g)){diagnostics.warnings.push('Start is outside the stage or blocked.');return finish('invalid-input');}
+  if(g.allowedTravelRegions&&!g.allowedTravelRegions.length){diagnostics.warnings.push('Outside travel is off, but no firing areas are configured to travel within. Add a firing area or allow outside travel.');return finish('invalid-input');}
+  if(!isPointTraversable(g.start,g)){diagnostics.warnings.push(g.allowedTravelRegions&&!g.allowedTravelRegions.some(r=>inside(g.start,r))?'Start is outside every firing area while outside travel is off. Allow outside travel or extend a firing area to the start.':'Start is outside the stage or blocked.');return finish('invalid-input');}
   const graph=navigationGraph(g,Math.min(512,options.maxNodes??512),diagnostics);
   if(!graph)return finish('limit');
   const limit=Math.min(200000,options.maxSearchIterations??100000),exactLimit=options.exactAreaLimit??8;
@@ -38,6 +57,7 @@ export function solveRoute(input: RouteSolverInput): RouteSolverResult {
     const same=(a:typeof candidate,b:typeof candidate)=>a.waypoints.every(p=>nearPath(p,b.waypoints))&&b.waypoints.every(p=>nearPath(p,a.waypoints));
     if(!candidate.requiredAreasMissed.length&&!candidates.some(c=>same(c,candidate)))candidates.push(candidate);else diagnostics.prunedCandidates++;
   }
+  for(let i=0;i<candidates.length;i++)candidates[i]=settleInsideAreas(candidates[i],g);
   candidates.sort(compareRoutes);
   if(diagnostics.searchIterations>=limit)diagnostics.warnings.push('Alternative comparison stopped at the search limit.');
   return finish('success',{...candidates[0],id:'route-best'},candidates.slice(1,requested+1).map((route,i)=>({...route,id:`route-alternative-${i+1}`})));

@@ -1,7 +1,7 @@
 import type { StageRoute } from '../route';
 import { solveRoute } from '../routeSolver/solveRoute';
 import { assistantSolverCache } from './solverCache';
-import { candidateToStageRoute } from '../routeSolver/adoption';
+import { candidateToStageRoute, pruneRouteReferences } from '../routeSolver/adoption';
 import type { RouteSolverInput, Barrier } from '../routeSolver/types';
 import { project, distanceBetweenPoints } from '../routeSolver/traversability';
 import type { RouteAssistantContext, RouteAssistantCommand, RouteAssistantResult, RouteQuery } from './types';
@@ -86,6 +86,8 @@ export function executeRouteAssistantCommand(c: RouteAssistantContext, command: 
     if(!history||fingerprint(history.document.present)!==fingerprint({stage:c.stage,plan:c.plan}))return error('HISTORY_UNAVAILABLE');
     const previous=previousRoute(history,command.type==='UNDO_LAST_ASSISTANT_CHANGE');if(!previous)return error('NO_PREVIOUS_ROUTE');route=previous;
   }
+  // Waypoint edits can break bends (connections) and ENGAGE anchors; drop the ones that no longer fit.
+  if(command.type==='ADD_WAYPOINT'||command.type==='DELETE_WAYPOINT'||command.type==='REORDER_WAYPOINT')route=pruneRouteReferences(route);
   const invalid=validateRoute(c,route);if(invalid)return error(invalid);
   const delta=Q.compareRoutes(c,c.route,route,constraints),h=Q.emptyHighlights();
   h.waypointIds=[...new Set([...delta.geometryChanges.added,...delta.geometryChanges.removed,...delta.geometryChanges.moved])];

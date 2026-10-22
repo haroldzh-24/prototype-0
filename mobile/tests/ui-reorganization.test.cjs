@@ -214,12 +214,12 @@ test('selected object opens existing inspector and keeps contextual duplicate/de
   assert.ok(h.nodes().some(n => n.props.title === 'DUPLICATE')); assert.ok(h.nodes().some(n => n.props.title === 'DELETE'));
 });
 test('empty route PLAN exposes prerequisites without leaving ROUTE', () => {
-  const h = initial(); h.press('ROUTE'); h.press('PLAN ROUTE');
+  const h = initial(); h.press('ROUTE'); h.press('OPTIMIZE MOVEMENT');
   for (const section of ['loadout', 'targets', 'rules']) {
     h.child('AutoPlannerPanel').onConfigure(section); h.render();
     assert.equal(h.child('StageViewport').routeEditing, true);
     assert.equal(h.saved.length, 0);
-    if (section === 'rules') assert.ok(h.child('EngagementSettings')); else { assert.equal(h.child('PlanningPanel').section, section); h.press('Back to PLAN ROUTE'); }
+    if (section === 'rules') assert.ok(h.child('EngagementSettings')); else { assert.equal(h.child('PlanningPanel').section, section); h.press('Back to MOVEMENT OPTIMIZER'); }
   }
 });
 test('EDIT controls, waypoint sheet and reload share the existing route state', () => {
@@ -260,10 +260,10 @@ test('planner results adopt empty routes directly and confirm meaningful replace
     const document = stage(), savedPlan = plan(existing);
     const h = harness('planning/AutoPlannerPanel.tsx', { stage: document, plan: savedPlan, profile: null, preview: null, discoveryPreview: false, discoverySession: null, onClose() {}, onUse: value => adopted = value, onConfigure() {}, onDiscovery() {} }, {
       './routeSolver/solveRoute': { solveRoute: () => ({ status: 'success', bestRoute: { id: 'best' }, alternatives: [] }) },
-      './routeSolver/adoption': { solverInputFromPlan: () => ({ start: { x: 0, y: 0 }, requiredAreas: [] }), solverPreviewCard: () => card },
+      './routeSolver/adoption': { solverInputFromPlan: () => ({ start: { x: 0, y: 0 }, requiredAreas: [] }), solverPreviewCard: () => card, adoptionLosses: () => ({ waypoints: 0, reloads: 0, bends: 0, engageArrows: 0 }) },
       './plannerUI': { copyPlannerRoute },
     });
-    h.press('GENERATE ROUTE'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
+    h.press('OPTIMIZE MOVEMENT'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
     assert.ok(h.nodes().some(n => n.props.children === 'ROUTE FOUND')); h.press('USE ROUTE');
     if (existing.positions.length) { assert.equal(adopted, undefined); h.press('Confirm replacement'); }
     assert.deepEqual(adopted.route, candidate); assert.notEqual(adopted.route, candidate); assert.equal(h.saved.length, 0);
@@ -281,9 +281,10 @@ test('PLAN executes real offline solve, previews it and adopts an editable route
   savedPlan.route.engagementRules = { ...defaultEngagementRules(), firingAreas: [{ id: 'required', vertices: [{ x: 180, y: 90 }, { x: 200, y: 90 }, { x: 200, y: 110 }, { x: 180, y: 110 }] }] };
   let adopted, preview;
   const h = harness('planning/AutoPlannerPanel.tsx', { stage: document, plan: savedPlan, profile: null, preview: null, discoveryPreview: false, discoverySession: null, onClose() {}, onUse: value => adopted = value, onPreview: value => preview = value, onConfigure() {}, onDiscovery() {} });
-  h.press('GENERATE ROUTE'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
-  h.press('VIEW ON STAGE'); assert.equal(preview.routeStyle, 'GEOMETRY'); assert.equal(preview.movementDistance, 140);
-  h.press('USE ROUTE'); assert.ok(isStageRoute(adopted.route)); assert.equal(adopted.route.positions[0].position.x, 180); assert.equal(h.saved.length, 0);
+  h.press('OPTIMIZE MOVEMENT'); await new Promise(resolve => setTimeout(resolve, 80)); h.render();
+  h.press('VIEW ON STAGE'); assert.equal(preview.routeStyle, 'GEOMETRY'); assert.equal(preview.movementDistance, 140.5);
+  // The stop settles 0.5 in inside the firing area so a stationary shot there is legal.
+  h.press('USE ROUTE'); assert.ok(isStageRoute(adopted.route)); assert.equal(adopted.route.positions[0].position.x, 180.5); assert.equal(h.saved.length, 0);
   assert.equal(savedPlan.route.positions.length, 0);
 });
 
@@ -329,7 +330,7 @@ test('structured firing area fields retain yard parsing and reject incomplete co
 });
 
 test('candidate preview omits editable-route Save and Back returns to results', () => {
-  const h = initial(route()); h.press('ROUTE'); h.press('PLAN');
+  const h = initial(route()); h.press('ROUTE'); h.press('OPTIMIZE');
   h.child('AutoPlannerPanel').onPreview({ route: route(), number: 1, label: 'Candidate' }); h.render();
   assert.ok(!h.nodes().some(n => n.props.title === 'Save'));
   h.press('Back to results'); assert.equal(h.child('AutoPlannerPanel').preview, null); assert.equal(h.saved.length, 0);

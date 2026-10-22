@@ -5,6 +5,8 @@ import { isEngageable } from './model';
 import type { StageRoute, ShootingPosition } from './route';
 import { hasLineOfSight, isPointInsideAllowedArea } from './positionDiscovery';
 import { formatYardsFixed } from '../stage/measurements';
+import { strictlyInside } from './routeSolver/traversability';
+import { stageDownrange } from '../stage/orientation';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -36,9 +38,17 @@ export function engagementLabel(index: number): string {
   let label = ''; for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) label = String.fromCharCode(65 + (n - 1) % 26) + label;
   return label;
 }
-export function defaultEngagementRules(): EngagementRules {
+/** Safe direction defaults to the stage's downrange (up the screen when no stage is given). */
+export function defaultEngagementRules(stage?: Pick<StageDocument, 'downrangeDegrees'>): EngagementRules {
   return { version: 1, ruleset: 'USPSA', sampleSpacingInches: 2, firingAreas: [], allowOutsideTravel: true,
-    allowMoving: true, safeDirectionDegrees: -90, safeHalfAngleDegrees: 90, targetProcedures: {} };
+    allowMoving: true, safeDirectionDegrees: stage ? signedDegrees(stageDownrange(stage)) : -90, safeHalfAngleDegrees: 90, targetProcedures: {} };
+}
+/** -180..180 form, matching how directions have always been entered (0 right, 90 down, -90 up). */
+export const signedDegrees = (degrees: number) => { const n = ((degrees % 360) + 360) % 360; return n > 180 ? n - 360 : n; };
+/** True when the configured safe direction differs from the stage's downrange by more than a degree. */
+export function safeDirectionMismatch(stage: Pick<StageDocument, 'downrangeDegrees'>, rules: Pick<EngagementRules, 'safeDirectionDegrees'>): boolean {
+  const delta = Math.abs(((rules.safeDirectionDegrees - stageDownrange(stage)) % 360 + 540) % 360 - 180);
+  return delta > 1;
 }
 export function validEngagementRules(value: unknown): value is EngagementRules {
   const r = value as EngagementRules;
@@ -53,16 +63,9 @@ export function validEngagementRules(value: unknown): value is EngagementRules {
     && Object.values(r.targetProcedures).every(p => p && (p.stationaryOnly === undefined || typeof p.stationaryOnly === 'boolean')
       && [p.areaIds, p.afterTargetIds].every(ids => ids === undefined || (Array.isArray(ids) && ids.length <= 64 && ids.every(id => typeof id === 'string'))));
 }
-/** Boundary counts as outside: avoid assigning a shot exactly on a fault line. */
+/** Boundary counts as outside: avoid assigning a shot exactly on a fault line. Shared with the route solver. */
 export function insideArea(p: { x: number; y: number }, area: FiringArea): boolean {
-  let inside = false;
-  for (let i = 0, j = area.vertices.length - 1; i < area.vertices.length; j = i++) {
-    const a = area.vertices[j], b = area.vertices[i];
-    const cross = (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
-    if (Math.abs(cross) < 1e-7 && p.x >= Math.min(a.x, b.x) && p.x <= Math.max(a.x, b.x) && p.y >= Math.min(a.y, b.y) && p.y <= Math.max(a.y, b.y)) return false;
-    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
-  }
-  return inside;
+  return strictlyInside(p, area.vertices);
 }
 type Wall = Extract<StageObject, { type: 'wall' }>;
 function center(target: StageObject) { const o = footprintCenterOffset(target); return { ...target.position, x: target.position.x + o.x, y: target.position.y + o.y }; }

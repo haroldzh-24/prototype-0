@@ -4,13 +4,14 @@ import { Action, Copy, Notice, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
 import { inchesToYards, yardsToInches } from '../stage/measurements';
 import { isEngageable, targetLabel } from './model';
-import { defaultEngagementRules, validEngagementRules } from './engagements';
+import { defaultEngagementRules, safeDirectionMismatch, signedDegrees, validEngagementRules } from './engagements';
+import { downrangeLabel, stageDownrange } from '../stage/orientation';
 import type { EngagementRules, FiringArea } from './engagements';
 
 /** Stage-brief authoring. Coordinate pairs are physical yards, not screen pixels. */
 export default function EngagementSettings({ stage, initial, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
   const [section, setSection] = useState<'areas' | 'safety' | 'targets' | null>(null), [advanced, setAdvanced] = useState(false);
-  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules());
+  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules(stage));
   const [spacing, setSpacing] = useState(String(rules.sampleSpacingInches));
   const [direction, setDirection] = useState(String(rules.safeDirectionDegrees));
   const [angle, setAngle] = useState(String(rules.safeHalfAngleDegrees));
@@ -35,12 +36,15 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
     <Action title={`Moving engagement: ${rules.allowMoving ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowMoving: !rules.allowMoving })} />
     <Action title={`Travel outside areas: ${rules.allowOutsideTravel ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowOutsideTravel: !rules.allowOutsideTravel })} />
     <Action title={'FIRING AREAS / ' + areas.length + ' areas >'} onPress={() => setSection(section === 'areas' ? null : 'areas')} />
-    <Action title={'SAFETY / Downrange ' + direction + ' degrees / Safety angle ' + angle + ' degrees >'} onPress={() => setSection(section === 'safety' ? null : 'safety')} />
+    <Action title={'SAFE-ANGLE CHECK (simplified) / ' + direction + '° ± ' + angle + '° >'} onPress={() => setSection(section === 'safety' ? null : 'safety')} />
     <Action title={'TARGET PROCEDURES / ' + Object.keys(rules.targetProcedures).length + ' customized >'} onPress={() => setSection(section === 'targets' ? null : 'targets')} />
     {section === 'safety' && <>
-    <Copy>Safe direction in degrees: 0 = right, 90 = down, -90 = up.</Copy>
+    <Notice>Simplified check: it compares the direction from each shooting spot to the target centre against this angle. It does not check muzzle direction while moving, reloading or drawing, and it is not proof of 180-degree rule compliance.</Notice>
+    <Copy>Safe direction in degrees: 0 = right, 90 = down, -90 = up. Stage downrange is {downrangeLabel(stageDownrange(stage)).toLowerCase()} ({signedDegrees(stageDownrange(stage))}°).</Copy>
+    {Number.isFinite(Number(direction)) && direction.trim() !== '' && safeDirectionMismatch(stage, { safeDirectionDegrees: Number(direction) }) && <Notice>This safe direction differs from the stage's downrange.</Notice>}
+    <Action title="Use stage downrange" onPress={() => setDirection(String(signedDegrees(stageDownrange(stage))))} />
     <TextInput accessibilityLabel="Safe direction degrees" style={ui.input} value={direction} onChangeText={setDirection} />
-    <Copy>Safe half angle in degrees (90 gives a 180-degree limit).</Copy>
+    <Copy>Safe half angle in degrees (90 means ±90° from downrange, the usual 180-degree limit).</Copy>
     <TextInput accessibilityLabel="Safe half angle degrees" style={ui.input} value={angle} onChangeText={setAngle} />
     </>}
     <Action title={advanced ? "ADVANCED <" : "ADVANCED >"} onPress={() => setAdvanced(!advanced)} />

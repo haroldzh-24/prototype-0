@@ -24,6 +24,39 @@ export function inside(p: Point, polygon: readonly Point[]): boolean {
   }
   return hit;
 }
+/**
+ * Shooting-position membership: a point exactly on the boundary is OUTSIDE, so a shot is never assigned on a fault
+ * line. Travel uses `inside` (boundary counts as inside); legality and stationary engagements use this.
+ */
+export function strictlyInside(p: Point, polygon: readonly Point[]): boolean {
+  if (polygon.length < 3) return false;
+  let hit = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[j], b = polygon[i];
+    const c = (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
+    if (Math.abs(c) < EPS && p.x >= Math.min(a.x, b.x) && p.x <= Math.max(a.x, b.x) && p.y >= Math.min(a.y, b.y) && p.y <= Math.max(a.y, b.y)) return false;
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) hit = !hit;
+  }
+  return hit;
+}
+/** Steps inward from a boundary point along the nearest edge's inward normal; null if no small step lands strictly inside. */
+export function nudgeInside(p: Point, polygon: readonly Point[], steps: readonly number[] = [0.5, 1, 2, 3]): Point | null {
+  if (polygon.length < 3 || strictlyInside(p, polygon)) return null;
+  let nearest: { a: Point; b: Point; d: number } | null = null;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i], b = polygon[(i + 1) % polygon.length], d = distanceBetweenPoints(p, project(p, a, b));
+    if (!nearest || d < nearest.d) nearest = { a, b, d };
+  }
+  if (!nearest || nearest.d > 1e-3) return null; // only boundary points are nudged
+  const len = distanceBetweenPoints(nearest.a, nearest.b);
+  if (len < EPS) return null;
+  const n = { x: -(nearest.b.y - nearest.a.y) / len, y: (nearest.b.x - nearest.a.x) / len };
+  for (const step of steps) for (const sign of [1, -1]) {
+    const q = { x: p.x + sign * n.x * step, y: p.y + sign * n.y * step };
+    if (strictlyInside(q, polygon)) return q;
+  }
+  return null;
+}
 export const edges = (polygon: readonly Point[]) => polygon.map((a,i)=>({a,b:polygon[(i+1)%polygon.length]}));
 export function segmentIntersectsRestrictedRegion(a: Point,b: Point,region: Barrier,clearance=0): boolean {
   if(inside(a,region.polygon)||inside(b,region.polygon)) return true;

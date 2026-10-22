@@ -6,6 +6,7 @@ require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f
 const {solveRoute}=require('../src/planning/routeSolver/solveRoute.ts');
 const {stageGeometry}=require('../src/planning/routeSolver/stageGeometry.ts');
 const T=require('../src/planning/routeSolver/traversability.ts');
+const {strictlyInside}=T;
 const {reduceWaypoints}=require('../src/planning/routeSolver/scoring.ts');
 const {candidateToStageRoute,solverInputFromPlan}=require('../src/planning/routeSolver/adoption.ts');
 const {createPlan}=require('../src/planning/model.ts');
@@ -24,11 +25,13 @@ function valid(i,r){assert.equal(r.status,'success');const g=geometry(i);r.bestR
 test('straight unobstructed route uses physical distance',()=>{const i=input(),r=solveRoute(i);valid(i,r);assert.equal(r.bestRoute.totalDistanceInches,160);assert.equal(r.bestRoute.waypointCount,1);});
 test('wall detour cannot cross solid footprint and explains corners',()=>{const i=wall(input()),r=solveRoute(i);valid(i,r);assert.ok(r.bestRoute.totalDistanceInches>160);assert.ok(r.bestRoute.waypointCount>=3);assert.ok(r.bestRoute.explanationData.some(e=>e.barrierIds?.includes('wall')));});
 test('stage boundaries reject outside start and outside goals',()=>{const i=input();i.start=p(-1,10);assert.equal(solveRoute(i).status,'invalid-input');assert.equal(solveRoute(input([exact('outside',250,100)])).status,'unreachable');});
-test('required polygon chooses near boundary rather than preferred center',()=>{const i=input([area('a',100,90)]);i.requiredAreas[0].preferredPoint=p(110,100);const r=solveRoute(i);assert.equal(r.bestRoute.totalDistanceInches,80);assert.deepEqual(r.bestRoute.requiredAreasVisited,['a']);});
+test('required polygon chooses near boundary rather than preferred center',()=>{const i=input([area('a',100,90)]);i.requiredAreas[0].preferredPoint=p(110,100);const r=solveRoute(i);
+  // The nearest boundary point is 80 in away; the stop settles 0.5 in inside so a stationary shot there is legal.
+  assert.equal(r.bestRoute.totalDistanceInches,80.5);assert.deepEqual(r.bestRoute.requiredAreasVisited,['a']);assert.ok(strictlyInside(r.bestRoute.waypoints.at(-1),i.requiredAreas[0].polygon));});
 test('multiple required regions are all visited',()=>{const i=input([area('a',80,20),area('b',150,140),area('c',200,20)]),r=solveRoute(i);valid(i,r);assert.equal(r.bestRoute.requiredAreasVisited.length,3);});
 test('ordering is independent of caller creation order',()=>{const i=input([exact('far',180,100),exact('near',70,100)]),a=solveRoute(i);i.requiredAreas.reverse();const b=solveRoute(i);assert.deepEqual(a.bestRoute.waypoints,b.bestRoute.waypoints);assert.equal(a.bestRoute.totalDistanceInches,160);});
 test('reduction removes collinear noise while preserving traversability and coverage',()=>{const i=input(),g=geometry(i),d=diag();assert.deepEqual(reduceWaypoints([i.start,p(50,100),p(80,100),p(180,100)],g,d),[i.start,p(180,100)]);assert.equal(d.waypointReductions,2);});
-test('overlapping required polygons share a single visit',()=>{const i=input([area('a',80,90,50,30),area('b',100,90,50,30)]),r=solveRoute(i);valid(i,r);assert.equal(r.bestRoute.waypointCount,1);assert.equal(r.bestRoute.totalDistanceInches,80);});
+test('overlapping required polygons share a single visit',()=>{const i=input([area('a',80,90,50,30),area('b',100,90,50,30)]),r=solveRoute(i);valid(i,r);assert.equal(r.bestRoute.waypointCount,1);assert.equal(r.bestRoute.totalDistanceInches,80.5);assert.ok(i.requiredAreas.every(a=>strictlyInside(r.bestRoute.waypoints.at(-1),a.polygon)));});
 test('unreachable required region returns structured failure',()=>{const i=wall(input(),physical(100,0),physical(100,200)),r=solveRoute(i);assert.equal(r.status,'unreachable');assert.equal(r.bestRoute,null);assert.deepEqual(r.diagnostics.unresolvedRequiredAreas,['goal']);});
 const rectangle=[p(40,40),p(140,40),p(140,140),p(40,140),p(40,40)];
 test('slightly separated fault endpoints merge without changing stage',()=>{const i=faults(rectangle,1),before=JSON.stringify(i.stage),r=solveRoute(i);assert.equal(r.diagnostics.interpretedFaultRegionCount,1);assert.ok(r.diagnostics.endpointMerges>0);assert.equal(JSON.stringify(i.stage),before);});

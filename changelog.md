@@ -1,3 +1,15 @@
+# RC2 batch 2: honest movement optimizer and planner fixes - 2026-10-22
+
+- PLAN is now the **Movement optimizer** (buttons OPTIMIZE / OPTIMIZE MOVEMENT). The sheet states it optimizes movement only and does not check targets, line of sight or safe angles.
+- The safety setting is now **Safe-angle check (simplified)**, with a notice that it is not 180-degree compliance and does not check muzzle direction while moving, reloading or drawing. New rules default the safe direction to the stage's downrange; a notice appears when they differ, with a "Use stage downrange" action.
+- Solver stops that landed exactly on a firing-area edge (legal for travel, illegal for shooting) now settle 0.5 in inside when the path stays clear, so a stationary engagement there passes the legality check. The solver and legality check now share one strict-inside test. Solver version 1.1.0.
+- "Use Route" keeps coincident waypoints whole (ID, label, target assignments, moving engagements) and keeps reloads, bends and ENGAGE arrows wherever their waypoints and adjacency survive. Replacing a route lists exactly what would be dropped.
+- Route AI reorder/delete on routes with bends no longer fail validation: stale bends and ENGAGE arrows are pruned.
+- Specific solver errors when outside travel is off and no firing area exists or the start is outside every firing area.
+- Route header separates planned targets from targets that pass checks (ENGAGE arrows are never counted as checked); the waypoint panel no longer double-counts moving engagements.
+- Added the full-size 42-inch USPSA popper preset (manufacturer-sourced; recorded in docs/target-preset-sources.md with the rulebook review notes).
+- Validation: 812/812 tests (10 new in `tests/plannerFixes.test.cjs`), TypeScript passed. No device testing.
+
 # RC2 batch 1: stage correctness, downrange, cleanup - 2026-10-22
 
 - Fixed unit entry: `36in`, `5ft` and similar values typed without a space were read as yards (36 in became 1296 in). Explicit feet/inch units are now honored with or without a space.
