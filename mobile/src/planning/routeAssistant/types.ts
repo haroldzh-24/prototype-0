@@ -9,7 +9,7 @@ export type RouteAssistantContext = DeepReadonly<{
 }>;
 export type Placement = { kind: 'before' | 'after'; waypointId: string } | { kind: 'between'; fromId: string; toId: string } | { kind: 'nearest' };
 export type RouteQuery =
-  | { type: 'SUMMARY' | 'WAYPOINTS' | 'DISTANCE' | 'REQUIRED_AREAS' | 'ALTERNATIVES' | 'DIAGNOSTICS' }
+  | { type: 'SUMMARY' | 'WAYPOINTS' | 'DISTANCE' | 'REQUIRED_AREAS' | 'ALTERNATIVES' | 'DIAGNOSTICS' | 'PLAN_DIAGNOSTICS' }
   | { type: 'WAYPOINT' | 'EXPLAIN_WAYPOINT'; waypointId: string }
   | { type: 'EXPLAIN_SEGMENT'; fromId: string; toId: string }
   | { type: 'BLOCKING_GEOMETRY'; from: Point; to: Point };

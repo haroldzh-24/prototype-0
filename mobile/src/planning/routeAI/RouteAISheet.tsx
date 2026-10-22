@@ -19,7 +19,8 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
     <StatusBadge label={available?'OFFLINE':state.availability.replaceAll('_',' ')} tone={available?'selected':'warning'} />
     {!available&&<><Notice>{labels[state.availability]}</Notice><Copy>Normal Route Planner remains fully usable.</Copy><Action title="CHECK AGAIN" onPress={()=>void controller.initialize()} /></>}
     {available&&!state.messages.length&&<><Copy>Ask about the current route or propose a waypoint change.</Copy>{quickPrompts.map(prompt=><Action key={prompt} title={prompt} disabled={busy} onPress={()=>void controller.send(prompt)} />)}</>}
-    {state.messages.filter(m=>m.status!=='pending').map(message=><View key={message.id} style={{gap:4}}><StatusBadge label={message.role} /><Copy>{message.text}</Copy></View>)}
+    {available&&!!state.messages.length&&<Copy>AI WORDING replies are written by the on-device model from facts the app computes. Numbers under COMPUTED come directly from the app.</Copy>}
+    {state.messages.filter(m=>m.status!=='pending').map(message=><View key={message.id} style={{gap:4}}><StatusBadge label={message.role==='AI'?'AI WORDING':message.role} /><Copy>{message.text}</Copy></View>)}
     {busy&&<><Loading label={state.phase} /><Action title="CANCEL" onPress={()=>controller.cancel()} /></>}
     {state.error&&<><ErrorState title={state.error} detail={state.details} />{available&&!busy&&!preview&&<Action title="TRY AGAIN" onPress={()=>void controller.retry()} />}</>}
     {state.clarification&&<Panel><Copy>{state.clarification.question}</Copy>{state.clarification.options.map(option=><Action key={option.id} title={option.label} disabled={busy} onPress={()=>void controller.choose(option.id)} />)}</Panel>}
@@ -27,6 +28,7 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
       <StatusBadge label={stale?'ROUTE CHANGED':'PROPOSED CHANGE'} tone={stale?'warning':'selected'} />
       <Copy>{preview.command.type.replaceAll('_',' ')}</Copy>
       {stale?<><Copy>This proposal was based on an earlier route.</Copy><Action title="RECALCULATE" disabled={busy} onPress={()=>void controller.recalculate()} /><Action title="DISMISS" onPress={()=>controller.cancel()} /></>:<>
+        <Copy>COMPUTED BY THE APP</Copy>
         <DataRow label="BEFORE" value={formatYardsFixed(preview.before.distanceInches)} />
         <DataRow label="AFTER" value={formatYardsFixed(preview.after.distanceInches)} />
         <DataRow label="CHANGE" value={formatYardsFixed(preview.delta.distanceDifferenceInches)} />

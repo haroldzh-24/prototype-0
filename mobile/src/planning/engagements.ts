@@ -3,6 +3,7 @@ import type { StageDocument, StageObject } from '../stage/model';
 import { footprint, footprintCenterOffset, segmentRectangleInterval, stageToObjectLocal } from '../stage/geometry';
 import { isEngageable } from './model';
 import type { StageRoute, ShootingPosition } from './route';
+import { connectionPoints } from './routeGeometry';
 import { hasLineOfSight, isPointInsideAllowedArea } from './positionDiscovery';
 import { formatYardsFixed } from '../stage/measurements';
 import { strictlyInside } from './routeSolver/traversability';
@@ -110,6 +111,18 @@ function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, targ
   }
   return [...new Set(values)].sort((x, y) => x - y);
 }
+/** Breaks along a polyline path: each straight piece's breaks offset by the distance walked before it, plus the bends. */
+function pathBreaks(path: StagePosition[], cum: number[], rules: EngagementRules, target?: StageObject, walls: Wall[] = []): number[] {
+  const values = [...cum];
+  for (let i = 1; i < path.length; i++) for (const d of breaks(path[i - 1], path[i], rules, target, walls)) values.push(cum[i - 1] + d);
+  return [...new Set(values)].sort((x, y) => x - y);
+}
+/** Point at distance s along a polyline (clamped to its ends). */
+function along(path: StagePosition[], cum: number[], s: number): StagePosition {
+  if (s <= 0 || path.length < 2) return point(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i++) if (s <= cum[i] + 1e-12) return interpolate(path[i - 1], path[i], s - cum[i - 1]);
+  const last = path[path.length - 1]; return point(last.x, last.y);
+}
 function intervals(cuts: number[], legal: (d: number) => boolean): { start: number; end: number }[] {
   const result: { start: number; end: number }[] = [];
   for (let i = 1; i < cuts.length; i++) {
@@ -142,18 +155,23 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
   const completed = new Set<string>();
   const futureWindows = suggest ? analyzeEngagements(stage, { ...route, positions: route.positions.map(p => ({ ...p, engagedTargetIds: [], movingTargetIds: [] })) }).windows : [];
   const alternatives = targets.map(t => ({ targetId: t.id, stationaryWaypointIds: [] as string[], movingSegmentIds: [] as string[] }));
-  let origin = start.position, budget = 0, geometryWork = 0, reachable = true;
+  let origin = start.position, originId = start.id, budget = 0, geometryWork = 0, reachable = true;
   for (const waypoint of route.positions) {
-    const from = point(origin.x, origin.y), to = waypoint.position, d = length(from, to);
-    origin = to;
+    // Follow the drawn path (bends included), the same path the timing evaluator measures.
+    const from = point(origin.x, origin.y), to = waypoint.position;
+    const path = connectionPoints(route, originId, waypoint.id, from, to).map(p => point(p.x, p.y));
+    const cum = path.reduce<number[]>((acc, p, i) => { acc.push(i ? acc[i - 1] + length(path[i - 1], p) : 0); return acc; }, []);
+    const d = cum[cum.length - 1];
+    const at = (s: number) => along(path, cum, s);
+    origin = to; originId = waypoint.id;
     if (!Number.isFinite(d) || d / rules.sampleSpacingInches > 20000 || (budget += Math.ceil(d / rules.sampleSpacingInches) * Math.max(1, targets.length)) > 250000) {
       result.truncated = true; result.warnings.push('Engagement sample budget reached; remaining route is unverified.'); break;
     }
-    const cuts = breaks(from, to, rules);
-    const inArea = (s: number) => rules.firingAreas.some(a => insideArea(interpolate(from, to, s), a));
+    const cuts = pathBreaks(path, cum, rules);
+    const inArea = (s: number) => rules.firingAreas.some(a => insideArea(at(s), a));
     const noFiringIntervals = intervals(cuts, s => !inArea(s));
-    const wallCollision = walls.some(w => { const size = footprint(w); return !!segmentRectangleInterval(stageToObjectLocal(from, w), stageToObjectLocal(to, w), size.width / 2, size.depth / 2); });
-    const traversable = isPointInsideAllowedArea(from, stage.stage) && isPointInsideAllowedArea(to, stage.stage) && !wallCollision
+    const wallCollision = walls.some(w => { const size = footprint(w); return path.slice(1).some((p, i) => !!segmentRectangleInterval(stageToObjectLocal(path[i], w), stageToObjectLocal(p, w), size.width / 2, size.depth / 2)); });
+    const traversable = path.every(p => isPointInsideAllowedArea(p, stage.stage)) && !wallCollision
       && (rules.allowOutsideTravel || (!noFiringIntervals.length && inArea(0) && inArea(d)));
     reachable &&= traversable;
     result.segments.push({ id: waypoint.id, from, to, distance: d, traversable, noFiringIntervals });
@@ -163,14 +181,14 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
       const alternative = alternatives.find(a => a.targetId === target.id)!;
       if (canFire(to, target, stage, rules, walls, false)) alternative.stationaryWaypointIds.push(waypoint.id);
       if (d > 1e-7 && !route.reloads.some(r => r.positionId === waypoint.id)) {
-        const targetCuts = breaks(from, to, rules, target, walls);
+        const targetCuts = pathBreaks(path, cum, rules, target, walls);
         geometryWork += targetCuts.length * Math.max(1, walls.length);
         if (geometryWork > 1000000) { result.truncated = true; result.warnings.push('Geometry work budget reached; remaining engagements are unverified.'); return result; }
-        const windows = intervals(targetCuts, s => canFire(interpolate(from, to, s), target, stage, rules, walls, true));
+        const windows = intervals(targetCuts, s => canFire(at(s), target, stage, rules, walls, true));
         if (windows.length) alternative.movingSegmentIds.push(waypoint.id);
         if (!completed.has(target.id)) for (const w of windows) local.push({ targetId: target.id, routeSegmentId: waypoint.id,
-          startDistanceAlongSegment: w.start, endDistanceAlongSegment: w.end, startPosition: interpolate(from, to, w.start), endPosition: interpolate(from, to, w.end),
-          preferredEngagementPosition: interpolate(from, to, (w.start + w.end) / 2), legalWhileMoving: true });
+          startDistanceAlongSegment: w.start, endDistanceAlongSegment: w.end, startPosition: at(w.start), endPosition: at(w.end),
+          preferredEngagementPosition: at((w.start + w.end) / 2), legalWhileMoving: true });
       }
     }
     result.windows.push(...local);
@@ -178,7 +196,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
     if (!suggest && ids.some((id, i) => waypoint.movingTargetIds?.includes(id) && ids.slice(0, i).some(previous => !waypoint.movingTargetIds?.includes(previous)))) {
       result.warnings.push(`${waypoint.label}: moving engagements must precede stationary arrival engagements.`); continue;
     }
-    let cursor = 0, lastAngle = Math.atan2(to.y - from.y, to.x - from.x);
+    let cursor = 0, lastAngle = Math.atan2(path[1 % path.length].y - from.y, path[1 % path.length].x - from.x);
     const pending = [...ids];
     let movingIndex = 0;
     while (pending.length) {
@@ -187,7 +205,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
         if (!suggest && !waypoint.movingTargetIds?.includes(id)) return [];
         return local.filter(w => w.targetId === id && w.endDistanceAlongSegment >= cursor).map(w => {
           const distance = Math.max(cursor, w.startDistanceAlongSegment + Math.min(0.01, (w.endDistanceAlongSegment - w.startDistanceAlongSegment) / 2));
-          const position = interpolate(from, to, distance), target = targets.find(t => t.id === id)!;
+          const position = at(distance), target = targets.find(t => t.id === id)!;
           const angle = Math.atan2(target.position.y - position.y, target.position.x - position.x);
           return { w, distance, position, angle, turn: Math.abs(Math.atan2(Math.sin(angle - lastAngle), Math.cos(angle - lastAngle))) };
         });

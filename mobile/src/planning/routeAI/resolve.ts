@@ -64,6 +64,7 @@ export function resolveDecision(c:RouteAssistantContext,d:Decision,newId:string)
     case 'QUERY_WAYPOINTS':return {command:{type:'ANSWER_ONLY',query:{type:'WAYPOINTS'}}};
     case 'QUERY_ROUTE_SUMMARY':return {command:{type:'ANSWER_ONLY',query:{type:'SUMMARY'}}};
     case 'QUERY_AREAS':return {command:{type:'ANSWER_ONLY',query:{type:'REQUIRED_AREAS'}}};
+    case 'QUERY_PLAN':return {command:{type:'ANSWER_ONLY',query:{type:'PLAN_DIAGNOSTICS'}}};
     case 'QUERY_WAYPOINT':case 'QUERY_EXPLANATION':return {command:{type:'ANSWER_ONLY',query:{type:d.intent==='QUERY_WAYPOINT'?'WAYPOINT':'EXPLAIN_WAYPOINT',waypointId:id!}}};
     case 'QUERY_LONGEST_SEGMENT':{
       let longest=-1,fromId='START',toId='';let previous='START';

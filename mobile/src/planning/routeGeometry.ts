@@ -36,7 +36,9 @@ const distance = (a: StagePosition,b: StagePosition) => Math.hypot(b.x-a.x,b.y-a
 const mix = (a: StagePosition,b: StagePosition,t: number): StagePosition => ({space:'stage',x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:0});
 /** Bounded quadratic corner cuts: <=12 inches and 20% of either edge.
  * Samples stay inside the corner triangle and are independent of viewport zoom. */
-export function connectionPoints(route: StageRoute, fromId: string, toId: string, a: StagePosition, b: StagePosition): StagePosition[] {
+/** Only the connection geometry is read, so deeply readonly routes (assistant snapshots) are accepted too. */
+type ConnectionSource = { readonly connections?: ReadonlyArray<{ readonly fromId: string; readonly toId: string; readonly style: string; readonly bends: ReadonlyArray<{ readonly position: StagePosition }> }> };
+export function connectionPoints(route: ConnectionSource, fromId: string, toId: string, a: StagePosition, b: StagePosition): StagePosition[] {
   const c = route.connections?.find(c => c.fromId === fromId && c.toId === toId);
   const points = [a,...(c?.bends.map(b => b.position) ?? []),b];
   if (c?.style !== 'ROUNDED') return points;

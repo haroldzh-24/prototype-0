@@ -18,6 +18,7 @@ function query(c: RouteAssistantContext,q: RouteQuery): unknown {
     case 'REQUIRED_AREAS':return Q.getRequiredAreas(c);
     case 'ALTERNATIVES':return Q.getAlternatives(c);
     case 'DIAGNOSTICS':return Q.getRouteDiagnostics(c);
+    case 'PLAN_DIAGNOSTICS':return Q.getPlanDiagnostics(c);
     case 'WAYPOINT':return Q.getWaypoint(c,q.waypointId)??{status:'invalid',code:'WAYPOINT_NOT_FOUND'};
     case 'EXPLAIN_WAYPOINT':return Q.explainWaypoint(c,q.waypointId);
     case 'EXPLAIN_SEGMENT':return Q.explainRouteSegment(c,q.fromId,q.toId);
@@ -112,7 +113,7 @@ const num=(v:unknown)=>typeof v==='number';
 const point=(v:unknown)=>obj(v)&&keys(v,['x','y'])&&num(v.x)&&num(v.y);
 function validQuery(v:unknown):boolean {
   if(!obj(v))return false;
-  if(['SUMMARY','WAYPOINTS','DISTANCE','REQUIRED_AREAS','ALTERNATIVES','DIAGNOSTICS'].includes(String(v.type)))return keys(v,['type']);
+  if(['SUMMARY','WAYPOINTS','DISTANCE','REQUIRED_AREAS','ALTERNATIVES','DIAGNOSTICS','PLAN_DIAGNOSTICS'].includes(String(v.type)))return keys(v,['type']);
   if(v.type==='WAYPOINT'||v.type==='EXPLAIN_WAYPOINT')return keys(v,['type','waypointId'])&&str(v.waypointId);
   if(v.type==='EXPLAIN_SEGMENT')return keys(v,['type','fromId','toId'])&&str(v.fromId)&&str(v.toId);
   return v.type==='BLOCKING_GEOMETRY'&&keys(v,['type','from','to'])&&point(v.from)&&point(v.to);

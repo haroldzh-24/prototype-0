@@ -1,3 +1,14 @@
+# RC2 batch 4: Route Planner V2 and drill logger - 2026-10-22
+
+- **Route Planner V2** (`mobile/src/planning/v2/`, PLAN in ROUTE mode): deterministic plan with the fewest legal shooting positions, then the shortest walk. Checks firing-area membership, the safe angle across every sampled point of each target face, and line of sight past walls (69 in low-wall rule), ports, other target faces and no-shoots per ruleset. Reports per-target reasons (no allowed area, safe angle, occluded, unreachable), near-limit engagements, assumptions and an explicit "not checked" list. Exact minimum positions (set cover) and branch-and-bound shortest walk over sampled candidates, then sub-grid refinement. Runs in cancellable slices on the JS thread. Design and rule citations: `docs/route-planner-v2.md`.
+- Adopted V2 plans are ordinary editable routes; walking detours become bends. The engagement analysis and Route AI distance/blocked checks now follow drawn bends, the same path the timing evaluator measures.
+- Shared geometry entry point `mobile/src/planning/kernel.ts`.
+- Route AI: new `QUERY_PLAN` intent answers from V2's computed facts; replies are labelled AI WORDING and preview numbers COMPUTED BY THE APP.
+- **Drill logger**: tap hits on the target diagram (face inches, +y up), tag zones, record misses and the aim point, time and splits. Group centre and offset, extreme spread, mean radius (MOA with distance), and rulebook-confirmed zone scoring (USPSA A/C/D Major/Minor, PCSL T/A/C/D with -10 per miss, IDPA points down). REPEAT DRILL links sessions; the session sheet shows the trend. No zone shapes are inferred.
+- Dependency review recorded in `docs/dependency-review.md` (no high-severity advisory in shipped runtime code).
+- The earlier automatic planner stays as reference until V2 is verified on devices, per AGENTS.md.
+- Validation: 853/853 tests (22 V2, 7 drill logger, 2 V2 panel UI), TypeScript passed. No device testing.
+
 # RC2 batch 3: diagram import, camera and training data - 2026-10-22
 
 - Training videos can be imported from **Photos** (iOS) through the system photo picker, which runs out of process and needs no photo library permission; Files import remains. New local native module `modules/training-media` (PHPicker). No permission strings were added.

@@ -5,6 +5,7 @@ import type { StagePlan } from '../planning/model';
 import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
+import { drillRunProblem, MAX_RUNS_PER_SESSION } from '../training/drillLog';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
 import { normalizeVideo, videoObservations } from '../training/videoAnalysis';
@@ -292,6 +293,15 @@ export class Repository {
       (record.totalTime !== null && (!Number.isFinite(record.totalTime) || record.totalTime < 0))
       || !Array.isArray(record.segments) || record.segments.length > 2000 || record.segments.some(s => !s || !Number.isFinite(s.seconds) || s.seconds < 0)) throw new Error('Invalid training record.');
     if (record.context !== undefined && !trainingContexts.includes(record.context)) throw new Error('Invalid training context.');
+    if (record.runs !== undefined) {
+      if (!Array.isArray(record.runs) || record.runs.length > MAX_RUNS_PER_SESSION) throw new Error('Invalid drill runs.');
+      const runIds = new Set<string>();
+      for (const run of record.runs) {
+        const problem = drillRunProblem(run);
+        if (problem || runIds.has(run.id)) throw new Error(problem ?? 'Duplicate drill run.');
+        runIds.add(run.id);
+      }
+    }
     if (record.videos === undefined) return record;
     if (!Array.isArray(record.videos) || record.videos.length > 100) throw new Error('Invalid training videos or video count exceeds the supported limit.');
     const videos = record.videos.map(normalizeVideo), ids = new Set<string>();

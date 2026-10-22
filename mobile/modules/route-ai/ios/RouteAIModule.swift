@@ -21,7 +21,7 @@ private func availability() -> String {
 @available(iOS 26.0, *)
 @Generable
 private struct RouteDecision {
-  @Guide(description: "Supported intent only", .anyOf(["QUERY_ROUTE_SUMMARY", "QUERY_DISTANCE", "QUERY_WAYPOINTS", "QUERY_WAYPOINT", "QUERY_EXPLANATION", "QUERY_BLOCKERS", "QUERY_AREAS", "QUERY_LONGEST_SEGMENT", "QUERY_COMPARISON", "MOVE_WAYPOINT", "ADD_WAYPOINT", "DELETE_WAYPOINT", "REORDER_WAYPOINT", "REPLAN", "REPLAN_AVOIDING_AREA", "UNDO", "NEED_CLARIFICATION"]))
+  @Guide(description: "Supported intent only", .anyOf(["QUERY_ROUTE_SUMMARY", "QUERY_DISTANCE", "QUERY_WAYPOINTS", "QUERY_WAYPOINT", "QUERY_EXPLANATION", "QUERY_BLOCKERS", "QUERY_AREAS", "QUERY_LONGEST_SEGMENT", "QUERY_COMPARISON", "QUERY_PLAN", "MOVE_WAYPOINT", "ADD_WAYPOINT", "DELETE_WAYPOINT", "REORDER_WAYPOINT", "REPLAN", "REPLAN_AVOIDING_AREA", "UNDO", "NEED_CLARIFICATION"]))
   var intent: String
   @Guide(description: "Original waypoint reference, e.g. waypoint 2, last waypoint, this point; do not guess an ID")
   var waypointReference: String?

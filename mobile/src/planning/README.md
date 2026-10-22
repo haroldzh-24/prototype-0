@@ -1,3 +1,11 @@
+# Planning modules (updated 2026-10-22)
+
+- `v2/` — **Route Planner V2** (`planRoute`, `planRouteAsync`): fewest legal shooting positions, then the shortest walk, with per-target reasons and an explicit safety report. Design and rule sources: `docs/route-planner-v2.md`. UI: PLAN in ROUTE mode.
+- `routeSolver/` — the **movement optimizer** (OPTIMIZE): shortest movement through firing areas or waypoints; it does not check targets or safety. Kept until V2 is verified on devices.
+- `engagements.ts`, `manualEngagements.ts`, `manualRouteReview.ts` — legality analysis and the manual PATH/ENGAGE/REVIEW tools. The analysis follows drawn bends.
+- `kernel.ts` — the single import point for shared geometry rules (inside, line of sight, path legs, headings).
+- `planner.ts`, `candidateGeneration.ts`, `ranking.ts`, `personalizedRoute.ts`, `positionDiscovery.ts`, `positionSources.ts` — the earlier automatic planner; not reachable from the UI and kept as reference until V2 replaces it on devices.
+
 # Active offline solver
 
 PLAN ROUTE now uses `routeSolver.solveRoute`, an offline geometry-only solver.

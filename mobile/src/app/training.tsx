@@ -7,6 +7,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { uuid } from 'expo-modules-core';
 import { useRepository } from '@/storage/StorageProvider';
 import type { StartingType, TrainingRecord } from '@/training/model';
+import { drillKey } from '@/training/model';
+import DrillRunEditor from '@/training/DrillRunEditor';
+import type { DrillRun } from '@/training/drillLog';
+import { drillTrend, groupStats, offsetText } from '@/training/drillLog';
 import { trainingContexts } from '@/training/observations';
 import type { TrainingContext } from '@/training/observations';
 import { discardVideoAsset, importVideoAsset } from '@/training/videoAssets';
@@ -60,7 +64,21 @@ export default function Training() {
     catch (error) { discardVideoAsset(asset); throw error; }
     await refresh(token); if (operation.current.current(token)) { setSessionId(null); setSelected({ recordId: record.id, videoId: id }); }
   });
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false), [loggingRun, setLoggingRun] = useState(false);
+  const saveRun = async (record: TrainingRecord, run: DrillRun) => {
+    await repo.saveTraining({ ...record, runs: [...(record.runs ?? []), run] });
+    setRecords(current => current.map(r => r.id === record.id ? { ...r, runs: [...(r.runs ?? []), run] } : r));
+    setLoggingRun(false);
+  };
+  // A repeated drill shares the original's drill key, so its runs join the same trend.
+  const repeatDrill = (record: TrainingRecord) => run(async token => {
+    await repo.saveTraining({ id: uuid.v4(), userId: 'local', drillId: drillKey(record), drillName: record.drillName, context: record.context ?? context,
+      startingType: record.startingType, occurredAt: new Date().toISOString(), totalTime: null, notes: '', segments: [], videos: [] });
+    await refresh(token);
+    if (operation.current.current(token)) setSessionId(null);
+  });
+  const trendFor = (record: TrainingRecord) => drillTrend(records.filter(r => drillKey(r) === drillKey(record))
+    .flatMap(r => (r.runs ?? []).map(run => ({ ...run, sessionName: r.drillName || 'Practice Session' }))));
   const deleteSession = (record: TrainingRecord) => run(async token => {
     await repo.deleteTraining(record.id);
     // The record is gone; remove its app-owned video copies (best effort, after the database commit).
@@ -98,7 +116,7 @@ export default function Training() {
       category={contextLabels[record.context ?? 'DRY_FIRE'].toUpperCase()}
       detail={new Date(record.occurredAt).toLocaleDateString() + ' • ' + startLabels[record.startingType] + '\n' + (record.videos?.length ?? 0) + ((record.videos?.length ?? 0) === 1 ? ' video' : ' videos')}
       disabled={busy} open={() => openSession(record)} more={() => setSessionId(record.id)} />)}
-    <EditorSheet title="SESSION" visible={!!activeSession} close={() => { if (!busy) { setSessionId(null); setConfirmDelete(false); } }}>
+    <EditorSheet title="SESSION" visible={!!activeSession && !loggingRun} close={() => { if (!busy) { setSessionId(null); setConfirmDelete(false); } }}>
       {activeSession && <Panel><Text style={ui.sectionTitle}>{activeSession.drillName || 'Practice Session'}</Text>
         <Copy>VIDEOS · {activeSession.videos?.length ?? 0}</Copy>
         {Platform.OS === 'ios' ? <>
@@ -109,6 +127,14 @@ export default function Training() {
         {activeSession.videos?.map((video, index) => <Action key={video.session.id}
           title={'Video ' + (index + 1) + ' · ' + (video.session.analysisStatus === 'REVIEWED' ? 'Analysis saved' : 'Needs review')}
           disabled={busy} onPress={() => { setSessionId(null); setSelected({ recordId: activeSession.id, videoId: video.session.id }); }} />)}
+        <Copy>DRILL RUNS · {activeSession.runs?.length ?? 0}</Copy>
+        <Action title="LOG DRILL RUN" disabled={busy} onPress={() => setLoggingRun(true)} />
+        {(activeSession.runs ?? []).map((r, index) => { const g = groupStats(r); return <Copy key={r.id}>{`Run ${index + 1} · ${g.shots} hit(s), ${g.misses} miss(es) · ${offsetText(g.offset)}` + (g.meanRadius !== null ? ` · mean radius ${g.meanRadius.toFixed(1)} in` : '') + (r.totalTime !== null ? ` · ${r.totalTime.toFixed(2)} s` : '')}</Copy>; })}
+        {trendFor(activeSession).length > 1 && <>
+          <Copy>TREND FOR THIS DRILL</Copy>
+          {trendFor(activeSession).map(t => <Copy key={t.id}>{`${new Date(t.recordedAt).toLocaleDateString()} · ${t.meanRadius !== null ? t.meanRadius.toFixed(1) + ' in mean radius' : 'no hits'} · ${offsetText(t.offset)}` + (t.totalTime !== null ? ` · ${t.totalTime.toFixed(2)} s` : '')}</Copy>)}
+        </>}
+        <Action title="REPEAT DRILL" disabled={busy} onPress={() => repeatDrill(activeSession)} />
         {confirmDelete ? <>
           <Notice tone="warning">Delete this session, its {activeSession.videos?.length ?? 0} imported video copies and any profile measurements contributed from it? This cannot be undone. Videos in Photos or Files are not touched.</Notice>
           <Action title="Keep session" disabled={busy} onPress={() => setConfirmDelete(false)} />
@@ -118,6 +144,7 @@ export default function Training() {
       </Panel>}
     </EditorSheet>
     {!!message && <Notice tone="warning">{message}</Notice>}
+    {activeSession && <DrillRunEditor visible={loggingRun} initialFamily="USPSA" onClose={() => setLoggingRun(false)} onSave={r => saveRun(activeSession, r)} />}
     {selectedRecord && selectedVideo && <VideoAnalysisEditor key={selectedVideo.session.id} record={selectedRecord} initialVideo={selectedVideo}
       onSaved={updated => setRecords(current => current.map(r => r.id === updated.id ? updated : r))} onClose={() => setSelected(null)} />}
   </Screen>;

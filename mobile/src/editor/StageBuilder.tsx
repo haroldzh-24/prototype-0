@@ -31,6 +31,7 @@ import EngagementSettings from '@/planning/EngagementSettings';
 import { evaluateRoute, reorderPosition } from '@/planning/route';
 import { coverageText, defaultRouteLayers, meaningfulRoute, routeTargetCoverage } from './routePresentation';
 import RoutePanel from '@/planning/RoutePanel';
+import RoutePlannerV2Panel from '@/planning/v2/RoutePlannerV2Panel';
 import AutoPlannerPanel from '@/planning/AutoPlannerPanel';
 import { currentDiscovery } from '@/planning/positionSources';
 import type { DiscoverySession } from '@/planning/positionSources';
@@ -132,7 +133,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     if (!plan.route) changeRoute(createRoute('route-' + uuid.v4()));
     setRouteMode(true); setRouteVisible(true); setSelectedId(null); setViewMode('topDown');
   };
-  const [panel, setPanel] = useState<'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
+  const [plannerOrigin, setPlannerOrigin] = useState<'aiPlan' | 'planV2'>('aiPlan');
+  const [panel, setPanel] = useState<'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'planV2' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
   const [focusPosition, setFocusPosition] = useState<StagePosition | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
@@ -263,7 +265,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       <Button title="ROUTE" active={routeMode} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); enterRoute(); }} />
     </View>}
     {routeMode && !previewing && <View style={styles.controls}><Button title="PATH" active={routeEditing} disabled={dragging} onPress={() => { setReviewMode(false); setEngageMode(false); setRouteEditing(true); setPanel(null); }} /><Button title="ENGAGE" active={engageMode} disabled={dragging} onPress={() => { setReviewMode(false); setEngageMode(true); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /><Button title="REVIEW" active={reviewMode} disabled={dragging} onPress={() => { setReviewMode(true); setEngageMode(false); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /></View>}
-    {routeMode && !reviewMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>NO ROUTE YET</Text><Button title="OPTIMIZE MOVEMENT" onPress={() => setPanel('aiPlan')} /><Button title="Edit manually" onPress={() => setRouteEditing(true)} /></View>}
+    {routeMode && !reviewMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>NO ROUTE YET</Text><Button title="PLAN ROUTE" onPress={() => { setPlannerOrigin('planV2'); setPanel('planV2'); }} /><Button title="OPTIMIZE MOVEMENT" onPress={() => { setPlannerOrigin('aiPlan'); setPanel('aiPlan'); }} /><Button title="Edit manually" onPress={() => setRouteEditing(true)} /></View>}
     {routeMode && !reviewMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} waypoints {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
     <View style={styles.canvas}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
@@ -342,7 +344,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           <Button title="CONNECTION" disabled={!selectedWaypoint} onPress={() => setPanel('waypoint')} />
           <Button title="DONE" onPress={() => { setRouteEditing(false); setAssignmentMode(null); }} />
         </> : routeMode ? <>
-        <Button title="OPTIMIZE" onPress={() => setPanel('aiPlan')} />
+        <Button title="PLAN" onPress={() => { setPlannerOrigin('planV2'); setPanel('planV2'); }} />
+        <Button title="OPTIMIZE" onPress={() => { setPlannerOrigin('aiPlan'); setPanel('aiPlan'); }} />
         <Button title="EDIT" active={routeEditing} onPress={() => { setRouteEditing(true); setPanel(null); }} />
         <Button title="ANALYZE" onPress={() => setPanel('summary')} />
         <Button title="ASK" onPress={() => {setAIOpen(true);setPanel(null);}} />
@@ -354,7 +357,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan'} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
       {panel === 'manualEdit' && selectedManualEngagement && plan.route && <>
             <Text>{selectedManualEngagement.anchor.kind === 'waypoint' ? 'Waypoint ' + (plan.route.positions.findIndex(p => p.id === (selectedManualEngagement.anchor.kind === 'waypoint' ? selectedManualEngagement.anchor.waypointId : '')) + 1) + ' / ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement'} / {targetLabel(stage, selectedManualEngagement.targetId)}</Text>
             <View style={styles.controls}>
@@ -383,7 +386,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {panel === 'saveError' && <ErrorState title="Stage could not be saved. Try Save again after reviewing the details." detail={saveMessage} />}
       {panel === 'engagement' && plan.route && <EngagementDetails stage={stage} route={plan.route} nodeId={nodeId} onChange={changeRoute} />}
       {panel === 'rules' && plan.route && <>
-        <EngagementSettings stage={stage} initial={plan.route.engagementRules} onCancel={() => setPanel('aiPlan')} onApply={rules => { if (plan.route) changeRoute({ ...plan.route, engagementRules: rules }); setPanel('aiPlan'); }} /></>}
+        <EngagementSettings stage={stage} initial={plan.route.engagementRules} onCancel={() => setPanel(plannerOrigin)} onApply={rules => { if (plan.route) changeRoute({ ...plan.route, engagementRules: rules }); setPanel(plannerOrigin); }} /></>}
       {panel === 'resetRoute' && <><Text>Clear the route, waypoints, reloads and route rules?</Text><Button title="Cancel" onPress={() => setPanel(null)} /><Button title="Reset route" danger onPress={() => { changeRoute(createRoute('route-' + uuid.v4())); setPositionId(null); setPanel(null); }} /></>}
       {panel === 'waypoint' && selectedWaypoint && plan.route && <>
         <Text>WAYPOINT {plan.route.positions.indexOf(selectedWaypoint) + 1}</Text>
@@ -457,7 +460,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       </>}
       {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} edit={() => { setRouteEditing(true); setPanel(null); }} />}
       {panel === 'plan' && <>
-        {routeMode && <Button title="Back to MOVEMENT OPTIMIZER" onPress={() => setPanel('aiPlan')} />}
+        {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to PLAN ROUTE' : 'Back to MOVEMENT OPTIMIZER'} onPress={() => setPanel(plannerOrigin)} />}
         <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <Button key={section} title={section} active={planSection === section} onPress={() => setPlanSection(section)} />)}</View>
         {<PlanningPanel section={planSection} plan={plan} stage={stage} onChange={setPlan} />}
       </>}
@@ -488,6 +491,10 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title={panel === 'delete' ? 'Delete object' : 'Reset stage'} danger onPress={() => { act(panel === 'reset' ? { kind: 'reset', targetFamily } : { kind: 'delete' }); setPanel(null); }} />
       </>}
     </EditorSheet>
+    {panel === 'planV2' && <RoutePlannerV2Panel stage={stage} plan={plan} preview={preview} onPreview={setPreview}
+      onClose={() => { setPreview(null); setPanel(null); }}
+      onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel('edit'); } else setPanel('rules'); }}
+      onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}
     {panel === 'aiPlan' && <AutoPlannerPanel onSolverResult={result=>setSolverEvidence({key:solverKey,result})} onConfigure={section => { if (section === 'start') { setSelectedId(stage.objects.find(o => o.type === 'start')?.id ?? null); setPanel(stage.objects.some(o => o.type === 'start') ? 'edit' : 'settings'); } else if (section === 'geometry') setPanel('settings'); else if (section === 'rules') setPanel('rules'); else { setPlanSection(section); setPanel('plan'); } }} discoverySession={discoverySession} onDiscovery={setDiscoverySession} discoveryPreview={discoveryPreview} onDiscoveryPreview={() => setDiscoveryPreview(true)} stage={stage} plan={plan} profile={profile} preview={preview} onPreview={setPreview} onClose={() => { setPreview(null); setDiscoveryPreview(false); setPanel(null); }} onUse={next => { setPreview(null); setRouteEditing(false); setPlan(next); setPositionId(null); setNodeId(null); setAssignmentMode(null); setPanel(null); }} />}
     <DiagramImportScreen visible={importOpen} stageId={stageId} stage={stage} family={targetFamily} close={() => setImportOpen(false)} apply={document => documentHistory.appendObjects(document.objects)} />
   </SafeAreaView>;

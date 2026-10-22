@@ -4,6 +4,11 @@ import { stageGeometry } from '../routeSolver/stageGeometry';
 import { isSegmentTraversable, isPointTraversable, visited, distanceBetweenPoints, segmentIntersectsWall } from '../routeSolver/traversability';
 import type { RouteAssistantContext, RouteMetrics, ExplanationReason, Highlights, RouteComparison } from './types';
 import { clone } from './context';
+import { planRoute, snapshotFromPlan } from '../v2/index';
+import { targetLabel } from '../model';
+import type { StagePlan } from '../model';
+import type { StageDocument } from '../../stage/model';
+import { connectionPoints } from '../routeGeometry';
 export function geometry(context: RouteAssistantContext, constraints: readonly Barrier[] = []): Geometry {
   const input = clone(context.solverInput) as RouteSolverInput;
   input.restrictedRegions = [...(input.restrictedRegions ?? []), ...constraints];
@@ -17,10 +22,18 @@ export const getAlternatives = (c: RouteAssistantContext) => clone(c.solverResul
 export const getRouteDiagnostics = (c: RouteAssistantContext) => clone(c.solverResult?.diagnostics ?? null);
 export function routeMetrics(c: RouteAssistantContext, route: RouteAssistantContext['route'], constraints: readonly Barrier[] = []): RouteMetrics {
   const g = geometry(c, constraints), points = [g.start, ...route.positions.map(p => p.position)];
-  const covered = visited(points, g.requiredAreas), missed = g.requiredAreas.filter(a => !covered.includes(a.id)).map(a => a.id);
+  // Walk the drawn path (bends included), the same path the timing evaluator and engagement analysis use.
+  const startId = c.stage.objects.find(o => o.type === 'start')?.id ?? 'START';
+  const path: Point[] = [g.start];
+  route.positions.forEach((p, i) => {
+    const from = i ? route.positions[i - 1] : null;
+    const leg = connectionPoints(route, from?.id ?? startId, p.id, from?.position ?? { space: 'stage', x: g.start.x, y: g.start.y, z: 0 }, p.position);
+    path.push(...leg.slice(1).map(q => ({ x: q.x, y: q.y })));
+  });
+  const covered = visited(path, g.requiredAreas), missed = g.requiredAreas.filter(a => !covered.includes(a.id)).map(a => a.id);
   const warnings: string[] = [];
   if (!isPointTraversable(g.start, g)) warnings.push('INVALID_START');
-  if (points.slice(1).some((p,i) => !isSegmentTraversable(points[i],p,g))) warnings.push('BLOCKED_ROUTE');
+  if (path.slice(1).some((p,i) => !isSegmentTraversable(path[i],p,g))) warnings.push('BLOCKED_ROUTE');
   if (missed.length) warnings.push('REQUIRED_AREAS_MISSED');
   let turns = 0;
   for (let i=1;i<points.length-1;i++) {
@@ -28,7 +41,7 @@ export function routeMetrics(c: RouteAssistantContext, route: RouteAssistantCont
     const cross=(b.x-a.x)*(d.y-b.y)-(b.y-a.y)*(d.x-b.x),dot=(b.x-a.x)*(d.x-b.x)+(b.y-a.y)*(d.y-b.y);
     if (distanceBetweenPoints(a,b)>1e-7 && distanceBetweenPoints(b,d)>1e-7 && Math.abs(Math.atan2(cross,dot))>1e-7) turns++;
   }
-  return {distanceInches:points.slice(1).reduce((n,p,i)=>n+distanceBetweenPoints(points[i],p),0),waypointCount:route.positions.length,directionChanges:turns,requiredAreasVisited:covered,requiredAreasMissed:missed,valid:!warnings.length,warnings};
+  return {distanceInches:path.slice(1).reduce((n,p,i)=>n+distanceBetweenPoints(path[i],p),0),waypointCount:route.positions.length,directionChanges:turns,requiredAreasVisited:covered,requiredAreasMissed:missed,valid:!warnings.length,warnings};
 }
 export const getRouteSummary = (c: RouteAssistantContext) => ({routeId:c.route.id,...routeMetrics(c,c.route)});
 export const getRouteDistance = (c: RouteAssistantContext) => ({distanceInches:routeMetrics(c,c.route).distanceInches});
@@ -69,3 +82,20 @@ export function explainRouteSegment(c: RouteAssistantContext, fromId: string, to
 }
 export const emptyHighlights = (): Highlights => ({waypointIds:[],stageObjectIds:[],requiredAreaIds:[],routeSegmentIds:[],temporaryRegionIds:[]});
 export const formatExplanation = (reasons: readonly ExplanationReason[]) => reasons.map(r=>`${r.type}: ${(r.objectIds??r.requiredAreaIds??[]).join(', ')}`).join('\n');
+
+/**
+ * Facts from Route Planner V2 for the current stage: planned positions, uncovered targets with reasons, and the safety
+ * limits that were and were not checked. Computed deterministically; the model only words these facts.
+ */
+export function getPlanDiagnostics(c: RouteAssistantContext) {
+  const plan = planRoute(snapshotFromPlan(clone(c.stage) as StageDocument, clone(c.plan) as StagePlan));
+  const label = (id: string) => targetLabel(c.stage as StageDocument, id);
+  return {
+    source: 'Route Planner V2 (computed)', status: plan.status, errors: plan.errors.slice(0, 3),
+    positions: plan.positions.map((p, i) => ({ label: `P${i + 1}`, targets: p.engagements.map(e => label(e.targetId)) })),
+    movementYards: Number((plan.movementInches / 36).toFixed(2)),
+    uncovered: plan.targets.filter(t => t.status === 'uncovered').map(t => ({ target: label(t.targetId), reasons: t.reasons })),
+    nearSafeAngle: plan.safety.nearSafeAngle.length, minimumProven: plan.diagnostics.exactPositions,
+    notChecked: plan.safety.notChecked.length, warnings: plan.warnings.slice(0, 3),
+  };
+}

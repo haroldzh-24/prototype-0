@@ -615,3 +615,34 @@ for(const failure of ['Image exceeds decoder limits.', 'Unsupported PDF raster.'
  await h.settle();h.press('Reference: Recover.png');h.press('Add missing element');h.press('EXPERIMENTAL: Detect clean diagram geometry');await h.settle();
  assert.equal(writes,0);assert.ok(h.nodes().some(n=>n.type==='Notice'&&String(n.props.children).includes('Manual reconstruction remains available')));assert.equal(JSON.stringify(draft),before);assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,1);assert.ok(!h.find(n=>n.props.title==='Add missing element').props.disabled);h.press('Add missing element');assert.equal(h.nodes().filter(n=>n.props.title?.startsWith('Overlay ')).length,2);assert.ok(!h.nodes().some(n=>n.props.title==='Cancel recognition'));
 });
+
+test('PLAN ROUTE (V2) plans legal positions, previews them and adopts an editable route without saving', async () => {
+  const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
+  const { createPlan } = require('../src/planning/model.ts');
+  const { createRoute, isStageRoute } = require('../src/planning/route.ts');
+  const { defaultEngagementRules } = require('../src/planning/engagements.ts');
+  const document = createDefaultStage(undefined, { size: { width: 600, depth: 480 } }), savedPlan = createPlan();
+  document.objects = [createObject('start', 'start', 100, 440), createObject('cardboardTarget', 'T1', 300, 60)];
+  savedPlan.route = createRoute('editable');
+  savedPlan.route.engagementRules = { ...defaultEngagementRules(document), firingAreas: [{ id: 'A', vertices: [{ x: 200, y: 300 }, { x: 400, y: 300 }, { x: 400, y: 420 }, { x: 200, y: 420 }] }] };
+  let adopted, preview, configured;
+  const h = harness('planning/v2/RoutePlannerV2Panel.tsx', { stage: document, plan: savedPlan, preview: null, onClose() {}, onUse: v => adopted = v, onPreview: v => preview = v, onConfigure: s => configured = s });
+  h.press('ROUTE SETTINGS'); assert.equal(configured, 'rules');
+  h.press('PLAN ROUTE'); await new Promise(resolve => setTimeout(resolve, 200)); h.render();
+  assert.ok(h.nodes().some(n => n.props.children === 'ALL TARGETS PLANNED'));
+  assert.ok(h.nodes().some(n => typeof n.props.children === 'string' && n.props.children.startsWith('Not checked:')), 'limits are always shown');
+  h.press('VIEW ON STAGE'); assert.equal(preview.route.positions.length, 1); assert.equal(preview.routeStyle, 'GEOMETRY');
+  h.press('USE ROUTE'); assert.ok(isStageRoute(adopted.route)); assert.deepEqual(adopted.route.positions[0].engagedTargetIds, ['T1']);
+  assert.equal(h.saved.length, 0); assert.equal(savedPlan.route.positions.length, 0, 'the saved plan is not mutated');
+});
+
+test('PLAN ROUTE (V2) explains missing firing areas instead of planning', async () => {
+  const { createDefaultStage } = require('../src/stage/defaults.ts');
+  const { createPlan } = require('../src/planning/model.ts');
+  const { createRoute } = require('../src/planning/route.ts');
+  const plan = createPlan(); plan.route = createRoute('r');
+  const h = harness('planning/v2/RoutePlannerV2Panel.tsx', { stage: createDefaultStage('USPSA'), plan, preview: null, onClose() {}, onUse() { assert.fail('nothing to use'); }, onPreview() {}, onConfigure() {} });
+  assert.ok(h.nodes().some(n => typeof n.props.children === 'string' && /Add firing areas first/.test(n.props.children)));
+  h.press('PLAN ROUTE'); await new Promise(resolve => setTimeout(resolve, 120)); h.render();
+  assert.ok(h.nodes().some(n => n.props.children === 'THE STAGE NEEDS SETUP FIRST'));
+});
