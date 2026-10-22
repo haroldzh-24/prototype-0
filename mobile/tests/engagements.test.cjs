@@ -10,6 +10,7 @@ const { analyzeEngagements, suggestEngagements, reorderEngagement, defaultEngage
 const { generateCandidates, createRoutePlannerConfig, evaluateCandidate, rankCandidates } = require('../src/planning/planner.ts');
 const { copyPlannerRoute } = require('../src/planning/plannerUI.ts');
 const { stageToViewport } = require('../src/stage/coordinates.ts');
+const { activeFaceExtent } = require('../src/stage/targetFace.ts');
 const p = (x, y) => ({ space: 'stage', x, y, z: 0 });
 const area = (id, x0, y0, x1, y1) => ({ id, vertices: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] });
 function fixture() {
@@ -40,9 +41,13 @@ test('doorway reveals a window while endpoints are hidden, including sub-sample 
   const f = fixture(); doorway(f, 0.5); f.route.engagementRules.sampleSpacingInches = 24;
   // Thin wall is necessary for a narrow projected opening at an oblique ray.
   f.stage.objects.at(-1).geometry.thickness = 0.01;
-  const { result } = solved(f); assert.equal(result.complete, true); assert.equal(result.windows.length, 1);
-  const w = result.windows[0]; assert.ok(w.startDistanceAlongSegment > 170 && w.endDistanceAlongSegment < 190);
-  assert.ok(w.endDistanceAlongSegment - w.startDistanceAlongSegment < 2);
+  // Visibility is checked at five sampled points across the face (shared with Route Planner V2), so an opening this
+  // narrow shows one short window per sampled point, each found exactly despite the 24 in sample spacing.
+  const { result } = solved(f); assert.equal(result.complete, true); assert.equal(result.windows.length, 5);
+  for (const w of result.windows) {
+    assert.ok(w.startDistanceAlongSegment > 170 && w.endDistanceAlongSegment < 190);
+    assert.ok(w.endDistanceAlongSegment - w.startDistanceAlongSegment < 2);
+  }
   assert.deepEqual(result.alternatives[0].stationaryWaypointIds, []);
 });
 test('sequential doorway targets engage by availability and earliest closing window', () => {
@@ -61,7 +66,8 @@ test('overlapping windows form a continuous moving sequence without stops', () =
   assert.equal(route.positions.length, 1);
 });
 test('visibility ends behind the wall and illegal reversed doorway order is rejected', () => {
-  const f = fixture(); doorway(f, 20); f.stage.objects.push(createObject('cardboardTarget', 't2', 160, 100));
+  // t2 sits far enough left that its doorway window opens only after t1's closes (whole-face visibility).
+  const f = fixture(); doorway(f, 20); f.stage.objects.push(createObject('cardboardTarget', 't2', 130, 100));
   const { route, result } = solved(f);
   assert.ok(result.windows.every(w => w.endDistanceAlongSegment < 360));
   const changed = reorderEngagement(f.stage, route, 'w1', 't1', 1);
@@ -76,8 +82,10 @@ test('visible target loses firing legality when crossing firing-area boundary', 
 test('180 violation clips only the illegal portion of movement', () => {
   const f = fixture(); f.route.engagementRules.safeDirectionDegrees = 0;
   const { result } = solved(f); assert.equal(result.complete, true);
-  assert.ok(result.windows[0].endDistanceAlongSegment < 180);
-  assert.ok(result.windows[0].endDistanceAlongSegment > 179.99);
+  // The whole face must stay inside the safe arc: the window ends where the face's left edge reaches 90 degrees.
+  const leftEdge = 200 + activeFaceExtent(f.stage.objects.find(o => o.id === 't1')).left;
+  assert.ok(result.windows[0].endDistanceAlongSegment < leftEdge - 20);
+  assert.ok(result.windows[0].endDistanceAlongSegment > leftEdge - 20 - 0.01);
 });
 test('narrower safe angle clips both ends of engagement window', () => {
   const f = fixture(); f.route.engagementRules.safeHalfAngleDegrees = 30;

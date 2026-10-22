@@ -36,27 +36,41 @@ export function wallEffect(p: Point, q: Point, wall: Wall, target: TargetFace, r
   return 'blocked';
 }
 
-export type SightResult = { visible: boolean; throughNoShoot: boolean; overLowWall: boolean };
+/** USPSA 9.1.5 / PCSL 11.5.3: other scoring areas and no-shoots stop bullets; IDPA 4.9: non-threats are not hard cover. */
+export const defaultNoShootPolicy = (ruleset: Ruleset): 'occlude' | 'warn' => ruleset === 'IDPA' ? 'warn' : 'occlude';
+
+export type SightResult = { visible: boolean; throughNoShoot: boolean; overLowWall: boolean; passesAboveOrBelow: boolean };
 const overlapsVertically = (a: TargetFace, b: TargetFace) => a.bottom < b.top - EPS && b.bottom < a.top - EPS;
 
 /** Line of sight from a shooting point to one face sample, applying the ruleset's occlusion policy. */
 export function sightLine(p: Point, q: Point, target: TargetFace, stage: NormalizedStage, noShootPolicy: 'occlude' | 'warn'): SightResult {
-  let overLowWall = false, throughNoShoot = false;
-  for (const wall of stage.walls) {
-    const effect = wallEffect(p, q, wall, target, stage.ruleset);
-    if (effect === 'blocked') return { visible: false, throughNoShoot: false, overLowWall: false };
+  const blocked: SightResult = { visible: false, throughNoShoot: false, overLowWall: false, passesAboveOrBelow: false };
+  let overLowWall = false, throughNoShoot = false, passesAboveOrBelow = false;
+  // Stop the sight line just short of the face so a face mounted flush on a wall is not "blocked" by that wall.
+  const len = Math.hypot(q.x - p.x, q.y - p.y), trim = Math.min(0.1, len / 2);
+  const end = len > 0 ? { x: q.x - (q.x - p.x) / len * trim, y: q.y - (q.y - p.y) / len * trim } : q;
+  const minX = Math.min(p.x, end.x) - EPS, maxX = Math.max(p.x, end.x) + EPS, minY = Math.min(p.y, end.y) - EPS, maxY = Math.max(p.y, end.y) + EPS;
+  for (let i = 0; i < stage.walls.length; i++) {
+    const b = stage.wallBounds[i];
+    if (b && (b.maxX < minX || b.minX > maxX || b.maxY < minY || b.minY > maxY)) continue; // cannot touch this sight line
+    const effect = wallEffect(p, end, stage.walls[i], target, stage.ruleset);
+    if (effect === 'blocked') return blocked;
     if (effect === 'over-low-wall') overLowWall = true;
   }
   // USPSA 9.1.5 / PCSL 11.5.3: scoring areas of other targets are impenetrable (plan view, vertically overlapping faces).
   if (noShootPolicy === 'occlude')
-    for (const other of stage.targets) if (other.id !== target.id && overlapsVertically(other, target) && segmentsCross(p, q, other.left, other.right))
-      return { visible: false, throughNoShoot: false, overLowWall: false };
+    for (const other of stage.targets) {
+      if (other.id === target.id || !segmentsCross(p, q, other.left, other.right)) continue;
+      if (overlapsVertically(other, target)) return blocked;
+      passesAboveOrBelow = true; // crosses in plan view but at a different height: recorded as an assumption
+    }
   for (const noShoot of stage.noShoots) {
-    if (!overlapsVertically(noShoot, target) || !segmentsCross(p, q, noShoot.left, noShoot.right)) continue;
-    if (noShootPolicy === 'occlude') return { visible: false, throughNoShoot: false, overLowWall: false };
+    if (!segmentsCross(p, q, noShoot.left, noShoot.right)) continue;
+    if (!overlapsVertically(noShoot, target)) { passesAboveOrBelow = true; continue; }
+    if (noShootPolicy === 'occlude') return blocked;
     throughNoShoot = true; // IDPA 4.9: non-threats are not hard cover, but a hit is a penalty.
   }
-  return { visible: true, throughNoShoot, overLowWall };
+  return { visible: true, throughNoShoot, overLowWall, passesAboveOrBelow };
 }
 
 export type EngagementCheck = {
@@ -66,6 +80,8 @@ export type EngagementCheck = {
   safeMarginDegrees: number;
   throughNoShoot: boolean;
   overLowWall: boolean;
+  /** Visible only along lines that pass above or below another target or no-shoot (plan-view assumption). */
+  passesAboveOrBelow: boolean;
 };
 
 /**
@@ -75,8 +91,10 @@ export type EngagementCheck = {
  * 3. At least one interior face sample is visible. Flags record when visibility depends on a low wall or a no-shoot.
  */
 export function checkEngagement(p: Point, target: TargetFace, stage: NormalizedStage, safeHalfAngle: number, noShootPolicy: 'occlude' | 'warn'): EngagementCheck {
-  const none = { visibleFraction: 0, safeMarginDegrees: 0, throughNoShoot: false, overLowWall: false };
+  const none = { visibleFraction: 0, safeMarginDegrees: 0, throughNoShoot: false, overLowWall: false, passesAboveOrBelow: false };
   const allowed = stage.procedures[target.id]?.areaIds;
+  // IDPA requires the brief's position(s) of cover per target, the same rule the manual engagement analysis applies.
+  if (stage.ruleset === 'IDPA' && !allowed?.length) return { legal: false, failure: 'IDPA_AREAS_REQUIRED', ...none };
   if (!stage.areas.some(a => (!allowed || allowed.includes(a.id)) && strictlyInside(p, a.vertices))) return { legal: false, failure: 'NO_ALLOWED_AREA', ...none };
   let worst = 0;
   for (const q of target.angleSamples) {
@@ -85,15 +103,16 @@ export function checkEngagement(p: Point, target: TargetFace, stage: NormalizedS
   }
   const margin = safeHalfAngle - worst;
   if (margin <= 1e-7) return { legal: false, failure: 'OUTSIDE_SAFE_ANGLE', ...none, safeMarginDegrees: margin };
-  let visible = 0, cleanOfNoShoot = 0, cleanOfLowWall = 0;
+  let visible = 0, cleanOfNoShoot = 0, cleanOfLowWall = 0, cleanOfHeight = 0;
   for (const q of target.sightSamples) {
     const s = sightLine(p, q, target, stage, noShootPolicy);
     if (!s.visible) continue;
     visible++;
     if (!s.throughNoShoot) cleanOfNoShoot++;
     if (!s.overLowWall) cleanOfLowWall++;
+    if (!s.passesAboveOrBelow) cleanOfHeight++;
   }
   if (!visible) return { legal: false, failure: 'OCCLUDED', ...none, safeMarginDegrees: margin };
   return { legal: true, visibleFraction: visible / target.sightSamples.length, safeMarginDegrees: margin,
-    throughNoShoot: cleanOfNoShoot === 0, overLowWall: cleanOfLowWall === 0 };
+    throughNoShoot: cleanOfNoShoot === 0, overLowWall: cleanOfLowWall === 0, passesAboveOrBelow: cleanOfHeight === 0 };
 }

@@ -10,11 +10,13 @@ import { targetLabel } from '../model';
 import type { PlannerCard } from '../plannerUI';
 import { copyPlannerRoute } from '../plannerUI';
 import { adoptionLosses } from '../routeSolver/adoption';
-import { planRouteAsync, planToStageRoute, snapshotFromPlan } from './index';
+import { optionsFromPlan, planRouteAsync, planToStageRoute, snapshotFromPlan } from './index';
 import type { ReasonCode, RoutePlan } from './types';
 
 export const reasonText: Record<ReasonCode, string> = {
   NO_ALLOWED_AREA: 'No firing area the stage brief allows for this target.',
+  IDPA_AREAS_REQUIRED: 'IDPA: assign this target\'s position(s) of cover in Route settings.',
+  PROCEDURE_ORDER: 'Cannot satisfy its "engage after" procedure on this route.',
   OUTSIDE_SAFE_ANGLE: 'From every legal spot, part of the target is past the safe angle.',
   OCCLUDED: 'Hidden by walls, other targets or no-shoots from every legal spot.',
   UNREACHABLE: 'Visible only from spots that cannot be walked to from the start.',
@@ -49,7 +51,7 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     setRunning(true); setResult(null); setConfirm(false); setError('');
     try {
       // Runs in short slices on the JS thread so the screen stays responsive and Cancel works.
-      const planned = await planRouteAsync(snapshot, {}, controller.signal);
+      const planned = await planRouteAsync(snapshot, optionsFromPlan(plan), controller.signal);
       if (!controller.signal.aborted) setResult(planned);
     } catch (e) {
       if (!controller.signal.aborted) setError('Planning failed for this geometry. Review the stage and try again.');

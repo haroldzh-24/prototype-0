@@ -3,6 +3,7 @@ import { distanceBetweenPoints, edges, inside, intersection, segmentIntersectsWa
 import type { Barrier, Diagnostics, Geometry } from '../routeSolver/types';
 import type { StageDocument } from '../../stage/model';
 import type { NormalizedStage, TargetFace } from './normalizeStage';
+import { drain } from './optimizeRoute';
 import type { Point } from './types';
 
 /** Physical footprint of a target stand: the face line thickened to 4 in. */
@@ -14,7 +15,10 @@ function standBarrier(face: TargetFace): Barrier {
     { x: face.right.x - nx, y: face.right.y - ny }, { x: face.left.x - nx, y: face.left.y - ny }] };
 }
 
-/** Polygon corners pushed outward along the vertex bisector, so paths can wrap obstacles at the body clearance. */
+/**
+ * Polygon corners pushed outward along the vertex bisector, so paths can wrap obstacles at the body clearance.
+ * A negative distance steps the corners inward instead (used for firing-area corners).
+ */
 function outsetCorners(polygon: readonly Point[], distance: number): Point[] {
   const n = polygon.length, area = polygon.reduce((s, p, i) => s + p.x * polygon[(i + 1) % n].y - polygon[(i + 1) % n].x * p.y, 0);
   const orientation = area >= 0 ? 1 : -1; // outward normal side depends on winding
@@ -44,12 +48,21 @@ export type TravelGraph = {
 const emptyDiagnostics = (): Diagnostics => ({ solverVersion: 'v2-travel', rawFaultSegmentCount: 0, interpretedFaultRegionCount: 0, endpointMerges: 0, inferredGapClosures: 0,
   graphNodeCount: 0, graphEdgeCount: 0, searchIterations: 0, routesEvaluated: 0, prunedCandidates: 0, waypointReductions: 0, finalDistance: null, solveDurationMs: 0, warnings: [], unresolvedRequiredAreas: [] });
 
+export type TravelOptions = { clearanceInches: number; travel: 'anywhere' | 'within-areas'; targetsBlockTravel: boolean };
+
 /**
  * Visibility graph over obstacle corners with exact all-pairs shortest paths between corners (Floyd–Warshall).
  * Point-to-point distance = direct segment when clear, else best corner-to-corner chain. Walls (and optionally target
- * stands) are barriers inflated by the body clearance; fault lines do not block travel unless travel is limited to firing areas.
+ * stands) are barriers inflated by the body clearance; fault lines do not block travel unless travel is limited to
+ * firing areas, in which case the areas' own corners (stepped just inside) are graph nodes too, so a walk can turn the
+ * inside corner of an L-shaped area.
  */
-export function createTravelGraph(doc: StageDocument, stage: NormalizedStage, options: { clearanceInches: number; travel: 'anywhere' | 'within-areas'; targetsBlockTravel: boolean }): TravelGraph {
+export function createTravelGraph(doc: StageDocument, stage: NormalizedStage, options: TravelOptions): TravelGraph {
+  return drain(buildTravelGraph(doc, stage, options));
+}
+
+/** Same graph, built in steps that yield between rows of the all-pairs work (for the sliced async planner). */
+export function* buildTravelGraph(doc: StageDocument, stage: NormalizedStage, options: TravelOptions): Generator<void, TravelGraph, void> {
   const stands = options.targetsBlockTravel ? [...stage.targets, ...stage.noShoots].map(standBarrier) : [];
   const geometry = stageGeometry({ stage: doc, start: stage.start, requiredAreas: [], barriers: stands,
     ...(options.travel === 'within-areas' ? { allowedTravelRegions: stage.areas.map(a => a.vertices) } : {}),
@@ -83,19 +96,26 @@ export function createTravelGraph(doc: StageDocument, stage: NormalizedStage, op
   };
   const corners = [...geometry.barriers, ...geometry.restrictedRegions]
     .flatMap(b => outsetCorners(b.polygon, options.clearanceInches + 0.5))
+    .concat(options.travel === 'within-areas' ? stage.areas.flatMap(a => outsetCorners(a.vertices, -0.5)) : [])
     .filter(traversable);
   const n = corners.length;
   const dist: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(Infinity));
   const next: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(-1));
   for (let i = 0; i < n; i++) { dist[i][i] = 0; next[i][i] = i; }
-  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-    if (!isSegmentTraversable(corners[i], corners[j], geometry)) continue;
-    const d = distanceBetweenPoints(corners[i], corners[j]);
-    dist[i][j] = dist[j][i] = d; next[i][j] = j; next[j][i] = i;
+  for (let i = 0; i < n; i++) {
+    if (i % 8 === 0) yield;
+    for (let j = i + 1; j < n; j++) {
+      if (!isSegmentTraversable(corners[i], corners[j], geometry)) continue;
+      const d = distanceBetweenPoints(corners[i], corners[j]);
+      dist[i][j] = dist[j][i] = d; next[i][j] = j; next[j][i] = i;
+    }
   }
-  for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
-    const dik = dist[i][k]; if (dik === Infinity) continue;
-    for (let j = 0; j < n; j++) { const v = dik + dist[k][j]; if (v < dist[i][j] - 1e-12) { dist[i][j] = v; next[i][j] = next[i][k]; } }
+  for (let k = 0; k < n; k++) {
+    if (k % 8 === 0) yield;
+    for (let i = 0; i < n; i++) {
+      const dik = dist[i][k]; if (dik === Infinity) continue;
+      for (let j = 0; j < n; j++) { const v = dik + dist[k][j]; if (v < dist[i][j] - 1e-12) { dist[i][j] = v; next[i][j] = next[i][k]; } }
+    }
   }
   const key = (p: Point) => `${p.x},${p.y}`;
   const visibleCorners = new Map<string, { index: number; d: number }[]>();
@@ -105,6 +125,19 @@ export function createTravelGraph(doc: StageDocument, stage: NormalizedStage, op
     return list;
   };
   type Best = { d: number; i: number; j: number } | null;
+  // Single-source distances from a point to every corner (first corner remembered for the path), computed once per
+  // source: each later query to that source costs one pass over the destination's visible corners.
+  const sources = new Map<string, { d: Float64Array; via: Int32Array }>();
+  const fromSource = (a: Point) => {
+    let s = sources.get(key(a));
+    if (s) return s;
+    const d = new Float64Array(n).fill(Infinity), via = new Int32Array(n).fill(-1);
+    for (const u of fromPoint(a)) {
+      const row = dist[u.index];
+      for (let j = 0; j < n; j++) { const v = u.d + row[j]; if (v < d[j] - 1e-12) { d[j] = v; via[j] = u.index; } }
+    }
+    s = { d, via }; sources.set(key(a), s); return s;
+  };
   const memo = new Map<string, { d: number; best: Best }>();
   const solve = (a: Point, b: Point) => {
     const k = key(a) + '|' + key(b), cached = memo.get(k);
@@ -114,28 +147,31 @@ export function createTravelGraph(doc: StageDocument, stage: NormalizedStage, op
     else if (isSegmentTraversable(a, b, geometry)) result = { d: distanceBetweenPoints(a, b), best: null };
     else {
       let best: Best = null;
-      const fa = fromPoint(a), fb = fromPoint(b);
-      for (const u of fa) for (const v of fb) {
-        const total = u.d + dist[u.index][v.index] + v.d;
-        if (total < (best?.d ?? Infinity) - 1e-12) best = { d: total, i: u.index, j: v.index };
+      const sa = fromSource(a);
+      for (const v of fromPoint(b)) {
+        const total = sa.d[v.index] + v.d;
+        if (total < (best?.d ?? Infinity) - 1e-12) best = { d: total, i: sa.via[v.index], j: v.index };
       }
       result = { d: best?.d ?? Infinity, best };
     }
     memo.set(k, result); memo.set(key(b) + '|' + key(a), result.best ? { d: result.d, best: { d: result.d, i: result.best.j, j: result.best.i } } : result);
     return result;
   };
-  const reachableFrom = new Map<string, number[]>();
+  // Connected components of the corner graph (distances are symmetric): component = lowest corner index reachable.
+  const component = corners.map((_, j) => { for (let i = 0; i < n; i++) if (dist[i][j] < Infinity) return i; return j; });
+  const componentsOf = new Map<string, Set<number>>();
   const connected = (a: Point, b: Point) => {
     if (!traversable(a) || !traversable(b)) return false;
     if (isSegmentTraversable(a, b, geometry)) return true;
-    let reach = reachableFrom.get(key(a));
-    if (!reach) {
-      const seeds = fromPoint(a).map(v => v.index);
-      reach = corners.map((_, j) => j).filter(j => seeds.some(i => dist[i][j] < Infinity));
-      reachableFrom.set(key(a), reach);
-    }
-    const ordered = [...reach].sort((i, j) => distanceBetweenPoints(corners[i], b) - distanceBetweenPoints(corners[j], b));
-    return ordered.some(i => isSegmentTraversable(corners[i], b, geometry));
+    let reach = componentsOf.get(key(a));
+    if (!reach) { reach = new Set(fromPoint(a).map(v => component[v.index])); componentsOf.set(key(a), reach); }
+    const seen = reach, cached = visibleCorners.get(key(b));
+    if (cached) return cached.some(v => seen.has(component[v.index]));
+    // Nearest corners first; usually the first few decide it, so b's full visibility list is not needed.
+    const order = corners.map((_, i) => i).filter(i => seen.has(component[i]));
+    const d = order.map(i => { const dx = corners[i].x - b.x, dy = corners[i].y - b.y; return dx * dx + dy * dy; });
+    const ranked = order.map((i, k) => [d[k], i] as const).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    return ranked.some(([, i]) => isSegmentTraversable(corners[i], b, geometry));
   };
   return {
     geometry, traversable, connected,

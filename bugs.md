@@ -1,3 +1,9 @@
+# Route Planner V2 review - 2026-10-22
+
+- Fixed (batch 5, details in changelog.md): ignored route settings and "engage after" procedures; the analysis and V2 disagreeing on legality; saved stationary orders dropping targets after an illegal one; refinement leaving stops on the legal limit; 21 s UI freeze and slow cancel on large stages; L-shaped areas unreachable with travel limited to areas; flush-mounted targets hidden; straight-line assistant explanations; starts near walls rejected.
+- Known limitation: visibility is sampled at five points across each face, so an opening narrower than the gap between samples can show as several short windows. Planning time on a phone is unmeasured (Node timings only); add to the hardware checklist run.
+- Not changed by design: a saved moving order remains authoritative (an infeasible moving engagement stops the moving sequence there).
+
 # RC2 batch 1 verification - 2026-10-22
 
 - Fixed: unit suffix without a space parsed as yards; Reset dropping family/size; rotation snapping ignored for targets and segments; inconsistent wall pivot; off-stage grid snaps; zero-size/duplicate-ID documents accepted. Details in changelog.md.

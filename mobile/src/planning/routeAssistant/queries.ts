@@ -4,7 +4,7 @@ import { stageGeometry } from '../routeSolver/stageGeometry';
 import { isSegmentTraversable, isPointTraversable, visited, distanceBetweenPoints, segmentIntersectsWall } from '../routeSolver/traversability';
 import type { RouteAssistantContext, RouteMetrics, ExplanationReason, Highlights, RouteComparison } from './types';
 import { clone } from './context';
-import { planRoute, snapshotFromPlan } from '../v2/index';
+import { optionsFromPlan, planRoute, snapshotFromPlan } from '../v2/index';
 import { targetLabel } from '../model';
 import type { StagePlan } from '../model';
 import type { StageDocument } from '../../stage/model';
@@ -55,6 +55,17 @@ export function getBlockingGeometry(c: RouteAssistantContext, from: Point, to: P
   const g=geometry(c);
   return {stageObjectIds:g.barriers.filter(b=>segmentIntersectsWall(from,to,b,g.clearance)).map(b=>b.id),restrictedRegionIds:g.restrictedRegions.filter(b=>segmentIntersectsWall(from,to,b,g.clearance)).map(b=>b.id),traversable:isSegmentTraversable(from,to,g)};
 }
+/** Blocking geometry along a polyline: the union over its straight pieces. */
+export function getBlockingAlong(c: RouteAssistantContext, points: readonly Point[]) {
+  const parts = points.slice(1).map((q, i) => getBlockingGeometry(c, points[i], q));
+  return { stageObjectIds: [...new Set(parts.flatMap(p => p.stageObjectIds))], restrictedRegionIds: [...new Set(parts.flatMap(p => p.restrictedRegionIds))], traversable: parts.every(p => p.traversable) };
+}
+/** Walking path of the leg into positions[index], bends included (the path the evaluator and analysis use). */
+function legPoints(c: RouteAssistantContext, index: number): Point[] {
+  const startId = c.stage.objects.find(o => o.type === 'start')?.id ?? 'START', from = index ? c.route.positions[index - 1] : null, start = c.solverInput.start;
+  return connectionPoints(c.route, from?.id ?? startId, c.route.positions[index].id, from?.position ?? { space: 'stage', x: start.x, y: start.y, z: 0 }, c.route.positions[index].position)
+    .map(q => ({ x: q.x, y: q.y }));
+}
 export function explainWaypoint(c: RouteAssistantContext, id: string) {
   const index=c.route.positions.findIndex(p=>p.id===id);
   if(index<0)return {status:'invalid',code:'WAYPOINT_NOT_FOUND'} as const;
@@ -77,8 +88,9 @@ export function explainWaypoint(c: RouteAssistantContext, id: string) {
 export function explainRouteSegment(c: RouteAssistantContext, fromId: string, toId: string) {
   const ids=['START',...c.route.positions.map(p=>p.id)],index=ids.indexOf(fromId);
   if(index<0||ids[index+1]!==toId)return {status:'invalid',code:'SEGMENT_NOT_FOUND'} as const;
-  const from=index?c.route.positions[index-1].position:c.solverInput.start,to=c.route.positions[index].position;
-  return {fromId,toId,distanceInches:distanceBetweenPoints(from,to),...getBlockingGeometry(c,from,to),destination:explainWaypoint(c,toId)};
+  // Follows the drawn bends of this leg, not the straight line between its ends.
+  const path=legPoints(c,index);
+  return {fromId,toId,distanceInches:path.slice(1).reduce((n,q,i)=>n+distanceBetweenPoints(path[i],q),0),bendCount:Math.max(0,path.length-2),...getBlockingAlong(c,path),destination:explainWaypoint(c,toId)};
 }
 export const emptyHighlights = (): Highlights => ({waypointIds:[],stageObjectIds:[],requiredAreaIds:[],routeSegmentIds:[],temporaryRegionIds:[]});
 export const formatExplanation = (reasons: readonly ExplanationReason[]) => reasons.map(r=>`${r.type}: ${(r.objectIds??r.requiredAreaIds??[]).join(', ')}`).join('\n');
@@ -88,7 +100,8 @@ export const formatExplanation = (reasons: readonly ExplanationReason[]) => reas
  * limits that were and were not checked. Computed deterministically; the model only words these facts.
  */
 export function getPlanDiagnostics(c: RouteAssistantContext) {
-  const plan = planRoute(snapshotFromPlan(clone(c.stage) as StageDocument, clone(c.plan) as StagePlan));
+  const stagePlan = clone(c.plan) as StagePlan;
+  const plan = planRoute(snapshotFromPlan(clone(c.stage) as StageDocument, stagePlan), optionsFromPlan(stagePlan));
   const label = (id: string) => targetLabel(c.stage as StageDocument, id);
   return {
     source: 'Route Planner V2 (computed)', status: plan.status, errors: plan.errors.slice(0, 3),

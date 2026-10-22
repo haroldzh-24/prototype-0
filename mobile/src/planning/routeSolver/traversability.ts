@@ -1,6 +1,7 @@
 import type { Point, Barrier, Geometry } from './types';
 export const EPS = 1e-7;
-export const distanceBetweenPoints = (a: Point, b: Point) => Math.hypot(a.x-b.x, a.y-b.y);
+// Math.sqrt rather than Math.hypot: same result at stage scale, and much faster in the hot geometry loops.
+export const distanceBetweenPoints = (a: Point, b: Point) => { const dx = a.x-b.x, dy = a.y-b.y; return Math.sqrt(dx*dx+dy*dy); };
 export const cross = (a: Point,b: Point,c: Point) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
 export function project(p: Point,a: Point,b: Point): Point {
   const d = (b.x-a.x)**2+(b.y-a.y)**2;

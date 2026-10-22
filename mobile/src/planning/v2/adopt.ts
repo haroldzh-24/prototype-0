@@ -2,12 +2,20 @@ import type { StageDocument } from '../../stage/model';
 import type { StagePlan } from '../model';
 import type { StageRoute } from '../route';
 import type { RouteConnection } from '../routeGeometry';
-import type { RoutePlan, StageSnapshot } from './types';
+import type { PlanRouteOptions, RoutePlan, StageSnapshot } from './types';
 
 /** Snapshot of the current stage and route settings for planRoute. */
 export function snapshotFromPlan(stage: StageDocument, plan: StagePlan): StageSnapshot {
   const rules = plan.route?.engagementRules;
   return { stage, firingAreas: rules?.firingAreas ?? [], targetProcedures: rules?.targetProcedures ?? {}, ruleset: rules?.ruleset };
+}
+
+/** Route settings the planner must honour: safe direction and half angle, and whether travel may leave firing areas. */
+export function optionsFromPlan(plan: StagePlan): PlanRouteOptions {
+  const rules = plan.route?.engagementRules;
+  if (!rules) return {};
+  return { downrangeDegrees: rules.safeDirectionDegrees, safeHalfAngleDegrees: rules.safeHalfAngleDegrees,
+    travel: rules.allowOutsideTravel === false ? 'within-areas' : 'anywhere', ruleset: rules.ruleset };
 }
 
 /**

@@ -84,8 +84,9 @@ test('a tall wall blocks line of sight; a low wall under USPSA is seen over, but
   assert.equal(lowUSPSA.status, 'complete');
   assert.ok(lowUSPSA.positions[0].engagements[0].overLowWall);
   assert.ok(lowUSPSA.assumptions.some(a => /lower than 69 in/.test(a)));
-  const lowIDPA = plan(low, [box('A', 200, 300, 200, 120)], { ruleset: 'IDPA' });
+  const lowIDPA = plan(low, [box('A', 200, 300, 200, 120)], { ruleset: 'IDPA' }, { targetProcedures: { T1: { areaIds: ['A'] } } });
   assert.equal(lowIDPA.status, 'infeasible', 'IDPA simulated walls extend infinitely');
+  assert.deepEqual(lowIDPA.targets[0].reasons, ['OCCLUDED']);
 });
 
 test('a port lets the shot through a tall wall only within its opening', () => {
@@ -105,7 +106,7 @@ test('no-shoots occlude under USPSA and only warn under IDPA', () => {
   const area = box('A', 260, 300, 80, 60);
   const uspsa = plan(stage, [area], { ruleset: 'USPSA' });
   assert.equal(uspsa.status, 'infeasible'); assert.deepEqual(uspsa.targets[0].reasons, ['OCCLUDED']);
-  const idpa = plan(stage, [area], { ruleset: 'IDPA' });
+  const idpa = plan(stage, [area], { ruleset: 'IDPA' }, { targetProcedures: { T1: { areaIds: ['A'] } } });
   assert.equal(idpa.status, 'complete');
   assert.ok(idpa.positions[0].engagements[0].throughNoShoot);
   assert.ok(idpa.warnings.some(w => /non-threat/.test(w)));
@@ -250,7 +251,8 @@ test('engagements at a stop run left to right across downrange (IDPA: near to fa
   const uspsa = plan(stage, area, { ruleset: 'USPSA' });
   assert.equal(uspsa.positions.length, 1);
   assert.deepEqual(uspsa.positions[0].engagements.map(e => e.targetId), ['NEAR_LEFT', 'MID', 'FAR_RIGHT']);
-  const idpa = plan(stage, area, { ruleset: 'IDPA' });
+  const cover = { areaIds: ['A'] };
+  const idpa = plan(stage, area, { ruleset: 'IDPA' }, { targetProcedures: { FAR_RIGHT: cover, NEAR_LEFT: cover, MID: cover } });
   const order = idpa.positions[0].engagements.map(e => e.targetId);
   assert.equal(order[0], 'NEAR_LEFT'); assert.equal(order.at(-1), 'FAR_RIGHT');
   assert.ok(idpa.safety.notChecked.some(n => /IDPA cover/.test(n)), 'IDPA limits are reported');

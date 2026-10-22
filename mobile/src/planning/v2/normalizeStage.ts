@@ -1,5 +1,6 @@
 import type { StageObject } from '../../stage/model';
 import { activeFaceExtent } from '../../stage/targetFace';
+import { rotatedHalfExtents } from '../../stage/geometry';
 import { stageDownrange } from '../../stage/orientation';
 import { endpoints } from '../../stage/segments';
 import { isEngageable } from '../model';
@@ -7,6 +8,7 @@ import type { FiringArea } from '../engagements';
 import type { PlanRouteOptions, Point, Ruleset, StageSnapshot } from './types';
 
 export type Wall = Extract<StageObject, { type: 'wall' }>;
+export type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
 export type TargetFace = {
   id: string; kind: 'paper' | 'steel' | 'no-shoot';
   /** Plan-view face line from the left edge to the right edge (as placed). */
@@ -21,16 +23,26 @@ export type TargetFace = {
 export type NormalizedStage = {
   size: { width: number; depth: number };
   start: Point;
+  /** Safe direction actually used (route setting when given). */
   downrangeDegrees: number;
+  /** The stage's own downrange, for reporting a mismatch. */
+  stageDownrangeDegrees: number;
   ruleset: Ruleset;
   targets: TargetFace[];
   noShoots: TargetFace[];
   walls: Wall[];
+  /** Plan-view bounding box of each wall footprint (same order as walls), for fast rejection in sight checks. */
+  wallBounds: Bounds[];
   areas: FiringArea[];
   procedures: NonNullable<StageSnapshot['targetProcedures']>;
 };
 
 const finite = (...values: number[]) => values.every(Number.isFinite);
+/** Wall footprints are rectangles centred on the wall position (the frame wallEffect tests against). */
+function wallBounds(w: Wall): Bounds {
+  const half = rotatedHalfExtents(w);
+  return { minX: w.position.x - half.x, minY: w.position.y - half.y, maxX: w.position.x + half.x, maxY: w.position.y + half.y };
+}
 const SIGHT_FRACTIONS = [0.1, 0.3, 0.5, 0.7, 0.9];
 
 function face(object: StageObject): TargetFace | null {
@@ -74,6 +86,7 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
   const spacing = options.candidateSpacingInches ?? 12, half = options.safeHalfAngleDegrees ?? 90;
   if (!(spacing >= 1 && spacing <= 120)) errors.push('Candidate spacing must be between 1 and 120 inches.');
   if (!(half > 0 && half <= 90)) errors.push('The safe half angle must be greater than 0 and at most 90 degrees.');
+  if (options.downrangeDegrees !== undefined && !Number.isFinite(options.downrangeDegrees)) errors.push('The safe direction must be a finite angle.');
   if (errors.length || !start) return { errors };
   const faces = doc.objects.map(face).filter((f): f is TargetFace => !!f);
   const engageable = new Set(doc.objects.filter(isEngageable).map(o => o.id));
@@ -82,11 +95,13 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
     stage: {
       size: { width: doc.stage.width, depth: doc.stage.depth },
       start: { x: start.position.x, y: start.position.y },
-      downrangeDegrees: stageDownrange(doc),
+      downrangeDegrees: options.downrangeDegrees !== undefined ? ((options.downrangeDegrees % 360) + 360) % 360 : stageDownrange(doc),
+      stageDownrangeDegrees: stageDownrange(doc),
       ruleset: options.ruleset ?? snapshot.ruleset ?? 'USPSA',
       targets: faces.filter(f => engageable.has(f.id)),
       noShoots: faces.filter(f => f.kind === 'no-shoot'),
       walls: doc.objects.filter((o): o is Wall => o.type === 'wall'),
+      wallBounds: doc.objects.filter((o): o is Wall => o.type === 'wall').map(wallBounds),
       areas: areas.map(a => ({ id: a.id, vertices: a.vertices.map(p => ({ x: p.x, y: p.y })) })),
       procedures: snapshot.targetProcedures ?? {},
     },

@@ -4,10 +4,13 @@ import { footprint, footprintCenterOffset, segmentRectangleInterval, stageToObje
 import { isEngageable } from './model';
 import type { StageRoute, ShootingPosition } from './route';
 import { connectionPoints } from './routeGeometry';
-import { hasLineOfSight, isPointInsideAllowedArea } from './positionDiscovery';
+import { isPointInsideAllowedArea } from './positionDiscovery';
 import { formatYardsFixed } from '../stage/measurements';
 import { strictlyInside } from './routeSolver/traversability';
 import { stageDownrange } from '../stage/orientation';
+import { normalizeStage } from './v2/normalizeStage';
+import type { NormalizedStage, TargetFace } from './v2/normalizeStage';
+import { checkEngagement, defaultNoShootPolicy } from './v2/coverage';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -70,19 +73,30 @@ export function insideArea(p: { x: number; y: number }, area: FiringArea): boole
 }
 type Wall = Extract<StageObject, { type: 'wall' }>;
 function center(target: StageObject) { const o = footprintCenterOffset(target); return { ...target.position, x: target.position.x + o.x, y: target.position.y + o.y }; }
-function canFire(p: StagePosition, target: StageObject, stage: StageDocument, rules: EngagementRules, walls: Wall[], moving: boolean): boolean {
+/**
+ * The legality kernel shared with Route Planner V2 (v2/coverage checkEngagement): allowed area (boundary outside),
+ * the whole sampled face inside the safe arc, and line of sight past walls, ports, the 69 in low-wall rule, other
+ * target faces and no-shoots per ruleset. Built once per analysis from the route's own rules.
+ */
+type Kernel = { stage: NormalizedStage; faces: Map<string, TargetFace>; policy: 'occlude' | 'warn' } | null;
+function kernelFor(stage: StageDocument, rules: EngagementRules): Kernel {
+  const { stage: normalized } = normalizeStage({ stage, firingAreas: rules.firingAreas, targetProcedures: rules.targetProcedures, ruleset: rules.ruleset },
+    { downrangeDegrees: rules.safeDirectionDegrees, safeHalfAngleDegrees: rules.safeHalfAngleDegrees });
+  return normalized ? { stage: normalized, faces: new Map(normalized.targets.map(f => [f.id, f])), policy: defaultNoShootPolicy(normalized.ruleset) } : null;
+}
+function canFire(p: StagePosition, target: StageObject, stage: StageDocument, rules: EngagementRules, kernel: Kernel, moving: boolean): boolean {
   const procedure = rules.targetProcedures[target.id];
   if (moving && (!rules.allowMoving || procedure?.stationaryOnly)) return false;
-  // IDPA requires explicit per-target cover/exposure areas supplied from this stage brief.
-  if (rules.ruleset === 'IDPA' && !procedure?.areaIds?.length) return false;
-  if (!isPointInsideAllowedArea(p, stage.stage) || !rules.firingAreas.some(a => insideArea(p, a) && (!procedure?.areaIds || procedure.areaIds.includes(a.id)))) return false;
-  const t = center(target), angle = Math.atan2(t.y - p.y, t.x - p.x) * 180 / Math.PI;
-  const delta = Math.abs(((angle - rules.safeDirectionDegrees) % 360 + 540) % 360 - 180);
-  return length(p, t) > 1e-7 && delta < rules.safeHalfAngleDegrees - 1e-7 && hasLineOfSight(p, t, walls);
+  const face = kernel?.faces.get(target.id);
+  if (!kernel || !face || !isPointInsideAllowedArea(p, stage.stage)) return false;
+  // Includes IDPA's requirement for explicit per-target cover/exposure areas from the stage brief.
+  return checkEngagement(p, face, kernel.stage, rules.safeHalfAngleDegrees, kernel.policy).legal;
 }
 /** Physical regular samples plus exact polygon/safety/LOS event distances avoid skipping narrow openings.
- * Midpoint tests partition linear geometry; bisection retains the legal side of each boundary. */
-function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, target?: StageObject, walls: Wall[] = []): number[] {
+ * Midpoint tests partition linear geometry; bisection retains the legal side of each boundary. Events follow the
+ * kernel: safe-angle lines through every sampled face point, and sight lines from each sampled face point past every
+ * occluder corner (wall and port edges, other target faces and no-shoots). */
+function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, target?: StageObject, walls: Wall[] = [], kernel: Kernel = null): number[] {
   const d = length(a, b), values = [0, d];
   if (!d) return values;
   const cross = (x: number, y: number, u: number, v: number) => x * v - y * u;
@@ -96,25 +110,27 @@ function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, targ
   for (let n = rules.sampleSpacingInches; n < d; n += rules.sampleSpacingInches) values.push(n);
   for (const area of rules.firingAreas) area.vertices.forEach((p, i) => intersect(p, area.vertices[(i + 1) % area.vertices.length]));
   if (target) {
-    const t = center(target);
-    for (const angle of [rules.safeDirectionDegrees - rules.safeHalfAngleDegrees, rules.safeDirectionDegrees + rules.safeHalfAngleDegrees]) {
-      const rad = angle * Math.PI / 180; intersect(t, { x: t.x + Math.cos(rad), y: t.y + Math.sin(rad) }, true);
+    const face = kernel?.faces.get(target.id);
+    const angleSamples = face ? face.angleSamples : [center(target)], sightSamples = face ? face.sightSamples : [center(target)];
+    for (const q of angleSamples) for (const angle of [rules.safeDirectionDegrees - rules.safeHalfAngleDegrees, rules.safeDirectionDegrees + rules.safeHalfAngleDegrees]) {
+      const rad = angle * Math.PI / 180; intersect(q, { x: q.x + Math.cos(rad), y: q.y + Math.sin(rad) }, true);
     }
+    const occluders: { x: number; y: number }[] = [];
     for (const wall of walls) {
       const size = footprint(wall), rad = wall.rotation * Math.PI / 180;
       const xs = [-size.width / 2, size.width / 2, ...wall.ports.flatMap(p => [p.offset - p.width / 2, p.offset + p.width / 2])];
-      for (const x of xs) for (const y of [-size.depth / 2, size.depth / 2]) {
-        const corner = { x: wall.position.x + x * Math.cos(rad) - y * Math.sin(rad), y: wall.position.y + x * Math.sin(rad) + y * Math.cos(rad) };
-        intersect(t, corner, true);
-      }
+      for (const x of xs) for (const y of [-size.depth / 2, size.depth / 2])
+        occluders.push({ x: wall.position.x + x * Math.cos(rad) - y * Math.sin(rad), y: wall.position.y + x * Math.sin(rad) + y * Math.cos(rad) });
     }
+    if (kernel) for (const other of [...kernel.stage.targets, ...kernel.stage.noShoots]) if (other.id !== target.id) occluders.push(other.left, other.right);
+    for (const q of sightSamples) for (const corner of occluders) if (Math.abs(corner.x - q.x) + Math.abs(corner.y - q.y) > 1e-9) intersect(q, corner, true);
   }
   return [...new Set(values)].sort((x, y) => x - y);
 }
 /** Breaks along a polyline path: each straight piece's breaks offset by the distance walked before it, plus the bends. */
-function pathBreaks(path: StagePosition[], cum: number[], rules: EngagementRules, target?: StageObject, walls: Wall[] = []): number[] {
+function pathBreaks(path: StagePosition[], cum: number[], rules: EngagementRules, target?: StageObject, walls: Wall[] = [], kernel: Kernel = null): number[] {
   const values = [...cum];
-  for (let i = 1; i < path.length; i++) for (const d of breaks(path[i - 1], path[i], rules, target, walls)) values.push(cum[i - 1] + d);
+  for (let i = 1; i < path.length; i++) for (const d of breaks(path[i - 1], path[i], rules, target, walls, kernel)) values.push(cum[i - 1] + d);
   return [...new Set(values)].sort((x, y) => x - y);
 }
 /** Point at distance s along a polyline (clamped to its ends). */
@@ -152,6 +168,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
   }
   if (!rules.firingAreas.length) result.warnings.push('No legal firing areas configured.');
   if (rules.ruleset === 'IDPA' && targets.some(t => !rules.targetProcedures[t.id]?.areaIds?.length)) result.warnings.push('IDPA needs explicit cover/exposure area assignments for every target.');
+  const kernel = kernelFor(stage, rules);
   const completed = new Set<string>();
   const futureWindows = suggest ? analyzeEngagements(stage, { ...route, positions: route.positions.map(p => ({ ...p, engagedTargetIds: [], movingTargetIds: [] })) }).windows : [];
   const alternatives = targets.map(t => ({ targetId: t.id, stationaryWaypointIds: [] as string[], movingSegmentIds: [] as string[] }));
@@ -179,12 +196,12 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
     const local: EngagementWindow[] = [];
     for (const target of targets) {
       const alternative = alternatives.find(a => a.targetId === target.id)!;
-      if (canFire(to, target, stage, rules, walls, false)) alternative.stationaryWaypointIds.push(waypoint.id);
+      if (canFire(to, target, stage, rules, kernel, false)) alternative.stationaryWaypointIds.push(waypoint.id);
       if (d > 1e-7 && !route.reloads.some(r => r.positionId === waypoint.id)) {
-        const targetCuts = pathBreaks(path, cum, rules, target, walls);
-        geometryWork += targetCuts.length * Math.max(1, walls.length);
-        if (geometryWork > 1000000) { result.truncated = true; result.warnings.push('Geometry work budget reached; remaining engagements are unverified.'); return result; }
-        const windows = intervals(targetCuts, s => canFire(at(s), target, stage, rules, walls, true));
+        const targetCuts = pathBreaks(path, cum, rules, target, walls, kernel);
+        geometryWork += targetCuts.length * Math.max(1, walls.length + targets.length);
+        if (geometryWork > 3000000) { result.truncated = true; result.warnings.push('Geometry work budget reached; remaining engagements are unverified.'); return result; }
+        const windows = intervals(targetCuts, s => canFire(at(s), target, stage, rules, kernel, true));
         if (windows.length) alternative.movingSegmentIds.push(waypoint.id);
         if (!completed.has(target.id)) for (const w of windows) local.push({ targetId: target.id, routeSegmentId: waypoint.id,
           startDistanceAlongSegment: w.start, endDistanceAlongSegment: w.end, startPosition: at(w.start), endPosition: at(w.end),
@@ -231,9 +248,14 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
         const target = targets.find(t => t.id === id);
         return target && !completed.has(id) && !(rules.targetProcedures[id]?.afterTargetIds ?? []).some(required => !completed.has(required))
           && !(suggest && futureWindows.some(w => w.targetId === id && route.positions.findIndex(p => p.id === w.routeSegmentId) > route.positions.indexOf(waypoint)))
-          && canFire(to, target, stage, rules, walls, false);
+          && canFire(to, target, stage, rules, kernel, false);
       };
-      const id = suggest ? stationaryPending.find(eligible) : eligible(stationaryPending[0]) ? stationaryPending[0] : undefined;
+      if (!suggest && !eligible(stationaryPending[0])) {
+        // Saved order: an ineligible target is skipped and reported; the targets after it are still checked.
+        result.warnings.push(`${waypoint.label}: ${stationaryPending[0]} cannot be engaged here in the saved order.`);
+        stationaryPending.shift(); continue;
+      }
+      const id = suggest ? stationaryPending.find(eligible) : stationaryPending[0];
       if (!id) break;
       stationary.push({ targetId: id, orderLabel: engagementLabel(stationary.length), reason: 'Legal stationary engagement at this waypoint.' }); completed.add(id);
       stationaryPending.splice(stationaryPending.indexOf(id), 1);
