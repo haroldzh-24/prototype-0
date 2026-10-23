@@ -1,3 +1,12 @@
+# RC2 batch 6: second review of the V2 fixes - 2026-10-22
+
+- A start inside a wall (any thickness) is now invalid input; before, a start inside a wall thinner than 4 in was moved to its far side through the wall and the plan was called complete. The step from a start near a wall to its clear point must also miss every wall.
+- With outside travel turned off, the engagement analysis now counts walking along an area's edge as inside the area, the same rule the planner uses, so plans starting on an edge are no longer rejected by the analysis.
+- Search phases read the clock inside expensive steps (first distance computations, the dominance filter) and use a cheap counting bound when an exact one would be large, so they end within a few tens of milliseconds of the limit (was up to about 0.9 s over). The greedy fallback now yields too.
+- Travel limited to firing areas turns inside corners of an L drawn as two boxes (abutting or overlapping), not only of one L-shaped polygon.
+- Moving-window analysis splits a leg where it crosses another target's face line; sight lines stop 0.01 in short of a face (was 0.1 in).
+- Validation: 872/872 tests (4 new, each failing on the previous commit; the review tests now use an integer-exact random generator), TypeScript passed. No device testing.
+
 # RC2 batch 5: Route Planner V2 review fixes - 2026-10-22
 
 Fixes from an independent review of batch 4. Planner version 2.1.0. Design notes: `docs/route-planner-v2.md` ("Review fixes").

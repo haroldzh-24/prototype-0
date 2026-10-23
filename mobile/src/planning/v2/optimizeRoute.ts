@@ -10,6 +10,12 @@ const lowestBit = (m: bigint) => m & -m;
  * result so far, and `stoppedBy` records why.
  */
 export type SearchBudget = { nodes: number; limit: number; deadline?: number; stoppedBy?: 'nodes' | 'time' };
+/** True (and records it) once the wall-clock deadline has passed. */
+export function pastDeadline(budget: SearchBudget): boolean {
+  if (budget.stoppedBy) return true;
+  if (budget.deadline !== undefined && Date.now() > budget.deadline) { budget.stoppedBy = 'time'; return true; }
+  return false;
+}
 /** Spends one node; true when the budget is exhausted. The clock is read every 256 nodes. */
 export function spend(budget: SearchBudget): boolean {
   if (budget.stoppedBy) return true;
@@ -31,9 +37,14 @@ export function drain<T>(steps: Generator<void, T, void>): T {
  */
 export function* minimumCoverSteps(masks: readonly bigint[], required: bigint, budget: SearchBudget): Generator<void, number | null, void> {
   if (!required) return 0;
-  // Dominated masks never reduce the minimum count.
+  // Dominated masks never reduce the minimum count. Quadratic in distinct masks, so it yields and watches the clock.
   const unique = [...new Set(masks.map(m => m & required))].filter(m => m);
-  const useful = unique.filter(m => !unique.some(o => o !== m && (o & m) === m));
+  const useful: bigint[] = [];
+  for (let i = 0; i < unique.length; i++) {
+    if ((i & 63) === 63) { yield; if (pastDeadline(budget)) return null; }
+    const m = unique[i];
+    if (!unique.some(o => o !== m && (o & m) === m)) useful.push(m);
+  }
   if (!useful.length || (useful.reduce((a, m) => a | m, 0n) & required) !== required) return Infinity;
   const maxPop = Math.max(...useful.map(m => popcount(m)));
   function* search(uncovered: bigint, k: number): Generator<void, boolean | null, void> {
@@ -125,11 +136,20 @@ export function* shortestCoveringWalkSteps(start: Point, pool: readonly Coverage
   function* needed(mask: bigint): Generator<void, number | null, void> {
     const cached = coverMemo.get(mask);
     if (cached !== undefined) return cached;
-    // The lower bound gets a small budget of its own; its work counts toward the shared budget.
-    const inner: SearchBudget = { nodes: 0, limit: 2000, deadline: budget.deadline };
-    const value = yield* minimumCoverSteps(masks, mask, inner);
-    budget.nodes += inner.nodes;
-    if (inner.stoppedBy === 'time') budget.stoppedBy = 'time';
+    const restricted = new Set<bigint>();
+    for (const m of masks) { const r = m & mask; if (r) restricted.add(r); }
+    let value: number | null;
+    if (restricted.size > 256) {
+      // Too many distinct sets for a cheap exact bound: use the counting bound (still a valid lower bound).
+      const maxPop = Math.max(0, ...[...restricted].map(popcount));
+      value = maxPop ? Math.ceil(popcount(mask) / maxPop) : Infinity;
+    } else {
+      // The exact bound gets a small budget of its own; its work counts toward the shared budget.
+      const inner: SearchBudget = { nodes: 0, limit: 2000, deadline: budget.deadline };
+      value = yield* minimumCoverSteps([...restricted], mask, inner);
+      budget.nodes += inner.nodes;
+      if (inner.stoppedBy === 'time') budget.stoppedBy = 'time';
+    }
     coverMemo.set(mask, value); return value;
   }
   function* visit(at: Point, engaged: bigint, order: CoverageCandidate[], distance: number): Generator<void, void, void> {
@@ -141,7 +161,7 @@ export function* shortestCoveringWalkSteps(start: Point, pool: readonly Coverage
     if (need !== null && need > remaining) return;
     const options: { c: CoverageCandidate; d: number; next: bigint }[] = [];
     for (let i = 0; i < pool.length; i++) {
-      if ((i & 31) === 31) yield; // first visits to a stop compute many walking distances
+      if ((i & 31) === 31) { yield; if (pastDeadline(budget)) { stopped = true; return; } } // first visits compute many distances
       if (!(masks[i] & ~engaged)) continue;
       const next = advance(engaged, masks[i]);
       if (next === engaged) continue;
@@ -167,19 +187,30 @@ export function shortestCoveringWalk(start: Point, pool: readonly CoverageCandid
   return drain(shortestCoveringWalkSteps(start, pool, required, k, travel, { nodes: 0, limit: nodeLimit }, advance));
 }
 
-/** Fallback when the search budget runs out without any walk: greedy most-new-engagements, nearest on ties. */
-export function greedyWalk(start: Point, pool: readonly CoverageCandidate[], required: bigint, travel: (a: Point, b: Point) => number,
-  advance: Advance = unordered): RouteSearchResult {
+/**
+ * Fallback when the search budget runs out without any walk: greedy most-new-engagements, nearest on ties.
+ * Not subject to the deadline (a plan is always produced); it yields every 32 candidates.
+ */
+export function* greedyWalkSteps(start: Point, pool: readonly CoverageCandidate[], required: bigint, travel: (a: Point, b: Point) => number,
+  advance: Advance = unordered): Generator<void, RouteSearchResult, void> {
   const order: CoverageCandidate[] = []; let engaged = 0n, at = start, distance = 0;
   while ((engaged & required) !== required) {
     let pick: { c: CoverageCandidate; gain: number; d: number; next: bigint } | null = null;
-    for (const c of pool) {
-      const next = advance(engaged, c.mask & required), gain = popcount(next & ~engaged), d = travel(at, c.point);
-      if (!gain || !Number.isFinite(d)) continue;
+    for (let i = 0; i < pool.length; i++) {
+      if ((i & 31) === 31) yield;
+      const c = pool[i];
+      const next = advance(engaged, c.mask & required), gain = popcount(next & ~engaged);
+      if (!gain) continue;
+      const d = travel(at, c.point);
+      if (!Number.isFinite(d)) continue;
       if (!pick || gain > pick.gain || (gain === pick.gain && d < pick.d)) pick = { c, gain, d, next };
     }
     if (!pick) break;
     order.push(pick.c); engaged = pick.next; distance += pick.d; at = pick.c.point;
   }
   return { order, distance, complete: false, nodes: 0 };
+}
+export function greedyWalk(start: Point, pool: readonly CoverageCandidate[], required: bigint, travel: (a: Point, b: Point) => number,
+  advance: Advance = unordered): RouteSearchResult {
+  return drain(greedyWalkSteps(start, pool, required, travel, advance));
 }

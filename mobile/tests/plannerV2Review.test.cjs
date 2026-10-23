@@ -29,6 +29,8 @@ const wall = (stage, id, a, b, patch = {}) => {
   return r.stage;
 };
 const plan = (stage, areas, options = {}, extra = {}) => planRoute({ stage, firingAreas: areas, ...extra }, { candidateSpacingInches: 12, ...options });
+/** mulberry32: integer-exact, so seeded sequences do not collapse the way a float LCG can. */
+const rng = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const order = r => r.positions.map(pos => pos.engagements.map(e => e.targetId));
 const segDist = (q, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l)) : 0; return Math.hypot(q.x - a.x - dx * t, q.y - a.y - dy * t); };
 const edgeClearance = (q, areas) => Math.max(-1, ...areas.filter(a => strictlyInside(q, a.vertices)).map(a => Math.min(...a.vertices.map((v, i) => segDist(q, v, a.vertices[(i + 1) % a.vertices.length])))));
@@ -111,7 +113,7 @@ test('impossible "engage after" procedures are reported, never planned out of or
 });
 
 test('precedence-aware walk search matches brute force on random instances', () => {
-  let seed = 23; const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const rand = rng(23);
   const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   for (let trial = 0; trial < 40; trial++) {
     const targets = 2 + Math.floor(rand() * 3), count = 3 + Math.floor(rand() * 3), start = p(0, 0);
@@ -170,7 +172,7 @@ function randomStage(rand) {
 }
 
 test('planner and legality analysis agree on every adopted plan (random stages)', () => {
-  let seed = 41; const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const rand = rng(41);
   let checked = 0;
   for (let trial = 0; trial < 30; trial++) {
     const { stage, areas } = randomStage(rand);
@@ -204,7 +206,7 @@ test('refinement keeps stops off the fault line and never loosens a safety margi
   const refined = plan(stage, areas), raw = plan(stage, areas, { refine: false });
   assert.ok(refined.movementInches < raw.movementInches, 'refinement still shortens the walk');
   assert.ok(edgeClearance(refined.positions[0].point, areas) >= 3 - 1e-6, 'at least 3 in inside the area: ' + JSON.stringify(refined.positions[0].point));
-  let seed = 5; const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const rand = rng(5);
   for (let trial = 0; trial < 25; trial++) {
     const s = randomStage(rand);
     const a = plan(s.stage, s.areas, { candidateSpacingInches: 24 }), b = plan(s.stage, s.areas, { candidateSpacingInches: 24, refine: false });
@@ -226,7 +228,7 @@ test('refinement keeps stops off the fault line and never loosens a safety margi
 
 // Fix 4: long searches yield, respect a time limit, and cancel promptly.
 function bigStage() {
-  let seed = 3; const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const rand = rng(3);
   const W = 1800, D = 1200;
   let stage = createDefaultStage(undefined, { size: { width: W, depth: D } });
   stage.objects = [createObject('start', 'start', 100, D - 40)];
@@ -318,4 +320,63 @@ test('the assistant explains a leg along its drawn bends, not the straight line'
   assert.ok(facts.bendCount > 0);
   assert.ok(Math.abs(facts.distanceInches - result.movementInches) < 1e-6, `${facts.distanceInches} vs ${result.movementInches}`);
   assert.ok(!facts.stageObjectIds.includes('block'), 'the drawn path goes round the wall');
+});
+
+// Second review (of commit 83989f5).
+test('a start inside a thin wall is rejected, never nudged through it', () => {
+  for (const thickness of [2, 3]) {
+    let stage = blankStage([target('T1', 300, 60)]);
+    stage.objects[0].position = { ...stage.objects[0].position, x: 100, y: 445 };
+    stage = wall(stage, 'rail', p(40, 445), p(160, 445), { geometry: { height: 72, thickness } });
+    const result = plan(stage, [box('A', 200, 300, 200, 120)]);
+    assert.equal(result.status, 'invalid-input', `thickness ${thickness}`);
+    assert.match(result.errors.join(' '), /inside a wall/);
+  }
+});
+
+test('with travel limited to areas, a start on an area edge is accepted by the planner and the analysis alike', () => {
+  const stage = blankStage([target('T1', 300, 60)]); // start at (100, 440)
+  for (const areas of [[box('A', 60, 440, 300, 40)], [box('A', 60, 400, 300, 40), box('B', 60, 440, 300, 40)]]) {
+    const current = routePlan(stage, { firingAreas: areas, allowOutsideTravel: false });
+    const result = planRoute(snapshotFromPlan(stage, current), optionsFromPlan(current));
+    assert.equal(result.status, 'complete');
+    const analysis = analyzeEngagements(stage, planToStageRoute(result, stage, current));
+    assert.deepEqual(analysis.coveredTargetIds, ['T1'], analysis.warnings.join(' | '));
+    assert.ok(analysis.segments.every(s => s.traversable));
+  }
+});
+
+test('an L drawn as two boxes is walked like one L-shaped polygon', () => {
+  const stage = blankStage([target('T1', 90, 20)]);
+  stage.objects[0].position = { ...stage.objects[0].position, x: 500, y: 440 };
+  const top = box('TOP', 50, 110, 80, 60), procedures = { targetProcedures: { T1: { areaIds: ['TOP'] } } };
+  const walk = areas => plan(stage, [...areas, top], { travel: 'within-areas' }, procedures).movementInches;
+  const single = walk([{ id: 'L', vertices: [p(40, 100), p(140, 100), p(140, 360), p(560, 360), p(560, 460), p(40, 460)] }]);
+  assert.ok(Number.isFinite(single));
+  assert.ok(Math.abs(walk([box('V', 40, 100, 100, 360), box('H', 140, 360, 420, 100)]) - single) < 1, 'abutting boxes');
+  assert.ok(Math.abs(walk([box('V', 40, 100, 100, 360), box('H', 40, 360, 520, 100)]) - single) < 1, 'overlapping boxes');
+});
+
+test('the search phases stop close to their deadline even when single steps are expensive', () => {
+  const { shortestCoveringWalkSteps, minimumCoverSteps, drain } = require('../src/planning/v2/optimizeRoute.ts');
+  // Walking distances that cost about 1 ms each: one first visit to a 400-point pool used to run unchecked.
+  const slow = (a, b) => { const until = Date.now() + 1; while (Date.now() < until); return Math.hypot(a.x - b.x, a.y - b.y); };
+  const pool = Array.from({ length: 400 }, (_, i) => ({ id: 'c' + i, point: p(i, i % 7), mask: 1n << BigInt(i % 40) }));
+  const required = pool.reduce((m, c) => m | c.mask, 0n);
+  let started = Date.now();
+  const budget = { nodes: 0, limit: 1e9, deadline: Date.now() + 30 };
+  const walk = drain(shortestCoveringWalkSteps(p(0, 0), pool, required, 40, slow, budget));
+  assert.equal(budget.stoppedBy, 'time'); assert.equal(walk.complete, false);
+  assert.ok(Date.now() - started < 250, `walk search overshot: ${Date.now() - started} ms`);
+  // Many distinct coverage sets: the quadratic dominance filter watches the clock too.
+  const rand = rng(9);
+  // An antichain (no set contains another) is the filter's worst case: about 2.4 s here without a deadline.
+  const distinct = new Set();
+  while (distinct.size < 4000) { const bits = new Set(); while (bits.size < 6) bits.add(Math.floor(rand() * 60)); distinct.add([...bits].reduce((m, b) => m | (1n << BigInt(b)), 0n)); }
+  const masks = [...distinct];
+  started = Date.now();
+  const cover = { nodes: 0, limit: 1e9, deadline: Date.now() + 20 };
+  assert.equal(drain(minimumCoverSteps(masks, masks.reduce((m, x) => m | x, 0n), cover)), null);
+  assert.equal(cover.stoppedBy, 'time');
+  assert.ok(Date.now() - started < 250, `cover search overshot: ${Date.now() - started} ms`);
 });

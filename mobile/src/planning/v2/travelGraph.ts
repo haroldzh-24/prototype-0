@@ -34,6 +34,25 @@ function outsetCorners(polygon: readonly Point[], distance: number): Point[] {
   });
 }
 
+/**
+ * Turning points for travel limited to firing areas: each area's corners stepped just inside, plus small diagonal
+ * offsets around every area vertex and every point where edges of different areas cross, so a walk can turn the
+ * inside corner of a union of areas (an L drawn as two boxes) as well as of one L-shaped polygon. Points outside the
+ * union are filtered out by the caller.
+ */
+function areaCorners(areas: readonly (readonly Point[])[]): Point[] {
+  const seeds: Point[] = areas.flatMap(v => v);
+  const edgesOf = (v: readonly Point[]) => v.map((a, i) => ({ a, b: v[(i + 1) % v.length] }));
+  for (let i = 0; i < areas.length; i++) for (let j = i + 1; j < areas.length; j++)
+    for (const e of edgesOf(areas[i])) for (const f of edgesOf(areas[j])) { const q = intersection(e.a, e.b, f.a, f.b); if (q) seeds.push(q); }
+  const d = 0.5, out = areas.flatMap(v => outsetCorners(v, -d)), seen = new Set(out.map(q => `${q.x},${q.y}`));
+  for (const q of seeds) for (const [dx, dy] of [[d, d], [-d, d], [d, -d], [-d, -d]]) {
+    const r = { x: q.x + dx, y: q.y + dy }, k = `${r.x},${r.y}`;
+    if (!seen.has(k)) { seen.add(k); out.push(r); }
+  }
+  return out;
+}
+
 export type TravelGraph = {
   geometry: Geometry;
   traversable: (p: Point) => boolean;
@@ -96,7 +115,7 @@ export function* buildTravelGraph(doc: StageDocument, stage: NormalizedStage, op
   };
   const corners = [...geometry.barriers, ...geometry.restrictedRegions]
     .flatMap(b => outsetCorners(b.polygon, options.clearanceInches + 0.5))
-    .concat(options.travel === 'within-areas' ? stage.areas.flatMap(a => outsetCorners(a.vertices, -0.5)) : [])
+    .concat(options.travel === 'within-areas' ? areaCorners(stage.areas.map(a => a.vertices)) : [])
     .filter(traversable);
   const n = corners.length;
   const dist: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(Infinity));

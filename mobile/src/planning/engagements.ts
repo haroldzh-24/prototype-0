@@ -6,7 +6,7 @@ import type { StageRoute, ShootingPosition } from './route';
 import { connectionPoints } from './routeGeometry';
 import { isPointInsideAllowedArea } from './positionDiscovery';
 import { formatYardsFixed } from '../stage/measurements';
-import { strictlyInside } from './routeSolver/traversability';
+import { inside, strictlyInside } from './routeSolver/traversability';
 import { stageDownrange } from '../stage/orientation';
 import { normalizeStage } from './v2/normalizeStage';
 import type { NormalizedStage, TargetFace } from './v2/normalizeStage';
@@ -122,7 +122,10 @@ function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, targ
       for (const x of xs) for (const y of [-size.depth / 2, size.depth / 2])
         occluders.push({ x: wall.position.x + x * Math.cos(rad) - y * Math.sin(rad), y: wall.position.y + x * Math.sin(rad) + y * Math.cos(rad) });
     }
-    if (kernel) for (const other of [...kernel.stage.targets, ...kernel.stage.noShoots]) if (other.id !== target.id) occluders.push(other.left, other.right);
+    if (kernel) for (const other of [...kernel.stage.targets, ...kernel.stage.noShoots]) if (other.id !== target.id) {
+      occluders.push(other.left, other.right);
+      intersect(other.left, other.right); // the walk itself crossing that face line
+    }
     for (const q of sightSamples) for (const corner of occluders) if (Math.abs(corner.x - q.x) + Math.abs(corner.y - q.y) > 1e-9) intersect(q, corner, true);
   }
   return [...new Set(values)].sort((x, y) => x - y);
@@ -187,9 +190,12 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
     const cuts = pathBreaks(path, cum, rules);
     const inArea = (s: number) => rules.firingAreas.some(a => insideArea(at(s), a));
     const noFiringIntervals = intervals(cuts, s => !inArea(s));
+    // Travel membership counts the boundary as inside (walking on a fault line is not firing outside the area),
+    // the same rule the planners use; firing membership above stays strict.
+    const inTravelArea = (s: number) => rules.firingAreas.some(a => inside(at(s), a.vertices));
     const wallCollision = walls.some(w => { const size = footprint(w); return path.slice(1).some((p, i) => !!segmentRectangleInterval(stageToObjectLocal(path[i], w), stageToObjectLocal(p, w), size.width / 2, size.depth / 2)); });
     const traversable = path.every(p => isPointInsideAllowedArea(p, stage.stage)) && !wallCollision
-      && (rules.allowOutsideTravel || (!noFiringIntervals.length && inArea(0) && inArea(d)));
+      && (rules.allowOutsideTravel || (!intervals(cuts, s => !inTravelArea(s)).length && inTravelArea(0) && inTravelArea(d)));
     reachable &&= traversable;
     result.segments.push({ id: waypoint.id, from, to, distance: d, traversable, noFiringIntervals });
     if (!reachable) { result.warnings.push(`${waypoint.label}: movement path is blocked or outside permitted travel.`); continue; }

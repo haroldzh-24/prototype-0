@@ -47,7 +47,7 @@ export function sightLine(p: Point, q: Point, target: TargetFace, stage: Normali
   const blocked: SightResult = { visible: false, throughNoShoot: false, overLowWall: false, passesAboveOrBelow: false };
   let overLowWall = false, throughNoShoot = false, passesAboveOrBelow = false;
   // Stop the sight line just short of the face so a face mounted flush on a wall is not "blocked" by that wall.
-  const len = Math.hypot(q.x - p.x, q.y - p.y), trim = Math.min(0.1, len / 2);
+  const len = Math.hypot(q.x - p.x, q.y - p.y), trim = Math.min(0.01, len / 2);
   const end = len > 0 ? { x: q.x - (q.x - p.x) / len * trim, y: q.y - (q.y - p.y) / len * trim } : q;
   const minX = Math.min(p.x, end.x) - EPS, maxX = Math.max(p.x, end.x) + EPS, minY = Math.min(p.y, end.y) - EPS, maxY = Math.max(p.y, end.y) + EPS;
   for (let i = 0; i < stage.walls.length; i++) {

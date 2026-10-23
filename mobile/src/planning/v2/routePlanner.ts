@@ -3,10 +3,11 @@ import { checkEngagement, defaultNoShootPolicy, headingDelta, headingTo } from '
 import type { EngagementCheck } from './coverage';
 import { normalizeStage } from './normalizeStage';
 import type { NormalizedStage } from './normalizeStage';
-import { greedyWalk, minimumCoverSteps, orderedAdvance, representatives, shortestCoveringWalkSteps } from './optimizeRoute';
+import { greedyWalkSteps, minimumCoverSteps, orderedAdvance, representatives, shortestCoveringWalkSteps } from './optimizeRoute';
 import type { CoverageCandidate, RouteSearchResult, SearchBudget } from './optimizeRoute';
 import { buildTravelGraph } from './travelGraph';
 import { strictlyInside } from '../routeSolver/traversability';
+import { footprint, segmentRectangleInterval, stageToObjectLocal } from '../../stage/geometry';
 import type { PlanRouteOptions, PlannedEngagement, PlannedPosition, Point, ReasonCode, RoutePlan, StageSnapshot, TargetReport } from './types';
 
 export const PLANNER_VERSION = '2.1.0';
@@ -73,6 +74,11 @@ function areaClearance(p: Point, stage: NormalizedStage, targetId: string): numb
   }
   return best;
 }
+/** True when the straight segment a-b touches a wall's real footprint (the rule the engagement analysis applies). */
+function crossesWall(a: Point, b: Point, stage: NormalizedStage): boolean {
+  const pa = { space: 'stage' as const, x: a.x, y: a.y, z: 0 }, pb = { space: 'stage' as const, x: b.x, y: b.y, z: 0 };
+  return stage.walls.some(w => { const size = footprint(w); return !!segmentRectangleInterval(stageToObjectLocal(pa, w), stageToObjectLocal(pb, w), size.width / 2, size.depth / 2); });
+}
 /** Nearest clear point within `radius`, searched on rings 1 in apart (deterministic order). */
 function nearestClear(p: Point, radius: number, clear: (q: Point) => boolean): Point | null {
   for (let r = 1; r <= radius; r++) for (let i = 0; i < 32; i++) {
@@ -103,11 +109,15 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
   if (!graph.traversable(stage.start)) {
     const inStage = stage.start.x >= 0 && stage.start.y >= 0 && stage.start.x <= stage.size.width && stage.start.y <= stage.size.depth;
     const outsideAreas = travel === 'within-areas' && !stage.areas.some(a => strictlyInside(stage.start, a.vertices));
-    const nudged = inStage && !outsideAreas ? nearestClear(stage.start, clearance + 2, graph.traversable) : null;
+    // The step from the start to the clear point must not pass through a wall (a start inside a wall has no such step).
+    const insideWall = crossesWall(stage.start, stage.start, stage);
+    const nudged = inStage && !outsideAreas && !insideWall
+      ? nearestClear(stage.start, clearance + 2, q => graph.traversable(q) && !crossesWall(stage.start, q, stage)) : null;
     if (!nudged) {
       const why = !inStage ? 'The start position is outside the stage.'
         : outsideAreas ? 'The start is outside every firing area, and travel is limited to firing areas.'
-        : 'The start position is inside a wall or target stand.';
+        : insideWall ? 'The start position is inside a wall.'
+        : 'The start position is too close to walls or target stands to walk from.';
       return finish({ ...emptyPlan('invalid-input', [why], stage.downrangeDegrees, half), start: stage.start });
     }
     origin = nudged;
@@ -211,7 +221,7 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
     }
     if (!ordered) minimumProven = k;
   }
-  if (!walk || !walk.order.length) walk = greedyWalk(origin, pool, required, graph.distance, advance);
+  if (!walk || !walk.order.length) walk = yield* greedyWalkSteps(origin, pool, required, graph.distance, advance);
   const exactPositions = minimumProven !== null && walk.order.length === minimumProven;
 
   // Engage each target at the first stop where it and everything it must follow can be engaged.

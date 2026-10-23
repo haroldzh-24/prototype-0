@@ -2,6 +2,7 @@
 
 - Fixed (batch 5, details in changelog.md): ignored route settings and "engage after" procedures; the analysis and V2 disagreeing on legality; saved stationary orders dropping targets after an illegal one; refinement leaving stops on the legal limit; 21 s UI freeze and slow cancel on large stages; L-shaped areas unreachable with travel limited to areas; flush-mounted targets hidden; straight-line assistant explanations; starts near walls rejected.
 - Known limitation: visibility is sampled at five points across each face, so an opening narrower than the gap between samples can show as several short windows. Planning time on a phone is unmeasured (Node timings only); add to the hardware checklist run.
+- Second review (batch 6): fixed a start inside a thin wall being nudged through it, the planner/analysis edge rule with outside travel off, search time-limit overruns, and two-box L-shaped areas. Note: the seeded random generator copied across older tests (`seed * 1103515245 + 12345` in floating point) loses precision and repeats after about 11,000-15,000 draws (measured for seeds 5, 7, 11, 23, 41). The existing tests draw a few hundred values, so they are unaffected; the new review tests use mulberry32, and larger fuzzing should too.
 - Not changed by design: a saved moving order remains authoritative (an infeasible moving engagement stops the moving sequence there).
 
 # RC2 batch 1 verification - 2026-10-22
