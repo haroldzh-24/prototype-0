@@ -1,3 +1,7 @@
+# Submit configuration - 2026-10-25
+
+- `eas.json` production submit profile now names the App Store Connect app (`ascAppId` 6808355061), and an App Store Connect API key is assigned to the project on EAS, so `eas submit` no longer signs in with the Apple ID (the earlier `-20209` failure).
+
 # RC2 batch 6: second review of the V2 fixes - 2026-10-22
 
 - A start inside a wall (any thickness) is now invalid input; before, a start inside a wall thinner than 4 in was moved to its far side through the wall and the plan was called complete. The step from a start near a wall to its clear point must also miss every wall.
