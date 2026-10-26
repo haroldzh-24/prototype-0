@@ -1,6 +1,7 @@
 import { reconcileManualEngagements } from './manualEngagements';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StageRoute } from './route';
+import type { TargetExpectation } from './expectedPoints';
 
 export type Magazine = Readonly<{ id: string; label?: string; capacity: number; startingRounds: number }>;
 /** Shooter-specific loadout, target round counts and optional manual route; separate from physical geometry. */
@@ -8,7 +9,18 @@ export type StagePlan = {
   route?: StageRoute;
   loadout: { chamberLoaded: boolean; startingMagazineId: string | null; magazines: readonly Magazine[] };
   engagements: Readonly<Record<string, number>>;
+  /** What you plan for a target (AA/AC/CC, miss risk); missing parts come from your numbers. See expectedPoints.ts. */
+  expectations?: Readonly<Record<string, TargetExpectation>>;
 };
+/** Set or clear (null) what you plan for one target. */
+export function setExpectation(plan: StagePlan, targetId: string, change: Partial<Record<keyof TargetExpectation, TargetExpectation[keyof TargetExpectation] | null>>): StagePlan {
+  const current = { ...(plan.expectations?.[targetId] ?? {}) } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(change)) { if (v === null || v === undefined) delete current[k]; else current[k] = v; }
+  const expectations = { ...(plan.expectations ?? {}) };
+  if (Object.keys(current).length) expectations[targetId] = current as TargetExpectation; else delete expectations[targetId];
+  const { expectations: _old, ...rest } = plan;
+  return Object.keys(expectations).length ? { ...rest, expectations } : rest;
+}
 export const createPlan = (): StagePlan => ({ loadout: { chamberLoaded: false, startingMagazineId: null, magazines: [] }, engagements: {} });
 export const createMagazineId = (randomUUID: () => string) => 'magazine-' + randomUUID();
 export const isEngageable = (object: StageObject) => ['cardboardTarget', 'steelPlate', 'steelPopper'].includes(object.type);
@@ -72,6 +84,8 @@ export function reconcilePlan(plan: StagePlan, stage: StageDocument, previous?: 
   const valid = new Set(stage.objects.filter(isEngageable).map(o => o.id));
   const entries = Object.entries(plan.engagements).filter(([id]) => valid.has(id));
   const staleRoute = plan.route?.positions.some(p => [...p.visibleTargetIds, ...p.engagedTargetIds].some(id => !valid.has(id)));
+  const staleExpectations = plan.expectations && Object.keys(plan.expectations).some(id => !valid.has(id));
+  if (staleExpectations) plan = { ...plan, expectations: Object.fromEntries(Object.entries(plan.expectations!).filter(([id]) => valid.has(id))) };
   if (entries.length === Object.keys(plan.engagements).length && !staleRoute) return plan;
   return { ...plan, engagements: Object.fromEntries(entries), ...(staleRoute && plan.route ? { route: { ...plan.route, positions: plan.route.positions.map(p => ({ ...p, ...(p.movingTargetIds ? { movingTargetIds: p.movingTargetIds.filter(id => valid.has(id)) } : {}), visibleTargetIds: p.visibleTargetIds.filter(id => valid.has(id)), engagedTargetIds: p.engagedTargetIds.filter(id => valid.has(id)) })) } } : {}) };
 }

@@ -967,3 +967,35 @@ test('review: a failed power factor save puts the old choice back and says so on
   assert.ok(h.nodes().some(n => n.type === 'Notice' && /Couldn’t save the power factor: Error: disk full/.test(n.props.children)));
   assert.ok(!h.nodes().some(n => n.type === 'ErrorState'), 'not shown as a failed profile load');
 });
+
+test('ANALYZE shows points per target, where they come from, and the hit factor; EXPECTED HITS sets planned hits', () => {
+  const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
+  const { placeTarget } = require('../src/stage/targetPlacement.ts');
+  const { createRoute } = require('../src/planning/route.ts');
+  const { createLocalProfile } = require('../src/profile/model.ts');
+  let stage = { ...createDefaultStage('USPSA', { size: { width: 1080, depth: 1080 } }), objects: [createObject('start', 'start', 540, 1000)] };
+  stage = placeTarget(stage, 'uspsa-metric-chl-v1', 'T1', { space: 'stage', x: 540, y: 748, z: 0 }).stage;
+  const route = { ...createRoute('r'), positions: [{ id: 'P1', label: 'P1', position: { space: 'stage', x: 540, y: 1000, z: 0 }, visibleTargetIds: ['T1'], engagedTargetIds: ['T1'] }] };
+  const plan = { route, loadout: { chamberLoaded: true, startingMagazineId: null, magazines: [] }, engagements: { T1: 2 } };
+  const profile = { ...createLocalProfile().performance, hitModel: { paper: [{ yards: 7, runs: 3, count: 6, a: 5 / 6, c: 1 / 6, d: 0, miss: 0 }] } };
+  const h = harness('planning/RouteAnalysis.tsx', { stage, plan, route, profile, ruleset: 'USPSA', powerFactor: 'major', edit() {} });
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.equal(row('Scoring'), 'USPSA major (A 5, C 4, D 2)');
+  assert.match(row('Cardboard 1'), /^7\.0 yd · AA 69% · AC 28% · CC 3% · 9\.7 of 10 pts$/);
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /your numbers, 3 runs at 7 yd/.test([].concat(n.props.children).join(''))));
+  assert.match(row('Expected points'), /^9\.7 of 10 \(97%\)$/);
+  assert.match(row('Estimated hit factor'), /^\d+\.\d\d( \(provisional: see warnings\))?$/);
+  const unplanned = harness('planning/RouteAnalysis.tsx', { stage, plan: { ...plan, engagements: {} }, route, profile, edit() {} });
+  assert.equal(unplanned.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Estimated hit factor').props.value, 'Set planned rounds for 1 target');
+  const noData = harness('planning/RouteAnalysis.tsx', { stage, plan, route, profile: createLocalProfile().performance, edit() {} });
+  assert.equal(noData.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Estimated hit factor').props.value, 'Needs every target estimated');
+
+  let change;
+  const e = harness('planning/ExpectedHits.tsx', { steel: false, value: { outcome: 'AC' }, onChange: c => { change = c; } });
+  const seg = opt => e.find(n => n.type === 'Segmented' && n.props.options.includes(opt)).props;
+  assert.equal(seg('AA').value, 'AC'); assert.equal(seg('25%').value, 'MY NUMBERS');
+  seg('AA').onChange('MY NUMBERS'); assert.deepEqual(change, { outcome: null });
+  seg('25%').onChange('10%'); assert.deepEqual(change, { missRisk: 0.1 });
+  const steel = harness('planning/ExpectedHits.tsx', { steel: true, value: undefined, onChange() {} });
+  assert.ok(!steel.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('AA')), 'steel: miss risk only');
+});

@@ -15,7 +15,7 @@ import type { SavedStage } from '@/storage/repository';
 import EditorSheet from './EditorSheet';
 import { fitViewport, zoomViewport } from './viewportGestures';
 import { RoundAssignment } from '@/planning/PlanningPanel';
-import { assignRounds, isEngageable, targetLabel } from '@/planning/model';
+import { assignRounds, isEngageable, setExpectation, targetLabel } from '@/planning/model';
 import ToolIcon from '../ui/ToolIcon';
 import type { ToolIconName } from '../ui/ToolIcon';
 import { borders, colors, touch, typography, themed } from '../ui/tokens';
@@ -28,6 +28,7 @@ import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
 import EngagementDetails from '@/planning/EngagementDetails';
 import RouteAnalysis from '@/planning/RouteAnalysis';
+import ExpectedHits from '@/planning/ExpectedHits';
 import EngagementSettings from '@/planning/EngagementSettings';
 
 import { evaluateRoute, reorderPosition } from '@/planning/route';
@@ -41,7 +42,7 @@ import { plannerPreviewRoute } from '@/planning/plannerUI';
 import type { PlannerCard } from '@/planning/plannerUI';
 import { createRoute, toggleRouteTarget } from '@/planning/route';
 import type { TargetAssignmentMode, StageRoute } from '@/planning/route';
-import type { ShooterPerformanceProfile } from '@/profile/model';
+import type { PowerFactor, ShooterPerformanceProfile } from '@/profile/model';
 import { reconcilePlan } from '@/planning/model';
 import Stage25D from '@/editor/Stage25D';
 import StageViewport from '@/editor/StageViewport';
@@ -141,10 +142,10 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   useEffect(()=>{if(!routeMode){aiController.invalidate();setAIOpen(false);}},[routeMode,aiController]);
   useEffect(()=>{const listener=AppState.addEventListener('change',state=>{if(state!=='active')aiController.background();});return()=>listener.remove();},[aiController]);
   const [profile, setProfile] = useState<ShooterPerformanceProfile | null>(null);
-  const [profileError, setProfileError] = useState('');
+  const [profileError, setProfileError] = useState(''), [powerFactor, setPowerFactor] = useState<PowerFactor>('minor');
   useEffect(() => {
     let active = true;
-    repo.loadProfile().then(p => { if (active) setProfile(p.performance); }).catch(e => { if (active) setProfileError(String(e)); });
+    repo.loadProfile().then(p => { if (active) { setProfile(p.performance); setPowerFactor(p.powerFactor ?? 'minor'); } }).catch(e => { if (active) setProfileError(String(e)); });
     return () => { active = false; };
   }, [repo]);
   const changeRoute = (route: StageRoute) => {
@@ -254,7 +255,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const act = (action: ObjectAction) => {
     documentHistory.begin();
     const result = applyObjectAction(stage, selectedId, action, uuid.v4);
-    setPlan(current => action.kind === 'reset' ? { ...current, engagements: {}, route: undefined } : reconcilePlan(current, result.stage, { stage, route: current.route }));
+    setPlan(current => action.kind === 'reset' ? (({ expectations: _cleared, ...rest }) => ({ ...rest, engagements: {}, route: undefined }))(current)
+      : reconcilePlan(current, result.stage, { stage, route: current.route }));
     setStage(result.stage);
     documentHistory.end();
     setSelectedId(result.selectedId);
@@ -618,9 +620,13 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         else { setRouteMode(true); setRouteVisible(true); setPositionId(item.id); setSelectedId(null); setPanel(null); }
       }} />}
       {panel === 'edit' && selected && <>
-        <ObjectInspector key={selected.id} item={selected} disabled={false} onApply={applyEdit} advancedContent={isEngageable(selected) && <RoundAssignment key={'rounds-' + selected.id} label={targetLabel(stage, selected.id)} value={plan.engagements[selected.id] ?? 0} onSave={rounds => {
-          const result = assignRounds(plan, stage, selected.id, rounds); setEditError(result.error ?? ''); if (!result.error) setPlan(result.plan);
-        }} />} />
+        <ObjectInspector key={selected.id} item={selected} disabled={false} onApply={applyEdit} advancedContent={isEngageable(selected) && <>
+          <RoundAssignment key={'rounds-' + selected.id} label={targetLabel(stage, selected.id)} value={plan.engagements[selected.id] ?? 0} onSave={rounds => {
+            const result = assignRounds(plan, stage, selected.id, rounds); setEditError(result.error ?? ''); if (!result.error) setPlan(result.plan);
+          }} />
+          <ExpectedHits steel={selected.type !== 'cardboardTarget'} value={plan.expectations?.[selected.id]}
+            onChange={change => setPlan(setExpectation(plan, selected.id, change))} />
+        </>} />
         {!!editError && <Text style={styles.error}>{editError}</Text>}
       </>}
       {panel === 'check' && <View style={{ gap: 8 }}>
@@ -631,7 +637,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           {f.objectIds.length > 0 && stage.objects.some(o => o.id === f.objectIds[0]) && <Button title="Show on stage" onPress={() => { setSelectedId(f.objectIds[0]); setPanel(null); }} />}
         </View>)}
       </View>}
-      {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} edit={() => { setRouteEditing(true); setPanel(null); }} />}
+      {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} ruleset={activeRuleset(targetFamily) === 'PCSL' ? 'PCSL' : 'USPSA'} powerFactor={powerFactor} edit={() => { setRouteEditing(true); setPanel(null); }} />}
       {panel === 'plan' && <>
         {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to PLAN ROUTE' : 'Back to MOVEMENT OPTIMIZER'} onPress={() => setPanel(plannerOrigin)} />}
         <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <Button key={section} title={section} active={planSection === section} onPress={() => setPlanSection(section)} />)}</View>

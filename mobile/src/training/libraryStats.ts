@@ -4,7 +4,7 @@
  */
 import type { TrainingRecord, StartingType } from './model';
 import type { TrainingContext } from './observations';
-import { analyzeLibraryRun, choicesFor, libraryDrill, targetYards, variantKey } from './drillLibrary';
+import { analyzeLibraryRun, choicesFor, hitCounts, libraryDrill, targetYards, variantKey } from './drillLibrary';
 import type { LibraryAnalysis, LibraryRun } from './drillLibrary';
 import { fitMovement, moveDirections } from '../profile/movementModel';
 import type { MoveDirection, MovementModel } from '../profile/movementModel';
@@ -121,11 +121,9 @@ export function libraryNumbers(records: readonly TrainingRecord[], context: Trai
   const accuracy = sorted([...groupBy(scored, r => r.yards)].map(([yards, list]) => {
     let required = 0, a = 0, c = 0, d = 0, noShoots = 0;
     for (const r of list) {
-      const z = r.run.zones!, need = libraryDrill(r.run.drillId)!.requiredHits!;
-      // A PCSL T counts as two A hits (11.3.2.1); hits beyond the required count were extra shots, best ones first.
-      let left = need;
-      const take = (n: number) => { const used = Math.min(left, n); left -= used; return used; };
-      required += need; a += take(2 * (z.T ?? 0) + (z.A ?? 0)); c += take(z.C ?? 0); d += take(z.D ?? 0); noShoots += z.NS ?? 0;
+      const h = hitCounts(r.run);
+      if (!h) continue;
+      required += h.a + h.c + h.d + h.miss; a += h.a; c += h.c; d += h.d; noShoots += r.run.zones?.NS ?? 0;
     }
     return { yards, runs: list.length, required, a: a / required, c: c / required, d: d / required, miss: (required - a - c - d) / required, noShoots };
   }));

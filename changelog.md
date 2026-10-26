@@ -1,3 +1,11 @@
+# RC2 batch 18: milestone C3 — expected hits, points and hit factor per stage - 2026-10-26
+
+- **Your hit shares by distance.** Library runs with counted hits (not dry fire) now feed the profile: shares of A, C, D and missing hits by distance for full paper, partly covered paper and steel (makeups). Removing runs removes them.
+- **ANALYZE → POINTS AND HIT FACTOR.** For each target at the distance the route shoots it from: the chance of AA, AC and CC and the expected points, with where the numbers came from (your runs at which distances, or planned). Extra planned rounds count best-two. Partly covered targets use your partial-target runs (or full-target ones, flagged as likely optimistic). Steel shows 5 points and the expected makeup shots. Then expected points of the maximum and the **estimated hit factor** (expected points ÷ estimated time) — only when every target is routed, has planned rounds and an estimate.
+- **EXPECTED HITS** in a target's PLANNING: plan for AA, AC or CC and a miss risk, or use your numbers. Saved with the stage, cleaned on load, removed with the target. USPSA minor/major from the profile; PCSL A 5 / C 3 / D 1.
+- Details: `docs/expected-points.md`.
+- Validation: 978/978 tests (10 new), TypeScript passed. Checked in the web build, day and night: logging runs with hits, AUTO-PLAN, planned rounds, the points section, planning AC with a 5% miss risk on one target. An independent review of this batch follows. No device testing.
+
 # RC2 batch 17b: fixes from the independent review of batch 17 - 2026-10-26
 
 13 confirmed defects, each with a regression test (`tests/drillLibrary.test.cjs`, `tests/ui-reorganization.test.cjs`):

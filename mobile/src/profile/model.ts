@@ -1,5 +1,6 @@
 import type { PerformanceObservation, TrainingContext } from '../training/observations';
 import type { MovementModel } from './movementModel';
+import type { HitModel } from './hitModel';
 export type TimingFactor = 'drawTime' | 'reloadTime' | 'averageSplitTime' | 'transitionTime' | 'movementSpeed';
 /** Metadata describes the existing scalar; it never stores a duplicate timing value. */
 export type PerformanceEvidence = {
@@ -19,6 +20,8 @@ export type ShooterPerformanceProfile = {
   shootingObservations?: ShootingObservation[];
   /** Fitted from sprint and shuffle runs (rebuilt from observations, never edited directly). */
   movementModel?: MovementModel;
+  /** Hit shares by distance from library runs with counted hits (rebuilt from observations). */
+  hitModel?: HitModel;
 };
 export type PowerFactor = 'minor' | 'major';
 export type UserProfile = { id: string; displayName: string; identity: { provider: 'local' | 'apple'; subject: string | null }; performance: ShooterPerformanceProfile;

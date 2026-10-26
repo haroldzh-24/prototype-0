@@ -2,13 +2,16 @@ import { createLocalProfile } from '../profile/model';
 import type { ShooterPerformanceProfile, TimingFactor, UserProfile } from '../profile/model';
 import { buildPersonalizedModel, timingFactors } from '../profile/personalizedPerformance';
 import { fitMovement, moveDirections } from '../profile/movementModel';
+import { buildHitModel } from '../profile/hitModel';
+import type { HitCounts, HitKind } from '../profile/hitModel';
 import type { MoveDirection } from '../profile/movementModel';
 import { startingTypes } from './model';
 import type { StartingType } from './model';
 
 export const trainingContexts = ['DRY_FIRE', 'LIVE_FIRE', 'PRESSURE_MATCH'] as const;
 export type TrainingContext = typeof trainingContexts[number];
-export type ObservationFactor = TimingFactor | 'stimulusResponseTime' | 'firstShotAcquisitionTime';
+/** `hitZones` is not a time: its value is the required hits (paper) or shots (steel) its `hits` counts cover. */
+export type ObservationFactor = TimingFactor | 'stimulusResponseTime' | 'firstShotAcquisitionTime' | 'hitZones';
 export type ObservationSource = 'VIDEO_ANALYSIS' | 'MANUAL_ENTRY' | 'STRUCTURED_TRAINING' | 'AUTOMATIC_DETECTOR';
 /** Seconds, or physical inches/second for movementSpeed. Difficulty is the planner's points-per-yard scale. */
 export type PerformanceObservation = {
@@ -23,6 +26,8 @@ export type PerformanceObservation = {
   targetKind?: 'paper' | 'steel' | 'partial'; position?: 'square' | 'port' | 'lean';
   /** Transitions: distance between the two targets, inches. */
   spreadInches?: number;
+  /** hitZones only: how the required hits (or steel shots) landed. */
+  hits?: HitCounts;
 };
 /** Starts that are a draw from the holster with the hands relaxed; other starts get their own numbers. */
 export const HOLSTER_STARTS: readonly StartingType[] = ['competitionHolster', 'retentionHolster', 'appendix'];
@@ -38,7 +43,8 @@ export function generalSample(o: PerformanceObservation): boolean {
   if (o.factor === 'transitionTime') return o.moving !== true && o.targetKind !== 'steel' && (o.position ?? 'square') === 'square';
   return true;
 }
-const factors: ObservationFactor[] = [...timingFactors, 'stimulusResponseTime', 'firstShotAcquisitionTime'];
+const timedFactors: ObservationFactor[] = [...timingFactors, 'stimulusResponseTime', 'firstShotAcquisitionTime'];
+const factors: ObservationFactor[] = [...timedFactors, 'hitZones'];
 const positive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
 const nonnegative = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const text = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
@@ -63,6 +69,10 @@ export function isPerformanceObservation(input: unknown): input is PerformanceOb
   if (o.targetKind !== undefined && !['paper', 'steel', 'partial'].includes(o.targetKind)) return false;
   if (o.position !== undefined && !['square', 'port', 'lean'].includes(o.position)) return false;
   if (o.spreadInches !== undefined && !positive(o.spreadInches)) return false;
+  const count = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 10000;
+  if ((o.factor === 'hitZones') !== (o.hits !== undefined)) return false;
+  if (o.hits !== undefined && (!o.hits || typeof o.hits !== 'object' || ![o.hits.a, o.hits.c, o.hits.d, o.hits.miss].every(count)
+    || o.hits.a + o.hits.c + o.hits.d + o.hits.miss !== o.value)) return false;
   // Legacy 8A speed samples already certified physical distance at extraction; retain that format.
   if (o.factor === 'movementSpeed' && o.source !== 'VIDEO_ANALYSIS' && !positive(o.distanceInches)) return false;
   if (o.factor === 'movementSpeed' && o.durationSeconds !== undefined && o.distanceInches !== undefined
@@ -115,7 +125,7 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
   const { observations, eligible, warnings } = validateObservations(input);
   const performance = { ...baseline, timingEvidence: { ...baseline.timingEvidence } };
   const aggregates = Object.fromEntries(trainingContexts.map(c => [c, {}])) as Record<TrainingContext, Partial<Record<ObservationFactor, SampleStatistics>>>;
-  for (const c of trainingContexts) for (const factor of factors) {
+  for (const c of trainingContexts) for (const factor of timedFactors) {
     const samples = eligible.filter(o => o.context === c && o.factor === factor && generalSample(o));
     if (samples.length) aggregates[c][factor] = statistics(samples);
   }
@@ -151,6 +161,12 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
     .map(o => ({ direction: o.movement, distanceInches: o.distanceInches!, durationSeconds: o.durationSeconds! }));
   const movementModel = valueSources.movementSpeed === 'MANUAL_OVERRIDE' ? {} : fitMovement(moves);
   if (Object.keys(movementModel).length) performance.movementModel = movementModel; else delete performance.movementModel;
+  // Hit shares by distance (paper standing square, partly covered paper, steel) for expected points per target.
+  const kindOf = (o: PerformanceObservation): HitKind | null => o.moving || (o.position ?? 'square') !== 'square' ? null
+    : o.targetKind === 'steel' ? 'steel' : o.targetKind === 'partial' ? 'partial' : 'paper';
+  const hitModel = buildHitModel(eligible.filter(o => o.context === context && o.factor === 'hitZones' && o.hits && o.distanceInches !== undefined && kindOf(o))
+    .map(o => ({ kind: kindOf(o)!, yards: o.distanceInches! / 36, hits: o.hits! })));
+  if (Object.keys(hitModel).length) performance.hitModel = hitModel; else delete performance.hitModel;
   const model = buildPersonalizedModel(performance);
   return { performance, observations, aggregates, shootingAggregates: curve, valueSources, warnings,
     confidence: model.confidence, confidenceSupport: { factors: model.factors, curve: model.curve } };
@@ -187,8 +203,8 @@ function inputsFor(profile: UserProfile, captureEdits = true): NonNullable<UserP
 }
 /** Derived fields (move fit, split curve): a rebuild without the data must not keep stale ones from the saved profile. */
 function withDerived(performance: ShooterPerformanceProfile, rebuilt: ShooterPerformanceProfile): ShooterPerformanceProfile {
-  const { movementModel: _model, shootingObservations: _curve, ...rest } = performance;
-  return { ...rest, ...(rebuilt.movementModel ? { movementModel: rebuilt.movementModel } : {}),
+  const { movementModel: _model, shootingObservations: _curve, hitModel: _hits, ...rest } = performance;
+  return { ...rest, ...(rebuilt.movementModel ? { movementModel: rebuilt.movementModel } : {}), ...(rebuilt.hitModel ? { hitModel: rebuilt.hitModel } : {}),
     ...(rebuilt.shootingObservations ? { shootingObservations: rebuilt.shootingObservations } : {}) };
 }
 export function withPerformanceObservations(profile: UserProfile, observations: unknown, context: TrainingContext = profile.calibrationContext ?? 'LIVE_FIRE', captureEdits = true): UserProfile {

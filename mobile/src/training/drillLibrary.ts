@@ -9,6 +9,7 @@
 import type { StartingType } from './model';
 import type { PerformanceObservation, TrainingContext } from './observations';
 import type { MoveDirection } from '../profile/movementModel';
+import type { HitCounts } from '../profile/hitModel';
 import type { PowerFactor } from '../profile/model';
 import { scoreRun, zoneChoices } from './drillLog';
 import type { DrillHit } from './drillLog';
@@ -241,6 +242,26 @@ export function analyzeLibraryRun(run: LibraryRun, fallback: PowerFactor = 'mino
     score: scoreLibraryRun(run, fallback) };
 }
 
+/**
+ * How the run's required hits landed: a PCSL T counts as two A hits (11.3.2.1), extra hits beyond the required count
+ * are dropped best-first (like scoring), and required hits not made are misses. Steel: hits and makeup shots.
+ * Null when hits were not counted, or the misses are not known.
+ */
+export function hitCounts(run: LibraryRun): HitCounts | null {
+  const drill = libraryDrill(run.drillId);
+  if (!drill) return null;
+  if (drill.requiredHits === null) {
+    const misses = analyzeLibraryRun(run)?.steelMisses ?? null;
+    return misses === null || !run.zones && !run.shotTimes.length ? null : { a: drill.intervals.length, c: 0, d: 0, miss: misses };
+  }
+  if (!run.zones) return null;
+  const z = run.zones;
+  let left = drill.requiredHits;
+  const take = (n: number) => { const used = Math.min(left, n); left -= used; return used; };
+  const a = take(2 * (z.T ?? 0) + (z.A ?? 0)), c = take(z.C ?? 0), d = take(z.D ?? 0);
+  return { a, c, d, miss: left };
+}
+
 /** Conditions that keep a measurement out of the profile's general numbers (see observations `generalSample`). */
 function conditions(drill: LibraryDrill, choices: Record<string, string>): Partial<PerformanceObservation> {
   if (drill.id === 'onTheMove') return { moving: choices.mode !== 'standing' };
@@ -273,6 +294,9 @@ export function libraryObservations(record: { id: string; context?: TrainingCont
   if (a.transitions.length && !drill.makeups) add({ factor: 'transitionTime', value: mean(a.transitions), distanceInches: inches, ...(spread ? { spreadInches: spread * 36 } : {}), ...extra });
   if (drill.makeups && a.perPlate !== null) add({ factor: 'transitionTime', value: a.perPlate, distanceInches: inches, ...extra });
   if (a.reloads.length) add({ factor: 'reloadTime', value: mean(a.reloads), distanceInches: inches, moving: drill.id === 'reload' && choices.mode === 'stepping' });
+  // Hits count only where they were fired for real (dry fire records none).
+  const hits = base.context === 'DRY_FIRE' ? null : hitCounts(run);
+  if (hits) add({ factor: 'hitZones', value: hits.a + hits.c + hits.d + hits.miss, hits, distanceInches: inches, ...extra });
   const move = choiceNumber(drill, choices, 'move');
   if (move) for (const seconds of a.moves)
     add({ factor: 'movementSpeed', value: move * 36 / seconds, distanceInches: move * 36, durationSeconds: seconds, movement: choices.direction as MoveDirection });

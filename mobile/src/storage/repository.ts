@@ -8,6 +8,7 @@ import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
 import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations } from '../training/drillLibrary';
 import { validMovementModel } from '../profile/movementModel';
+import { validExpectations } from '../planning/expectedPoints';
 import { drillRunProblem, MAX_RUNS_PER_SESSION } from '../training/drillLog';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
@@ -201,10 +202,14 @@ export class Repository {
       throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
     if (savedDocumentProblem(d)) throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');
     if (data.plan.route !== undefined && !isStageRoute(data.plan.route)) throw new Error('Unsupported or damaged route data. The saved copy has not been changed.');
-    return { ...summary, document: data.document, plan: data.plan };
+    // Planned hits are optional: malformed entries are dropped rather than blocking the stage.
+    const { expectations: savedExpectations, ...planRest } = data.plan;
+    const expectations = validExpectations(savedExpectations);
+    return { ...summary, document: data.document, plan: expectations ? { ...planRest, expectations } : planRest };
   }
   private payload(document: StageDocument, plan: StagePlan) {
     if (plan.route !== undefined && !isStageRoute(plan.route)) throw new Error('Invalid route data.');
+    if (plan.expectations !== undefined && Object.keys(plan.expectations).length !== Object.keys(validExpectations(plan.expectations) ?? {}).length) throw new Error('Invalid planned hits.');
     // Never write a document that loadStage would refuse to reopen.
     const problem = savedDocumentProblem(document);
     if (problem) throw new Error(problem);
