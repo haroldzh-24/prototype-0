@@ -134,18 +134,23 @@ function shotFrom(route: StageRoute | undefined): Map<string, { x: number; y: nu
     if (!from.has(id)) from.set(id, { x: p.position.x, y: p.position.y, moving: !!p.movingTargetIds?.includes(id) });
   return from;
 }
-function targetCenter(t: StageObject) { const o = footprintCenterOffset(t); return { x: t.position.x + o.x, y: t.position.y + o.y }; }
+/** Steel, partly covered paper (layers or paint leave under 95% open, or a cut face) or full paper. */
+export function classifyTarget(stage: StageDocument, t: StageObject): { kind: 'paper' | 'partial' | 'steel'; open: number; cutFace: boolean } {
+  if (t.type !== 'cardboardTarget') return { kind: 'steel', open: 1, cutFace: false };
+  const open = isPaper(t) && layered(stage, t) ? exposure(stage, t).fraction : 1;
+  const cutFace = t.faceCut?.preset !== undefined && t.faceCut.preset !== 'full';
+  return { kind: open < 0.95 || cutFace ? 'partial' : 'paper', open, cutFace };
+}
+export function targetCenter(t: StageObject) { const o = footprintCenterOffset(t); return { x: t.position.x + o.x, y: t.position.y + o.y }; }
 
 export function estimateStagePoints(stage: StageDocument, plan: StagePlan, route: StageRoute | undefined,
   performance: Pick<ShooterPerformanceProfile, 'hitModel'> | null, ruleset: 'USPSA' | 'PCSL', powerFactor: PowerFactor): StagePointsEstimate {
   const values = zoneValues(ruleset, powerFactor), model = validHitModel(performance?.hitModel), from = shotFrom(route);
   const expectations = validExpectations(plan.expectations) ?? {};
   const targets = stage.objects.filter(isEngageable).map((t): TargetEstimate => {
-    const steel = t.type !== 'cardboardTarget', at = from.get(t.id), notes: string[] = [];
+    const at = from.get(t.id), notes: string[] = [];
     const yards = at ? yardsBetween(at, targetCenter(t)) : null;
-    const open = !steel && isPaper(t) && layered(stage, t) ? exposure(stage, t).fraction : 1;
-    const cutFace = t.type === 'cardboardTarget' && t.faceCut?.preset !== undefined && t.faceCut.preset !== 'full';
-    const kind: TargetEstimate['kind'] = steel ? 'steel' : open < 0.95 || cutFace ? 'partial' : 'paper';
+    const { kind, open, cutFace } = classifyTarget(stage, t), steel = kind === 'steel';
     const stack = stackOf(stage, t), hostage = !!stack && stackOrder(stage, stack).some(o => o.type === 'noShootTarget');
     const planned = expectations[t.id];
     if (at?.moving) notes.push('Shot on the move: your standing hit numbers are used (on-the-move hits are not modelled yet).');

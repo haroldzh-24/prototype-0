@@ -13,7 +13,7 @@ Code: `mobile/src/profile/hitModel.ts` (your hit shares by distance), `mobile/sr
 - **Distance** is measured on the ground from the route waypoint that engages the target to the target. A target the route doesn't engage has no distance, so no estimate from your numbers.
 - **Paper:** two required hits, scored over the planned rounds. Each shot lands on its own with your shares at that distance. USPSA: with more rounds than required hits the best two count (9.5.1; an exact sum over every way the shots can land). PCSL: the rules don't say which extra hits count (docs/rules/pcsl.md), so extra rounds earn nothing. Fewer rounds than required hits leave a hit missing (−10). Shown: the chance of AA, AC and CC and the expected points.
 - **Partly covered paper** (layers or paint leaving less than 95% of the face open, or a cut face) uses your partial-target runs; without them, full-target numbers, with a note that they are likely optimistic. On a hostage target (a no-shoot in its stack) your partial-target runs' no-shoot hits per required hit cost 10 each; without partial-target runs, no-shoot hits are not estimated and the note says so. Separately placed no-shoots and walls do not make a target partial.
-- **Steel:** 5 points (USPSA B2 poppers, B3 plates; PCSL 11.3.3); USPSA steel must fall (4.3.1.5, 9.5.1). The estimate assumes each steel is completed: a miss costs a makeup shot, not points. The expected makeups per plate come from your steel miss rate (their time comes with C4).
+- **Steel:** 5 points (USPSA B2 poppers, B3 plates; PCSL 11.3.3); USPSA steel must fall (4.3.1.5, 9.5.1). The estimate assumes each steel is completed: a miss costs a makeup shot, not points. The expected makeups per plate come from your steel miss rate; their time is in the stage time (`docs/stage-time.md`).
 - **Planned hits (EXPECTED HITS** in the target's PLANNING): plan for MY NUMBERS, AA, AC or CC, and a miss risk (MY NUMBERS, 0, 5, 10 or 25%). A planned pair is that pair whenever both hits land; each hit misses with the miss risk, which is your measured miss rate at that distance unless you set one (0% with no runs there, and the note says so). A miss risk alone adjusts your numbers. Saved with the stage; removed with the target.
 
 ## Scoring
@@ -29,4 +29,4 @@ ANALYZE → POINTS AND HIT FACTOR: each target's line (distance, AA/AC/CC, expec
 - Hits are treated as independent; streaks and how hard you push on a given stage are not modelled.
 - Shooting on the move uses your standing hit numbers.
 - No-shoot hits only on hostage targets with partial-target runs.
-- The time is today's ANALYZE estimate (average split, one transition time, your move fit). Splits by distance and exposure, transitions by spread and steel makeups come with C4.
+- The time is the C4 estimate (`docs/stage-time.md`): splits by distance and exposure, transitions by swing, steel makeups, your move fit.

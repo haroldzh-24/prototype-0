@@ -637,7 +637,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           {f.objectIds.length > 0 && stage.objects.some(o => o.id === f.objectIds[0]) && <Button title="Show on stage" onPress={() => { setSelectedId(f.objectIds[0]); setPanel(null); }} />}
         </View>)}
       </View>}
-      {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} ruleset={activeRuleset(targetFamily) === 'PCSL' ? 'PCSL' : 'USPSA'} powerFactor={powerFactor} edit={() => { setRouteEditing(true); setPanel(null); }} />}
+      {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} ruleset={activeRuleset(targetFamily) === 'PCSL' ? 'PCSL' : 'USPSA'} powerFactor={powerFactor} onRouteChange={changeRoute} edit={() => { setRouteEditing(true); setPanel(null); }} />}
       {panel === 'plan' && <>
         {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to PLAN ROUTE' : 'Back to MOVEMENT OPTIMIZER'} onPress={() => setPanel(plannerOrigin)} />}
         <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <Button key={section} title={section} active={planSection === section} onPress={() => setPlanSection(section)} />)}</View>

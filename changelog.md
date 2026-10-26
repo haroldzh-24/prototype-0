@@ -1,3 +1,11 @@
+# RC2 batch 19: milestone C4 — stage time from your numbers, reloads around magazine capacity - 2026-10-26
+
+- **ANALYZE → TIMING now uses your numbers:** splits at each target's distance (your split curve; partly covered targets use your partial-target curve), transitions by how far the gun swings between targets (your swing fit from Blake / Wide transitions / El Presidente), steel at your time per plate plus expected makeup shots, moves from your move fit. Parts without data use your single values, and ANALYZE says which ("your split curve for 3 targets", "1 transition uses your single transition value"). TIME BY POSITION breaks it down. The estimated hit factor divides by this time.
+- **PLAN RELOADS** (ANALYZE, when a position would run dry): reloads with the fullest unused magazine on the leg that hides the most reload time, or says what's missing (no spare magazine, or more rounds at one position than a magazine holds).
+- **Your numbers** shows the new models: transitions by swing, splits by distance, partial-target splits, steel per plate.
+- The route evaluator used by saved video comparisons is unchanged, so they still re-check. Details: `docs/stage-time.md`.
+- Validation: 992/992 tests (8 new), TypeScript passed. Checked in the web build, day and night: logging Blake and Wide runs, the timing breakdown and its sources. An independent review follows. No device testing.
+
 # RC2 batch 18b: fixes from the independent review of batch 18 - 2026-10-26
 
 12 confirmed defects, each with a regression test (`tests/expectedPoints.test.cjs`, `tests/ui-reorganization.test.cjs`); the review also brute-force checked the best-two and planned-pair maths (correct):

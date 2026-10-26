@@ -9,6 +9,8 @@ import { evaluateRoute } from './route';
 import type { StageRoute } from './route';
 import type { PowerFactor, ShooterPerformanceProfile } from '../profile/model';
 import { estimatedHitFactor, estimateStagePoints } from './expectedPoints';
+import { estimateStageTime } from './stageTime';
+import { planReloads } from './reloadPlan';
 import type { TargetEstimate } from './expectedPoints';
 import { formatYards, formatYardsFixed, yardsToInches } from '../stage/measurements';
 import { buildPersonalizedModel } from '../profile/personalizedPerformance';
@@ -33,13 +35,17 @@ function targetLine(t: TargetEstimate) {
 const sourceText = (t: TargetEstimate) => t.source === 'PLANNED' ? 'planned' : t.source === 'YOUR_NUMBERS' && t.measured
   ? `your numbers, ${t.measured.runs} run${t.measured.runs === 1 ? '' : 's'} at ${t.measured.fromYards.join('–')} yd` : 'no data';
 
-export default function RouteAnalysis({ stage, plan, route, profile, ruleset = 'USPSA', powerFactor = 'minor', edit }: {
+export default function RouteAnalysis({ stage, plan, route, profile, ruleset = 'USPSA', powerFactor = 'minor', edit, onRouteChange }: {
   stage: StageDocument; plan: StagePlan; route: StageRoute; profile: ShooterPerformanceProfile | null;
   ruleset?: 'USPSA' | 'PCSL'; powerFactor?: PowerFactor; edit: () => void;
+  /** Lets ANALYZE apply planned reloads to the route. */
+  onRouteChange?: (route: StageRoute) => void;
 }) {
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useState(false), [reloadNote, setReloadNote] = useState('');
   const result = evaluateRoute(stage, plan, route, profile), analysis = result.engagementAnalysis;
   const points = estimateStagePoints(stage, plan, route, profile, ruleset, powerFactor);
+  const time = estimateStageTime(stage, plan, route, profile), [timeDetails, setTimeDetails] = useState(false);
+  const sec = (v: number) => v.toFixed(2) + ' s';
   // A hit factor needs the whole stage: every target routed, with planned rounds, estimated and timed.
   const scoring = stage.objects.filter(isEngageable);
   const unrouted = scoring.filter(t => !route.positions.some(p => p.engagedTargetIds.includes(t.id))).length;
@@ -47,7 +53,7 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
   const hitFactorBlock = unrouted ? `${unrouted} target${unrouted === 1 ? ' is' : 's are'} not in the route`
     : unplanned ? `Set planned rounds for ${unplanned} target${unplanned === 1 ? '' : 's'}` : !points.complete ? 'Needs every target estimated'
     : !result.timing ? 'Needs the time estimate' : null;
-  const hitFactor = hitFactorBlock ? null : estimatedHitFactor(points, result.timing!.total);
+  const hitFactor = hitFactorBlock || !time.available ? null : estimatedHitFactor(points, time.total);
   // Fewer rounds than required hits, route warnings, or generic timing values make the number provisional.
   const short = scoring.filter(t => (plan.engagements[t.id] ?? 0) > 0 && t.type === 'cardboardTarget' && plan.engagements[t.id] < 2).length;
   const generic = profile ? buildPersonalizedModel(profile).fallback.filter(f => f !== 'Shooting difficulty') : [];
@@ -75,13 +81,29 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
     <DataRow label="Starting" value={result.startingRounds} />
     <DataRow label="Reloads" value={result.magazineChanges} />
     <DataRow label="Remaining" value={result.ammo.at(-1)?.remaining ?? result.startingRounds} />
+    {route.reloads.map(r => { const at = route.positions.findIndex(p => p.id === r.positionId);
+      return at >= 0 && <Copy key={r.positionId}>{`Reload ${(r.mode ?? 'moving') === 'moving' ? 'on the move into' : 'standing at'} ${at + 1}. ${route.positions[at].label}`}</Copy>; })}
+    {onRouteChange && result.ammo.some(a => !a.sufficient) && <Action title="PLAN RELOADS" accessibilityLabel="Plan reloads around magazine capacity" onPress={() => {
+      const planned = planReloads(stage, plan, route, profile); setReloadNote(planned.note); if (planned.added) onRouteChange(planned.route);
+    }} />}
+    {!!reloadNote && <Notice tone={result.ammo.every(a => a.sufficient) ? 'success' : 'warning'}>{reloadNote}</Notice>}
     <Copy>TIMING</Copy>
-    {result.timing ? <><DataRow label={result.warnings.length ? "Provisional total" : "Estimated total"} value={result.timing.total.toFixed(2) + ' s'} />
-      <DataRow label="Movement" value={result.timing.movement.toFixed(2) + ' s'} />
-      <DataRow label="Draw" value={result.timing.draw.toFixed(2) + ' s'} />
-      <DataRow label="Splits" value={result.timing.splits.toFixed(2) + ' s'} />
-      <DataRow label="Transitions" value={result.timing.transitions.toFixed(2) + ' s'} />
-      <DataRow label="Reloads" value={result.timing.reloads.toFixed(2) + ' s'} /></> : <Copy>{analysis?.nodes.some(n => n.kind === 'moving') ? 'Unavailable' : 'Unavailable with current profile / route inputs'}</Copy>}
+    {time.available ? <><DataRow label={result.warnings.length ? 'Provisional total' : 'Estimated total'} value={sec(time.total)} />
+      <DataRow label="Movement" value={sec(time.movement)} />
+      <DataRow label="Draw" value={sec(time.draw)} />
+      <DataRow label="Splits" value={sec(time.splits)} />
+      <DataRow label="Transitions" value={sec(time.transitions)} />
+      {time.makeups > 0 && <DataRow label="Steel makeups" value={sec(time.makeups)} />}
+      <DataRow label="Reloads" value={sec(time.reloads)} />
+      {time.sources.map((line, i) => <Copy key={i}>{line}</Copy>)}
+      <Action title={timeDetails ? 'Hide time by position' : 'Time by position'} onPress={() => setTimeDetails(!timeDetails)} />
+      {timeDetails && time.positions.map((p, i) => <View key={p.positionId} style={{ gap: 2 }}>
+        <DataRow label={`${i + 1}. ${p.label}`} value={sec(p.seconds)} />
+        <Copy>{[p.arrival > 0 ? `move ${sec(p.arrival)}` : '', p.reload > 0 ? `reload ${sec(p.reload)}` : '',
+          ...p.targets.map(t => `${t.label} ${formatYardsFixed(yardsToInches(t.yards), 1)}: ` + [t.transition ? `transition ${sec(t.transition.seconds)} (${Math.round(t.transition.degrees)}°)` : '',
+            t.splits ? `${t.splits} × ${sec(t.secondsPerSplit)} split${t.splitSource === 'AVERAGE' ? ' (single value)' : ''}` : '',
+            t.makeups > 0 ? `${t.makeups.toFixed(2)} makeups` : ''].filter(Boolean).join(', ')).filter(Boolean)].filter(Boolean).join(' · ')}</Copy>
+      </View>)}</> : <Copy>{time.reason}</Copy>}
     {analysis?.nodes.some(n => n.kind === 'moving') && <><Copy>MOVING-FIRE TIMING</Copy><Copy>Unavailable</Copy><Action title={details ? 'Hide Details' : 'Details'} onPress={() => setDetails(!details)} />{details && <Copy>The current performance model does not estimate firing while moving. Route geometry and target coverage remain available.</Copy>}</>}
     <Copy>POINTS AND HIT FACTOR</Copy>
     <DataRow label="Scoring" value={ruleset === 'USPSA' ? `USPSA ${powerFactor} (A ${points.zoneValues.A}, C ${points.zoneValues.C}, D ${points.zoneValues.D})` : 'PCSL (A 5, C 3, D 1; a T counts as two A)'} />
@@ -94,7 +116,7 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
     <DataRow label="Estimated hit factor" value={hitFactor !== null ? hitFactor.toFixed(2) + (provisional.length ? ' (provisional)' : '') : hitFactorBlock ?? 'Needs the time estimate'} />
     {hitFactor !== null && provisional.length > 0 && <Copy>{'Provisional: ' + provisional.join('; ') + '.'}</Copy>}
     <Copy>Hit factor = expected points ÷ estimated time. Set planned hits per target in the target's EXPECTED HITS.</Copy>
-    <Copy>Not modelled yet: hits are treated as independent (no streaks, no pushing harder); hits on the move use your standing numbers; no-shoot hits only on hostage targets with partial-target runs; the time uses one average split for every distance and leaves out steel makeups.</Copy>
+    <Copy>Not modelled yet: hits are treated as independent (no streaks, no pushing harder); hits on the move use your standing numbers; no-shoot hits only on hostage targets with partial-target runs; awkward positions (ports, leans) and start positions other than hands at sides add no time.</Copy>
     <Copy>WARNINGS</Copy>
     {!result.warnings.length && <Copy>No warnings</Copy>}
     {result.warnings.filter(warning => details || !warning.startsWith('Moving engagement is geometry-only')).map((warning, i) => <Notice tone="warning" key={i}>{readableWarning(warning)}</Notice>)}

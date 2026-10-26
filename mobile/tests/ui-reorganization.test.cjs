@@ -1022,3 +1022,27 @@ test('review: ANALYZE names the real reason a hit factor is missing, marks it pr
   assert.ok(b.nodes().some(n => n.type === 'DataRow' && n.props.label === 'Cardboard 2 (cut face)'));
   assert.ok(b.nodes().some(n => n.type === 'Copy' && /^Not modelled yet:/.test([].concat(n.props.children).join(''))));
 });
+
+test('ANALYZE times the stage from your numbers, shows where each part came from, and plans reloads', () => {
+  const { createDefaultStage, createObject } = require('../src/stage/defaults.ts');
+  const { placeTarget } = require('../src/stage/targetPlacement.ts');
+  const { createRoute } = require('../src/planning/route.ts');
+  const { createLocalProfile } = require('../src/profile/model.ts');
+  let stage = { ...createDefaultStage('USPSA', { size: { width: 1440, depth: 1080 } }), objects: [createObject('start', 'start', 100, 1000)] };
+  for (const [id, x] of [['A', 160], ['B', 300], ['C', 1000]]) stage = placeTarget(stage, 'uspsa-metric-chl-v1', id, { space: 'stage', x, y: 748, z: 0 }).stage;
+  const pos = (id, x, t) => ({ id, label: id, position: { space: 'stage', x, y: 1000, z: 0 }, visibleTargetIds: t, engagedTargetIds: t });
+  const route = { ...createRoute('r'), positions: [pos('P1', 200, ['A', 'B']), pos('P2', 1000, ['C'])] };
+  const plan = { route, engagements: { A: 4, B: 4, C: 4 }, loadout: { chamberLoaded: false, startingMagazineId: 'm1', magazines: [{ id: 'm1', capacity: 10, startingRounds: 10 }, { id: 'm2', capacity: 10, startingRounds: 10 }] } };
+  const profile = { ...createLocalProfile().performance, shootingObservations: [{ difficultyModel: 'DISTANCE_ONLY', difficulty: 5, splitTime: 0.2, sampleCount: 2 }, { difficultyModel: 'DISTANCE_ONLY', difficulty: 15, splitTime: 0.4, sampleCount: 2 }] };
+  let changed;
+  const h = harness('planning/RouteAnalysis.tsx', { stage, plan, route, profile, edit() {}, onRouteChange: r => { changed = r; } });
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.match(row('Provisional total'), /^\d+\.\d\d s$/);
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Splits: your split curve for 3 targets\.$/.test([].concat(n.props.children).join(''))));
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /1 transition uses your single transition value/.test([].concat(n.props.children).join(''))));
+  h.press('Time by position');
+  assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === '1. P1'));
+  h.press('Plan reloads around magazine capacity');
+  assert.deepEqual(changed.reloads.map(r => [r.positionId, r.magazineId]), [['P2', 'm2']]);
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === '1 reload planned.'));
+});

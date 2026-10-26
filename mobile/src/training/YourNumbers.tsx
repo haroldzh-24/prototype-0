@@ -7,8 +7,9 @@ import { Action, Copy, DataRow, Panel, Segmented, ui } from '../ui/kit';
 import { colors } from '../ui/tokens';
 import { useThemeMode } from '../ui/theme';
 import type { TimingFactor, UserProfile } from '../profile/model';
-import { factorLabels, timingFactors } from '../profile/personalizedPerformance';
+import { buildPersonalizedModel, factorLabels, timingFactors } from '../profile/personalizedPerformance';
 import { moveDirectionLabels, moveDirections, validMovementModel } from '../profile/movementModel';
+import { validEngagementModel } from '../profile/engagementModel';
 import type { MoveFit } from '../profile/movementModel';
 import type { TrainingRecord } from './model';
 import { trainingContexts } from './observations';
@@ -52,7 +53,8 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
   const longest = Math.max(par ?? 0, ...trend.map(t => t.total ?? 0));
   const performance = profile?.performance ?? null, evidence = performance?.timingEvidence ?? {};
   // Saved profiles are untrusted: a damaged fit is not shown rather than breaking the screen.
-  const moveFitAll = validMovementModel(performance?.movementModel)?.all;
+  const moveFitAll = validMovementModel(performance?.movementModel)?.all, engagement = validEngagementModel(performance?.engagementModel);
+  const splitCurve = performance ? buildPersonalizedModel(performance).curve : [];
   const section = (title: string, rows: ReactNode, show: boolean) => show ? <View style={{ gap: 4 }}><Text style={ui.eyebrow}>{title}</Text>{rows}</View> : null;
 
   return <EditorSheet title="YOUR NUMBERS" visible={visible} close={onClose}><Panel>
@@ -62,6 +64,12 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
       {timingFactors.map(f => { const e = evidence[f]; return <DataRow key={f} label={f === 'movementSpeed' ? 'Average speed' : factorLabels[f]}
         value={factorUnit(f, performance[f]) + ' · ' + (e?.source === 'MEASURED' ? `measured, ${e.sampleCount ?? 0} sample${e.sampleCount === 1 ? '' : 's'}` : e?.source === 'MANUAL' ? 'typed in' : 'generic default')} />; })}
       {moveFitAll && <DataRow label="Move time (used for legs)" value={fitText(moveFitAll)} />}
+      {engagement?.transitions && <DataRow label="Transitions by swing" value={engagement.transitions.method === 'FIT'
+        ? `${s2(engagement.transitions.baseSeconds)} + ${(engagement.transitions.secondsPerDegree * 10).toFixed(2)} s per 10° · ${runs(engagement.transitions.runs)}, ${Math.round(engagement.transitions.minDegrees)}–${Math.round(engagement.transitions.maxDegrees)}°`
+        : `${s2(engagement.transitions.baseSeconds)} at any swing (${runs(engagement.transitions.runs)} at one swing size; log a wider array)`} />}
+      {splitCurve.length > 0 && <DataRow label="Splits by distance" value={splitCurve.map(c => `${c.difficulty} yd ${s2(c.splitTime)}`).join(' · ')} />}
+      {engagement?.partialSplits && <DataRow label="Partial-target splits" value={engagement.partialSplits.map(c => `${c.yards} yd ${s2(c.seconds)}`).join(' · ')} />}
+      {engagement?.steelPlates && <DataRow label="Steel per plate" value={engagement.steelPlates.map(c => `${c.yards} yd ${s2(c.seconds)}`).join(' · ')} />}
       <Copy>Splits, transitions and reloads above are standing square on full paper; moving, steel, partial-target and port runs are kept separately below.</Copy>
     </>, true)}
     {context !== planning && <Copy>The planner uses your {contextLabels[planning].toLowerCase()} numbers. These {contextLabels[context].toLowerCase()} numbers are for comparison.</Copy>}

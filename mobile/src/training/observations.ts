@@ -5,6 +5,8 @@ import { fitMovement, moveDirections } from '../profile/movementModel';
 import { buildHitModel } from '../profile/hitModel';
 import { inchesToYards } from '../stage/measurements';
 import type { HitCounts, HitKind } from '../profile/hitModel';
+import { buildCurve, fitTransitions, swingDegrees } from '../profile/engagementModel';
+import type { EngagementModel } from '../profile/engagementModel';
 import type { MoveDirection } from '../profile/movementModel';
 import { startingTypes } from './model';
 import type { StartingType } from './model';
@@ -168,6 +170,21 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
   const hitModel = buildHitModel(eligible.filter(o => o.context === context && o.factor === 'hitZones' && o.hits && o.distanceInches !== undefined && kindOf(o))
     .map(o => ({ kind: kindOf(o)!, yards: inchesToYards(o.distanceInches!), hits: o.hits! })));
   if (Object.keys(hitModel).length) performance.hitModel = hitModel; else delete performance.hitModel;
+  // Shooting-time models (C4): transitions by swing, splits on partly covered targets, steel per plate. A typed-in
+  // transition or split wins over its model, as it does for the split curve.
+  const inContext = (o: PerformanceObservation) => o.context === context && o.distanceInches !== undefined && !o.moving && (o.position ?? 'square') === 'square';
+  const engagementModel: EngagementModel = {};
+  const transitions = valueSources.transitionTime === 'MANUAL_OVERRIDE' ? undefined : fitTransitions(eligible
+    .filter(o => inContext(o) && o.factor === 'transitionTime' && generalSample(o) && o.spreadInches !== undefined)
+    .map(o => ({ degrees: swingDegrees(o.spreadInches!, o.distanceInches!), seconds: o.value })));
+  if (transitions) engagementModel.transitions = transitions;
+  const partialSplits = valueSources.averageSplitTime === 'MANUAL_OVERRIDE' ? undefined : buildCurve(eligible
+    .filter(o => inContext(o) && o.factor === 'averageSplitTime' && o.targetKind === 'partial').map(o => ({ yards: inchesToYards(o.distanceInches!), seconds: o.value })));
+  if (partialSplits) engagementModel.partialSplits = partialSplits;
+  const steelPlates = buildCurve(eligible.filter(o => inContext(o) && o.factor === 'transitionTime' && o.targetKind === 'steel')
+    .map(o => ({ yards: inchesToYards(o.distanceInches!), seconds: o.value })));
+  if (steelPlates) engagementModel.steelPlates = steelPlates;
+  if (Object.keys(engagementModel).length) performance.engagementModel = engagementModel; else delete performance.engagementModel;
   const model = buildPersonalizedModel(performance);
   return { performance, observations, aggregates, shootingAggregates: curve, valueSources, warnings,
     confidence: model.confidence, confidenceSupport: { factors: model.factors, curve: model.curve } };
@@ -204,8 +221,9 @@ function inputsFor(profile: UserProfile, captureEdits = true): NonNullable<UserP
 }
 /** Derived fields (move fit, split curve): a rebuild without the data must not keep stale ones from the saved profile. */
 function withDerived(performance: ShooterPerformanceProfile, rebuilt: ShooterPerformanceProfile): ShooterPerformanceProfile {
-  const { movementModel: _model, shootingObservations: _curve, hitModel: _hits, ...rest } = performance;
+  const { movementModel: _model, shootingObservations: _curve, hitModel: _hits, engagementModel: _engage, ...rest } = performance;
   return { ...rest, ...(rebuilt.movementModel ? { movementModel: rebuilt.movementModel } : {}), ...(rebuilt.hitModel ? { hitModel: rebuilt.hitModel } : {}),
+    ...(rebuilt.engagementModel ? { engagementModel: rebuilt.engagementModel } : {}),
     ...(rebuilt.shootingObservations ? { shootingObservations: rebuilt.shootingObservations } : {}) };
 }
 export function withPerformanceObservations(profile: UserProfile, observations: unknown, context: TrainingContext = profile.calibrationContext ?? 'LIVE_FIRE', captureEdits = true): UserProfile {
