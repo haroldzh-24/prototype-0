@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE } from '../../rules/rulesets';
 import { Action, Copy, DataRow, Loading, Notice, Panel, Segmented } from '../../ui/kit';
 import EditorSheet from '../../editor/EditorSheet';
 import { meaningfulRoute } from '../../editor/routePresentation';
@@ -43,7 +44,7 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
   const [result, setResult] = useState<RoutePlan | null>(null), [running, setRunning] = useState(false), [confirm, setConfirm] = useState(false), [error, setError] = useState('');
   const rules = plan.route?.engagementRules;
   // Engaging on the move follows the route setting; IDPA is planned standing (cover rules are not modelled).
-  const movingAvailable = !!rules && rules.allowMoving !== false && rules.ruleset !== 'IDPA';
+  const movingAvailable = !!rules && rules.allowMoving !== false && activeRuleset(rules.ruleset) !== 'IDPA';
   const [moving, setMoving] = useState(movingAvailable);
   const abort = useRef<AbortController | null>(null);
   // A stage or route edit invalidates any result or run in progress.
@@ -79,7 +80,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     <DataRow label="Downrange" value={downrangeLabel(stageDownrange(stage))} />
     {movingAvailable
       ? <Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
-      : <Copy>{rules?.ruleset === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
+      : <Copy>{activeRuleset(rules?.ruleset) === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
+    {idpaOnHold(rules?.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
     {!snapshot.firingAreas.length && <Notice>Draw firing areas first: positions are only planned inside them.</Notice>}
     <Action title={snapshot.firingAreas.length ? 'EDIT FIRING AREAS' : 'DRAW FIRING AREAS'} variant={snapshot.firingAreas.length ? undefined : 'primary'} onPress={() => onConfigure('areas')} />
     <Action title="ROUTE SETTINGS" onPress={() => onConfigure('rules')} />

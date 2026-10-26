@@ -24,6 +24,7 @@ export type Palette = {
   wall: string; port: string; faultLine: string; startFill: string;
   /** Target faces: cardboard, steel, IDPA/USPSA white no-shoot, PCSL red no-shoot, and their outline. */
   cardboard: string; steel: string; noShoot: string; noShootRed: string; faceEdge: string;
+  /** Painted hard cover on a target face (black, non-scoring). */ hardCover: string;
   /** Editing handles and snap guides. */ handle: string;
   /** Review states: detected by the app (unconfirmed) and suggested (needs a look). */ detected: string; suggested: string;
   /** 3D view: sky, ground, and a mid-tone wall so lighting shows its faces. */ sky: string; ground3d: string; wall3d: string;
@@ -35,7 +36,7 @@ export const dayPalette: Palette = {
   danger: '#C8102E', onDanger: '#FFFFFF', warning: '#7A4A00', caution: '#FFD400', onCaution: '#0A0A0A', movement: '#00703C',
   grid: '#BDBDBD', gridMinor: '#E4E4E4', canvas: '#FFFFFF', ink: '#0A0A0A', offStage: '#E9E9E9',
   wall: '#0A0A0A', port: '#FF6A13', faultLine: '#0A0A0A', startFill: '#FFFFFF',
-  cardboard: '#C9A266', steel: '#D3D8DC', noShoot: '#FFFFFF', noShootRed: '#E65959', faceEdge: '#0A0A0A',
+  cardboard: '#C9A266', steel: '#D3D8DC', noShoot: '#FFFFFF', noShootRed: '#E65959', faceEdge: '#0A0A0A', hardCover: '#141414',
   handle: '#0040E0', detected: '#6B2FD6', suggested: '#7A4A00',
   sky: '#D9E2EC', ground3d: '#F7F7F5', wall3d: '#5B636D',
 };
@@ -45,7 +46,7 @@ export const nightPalette: Palette = {
   danger: '#FF6B6B', onDanger: '#0B0D10', warning: '#FFD45C', caution: '#FFD400', onCaution: '#0B0D10', movement: '#4FD1B0',
   grid: '#3A414B', gridMinor: '#20252C', canvas: '#0F1216', ink: '#E8EAED', offStage: '#050607',
   wall: '#E8EAED', port: '#C2410C', faultLine: '#E8EAED', startFill: '#0F1216',
-  cardboard: '#B69964', steel: '#9AA6AE', noShoot: '#E5E7DF', noShootRed: '#E65959', faceEdge: '#0B0D10',
+  cardboard: '#B69964', steel: '#9AA6AE', noShoot: '#E5E7DF', noShootRed: '#E65959', faceEdge: '#0B0D10', hardCover: '#050607',
   handle: '#6E9BFF', detected: '#C498FF', suggested: '#FFD45C',
   sky: '#06080B', ground3d: '#161A20', wall3d: '#7E8894',
 };

@@ -18,5 +18,9 @@ export function presetFacePoints(item: TargetObject): [number, number][] {
     }
     points=next;
   }
-  return points;
+  // A layered face (hostage no-shoot, double) may be rolled in its own plane about its centre, clockwise as seen.
+  const roll = item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? item.attachment?.roll ?? 0 : 0;
+  if (!roll) return points;
+  const c = Math.cos(roll * Math.PI / 180), s = Math.sin(roll * Math.PI / 180);
+  return points.map(([x, z]) => { const y = z - h / 2; return [x * c + y * s, -x * s + y * c + h / 2] as [number, number]; });
 }

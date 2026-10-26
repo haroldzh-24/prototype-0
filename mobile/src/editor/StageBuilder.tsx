@@ -69,7 +69,10 @@ import { outsideStage } from '../stage/resize';
 import type { StagePosition } from '../stage/coordinates';
 import type { TargetFamily } from '../stage/targetFamily';
 import RouteAISheet from '../planning/routeAI/RouteAISheet';
+import LayerPanel from './LayerPanel';
+import { isPaper } from '../stage/targetLayers';
 import { defaultEngagementRules } from '../planning/engagements';
+import { activeRuleset } from '../rules/rulesets';
 import type { EngagementRules } from '../planning/engagements';
 import { areaAt, areaProblem, moveCorner, nextAreaId, removeArea, snapCorner, wholeBayArea } from '../planning/firingAreaEditing';
 import type { Point as AreaPoint } from '../planning/firingAreaEditing';
@@ -149,7 +152,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     setRouteMode(true); setRouteVisible(true); setSelectedId(null); setViewMode('topDown');
   };
   const [plannerOrigin, setPlannerOrigin] = useState<'aiPlan' | 'planV2'>('aiPlan');
-  const [panel, setPanel] = useState<'check' | 'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'planV2' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
+  const [panel, setPanel] = useState<'check' | 'layers' | 'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'planV2' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
   const [focusPosition, setFocusPosition] = useState<StagePosition | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
@@ -291,7 +294,13 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const firingAreas = routeRules?.firingAreas ?? [];
   /** Change the route's rules, creating them for the match's ruleset if the route has none yet. */
   const changeRules = (change: (rules: EngagementRules) => EngagementRules) => setPlan(current => current.route
-    ? { ...current, route: { ...current.route, engagementRules: change(current.route.engagementRules ?? defaultEngagementRules(stage, targetFamily)) } } : current);
+    ? { ...current, route: { ...current.route, engagementRules: change(current.route.engagementRules ?? defaultEngagementRules(stage, activeRuleset(targetFamily))) } } : current);
+  /** A layer (hostage no-shoot, double) is moved by moving the target it sits on. */
+  const layerParentId = (id: string) => { const o = stage.objects.find(x => x.id === id); return isPaper(o) && o.attachment ? o.attachment.parentId : null; };
+  const selectedTitle = (o: NonNullable<typeof selected>) => {
+    if (isPaper(o) && o.attachment) { const parent = stage.objects.find(x => x.id === o.attachment!.parentId); return (o.type === 'noShootTarget' ? 'NO-SHOOT' : 'TARGET') + ' ON ' + (parent ? targetLabel(stage, parent.id) : 'TARGET').toUpperCase(); }
+    return (isTarget(o) ? targetPreset(o.presetId ?? '')?.name ?? objectLabel(o.type) : objectLabel(o.type)).toUpperCase();
+  };
   /** Leave PATH, ENGAGE, REVIEW and AREAS (one route tool is active at a time). */
   const clearRouteTools = () => { setRouteEditing(false); setEngageMode(false); setReviewMode(false); setAreaMode(false); setAreaDraft(null); setAddingPoint(false); setAssignmentMode(null); };
   const areaTap = (point: StagePosition) => {
@@ -359,11 +368,11 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     {routeMode && !reviewMode && !areaMode && !previewing && viewMode !== 'eye' && meaningfulRoute(plan.route) && <Text style={[styles.status, styles.routeNote]}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} {plan.route?.positions.length === 1 ? 'waypoint' : 'waypoints'} {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
     <View style={styles.canvas} onLayout={({ nativeEvent }) => setCanvasSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
-        viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={targetFamily} onExit={() => setViewMode('topDown')} /> :
+        viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={activeRuleset(targetFamily)} onExit={() => setViewMode('topDown')} /> :
         viewMode === '3d' ? <Stage3DView stage={stage} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
           onSelect={id => { if (!routeMode) setSelectedId(id); }} onExit={() => setViewMode('topDown')}
           onMoveStart={() => onDragging(true)} onMoveEnd={() => onDragging(false)}
-          onMove={(id, position) => setStage(current => moveObject(current, id, resolveMovement(current, id, position, snapping).position))} /> :
+          onMove={(id, position) => { const moving = layerParentId(id) ?? id; setStage(current => moveObject(current, moving, resolveMovement(current, moving, position, snapping).position)); }} /> :
         <StageViewport manualReview={routeMode && reviewMode && !previewing ? { review: manualReview, selectedTargetId: reviewTargetId, selectedEngagementId: manualEngagementId, onlyUnassigned, onSelectTarget: setReviewTargetId } : undefined} manualEngage={routeMode && engageMode && !previewing ? {
           selectedId: selectedManualEngagement?.id ?? null, onSelect: setManualEngagementId,
           onCreate: (anchor, targetId, direction) => {
@@ -416,9 +425,10 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       </View>
     </View>}
     {!previewing && selected && !dragging && !routeMode && viewMode === '3d' && <View style={styles.context}>
-      <View style={styles.readout}><Text style={[styles.status, { flex: 1 }]}>{(isTarget(selected) ? targetPreset(selected.presetId ?? '')?.name ?? objectLabel(selected.type) : objectLabel(selected.type)).toUpperCase() + ' · DRAG TO MOVE'}</Text>
+      <View style={styles.readout}><Text style={[styles.status, { flex: 1 }]}>{selectedTitle(selected) + ' · DRAG TO MOVE'}</Text>
         <Button title="EDIT" compact onPress={() => setPanel('edit')} /><Button title="Deselect" compact onPress={() => setSelectedId(null)} /></View>
       <View style={[styles.controls, { paddingTop: 0 }]}>
+        {isPaper(selected) && selected.attachment ? <Button title="LAYER" label="Slide, rotate or remove this layer" compact onPress={() => setPanel('layers')} /> : <>
         {(selected.type === 'wall' || isTarget(selected)) && <>
           <Button title="−" label={selected.type === 'wall' ? 'Lower the wall' : 'Lower the target'} compact onPress={() => changeHeight(-1)} />
           <Text accessibilityLabel={selected.type === 'wall' ? 'Wall height' : 'Target raised'} style={[styles.title, { alignSelf: 'center', minWidth: 64, textAlign: 'center' }]}>{selected.type === 'wall' ? feetText(selected.geometry.height) : feetText(selected.position.z) + ' up'}</Text>
@@ -427,16 +437,23 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="↺" label="Rotate left" compact onPress={() => rotate(-rotationStep)} />
         <Text accessibilityLabel="Rotation" style={[styles.title, { alignSelf: 'center', minWidth: 44, textAlign: 'center' }]}>{Math.round(selected.rotation) + '°'}</Text>
         <Button title="↻" label="Rotate right" compact onPress={() => rotate(rotationStep)} />
+        </>}
       </View>
     </View>}
     {!previewing && selected && tool === 'select' && !dragging && !routeMode && viewMode === 'topDown' && <View style={styles.context}>
-      <View style={styles.readout}><Text style={styles.status}>{(isTarget(selected) ? targetPreset(selected.presetId ?? '')?.name ?? objectLabel(selected.type) : objectLabel(selected.type)).toUpperCase()}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
-      <View style={styles.controls}>
+      <View style={styles.readout}><Text style={styles.status}>{selectedTitle(selected)}</Text><Button title="Deselect" compact disabled={dragging} onPress={() => setSelectedId(null)} /></View>
+      {isPaper(selected) && selected.attachment ? <View style={styles.controls}>
+        {/* A layer (hostage no-shoot, double) is placed from the layers panel; it moves and turns with its target. */}
+        <Button title="LAYER" label="Slide, rotate or remove this layer" disabled={dragging} onPress={() => setPanel('layers')} />
+        <Button title="BASE TARGET" label="Select the target underneath" disabled={dragging} onPress={() => setSelectedId(selected.attachment!.parentId)} />
+        <Button title="DELETE" danger disabled={dragging} onPress={() => setPanel('delete')} />
+      </View> : <View style={styles.controls}>
         <Button title="EDIT" disabled={dragging} onPress={() => setPanel('edit')} />
           <Button title={isSegment(selected) ? "ENDPOINTS" : "ROTATE"} disabled={dragging} onPress={() => isSegment(selected) ? setFocusPosition({ ...selected.position }) : rotate(rotationStep)} />
+        {isPaper(selected) && <Button title="LAYERS" label="Add no-shoots, targets or hard cover on this target" disabled={dragging} onPress={() => setPanel('layers')} />}
         <Button title="DUPLICATE" disabled={dragging || selected.type === 'start'} onPress={() => act({ kind: 'duplicate' })} />
         <Button title="DELETE" danger disabled={dragging || selected.type === 'start'} onPress={() => setPanel('delete')} />
-      </View>
+      </View>}
     </View>}
     {radial && viewMode === 'topDown' && !routeMode && !previewing && <RadialAddMenu at={radial.at} bounds={canvasSize} targetFamily={targetFamily}
       onChoose={chooseFromRadial} onClose={() => setRadial(null)} />}
@@ -482,7 +499,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" compact disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ check: 'Stage check', settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ layers: 'Layers', check: 'Stage check', settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
       {panel === 'manualEdit' && selectedManualEngagement && plan.route && <>
             <Text>{selectedManualEngagement.anchor.kind === 'waypoint' ? 'Waypoint ' + (plan.route.positions.findIndex(p => p.id === (selectedManualEngagement.anchor.kind === 'waypoint' ? selectedManualEngagement.anchor.waypointId : '')) + 1) + ' / ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement'} / {targetLabel(stage, selectedManualEngagement.targetId)}</Text>
             <View style={styles.controls}>
@@ -508,6 +525,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {panel === 'manualTarget' && selectedManualEngagement && plan.route && <>
         {stage.objects.filter(isEngageable).map(target => <Button key={target.id} title={targetLabel(stage, target.id)} active={target.id === selectedManualEngagement.targetId} onPress={() => { if (plan.route) changeRoute(editManualEngagement(stage, plan.route, selectedManualEngagement.id, { targetId: target.id })); setPanel('manualEdit'); }} />)}
       </>}
+      {panel === 'layers' && selected && <LayerPanel stage={stage} selectedId={selected.id} setStage={setStage} onSelect={setSelectedId} />}
       {panel === 'saveError' && <ErrorState title="Stage could not be saved. Try Save again after reviewing the details." detail={saveMessage} />}
       {panel === 'engagement' && plan.route && <EngagementDetails stage={stage} route={plan.route} nodeId={nodeId} onChange={changeRoute} />}
       {panel === 'rules' && plan.route && <>

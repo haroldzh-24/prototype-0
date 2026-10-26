@@ -1,3 +1,12 @@
+# RC2 batch 15: milestone A — IDPA rules on hold, target layers, hard cover - 2026-10-26
+
+- **IDPA rules on hold.** New matches offer USPSA and PCSL. Stage check, the planner, the engagement analysis and the drill logger apply no IDPA rule; an existing IDPA match opens as before, is planned and checked with USPSA rules, and says so. IDPA targets stay in the add menu. The IDPA rule code is kept behind one switch (`src/rules/rulesets.ts`).
+- **Targets on top of targets.** LAYERS on a selected paper target: add a hostage no-shoot or a second target, slide it (snapping to the neck, shoulders, centre and edges), rotate it, put it in front or behind. The stack drags, turns, duplicates and deletes as one. Details: `docs/target-layers.md`.
+- **Painted hard cover:** HEAD ONLY, TOP OPEN, OPEN TOP LEFT, OPEN TOP RIGHT, CENTRE STRIP, each adjustable (slide, turn). Drawn in 2D, 3D, EYE and face-on in the layers panel, with the open scoring area in percent.
+- **Planner and checks:** the planner aims at a target's open area, and faces in one stack don't block each other. New stage checks: fully covered targets, partly covered targets (info), half-size targets with full-size no-shoots and the half-size A-zone reminder (USPSA 4.2.1.1), PCSL Practical/Competition on one stage (9.2.2.1), K-Zone with Practical (9.2.1.1) and K-Zone level limits.
+- **Drill logger, web:** tapped hits now land where tapped (they landed in the corner with NaN group stats).
+- Validation: 931/931 tests (11 new: 7 for layers and paint, 2 for the IDPA switch and taps, 1 for the face-on drawing, 2 editor flows; 4 IDPA tests changed to the on-hold behaviour), TypeScript passed. Checked in the web build, day and night: new-match choices, painting, a rotated hostage, the 2D and 3D drawings, the stage check, drill taps. No device testing.
+
 # RC2 batch 14: BUILD → PLAN → WALK, and firing areas drawn on the stage - 2026-10-26
 
 - **Step bar: BUILD · PLAN · WALK** at the top of the stage editor. PLAN is the old ROUTE. WALK opens the eye-level walk-through of the planned route; PLAN brings you back to the 2D plan.

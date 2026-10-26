@@ -6,6 +6,8 @@ import { targetFace } from '../planning/v2/normalizeStage';
 import type { TargetFace } from '../planning/v2/normalizeStage';
 import { distanceToSegment } from '../planning/v2/coverage';
 import { inside } from '../planning/routeSolver/traversability';
+import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE } from './rulesets';
+import { exposure, isPaper, layered, stackOf } from '../stage/targetLayers';
 import { targetPreset } from '../stage/targetPresets';
 
 /**
@@ -55,8 +57,9 @@ const feet = (inches: number) => `${(inches / 12).toFixed(1).replace(/\.0$/, '')
 const yards = (inches: number) => `${(inches / 36).toFixed(1).replace(/\.0$/, '')} yd`;
 
 export function checkStage(doc: StageDocument, rules: EngagementRules | undefined, family: TargetFamily): Finding[] {
-  const ruleset = rules?.ruleset ?? family;
+  const requested = rules?.ruleset ?? family, ruleset = activeRuleset(requested);
   const findings: Finding[] = [];
+  if (idpaOnHold(requested) || idpaOnHold(family)) findings.push({ severity: 'info', code: 'IDPA_RULES_ON_HOLD', rule: '', objectIds: [], message: IDPA_ON_HOLD_NOTE });
   const { paper, steel, rounds } = minimumRounds(doc);
   const label = (id: string) => targetLabel(doc, id);
   const scoring = doc.objects.filter(isEngageable).map(o => ({ object: o, face: targetFace(o) })).filter((x): x is { object: typeof x.object; face: TargetFace } => !!x.face);
@@ -110,7 +113,9 @@ export function checkStage(doc: StageDocument, rules: EngagementRules | undefine
   if (ruleset === 'USPSA' && procedures.length && rounds > 20) findings.push({ severity: 'rule', code: 'USPSA_FREESTYLE', rule: 'USPSA 1.1.5, 1.1.5.1', objectIds: procedures.map(([id]) => id),
     message: 'This is a long course: "engage from" and "engage after" procedures are allowed only in Level I short and medium courses, classifiers, standard exercises and speed shoots.' });
 
+  findings.push(...layerFindings(doc, ruleset));
   if (ruleset === 'USPSA') findings.push(...uspsaTargetFindings(doc));
+  if (ruleset === 'PCSL') findings.push(...pcslTargetFindings(doc));
 
   if (ruleset === 'IDPA') {
     const threats = paper, nonThreats = doc.objects.filter(o => o.type === 'noShootTarget').length;
@@ -140,5 +145,42 @@ function uspsaTargetFindings(doc: StageDocument): Finding[] {
     findings.push({ severity: 'info', code: 'USPSA_PLATE_LEVEL', rule: 'USPSA 4.3.1.4', objectIds: plates.map(o => o.id),
       message: `${plates.length} metal plate${plates.length === 1 ? '' : 's'}: plates are allowed at Level I and II matches only.` });
   }
+  return findings;
+}
+
+/** Targets with layers (hostage no-shoots, doubles) or painted hard cover: what is left to shoot at. */
+function layerFindings(doc: StageDocument, ruleset: string): Finding[] {
+  const findings: Finding[] = [];
+  for (const o of doc.objects) {
+    if (!isPaper(o) || o.type !== 'cardboardTarget' || !layered(doc, o)) continue;
+    const open = exposure(doc, o).fraction, name = targetLabel(doc, o.id);
+    if (open < 0.02) findings.push({ severity: 'rule', code: 'TARGET_COVERED', rule: '', objectIds: [o.id],
+      message: `${name} has no scoring area showing: hard cover or faces in front of it cover all of it.` });
+    else if (open < 0.999) findings.push({ severity: 'info', code: 'TARGET_PARTLY_COVERED', rule: '', objectIds: [o.id],
+      message: `${name}: about ${Math.round(open * 100)}% of the face is open scoring area.` });
+    // USPSA 4.2.1.1: half-size targets keep at least half of the lower A-zone visible, and never go on full-size no-shoots.
+    if (ruleset === 'USPSA' && o.presetId === 'uspsa-half-chl-v1') {
+      const stack = stackOf(doc, o);
+      const fullNoShoot = stack ? doc.objects.some(n => n.type === 'noShootTarget' && stackOf(doc, n) === stack && n.presetId !== 'uspsa-half-chl-v1' && n.geometry.faceHeight > o.geometry.faceHeight + 1) : false;
+      if (fullNoShoot) findings.push({ severity: 'rule', code: 'USPSA_HALF_ON_FULL_NO_SHOOT', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
+        message: `${name} is a half-size target stacked with a full-size no-shoot; half-size targets may not be mounted on full-size no-shoots.` });
+      if (open < 0.999) findings.push({ severity: 'info', code: 'USPSA_HALF_A_ZONE', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
+        message: `${name} is a partly covered half-size target: at least half of its lower A-zone must stay visible. Check it on the target (A-zone positions are not in the app).` });
+    }
+  }
+  return findings;
+}
+
+/** PCSL target-type mixing (9.2.1.1, 9.2.1.4, 9.2.2.1). */
+function pcslTargetFindings(doc: StageDocument): Finding[] {
+  const findings: Finding[] = [];
+  const using = (preset: string) => doc.objects.filter(o => (o.type === 'cardboardTarget' || o.type === 'noShootTarget') && o.presetId === preset);
+  const practical = using('pcsl-practical-2025-v1'), competition = using('pcsl-competition-2025-v1'), kZone = using('pcsl-k-zone-legacy-v1');
+  if (practical.length && competition.length) findings.push({ severity: 'rule', code: 'PCSL_PRACTICAL_COMPETITION', rule: 'PCSL 9.2.2.1', objectIds: (practical.length <= competition.length ? practical : competition).map(o => o.id),
+    message: `This stage uses both Practical (${practical.length}) and Competition (${competition.length}) full-size targets; they may not both be used for the same firearm on one stage. Mini Practical targets are fine with either.` });
+  if (kZone.length && practical.length) findings.push({ severity: 'rule', code: 'PCSL_KZONE_PRACTICAL', rule: 'PCSL 9.2.1.1', objectIds: kZone.map(o => o.id),
+    message: 'K-Zone targets may not be used in the same match as Practical full-size targets.' });
+  else if (kZone.length) findings.push({ severity: 'info', code: 'PCSL_KZONE_LEVEL', rule: 'PCSL 9.2.1.4, 10.1.4.1', objectIds: kZone.map(o => o.id),
+    message: 'K-Zone targets: Level 1 matches only, outside classifier stages.' });
   return findings;
 }

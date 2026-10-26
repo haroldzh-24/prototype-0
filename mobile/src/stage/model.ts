@@ -3,6 +3,23 @@ import type { TargetFamily } from './targetFamily';
 import type { TargetOutline } from './targetShape';
 export type SegmentEndpoints = Readonly<{ start: StagePosition; end: StagePosition }>;
 type TargetMetadata = { targetFamily?: TargetFamily; presetId?: string; outline?: TargetOutline };
+/**
+ * Face coordinates (layers): inches, origin at the face centre, x to the shooter's right, y up, as the shooter sees the
+ * face. Angles are degrees, positive clockwise as the shooter sees it.
+ */
+export type FacePoint = Readonly<{ x: number; y: number }>;
+/**
+ * A paper target or no-shoot placed on top of (or behind) another paper target: a hostage no-shoot or an overlapping
+ * "double". Its position and facing follow the parent; `offset` is its face centre from the parent's face centre.
+ */
+export type TargetAttachment = Readonly<{ parentId: string; offset: FacePoint; roll: number; front: boolean }>;
+/**
+ * Hard cover painted on a face (black, non-scoring, stops bullets). `edge`: everything on one side of a line through
+ * `at` at `angle` is painted (angle 0 paints below the line; the painted side is to the right of the line's direction).
+ * `strip`: everything outside a band `width` wide through `at` is painted (angle 0 = an upright band).
+ */
+export type HardCover = Readonly<{ id: string; kind: 'edge' | 'strip'; at: FacePoint; angle: number; width?: number; preset?: string }>;
+type PaperLayers = { attachment?: TargetAttachment; hardCover?: readonly HardCover[] };
 
 /** Local rectangular ground footprint and vertical extent, all in inches. */
 export type ObjectGeometry = Readonly<{ width: number; depth: number; height: number }>;
@@ -26,8 +43,8 @@ type ObjectBase = {
   rotation: number;
 };
 export type StageObject =
-  | (ObjectBase & TargetMetadata & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut })
-  | (ObjectBase & TargetMetadata & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut })
+  | (ObjectBase & TargetMetadata & PaperLayers & { type: 'cardboardTarget'; geometry: TargetGeometry; faceCut: FaceCut })
+  | (ObjectBase & TargetMetadata & PaperLayers & { type: 'noShootTarget'; geometry: TargetGeometry; faceCut: FaceCut })
   | (ObjectBase & TargetMetadata & { type: 'steelPlate'; geometry: TargetGeometry })
   | (ObjectBase & TargetMetadata & { type: 'steelPopper'; geometry: TargetGeometry })
   | (ObjectBase & { type: 'wall'; geometry: WallGeometry; ports: readonly FiringPort[]; endpoints?: SegmentEndpoints })

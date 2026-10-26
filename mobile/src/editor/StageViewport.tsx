@@ -231,7 +231,7 @@ export default function StageViewport(props: Props) {
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
             onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage} />)}
           </View>
-          {!props.routeEditing && !props.readOnly && (!props.tool || props.tool === 'select') && props.stage.objects.filter(o => o.id === props.selectedId).map(item => <GeometryControls key={item.id} item={item} stage={props.stage} transform={transform} snapping={props.snapping} onDragging={props.onDragging} setStage={props.setStage} />)}
+          {!props.routeEditing && !props.readOnly && (!props.tool || props.tool === 'select') && props.stage.objects.filter(o => o.id === props.selectedId && !(o.type === 'cardboardTarget' || o.type === 'noShootTarget' ? o.attachment : undefined)).map(item => <GeometryControls key={item.id} item={item} stage={props.stage} transform={transform} snapping={props.snapping} onDragging={props.onDragging} setStage={props.setStage} />)}
           {props.draft && (() => {
             const a = stageToViewport(props.draft.start, transform), b = stageToViewport(props.draft.end, transform);
             const length = Math.hypot(b.x-a.x,b.y-a.y), angle = Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;

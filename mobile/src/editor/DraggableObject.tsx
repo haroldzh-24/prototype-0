@@ -24,6 +24,8 @@ type ObjectProps = {
 };
 /** Fault lines are dashed (a dash and a gap every DASH px); drawn with views because dashed borders differ per platform. */
 const DASH = 12;
+/** The object a drag moves: a layered face moves the target it sits on. */
+const movingId = (item: StageObject) => (item.type === 'cardboardTarget' || item.type === 'noShootTarget') && item.attachment ? item.attachment.parentId : item.id;
 export default function DraggableObject(props: ObjectProps) {
   const latest = useRef(props);
   latest.current = props;
@@ -32,7 +34,9 @@ export default function DraggableObject(props: ObjectProps) {
     onStartShouldSetPanResponder: () => true,
     onPanResponderGrant: () => {
       const current = latest.current;
-      drag.current = { position: current.item.position, transform: current.transform };
+      // Dragging any face of a stack (a hostage no-shoot, a double) moves the target it is layered on.
+      const moved = current.stage.objects.find(o => o.id === movingId(current.item)) ?? current.item;
+      drag.current = { position: moved.position, transform: current.transform };
       current.onSelect(current.item.id); current.onDragging(true); current.onFeedback({ guides: [], gridAxes: [] });
     },
     onPanResponderTerminationRequest: event => event.nativeEvent.touches.length >= 2,
@@ -40,8 +44,8 @@ export default function DraggableObject(props: ObjectProps) {
       if (event.nativeEvent.touches.length !== 1) return;
       const position = moveByViewportDelta(drag.current.position, { x: gesture.dx, y: gesture.dy }, drag.current.transform);
       const { item, setStage, stage, snapping, onFeedback } = latest.current;
-      const result = resolveMovement(stage, item.id, position, snapping);
-      setStage((current) => moveObject(current, item.id, result.position)); onFeedback(result);
+      const id = movingId(item), result = resolveMovement(stage, id, position, snapping);
+      setStage((current) => moveObject(current, id, result.position)); onFeedback(result);
     },
     onPanResponderRelease: () => {
       latest.current.onDragging(false);
@@ -60,13 +64,16 @@ export default function DraggableObject(props: ObjectProps) {
   // Walls and fault lines are a few inches thick: drawn at least 4 / 3 px so they read like the lines on a stage diagram.
   const minimum = item.type === 'wall' ? 4 : item.type === 'faultLine' ? 3 : 0;
   const height = isTarget(item) ? Math.max(44, item.geometry.faceHeight * transform.scale) : Math.max(minimum, dimensions.depth * transform.scale);
+  // A layered face is drawn on its parent's face diagram: shifted up or down by its height offset, then rolled.
+  const layer = (item.type === 'cardboardTarget' || item.type === 'noShootTarget') ? item.attachment : undefined;
+  const layerTransform = layer ? [{ translateY: -layer.offset.y * transform.scale }, { rotate: layer.roll + 'deg' }] : [];
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
     style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {
       left: center.x - width / 2, top: center.y - height / 2, width, height,
-      transform: [{ rotate: item.rotation + 'deg' }],
+      transform: [{ rotate: item.rotation + 'deg' }, ...layerTransform],
     }, selected && styles.selected]}>
     {isTarget(item) && <TargetFace item={item} scale={transform.scale} />}
     {item.type === 'wall' && item.ports.map((port, index) => <View key={port.id} pointerEvents="none"

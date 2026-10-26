@@ -114,20 +114,22 @@ test('stage check: round count and course type, steel distance from firing areas
   assert.ok(!checkStage(long, rules([box('A', 0, 300, 1200, 300)]), 'USPSA').some(f => f.code === 'USPSA_FREESTYLE'));
 });
 
-test('stage check: IDPA string, non-threat and steel limits; PCSL maximum distance', () => {
+test('stage check: IDPA rules on hold (USPSA checks and a note); PCSL maximum distance', () => {
   const stage = createDefaultStage(undefined, { size: { width: 2400, depth: 2200 } });
   stage.objects = [createObject('start', 'start', 50, 2150), ...Array.from({ length: 10 }, (_, i) => createObject('cardboardTarget', 'T' + i, 100 + i * 200, 40)),
     ...Array.from({ length: 6 }, (_, i) => createObject('noShootTarget', 'N' + i, 150 + i * 200, 60))];
   const area = [box('A', 0, 2000, 2400, 200)];
+  // IDPA rules are on hold: an IDPA match gets a note and USPSA checks, no IDPA findings.
   const idpa = checkStage(stage, { ...defaultEngagementRules(stage), ruleset: 'IDPA', firingAreas: area }, 'IDPA');
-  assert.ok(idpa.some(f => f.code === 'IDPA_STRING_ROUNDS'), '10 threats x 2 = 20 rounds > 18');
-  assert.ok(idpa.some(f => f.code === 'IDPA_NON_THREATS'), '6 non-threats for 10 threats');
-  assert.ok(idpa.some(f => f.code === 'IDPA_MAX_DISTANCE'));
+  assert.ok(idpa.some(f => f.code === 'IDPA_RULES_ON_HOLD'));
+  assert.ok(!idpa.some(f => f.code.startsWith('IDPA_') && f.code !== 'IDPA_RULES_ON_HOLD'), 'no IDPA rule findings');
+  assert.ok(idpa.some(f => f.code === 'ROUNDS' && /USPSA/.test(f.rule)), 'checked with USPSA rules');
   const pcsl = checkStage(stage, { ...defaultEngagementRules(stage), ruleset: 'PCSL', firingAreas: area }, 'PCSL');
   assert.ok(pcsl.some(f => f.code === 'PCSL_MAX_DISTANCE'), 'targets about 54 yd away');
   const steelHeavy = createDefaultStage(undefined, { size: { width: 600, depth: 600 } });
   steelHeavy.objects = [createObject('start', 'start', 50, 580), createObject('cardboardTarget', 'T', 100, 40), createObject('steelPlate', 'S1', 300, 40), createObject('steelPlate', 'S2', 400, 40)];
-  assert.ok(checkStage(steelHeavy, undefined, 'IDPA').some(f => f.code === 'IDPA_STEEL_SHARE'), '2 of 4 shots are steel');
+  assert.ok(!checkStage(steelHeavy, undefined, 'IDPA').some(f => f.code === 'IDPA_STEEL_SHARE'), 'IDPA steel share is on hold');
+  assert.ok(!checkStage(steelHeavy, undefined, 'USPSA').some(f => f.code === 'IDPA_RULES_ON_HOLD'));
 });
 
 test('stage check: USPSA and IPSC cardboard are never mixed in a stage (4.2.1); plates are never the only targets (4.3.1.4)', () => {

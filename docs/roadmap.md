@@ -8,7 +8,7 @@
 
 Scope comes from the owner's ideas (2026-10-26, marked ★) and the earlier review. Done so far: radial add menu, target catalog, BUILD → PLAN → WALK, firing areas drawn on the stage (batches 12–14).
 
-## Milestone A: the stage as it really is
+## Milestone A: the stage as it really is — done 2026-10-26 (batch 15; `docs/target-layers.md`), needs a phone check
 
 | # | Item | Done when |
 | --- | --- | --- |

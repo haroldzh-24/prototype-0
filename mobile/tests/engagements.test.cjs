@@ -146,9 +146,9 @@ test('target completed earlier is not scheduled again on later segments', () => 
   const { result } = solved(f); assert.equal(result.nodes.flatMap(n => n.targets).length, 1);
   assert.ok(result.windows.every(w => w.routeSegmentId === 'w1'));
 });
-test('IDPA requires explicit cover/exposure areas; procedures govern all engagement types', () => {
+test('IDPA rules on hold: an IDPA route is analysed with USPSA rules; procedures govern all engagement types', () => {
   const f = fixture(); f.route.engagementRules.ruleset = 'IDPA';
-  assert.equal(solved(f).result.complete, false);
+  assert.equal(solved(f).result.complete, true, 'no IDPA cover-area requirement while IDPA rules are on hold');
   f.route.engagementRules.targetProcedures.t1 = { areaIds: ['a'] }; assert.equal(solved(f).result.complete, true);
   f.route.engagementRules.targetProcedures.t1.stationaryOnly = true; assert.equal(solved(f).result.nodes[0].kind, 'stationary');
   f.route.engagementRules.ruleset = 'PCSL'; f.route.engagementRules.targetProcedures.t1.areaIds = ['missing'];

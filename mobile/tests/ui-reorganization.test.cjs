@@ -754,3 +754,46 @@ test('the planner opens area drawing directly when there are no firing areas', (
   assert.deepEqual(v.firingAreas.draft, [], 'a new area is ready for its first corner'); assert.equal(typeof v.onAreaPoint, 'function');
   assert.ok(!h.nodes().some(n => n.type === 'RoutePlannerV2Panel'));
 });
+
+test('LAYERS: a selected paper target opens the layers panel; a layer gets its own controls and follows undo', () => {
+  const h = initial();
+  const target = h.child('StageViewport').stage.objects.find(o => o.type === 'cardboardTarget');
+  h.child('StageViewport').onSelect(target.id); h.render();
+  h.press('LAYERS');
+  const panel = h.child('LayerPanel'); assert.equal(panel.selectedId, target.id);
+  const L = require('../src/stage/targetLayers.ts');
+  panel.setStage(L.addLayer(panel.stage, target.id, 'noShoot', 'layer-1').stage); panel.onSelect('layer-1'); h.render();
+  const layer = h.child('StageViewport').stage.objects.find(o => o.id === 'layer-1');
+  assert.equal(layer.attachment.parentId, target.id); assert.equal(h.child('LayerPanel').selectedId, 'layer-1');
+  h.find(n => n.type === 'EditorSheet' && n.props.title === 'Layers').props.close(); h.render();
+  for (const title of ['EDIT', 'ROTATE', 'DUPLICATE']) assert.ok(!h.nodes().some(n => n.props?.title === title), title + ' is not offered for a layer');
+  h.press('BASE TARGET'); assert.equal(h.child('StageViewport').selectedId, target.id);
+  h.press('Stage tools'); h.press('UNDO EDIT');
+  assert.ok(!h.child('StageViewport').stage.objects.some(o => o.id === 'layer-1'), 'one undo removes the layer');
+  assert.equal(h.saved.length, 0);
+});
+
+test('layers panel: add a hostage and paint, slide and turn them, front/behind, remove', () => {
+  const L = require('../src/stage/targetLayers.ts');
+  const { placeTarget } = require('../src/stage/targetPlacement.ts');
+  const base = { ...stage(), objects: [] };
+  const props = { stage: placeTarget(base, 'uspsa-metric-chl-v1', 'T', { space: 'stage', x: 200, y: 100, z: 0 }).stage, selectedId: 'T', selections: [] };
+  props.setStage = next => { props.stage = next; }; props.onSelect = id => { props.selections.push(id); props.selectedId = id; };
+  const h = harness('editor/LayerPanel.tsx', props, { 'expo-image': { Image: 'Image' } });
+  assert.ok(h.nodes().some(n => n.props?.label === 'Cardboard 1 open scoring area' && n.props.value === '100%'));
+  h.press('HEAD ONLY'); h.render();
+  assert.equal(props.stage.objects[0].hardCover[0].preset, 'headOnly');
+  h.press('Move the paint edge down'); h.render();
+  const edge = props.stage.objects[0].hardCover[0];
+  assert.ok(edge.at.y < L.faceLandmarks(18.12, 29.93).neck, 'the edge moved down');
+  h.press('Turn the paint edge right'); assert.equal(props.stage.objects[0].hardCover[0].angle, 5);
+  h.press('REMOVE PAINT'); assert.equal(props.stage.objects[0].hardCover, undefined);
+  h.press('NO-SHOOT (HOSTAGE)'); h.render();
+  const id = props.selections.at(-1), layer = () => props.stage.objects.find(o => o.id === id);
+  assert.equal(layer().type, 'noShootTarget'); assert.equal(props.selectedId, id);
+  const before = layer().attachment.offset.y;
+  h.press('Slide up'); h.render(); assert.ok(layer().attachment.offset.y > before);
+  h.press('Rotate right'); assert.equal(layer().attachment.roll, 5);
+  h.child('Segmented').onChange('BEHIND'); h.render(); assert.equal(layer().attachment.front, false);
+  h.press('REMOVE LAYER'); assert.ok(!props.stage.objects.some(o => o.id === id)); assert.equal(props.selectedId, 'T');
+});

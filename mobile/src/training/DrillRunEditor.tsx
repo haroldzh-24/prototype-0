@@ -6,11 +6,14 @@ import EditorSheet from '../editor/EditorSheet';
 import { Action, Copy, DataRow, Input, Notice, Panel, Segmented } from '../ui/kit';
 import { presetsForFamily } from '../stage/targetPresets';
 import type { TargetPreset } from '../stage/targetPresets';
+import { matchFamilies } from '../rules/rulesets';
+import { pressPoint } from './pressPoint';
 import type { TargetFamily } from '../stage/targetFamily';
 import { drillRunProblem, groupStats, MAX_HITS_PER_RUN, offsetText, scoreRun, zoneChoices } from './drillLog';
 import type { DrillHit, DrillRun } from './drillLog';
 
-const families: TargetFamily[] = ['USPSA', 'PCSL', 'IDPA'];
+// Drill scoring follows the active rulesets (IDPA rules are on hold; see src/rules/rulesets.ts).
+const families: TargetFamily[] = [...matchFamilies];
 const DIAGRAM_WIDTH = 280;
 
 /** SVG data URI of the preset's outline (illustrative contour, not scoring zones). */
@@ -83,7 +86,7 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
     <Copy>{aiming ? 'Tap where you aimed.' : 'Tap the target where each shot hit. Tap a hit to tag its zone.'}</Copy>
     {preset && <Pressable accessibilityLabel="Drill target diagram" accessibilityHint="Tap to record a hit at that spot"
       onLayout={e => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-      onPress={e => tap(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+      onPress={e => { const p = pressPoint(e.nativeEvent); if (p) tap(p.x, p.y); }}
       style={{ width: DIAGRAM_WIDTH, height, alignSelf: 'center', backgroundColor: '#f4f1ea' }}>
       <Image pointerEvents="none" source={{ uri: outlineUri(preset) }} style={{ width: DIAGRAM_WIDTH, height }} contentFit="fill" cachePolicy="none" />
       <View pointerEvents="none" style={{ position: 'absolute', left: (run.aim.x / run.faceWidth + 0.5) * size.width - 8, top: (0.5 - run.aim.y / run.faceHeight) * size.height - 8, width: 16, height: 16, borderWidth: 2, borderColor: '#1d4ed8', borderRadius: 8 }} />

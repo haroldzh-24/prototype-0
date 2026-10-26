@@ -143,16 +143,16 @@ test('precedence-aware walk search matches brute force on random instances', () 
 });
 
 // Fix 2: one legality kernel for the planner and the analysis.
-test('IDPA without positions of cover is reported the same way by the planner and the analysis', () => {
+test('IDPA rules on hold: an IDPA route is planned and analysed like USPSA; the planner keeps its IDPA rule', () => {
   const stage = blankStage([target('T1', 300, 60)]);
   const current = routePlan(stage, { ruleset: 'IDPA', firingAreas: [box('A', 200, 300, 200, 120)] });
-  const result = planRoute(snapshotFromPlan(stage, current), optionsFromPlan(current));
-  assert.equal(result.status, 'infeasible'); assert.deepEqual(result.targets[0].reasons, ['IDPA_AREAS_REQUIRED']);
+  assert.equal(snapshotFromPlan(stage, current).ruleset, 'USPSA'); assert.equal(optionsFromPlan(current).ruleset, 'USPSA');
+  assert.equal(planRoute(snapshotFromPlan(stage, current), optionsFromPlan(current)).status, 'complete', 'no position-of-cover requirement');
   current.route.positions = [{ id: 'w', label: 'W', position: at(300, 360), visibleTargetIds: [], engagedTargetIds: ['T1'] }];
-  assert.deepEqual(analyzeEngagements(stage, current.route).coveredTargetIds, []);
-  current.route.engagementRules.targetProcedures = { T1: { areaIds: ['A'] } };
-  assert.deepEqual(analyzeEngagements(stage, current.route).coveredTargetIds, ['T1']);
-  assert.equal(planRoute(snapshotFromPlan(stage, current), optionsFromPlan(current)).status, 'complete');
+  assert.deepEqual(analyzeEngagements(stage, current.route).coveredTargetIds, ['T1'], 'the analysis agrees');
+  // Called directly with IDPA, the planner still applies the IDPA rule (kept for when IDPA rules return).
+  const idpa = planRoute({ ...snapshotFromPlan(stage, current), ruleset: 'IDPA' }, { ...optionsFromPlan(current), ruleset: 'IDPA' });
+  assert.equal(idpa.status, 'infeasible'); assert.deepEqual(idpa.targets[0].reasons, ['IDPA_AREAS_REQUIRED']);
 });
 
 function randomStage(rand) {

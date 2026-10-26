@@ -8,6 +8,7 @@ import { editSegmentMetrics, isSegment } from '../stage/segments';
 import { snapRotation } from '../stage/snapping';
 import type { RotationIncrement } from '../stage/snapping';
 import { isTarget, rotateTarget } from '../stage/targetPlacement';
+import { layersOf, syncLayers } from '../stage/targetLayers';
 import type { TargetFamily } from '../stage/targetFamily';
 
 export const objectPalette: readonly { type: AddableType; label: string }[] = [
@@ -61,5 +62,11 @@ export function applyObjectAction(stage: StageDocument, selectedId: string | nul
   const id = createObjectId(source.type, randomUUID);
   const ports = source.type === 'wall' ? source.ports.map(() => createPortId(randomUUID)) : [];
   const result = duplicateObject(stage, source.id, id, ports);
-  return { ...result, selectedId: result.error ? selection : id };
+  if (result.error) return { ...result, selectedId: selection };
+  // A target's layers (hostage no-shoots, doubles) are copied with it, onto the copy.
+  const layers = layersOf(stage, source.id);
+  if (!layers.length) return { ...result, selectedId: id };
+  const copies = layers.map(layer => ({ ...layer, id: createObjectId(layer.type, randomUUID), attachment: { ...layer.attachment!, parentId: id } }));
+  const objects = result.stage.objects.flatMap(o => o.id === id ? [...copies.filter(c => !c.attachment.front), o, ...copies.filter(c => c.attachment.front)] : [o]);
+  return { stage: syncLayers({ ...result.stage, objects }), selectedId: id };
 }

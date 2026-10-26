@@ -1,4 +1,5 @@
 import type { StageDocument, StageObject } from '../stage/model';
+import { coverPolygons, faceOutline, rollPoint } from '../stage/targetLayers';
 import { objectSurfaces, wallSurfaces } from '../stage/projection';
 import { isTarget } from '../stage/targetPlacement';
 import type { Palette } from '../ui/tokens';
@@ -173,6 +174,12 @@ function objectChunk(object: StageObject, palette: Palette, label: string, selec
       b.polygon(top, rgb(palette.wall3d), object.id, true);
       for (let i = 0; i < 4; i++) b.polygon([floor[i], floor[(i + 1) % 4], top[(i + 1) % 4], top[i]], rgb(palette.wall3d), object.id, true);
       b.loop(top, outline);
+    }
+    if ((object.type === 'cardboardTarget' || object.type === 'noShootTarget') && object.hardCover?.length) {
+      // Painted hard cover, on both sides so it reads from any angle; a layered face's paint rolls with it.
+      const h = object.geometry.faceHeight, roll = object.attachment?.roll ?? 0, paint = rgb(palette.hardCover), outlineFace = faceOutline(object);
+      for (const poly of object.hardCover.flatMap(c => coverPolygons(c, outlineFace))) for (const v of [-0.06, 0.06])
+        b.polygon(poly.map(p => rollPoint(p, roll)).map(p => along(p.x, object.position.z + h / 2 + p.y, v)), paint, object.id, true);
     }
     if (object.type === 'noShootTarget' && object.targetFamily === 'PCSL') {
       // PCSL paper no-shoots are solid red with a black X (10.3.1); USPSA and IDPA ones are told apart by colour and marking.

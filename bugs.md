@@ -2,7 +2,7 @@
 
 - New route rules defaulted to the USPSA ruleset in PCSL and IDPA matches, so the planner used USPSA steel distances and allowed shooting on the move in IDPA until the ruleset was changed in Route settings. New rules (from AREAS or Route settings) now use the match's ruleset. Stages saved with the wrong ruleset keep it; change it in Route settings → ruleset.
 - Route summary said "1 waypoints".
-- Drill logger, web version only: tapped hits land in the target's top-left corner and the group stats show NaN. Likely cause: the web press event has no `locationX`. Not fixed yet; the phone uses native touch coordinates (unverified on a device).
+- Fixed in batch 15: drill logger, web version only: tapped hits landed in the target's top-left corner and the group stats showed NaN. The web press event has no `locationX`; the logger now uses `offsetX/Y` there (`src/training/pressPoint.ts`). Checked in the web build.
 
 # 3D view and eye-level walk - 2026-10-25
 

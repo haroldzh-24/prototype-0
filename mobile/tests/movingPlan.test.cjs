@@ -85,7 +85,12 @@ test('stationary-only targets, IDPA, a long stretch requirement and the standing
   assert.equal(run(stage, plan).positions.length, 3, 'standing unless asked');
   const idpa = gallery();
   idpa.plan.route.engagementRules = { ...idpa.plan.route.engagementRules, ruleset: 'IDPA', targetProcedures: { L: { areaIds: ['A'] }, M: { areaIds: ['A'] }, R: { areaIds: ['A'] } } };
-  const idpaPlan = run(idpa.stage, idpa.plan, { moving: true });
+  // IDPA rules are on hold: an IDPA route plans with USPSA rules (moving allowed)...
+  const onHold = run(idpa.stage, idpa.plan, { moving: true });
+  assert.ok(!onHold.warnings.some(w => /not planned for IDPA/.test(w)));
+  assert.equal(onHold.positions.length, run(gallery().stage, gallery().plan, { moving: true }).positions.length);
+  // ...while the planner's IDPA rules are kept for when they come back: standing only.
+  const idpaPlan = planRoute({ ...snapshotFromPlan(idpa.stage, idpa.plan), ruleset: 'IDPA' }, { ...optionsFromPlan(idpa.plan), ruleset: 'IDPA', candidateSpacingInches: 12, moving: true });
   assert.equal(idpaPlan.positions.length, 3);
   assert.ok(idpaPlan.warnings.some(w => /not planned for IDPA/.test(w)));
 });

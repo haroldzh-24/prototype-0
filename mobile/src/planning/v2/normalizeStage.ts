@@ -1,4 +1,5 @@
-import type { StageObject } from '../../stage/model';
+import type { StageDocument, StageObject } from '../../stage/model';
+import { exposure, layered, stackOf } from '../../stage/targetLayers';
 import { activeFaceExtent } from '../../stage/targetFace';
 import { rotatedHalfExtents } from '../../stage/geometry';
 import { stageDownrange } from '../../stage/orientation';
@@ -19,6 +20,13 @@ export type TargetFace = {
   angleSamples: Point[];
   /** Face bottom and top elevation, inches. */
   bottom: number; top: number;
+  /**
+   * Faces stacked on one target (hostage no-shoots, doubles) share a stack id. They do not block each other's sight
+   * lines; how much of each is open is already in its extent (`exposure` in stage/targetLayers.ts).
+   */
+  stack?: string;
+  /** Share of the face that is open scoring area after hard cover and stacked faces (1 when not layered). */
+  openFraction?: number;
 };
 export type NormalizedStage = {
   size: { width: number; depth: number };
@@ -53,20 +61,26 @@ function wallBounds(w: Wall): Bounds {
 const SIGHT_FRACTIONS = [0.1, 0.3, 0.5, 0.7, 0.9];
 
 /** Plan-view face of a target or no-shoot, or null for other objects. */
-export function targetFace(object: StageObject): TargetFace | null {
+export function targetFace(object: StageObject, doc?: StageDocument): TargetFace | null {
   if (object.type !== 'cardboardTarget' && object.type !== 'noShootTarget' && object.type !== 'steelPlate' && object.type !== 'steelPopper') return null;
-  const extent = object.type === 'cardboardTarget' || object.type === 'noShootTarget'
+  // A painted or stacked scoring face is engaged on its open area only (no-shoots keep their whole face as blockers).
+  const open = doc && object.type === 'cardboardTarget' && layered(doc, object) ? exposure(doc, object) : null;
+  const stack = doc ? stackOf(doc, object) ?? undefined : undefined;
+  const extent = open ? open.extent ?? { left: 0, right: 0, bottom: 0, top: 0 }
+    : object.type === 'cardboardTarget' || object.type === 'noShootTarget'
     ? activeFaceExtent(object)
     : { left: -object.geometry.faceWidth / 2, right: object.geometry.faceWidth / 2, bottom: 0, top: object.geometry.faceHeight };
   const r = object.rotation * Math.PI / 180, ux = Math.cos(r), uy = Math.sin(r);
   const at = (x: number): Point => ({ x: object.position.x + ux * x, y: object.position.y + uy * x });
   const lerp = (t: number) => extent.left + (extent.right - extent.left) * t;
-  const sightSamples = SIGHT_FRACTIONS.map(t => at(lerp(t)));
+  // A face with no open area has nothing to aim at: no sight samples, so it is never visible.
+  const sightSamples = open && !open.extent ? [] : SIGHT_FRACTIONS.map(t => at(lerp(t)));
   const left = at(extent.left), right = at(extent.right);
   return {
     id: object.id, kind: object.type === 'noShootTarget' ? 'no-shoot' : object.type === 'cardboardTarget' ? 'paper' : 'steel',
     left, right, center: at(lerp(0.5)), sightSamples, angleSamples: [left, ...sightSamples, right],
     bottom: object.position.z + extent.bottom, top: object.position.z + extent.top,
+    ...(stack ? { stack } : {}), ...(open ? { openFraction: open.fraction } : {}),
   };
 }
 
@@ -97,7 +111,7 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
   if (options.downrangeDegrees !== undefined && !Number.isFinite(options.downrangeDegrees)) errors.push('The safe direction must be a finite angle.');
   if (options.steelMinDistanceInches !== undefined && !(options.steelMinDistanceInches >= 0 && Number.isFinite(options.steelMinDistanceInches))) errors.push('The steel minimum distance must be zero or more inches.');
   if (errors.length || !start) return { errors };
-  const faces = doc.objects.map(targetFace).filter((f): f is TargetFace => !!f);
+  const faces = doc.objects.map(o => targetFace(o, doc)).filter((f): f is TargetFace => !!f);
   const engageable = new Set(doc.objects.filter(isEngageable).map(o => o.id));
   return {
     errors,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE, matchFamilies } from '../rules/rulesets';
 import { TextInput, View } from 'react-native';
 import { Action, Copy, Notice, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
@@ -11,7 +12,7 @@ import type { EngagementRules, FiringArea } from './engagements';
 /** Stage-brief authoring. Coordinate pairs are physical yards, not screen pixels. */
 export default function EngagementSettings({ stage, initial, family, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; family?: EngagementRules['ruleset']; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
   const [section, setSection] = useState<'areas' | 'safety' | 'targets' | null>(null), [advanced, setAdvanced] = useState(false);
-  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules(stage, family));
+  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules(stage, activeRuleset(family)));
   const [spacing, setSpacing] = useState(String(rules.sampleSpacingInches));
   const [direction, setDirection] = useState(String(rules.safeDirectionDegrees));
   const [angle, setAngle] = useState(String(rules.safeHalfAngleDegrees));
@@ -31,7 +32,8 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
   };
   return <View style={{ gap: 8 }}>
     <Copy>RULESET</Copy>
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{(['USPSA', 'PCSL', 'IDPA'] as const).map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? 'Selected: ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
+    {idpaOnHold(rules.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{matchFamilies.map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? 'Selected: ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
     <Copy>MOVEMENT</Copy>
     <Action title={`Moving engagement: ${rules.allowMoving ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowMoving: !rules.allowMoving })} />
     <Action title={`Travel outside areas: ${rules.allowOutsideTravel ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowOutsideTravel: !rules.allowOutsideTravel })} />
@@ -72,13 +74,13 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
     <Action title="Add whole-stage firing area" disabled={areas.length >= 32} onPress={addArea} />
     </>}
     {section === 'targets' && <>
-    <Copy>Target procedures: restrict firing areas, require a stationary engagement, or choose targets that must be completed first. IDPA requires explicit areas for each target based on the brief's cover and exposure requirements.</Copy>
+    <Copy>Target procedures: restrict firing areas, require a stationary engagement, or choose targets that must be completed first.{activeRuleset(rules.ruleset) === 'IDPA' ? " IDPA requires explicit areas for each target based on the brief's cover and exposure requirements." : ''}</Copy>
     <View style={{ gap: 4 }}>{targets.map(t => <Action key={t.id} title={`${targetId === t.id ? 'Selected: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => setTargetId(t.id)} />)}</View>
     {targetId && <>
       <Action title={`Stationary required: ${procedure.stationaryOnly ? 'yes' : 'no'}`} onPress={() => updateProcedure({ stationaryOnly: !procedure.stationaryOnly })} />
-      <Copy>Allowed areas {procedure.areaIds === undefined ? '(all configured areas; IDPA needs an explicit selection)' : procedure.areaIds.length ? '' : '(none)'}</Copy>
+      <Copy>Allowed areas {procedure.areaIds === undefined ? (activeRuleset(rules.ruleset) === 'IDPA' ? '(all configured areas; IDPA needs an explicit selection)' : '(all configured areas)') : procedure.areaIds.length ? '' : '(none)'}</Copy>
       {areas.map((a, index) => <Action key={a.id} title={`${procedure.areaIds?.includes(a.id) ? 'Selected: ' : ''}Firing area ${index + 1}`} onPress={() => updateProcedure({ areaIds: toggle(procedure.areaIds, a.id) })} />)}
-      {rules.ruleset !== 'IDPA' && <Action title="Allow all configured areas" onPress={() => updateProcedure({ areaIds: undefined })} />}
+      {activeRuleset(rules.ruleset) !== 'IDPA' && <Action title="Allow all configured areas" onPress={() => updateProcedure({ areaIds: undefined })} />}
       <Copy>Engage these targets first:</Copy>
       {targets.filter(t => t.id !== targetId).map(t => <Action key={t.id} title={`${procedure.afterTargetIds?.includes(t.id) ? 'Required first: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => updateProcedure({ afterTargetIds: toggle(procedure.afterTargetIds, t.id) })} />)}
     </>}

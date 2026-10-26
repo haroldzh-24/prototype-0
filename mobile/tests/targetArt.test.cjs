@@ -66,3 +66,19 @@ test('radial layout: items evenly round the centre, first at the top, menu kept 
     assert.ok(R.exports.presetsIn(family, 'steel').every(p => p.type === 'steelPopper'));
   }
 });
+
+test('a layered target face-on: target, paint and layers in front/behind order, ASCII only', () => {
+  const L = require('../src/stage/targetLayers.ts');
+  const { placeTarget } = require('../src/stage/targetPlacement.ts');
+  const { createDefaultStage } = require('../src/stage/defaults.ts');
+  let stage = placeTarget({ ...createDefaultStage('PCSL'), objects: [] }, 'pcsl-practical-2025-v1', 'T', { space: 'stage', x: 200, y: 100, z: 0 }).stage;
+  stage = L.setHardCover(stage, 'T', () => [L.hardCoverFromPreset('headOnly', 18, 24, 'c')]);
+  stage = L.addLayer(stage, 'T', 'noShoot', 'N').stage;
+  stage = L.addLayer(stage, 'T', 'target', 'B').stage; // behind by default
+  const svg = A.stackArtSvg(stage, 'T', { size: 240 });
+  assert.match(svg, /^[\x20-\x7E]*$/); assert.doesNotMatch(svg, /NaN|undefined|Infinity/);
+  const fills = [...svg.matchAll(/<polygon points="[^"]+" fill="([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual(fills, ['#B98A55', '#B98A55', '#141414', '#D7262E'], 'behind target, the target, its paint, then the red no-shoot in front');
+  assert.match(svg, /<path d="M[^"]+" stroke="#0A0A0A"/, 'PCSL no-shoot X');
+  assert.match(A.stackArtSvg(stage, 'missing'), /<svg[^>]*><\/svg>/);
+});

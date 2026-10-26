@@ -1,4 +1,5 @@
 import type { StagePosition } from '../stage/coordinates';
+import { activeRuleset } from '../rules/rulesets';
 import type { StageDocument, StageObject } from '../stage/model';
 import { footprint, footprintCenterOffset, segmentRectangleInterval, stageToObjectLocal } from '../stage/geometry';
 import { isEngageable } from './model';
@@ -81,7 +82,7 @@ function center(target: StageObject) { const o = footprintCenterOffset(target); 
  */
 type Kernel = { stage: NormalizedStage; faces: Map<string, TargetFace>; policy: 'occlude' | 'warn' } | null;
 function kernelFor(stage: StageDocument, rules: EngagementRules): Kernel {
-  const { stage: normalized } = normalizeStage({ stage, firingAreas: rules.firingAreas, targetProcedures: rules.targetProcedures, ruleset: rules.ruleset },
+  const { stage: normalized } = normalizeStage({ stage, firingAreas: rules.firingAreas, targetProcedures: rules.targetProcedures, ruleset: activeRuleset(rules.ruleset) },
     { downrangeDegrees: rules.safeDirectionDegrees, safeHalfAngleDegrees: rules.safeHalfAngleDegrees });
   return normalized ? { stage: normalized, faces: new Map(normalized.targets.map(f => [f.id, f])), policy: defaultNoShootPolicy(normalized.ruleset) } : null;
 }
@@ -184,7 +185,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
     result.truncated = true; result.warnings.push('Engagement analysis limit exceeded.'); return result;
   }
   if (!rules.firingAreas.length) result.warnings.push('No legal firing areas configured.');
-  if (rules.ruleset === 'IDPA' && targets.some(t => !rules.targetProcedures[t.id]?.areaIds?.length)) result.warnings.push('IDPA needs explicit cover/exposure area assignments for every target.');
+  if (activeRuleset(rules.ruleset) === 'IDPA' && targets.some(t => !rules.targetProcedures[t.id]?.areaIds?.length)) result.warnings.push('IDPA needs explicit cover/exposure area assignments for every target.');
   const kernel = kernelFor(stage, rules);
   const completed = new Set<string>();
   const futureWindows = suggest ? analyzeEngagements(stage, { ...route, positions: route.positions.map(p => ({ ...p, engagedTargetIds: [], movingTargetIds: [] })) }).windows : [];

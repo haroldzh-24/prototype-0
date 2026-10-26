@@ -60,12 +60,13 @@ export function sightLine(p: Point, q: Point, target: TargetFace, stage: Normali
   // USPSA 9.1.5 / PCSL 11.5.3: scoring areas of other targets are impenetrable (plan view, vertically overlapping faces).
   if (noShootPolicy === 'occlude')
     for (const other of stage.targets) {
-      if (other.id === target.id || !segmentsCross(p, q, other.left, other.right)) continue;
+      if (other.id === target.id || (target.stack && other.stack === target.stack) || !segmentsCross(p, q, other.left, other.right)) continue;
       if (overlapsVertically(other, target)) return blocked;
       passesAboveOrBelow = true; // crosses in plan view but at a different height: recorded as an assumption
     }
   for (const noShoot of stage.noShoots) {
-    if (!segmentsCross(p, q, noShoot.left, noShoot.right)) continue;
+    // A hostage no-shoot on this target is part of its face: its cover is already taken out of the face's open area.
+    if ((target.stack && noShoot.stack === target.stack) || !segmentsCross(p, q, noShoot.left, noShoot.right)) continue;
     if (!overlapsVertically(noShoot, target)) { passesAboveOrBelow = true; continue; }
     if (noShootPolicy === 'occlude') return blocked;
     throughNoShoot = true; // IDPA 4.9: non-threats are not hard cover, but a hit is a penalty.

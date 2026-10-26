@@ -1,7 +1,7 @@
 # 1.0 plan - 2026-10-26
 
 Full plan with "done when" for each item: [docs/roadmap.md](docs/roadmap.md). Milestones in order:
-- A. The stage as it really is: IDPA rules on hold (targets kept); targets on top of targets (hostage no-shoots, doubles, hard cover) with slide/rotate/snap; the five USPSA hard-cover presets; rule checks for layers; drill-logger web fix.
+- A. The stage as it really is: **done 2026-10-26 (batch 15)** — IDPA rules on hold (targets kept); layers (hostage no-shoots, doubles) with slide/rotate/snap; the five hard-cover presets; rule checks for layers and PCSL mixing; drill-logger web fix. Needs a phone check.
 - B. Fast stage entry: stage from a photo of a match book page; trace-over check screen; shooting areas from fault lines.
 - C. Plan by time and points: sprint and shuffle drills; drill library; expected AA/AC/CC per target; stage time and hit factor; 2-3 plans side by side; "is slowing down worth it" per target.
 - D. Post-match result vs plan; backup, export, sharing.

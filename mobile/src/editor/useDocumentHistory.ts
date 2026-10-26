@@ -4,17 +4,19 @@ import type { SetStateAction } from 'react';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StagePlan } from '../planning/model';
 import { reconcilePlan } from '../planning/model';
+import { syncLayers } from '../stage/targetLayers';
 import { history, record, begin, end, undo, redo } from './history';
 import { applyRoutePreview } from '../planning/routeAssistant/preview';
 import type { RouteChangePreview } from '../planning/routeAssistant/types';
 import type { AssistantHistory } from '../planning/routeAssistant/history';
 export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
-  const [h, render] = useState(() => history({ stage, plan: reconcilePlan(plan, stage, { stage, route: plan.route }) }));
+  const [h, render] = useState(() => { const synced = syncLayers(stage); return history({ stage: synced, plan: reconcilePlan(plan, synced, { stage: synced, route: plan.route }) }); });
   const current = useRef(h);
   const assistantChanges = useRef<AssistantHistory['assistantChanges']>([]);
   const set = (update: (value: typeof h) => typeof h) => { current.current = update(current.current); render(current.current); };
   const setStage = (next: SetStateAction<StageDocument>) => set(h => {
-    const stage = typeof next === 'function' ? next(h.present.stage) : next;
+    // Layered targets (hostages, doubles) follow their parent through every edit; a removed parent takes its layers.
+    const stage = syncLayers(typeof next === 'function' ? next(h.present.stage) : next);
     return record(h, { stage, plan: reconcilePlan(h.present.plan, stage, { stage: h.present.stage, route: h.present.plan.route }) });
   });
   const setPlan = (next: SetStateAction<StagePlan>) => set(h => {

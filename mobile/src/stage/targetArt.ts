@@ -1,5 +1,7 @@
 import type { TargetPreset } from './targetPresets';
 import { projectPoint } from './projection';
+import type { FacePoint, StageDocument } from './model';
+import { childToParent, coverPolygons, faceOutline, isPaper, layersOf, rollPoint } from './targetLayers';
 
 /**
  * Pictures of targets, drawn from the same preset data the stage uses: the radial add menu's icons, dimensioned
@@ -121,4 +123,34 @@ export function targetIsoSvg(preset: TargetPreset, role: TargetRole = 'scoring',
   if (thick) svg += `<polygon points="${back.map(xy).join(' ')}" fill="${edge}" opacity="0.55"/>`;
   svg += `<polygon points="${front.map(xy).join(' ')}" fill="${face}" stroke="${edge}" stroke-width="1.5" stroke-linejoin="round"/>`;
   return svg + '</svg>';
+}
+
+/**
+ * A layered target seen face-on, the way the shooter sees it: the target, its painted hard cover, and the no-shoots or
+ * targets stacked in front of or behind it, at their real sizes, offsets and roll. ASCII-only SVG.
+ */
+export function stackArtSvg(stage: StageDocument, baseId: string, options: { size?: number } = {}): string {
+  const size = options.size ?? 240, base = stage.objects.find(o => o.id === baseId);
+  if (!isPaper(base)) return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"></svg>`;
+  const children = layersOf(stage, base.id);
+  const faces = [...children.filter(c => !c.attachment!.front), base, ...children.filter(c => c.attachment!.front)].map(o => {
+    const place = (p: FacePoint) => o.attachment ? childToParent(o.attachment, p) : p, outline = faceOutline(o);
+    const colours = targetColours({ family: o.targetFamily ?? 'USPSA', type: 'cardboardTarget' }, o.type === 'noShootTarget' ? 'noShoot' : 'scoring');
+    return { o, colours, outline: outline.map(place), paint: (o.hardCover ?? []).flatMap(c => coverPolygons(c, outline)).map(poly => poly.map(place)) };
+  });
+  const all = faces.flatMap(f => f.outline), pad = 2;
+  const minX = Math.min(...all.map(p => p.x)) - pad, maxX = Math.max(...all.map(p => p.x)) + pad;
+  const minY = Math.min(...all.map(p => p.y)) - pad, maxY = Math.max(...all.map(p => p.y)) + pad;
+  const scale = size / Math.max(maxX - minX, maxY - minY), ox = (size - (maxX - minX) * scale) / 2, oy = (size - (maxY - minY) * scale) / 2;
+  const pt = (p: FacePoint) => `${(ox + (p.x - minX) * scale).toFixed(2)},${(oy + (maxY - p.y) * scale).toFixed(2)}`;
+  const body = faces.map(f => {
+    const x = f.o.type === 'noShootTarget' && f.o.targetFamily === 'PCSL' ? (() => {
+      const c = f.outline.reduce((s, p) => ({ x: s.x + p.x / f.outline.length, y: s.y + p.y / f.outline.length }), { x: 0, y: 0 }), r = f.o.geometry.faceWidth * 0.2;
+      const a = (dx: number, dy: number) => pt(f.o.attachment ? { x: c.x + rollPoint({ x: dx, y: dy }, f.o.attachment.roll).x, y: c.y + rollPoint({ x: dx, y: dy }, f.o.attachment.roll).y } : { x: c.x + dx, y: c.y + dy });
+      return `<path d="M${a(-r, -r)} L${a(r, r)} M${a(r, -r)} L${a(-r, r)}" stroke="#0A0A0A" stroke-width="${(scale * 0.8).toFixed(2)}" fill="none"/>`;
+    })() : '';
+    return `<polygon points="${f.outline.map(pt).join(' ')}" fill="${f.colours.face}" stroke="${f.colours.edge}" stroke-width="${Math.max(1, scale * 0.25).toFixed(2)}" stroke-linejoin="round"/>`
+      + f.paint.map(poly => `<polygon points="${poly.map(pt).join(' ')}" fill="#141414"/>`).join('') + x;
+  }).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${body}</svg>`;
 }
