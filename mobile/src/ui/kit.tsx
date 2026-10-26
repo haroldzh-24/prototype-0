@@ -40,8 +40,9 @@ export function ErrorState({ title, detail, retry, busy = false }: { title: stri
   const [expanded, setExpanded] = useState(false);
   return <Panel><Notice tone="error">{title}</Notice>{retry && <Action title="Retry" onPress={retry} disabled={busy} />}{!!detail && <><Action title={expanded ? 'Hide details' : 'Details'} variant="quiet" onPress={() => setExpanded(!expanded)} />{expanded && <Copy>{detail}</Copy>}</>}</Panel>;
 }
-export function Input({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  return <View style={{ gap: spacing.xs }}><Text style={ui.eyebrow}>{label}</Text><TextInput accessibilityLabel={label} autoFocus style={ui.input} value={value} maxLength={100} editable={!disabled} onChangeText={onChange} placeholderTextColor={colors.subdued} /></View>;
+/** `autoFocus` (default on) suits one-field sheets; long forms pass false so the sheet opens at the top. */
+export function Input({ label, value, onChange, disabled = false, autoFocus = true }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; autoFocus?: boolean }) {
+  return <View style={{ gap: spacing.xs }}><Text style={ui.eyebrow}>{label}</Text><TextInput accessibilityLabel={label} autoFocus={autoFocus} style={ui.input} value={value} maxLength={100} editable={!disabled} onChangeText={onChange} placeholderTextColor={colors.subdued} /></View>;
 }
 export function ToolButton({ title, selected = false, disabled = false, onPress }: { title: string; selected?: boolean; disabled?: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}

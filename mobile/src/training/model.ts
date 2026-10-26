@@ -1,6 +1,7 @@
 import type { TrainingContext } from './observations';
 import type { TrainingVideo } from './videoModel';
 import type { DrillRun } from './drillLog';
+import type { LibraryRun } from './drillLibrary';
 export const startingTypes = {
   competitionHolster: 'Draw — Competition/Standard Holster',
   retentionHolster: 'Draw — Level II/III Holster',
@@ -21,6 +22,8 @@ export type TrainingRecord = {
   videos?: TrainingVideo[];
   /** Drill runs with individual hit coordinates. */
   runs?: DrillRun[];
+  /** Drill-library runs (timer times and zone counts); they feed the profile, see `libraryObservations`. */
+  libraryRuns?: LibraryRun[];
 };
 /** Stable drill identity: the shared drillId, or one derived from the first session of a drill. */
 export const drillKey = (record: Pick<TrainingRecord, 'id' | 'drillId'>) => record.drillId ?? `drill-${record.id}`;

@@ -1,5 +1,6 @@
 import { createLocalProfile } from './model';
 import type { PerformanceEvidence, ShooterPerformanceProfile, ShootingObservation, TimingFactor } from './model';
+import { validMovementModel } from './movementModel';
 
 export type Confidence = 'LOW' | 'MEDIUM' | 'HIGH';
 export type FactorStatus = 'GENERIC' | 'PROFILE_ESTIMATE' | 'MANUAL' | 'MEASURED';
@@ -39,6 +40,9 @@ export function buildPersonalizedModel(input: unknown): PersonalizedModel {
     } else if (value !== undefined && (!valid || !confidence)) warnings.push(`${factorLabels[key]} data rejected; generic estimate used.`);
     factors[key] = { status, confidence: status === 'GENERIC' ? 'LOW' : confidence! };
   }
+  const movementModel = validMovementModel(profile.movementModel);
+  if (movementModel && factors.movementSpeed.status !== 'MANUAL') timingProfile.movementModel = movementModel;
+  else if (profile.movementModel !== undefined && !movementModel) warnings.push('Movement model data rejected; average speed used.');
   const curve: PersonalizedModel['curve'] = [];
   if (profile.shootingObservations !== undefined && !Array.isArray(profile.shootingObservations)) warnings.push('Malformed shooting observations ignored.');
   const observations = Array.isArray(profile.shootingObservations) ? profile.shootingObservations : [];

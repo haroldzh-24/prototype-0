@@ -1,3 +1,8 @@
+# Fixed 2026-10-26 (batch 17)
+
+- Drill logger: all five fields asked for the keyboard focus when the form opened, so it could open scrolled to the last field instead of the target. Seen in the new library form in the web build (same pattern); both forms now open at the top (`Input autoFocus={false}`). Not checked on a phone.
+- Profile: measured values showed every decimal (`0.24266666666666664 s`, `194.6511627906977 in/s`). Now two decimals at most.
+
 # Fixed 2026-10-26 (batch 16): independent review of batch 15
 
 Ten confirmed defects in target layers, each with a regression test (`tests/targetLayers.test.cjs`, `tests/ui-reorganization.test.cjs`, `tests/designer-tools.test.cjs`): paint stopped blocking other targets; layers in one stack ignored each other; a 3D drag of a layer moved its target onto the layer; a target snapped to its own layers; the eye view ignored paint and layers; rolled no-shoots blocked unrolled; face left/right followed the rotation instead of the shooter; an A-zone rule was cited as 4.2.1.1 instead of 4.2.5/B1; damaged layer data loaded and then crashed; paint did not resize with the face. Open: layers can sit outside the bay when their target is at the edge.

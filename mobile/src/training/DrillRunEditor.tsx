@@ -115,11 +115,11 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
     {family !== 'IDPA' && <DataRow label="Hit factor" value={score.hitFactor !== null ? score.hitFactor.toFixed(4) : 'Enter the time'} />}
     {family === 'IDPA' && <DataRow label="Final time" value={score.finalTime !== null ? score.finalTime.toFixed(2) + ' s' : 'Enter the time'} />}
     <Copy>{(score.untagged > 0 ? `${score.untagged} hit(s) have no zone yet. ` : '') + score.note}</Copy>
-    <Input label="DISTANCE (YARDS)" value={distance} disabled={saving} onChange={setDistance} />
-    <Input label="TOTAL TIME (SECONDS)" value={time} disabled={saving} onChange={setTime} />
-    <Input label="SPLITS (SECONDS, COMMA SEPARATED)" value={splits} disabled={saving} onChange={setSplits} />
-    <Input label="REQUIRED HITS (BLANK = ONE PER SHOT)" value={required} disabled={saving} onChange={setRequired} />
-    <Input label={family === 'IDPA' ? 'PROCEDURAL ERRORS' : 'PROCEDURALS'} value={procedurals} disabled={saving} onChange={setProcedurals} />
+    <Input autoFocus={false} label="DISTANCE (YARDS)" value={distance} disabled={saving} onChange={setDistance} />
+    <Input autoFocus={false} label="TOTAL TIME (SECONDS)" value={time} disabled={saving} onChange={setTime} />
+    <Input autoFocus={false} label="SPLITS (SECONDS, COMMA SEPARATED)" value={splits} disabled={saving} onChange={setSplits} />
+    <Input autoFocus={false} label="REQUIRED HITS (BLANK = ONE PER SHOT)" value={required} disabled={saving} onChange={setRequired} />
+    <Input autoFocus={false} label={family === 'IDPA' ? 'PROCEDURAL ERRORS' : 'PROCEDURALS'} value={procedurals} disabled={saving} onChange={setProcedurals} />
     {!!error && <Notice tone="error">{error}</Notice>}
     <Action title={saving ? 'Saving...' : 'SAVE RUN'} variant="primary" disabled={saving || !run.hits.length} onPress={() => { void save(); }} />
   </Panel></EditorSheet>;

@@ -11,7 +11,8 @@ export const startLabels: Record<StartingType, string> = {
   appendix: 'Appendix', lowReady: 'Low Ready', highReady: 'High Ready', surrender: 'Surrender',
 };
 export function metricValue(value: number | null | undefined, unit: string): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value} ${unit}` : '—';
+  // Measured values are averages: two decimals are plenty (0.2426666 s reads as 0.24 s).
+  return typeof value === 'number' && Number.isFinite(value) ? `${Number(value.toFixed(2))} ${unit}` : '—';
 }
 
 /** Presentation only: persisted mapping IDs and comparison calculations stay intact. */

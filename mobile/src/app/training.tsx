@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Platform, Text } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import LibraryCard from '@/ui/LibraryCard';
 import { contextLabels, startLabels } from '@/training/presentation';
 import { OperationGate } from '@/training/operationGate';
@@ -9,6 +9,11 @@ import { useRepository } from '@/storage/StorageProvider';
 import type { StartingType, TrainingRecord } from '@/training/model';
 import { drillKey } from '@/training/model';
 import DrillRunEditor from '@/training/DrillRunEditor';
+import LibraryRunEditor from '@/training/LibraryRunEditor';
+import YourNumbers from '@/training/YourNumbers';
+import type { LibraryRun } from '@/training/drillLibrary';
+import { analyzeLibraryRun, libraryDrill, variantKey, variantLabel } from '@/training/drillLibrary';
+import type { UserProfile } from '@/profile/model';
 import type { DrillRun } from '@/training/drillLog';
 import { drillTrend, groupStats, offsetText } from '@/training/drillLog';
 import { trainingContexts } from '@/training/observations';
@@ -34,10 +39,13 @@ export default function Training() {
   const [nameError, setNameError] = useState('');
   const refresh = async (token: number) => { const rows = await repo.listTraining('local');
     if (operation.current.current(token)) { setRecords(rows); setLoaded(true); setMessage(repo.trainingReadWarnings.join('\n')); } };
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const loadProfile = () => repo.loadProfile().then(p => setProfile(p)).catch(() => { /* the numbers view says what is missing */ });
   useFocusEffect(useCallback(() => {
     let active = true; operation.current.activate(); setBusy(false); setLoaded(false); setLoadError(false);
     repo.listTraining('local').then(rows => { if (active) { setRecords(rows); setLoaded(true); setMessage(repo.trainingReadWarnings.join('\n')); } })
       .catch(() => { if (active) setLoadError(true); });
+    repo.loadProfile().then(p => { if (active) setProfile(p); }).catch(() => {});
     return () => { active = false; operation.current.dispose(); };
   }, [repo]));
   const run = async (work: (token: number) => Promise<void>) => {
@@ -71,6 +79,30 @@ export default function Training() {
     await repo.saveTraining({ ...record, runs: [...(record.runs ?? []), run] });
     setRecords(current => current.map(r => r.id === record.id ? { ...r, runs: [...(r.runs ?? []), run] } : r));
     setLoggingRun(false);
+  };
+  const [loggingLibrary, setLoggingLibrary] = useState(false), [numbersOpen, setNumbersOpen] = useState(false);
+  const [removingRun, setRemovingRun] = useState<string | null>(null);
+  // The repository re-derives the session's profile measurements from its library runs in the same save.
+  const saveLibraryRun = async (record: TrainingRecord, libraryRun: LibraryRun, par: number | null) => {
+    const updated = { ...record, libraryRuns: [...(record.libraryRuns ?? []), libraryRun] };
+    await repo.saveTraining(updated);
+    setRecords(current => current.map(r => r.id === record.id ? updated : r));
+    const key = variantKey(libraryRun);
+    if ((profile?.drillPars?.[key] ?? null) !== par) await repo.setDrillPar(key, par);
+    await loadProfile();
+  };
+  const removeLibraryRun = (record: TrainingRecord, runId: string) => run(async token => {
+    const updated = { ...record, libraryRuns: (record.libraryRuns ?? []).filter(r => r.id !== runId) };
+    await repo.saveTraining(updated);
+    if (operation.current.current(token)) { setRecords(current => current.map(r => r.id === record.id ? updated : r)); setRemovingRun(null); }
+    await loadProfile();
+  });
+  const libraryRunText = (libraryRun: LibraryRun) => {
+    const drill = libraryDrill(libraryRun.drillId), a = analyzeLibraryRun(libraryRun, profile?.powerFactor ?? 'minor');
+    if (!drill || !a) return 'Unknown drill';
+    return [variantLabel(drill, libraryRun.choices), libraryRun.totalTime !== null ? libraryRun.totalTime.toFixed(2) + ' s' : null,
+      a.score ? Math.round(a.score.percent * 100) + '% points' : null, a.score?.hitFactor != null ? 'HF ' + a.score.hitFactor.toFixed(2) : null,
+      libraryRun.counts === false ? 'log only' : null].filter(Boolean).join(' · ');
   };
   // A repeated drill shares the original's drill key, so its runs join the same trend.
   const repeatDrill = (record: TrainingRecord) => run(async token => {
@@ -113,12 +145,13 @@ export default function Training() {
     })} /></Panel>}
     {loaded && !loadError && !records.length && <Panel><EmptyState title="NO TRAINING SESSIONS" detail="Create a session to begin recording practice history." />
       <Action title="CREATE SESSION" variant="primary" onPress={() => { setNameError(''); setCreating(true); }} /></Panel>}
+    {loaded && !loadError && <Action title="YOUR NUMBERS" accessibilityLabel="Your numbers: what your drills have measured" onPress={() => setNumbersOpen(true)} />}
     {loaded && !loadError && !!records.length && <Copy>RECENT SESSIONS</Copy>}
     {loaded && !loadError && records.map(record => <LibraryCard key={record.id} name={record.drillName || 'Practice Session'}
       category={contextLabels[record.context ?? 'DRY_FIRE'].toUpperCase()}
       detail={new Date(record.occurredAt).toLocaleDateString() + ' • ' + startLabels[record.startingType] + '\n' + (record.videos?.length ?? 0) + ((record.videos?.length ?? 0) === 1 ? ' video' : ' videos')}
       disabled={busy} open={() => openSession(record)} more={() => setSessionId(record.id)} />)}
-    <EditorSheet title="SESSION" visible={!!activeSession && !loggingRun} close={() => { if (!busy) { setSessionId(null); setConfirmDelete(false); } }}>
+    <EditorSheet title="SESSION" visible={!!activeSession && !loggingRun && !loggingLibrary} close={() => { if (!busy) { setSessionId(null); setConfirmDelete(false); setRemovingRun(null); } }}>
       {activeSession && <Panel><Text style={ui.sectionTitle}>{activeSession.drillName || 'Practice Session'}</Text>
         <Copy>VIDEOS · {activeSession.videos?.length ?? 0}</Copy>
         {Platform.OS === 'ios' ? <>
@@ -132,6 +165,15 @@ export default function Training() {
         <Copy>DRILL RUNS · {activeSession.runs?.length ?? 0}</Copy>
         <Action title="LOG DRILL RUN" disabled={busy} onPress={() => setLoggingRun(true)} />
         {(activeSession.runs ?? []).map((r, index) => { const g = groupStats(r); return <Copy key={r.id}>{`Run ${index + 1} · ${g.shots} hit(s), ${g.misses} miss(es) · ${offsetText(g.offset)}` + (g.meanRadius !== null ? ` · mean radius ${g.meanRadius.toFixed(1)} in` : '') + (r.totalTime !== null ? ` · ${r.totalTime.toFixed(2)} s` : '')}</Copy>; })}
+        <Copy>DRILL LIBRARY · {activeSession.libraryRuns?.length ?? 0}</Copy>
+        <Action title="LOG LIBRARY DRILL" disabled={busy} onPress={() => setLoggingLibrary(true)} />
+        {(activeSession.libraryRuns ?? []).map((libraryRun, index) => <View key={libraryRun.id} style={{ gap: 4 }}>
+          <Copy>{`${index + 1}. ${libraryRunText(libraryRun)}`}</Copy>
+          {removingRun === libraryRun.id ? <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Action title="KEEP" accessibilityLabel={`Keep library run ${index + 1}`} disabled={busy} onPress={() => setRemovingRun(null)} />
+            <Action title="REMOVE RUN" variant="destructive" accessibilityLabel={`Confirm removing library run ${index + 1}`} disabled={busy} onPress={() => removeLibraryRun(activeSession, libraryRun.id)} />
+          </View> : <Action title="REMOVE" variant="quiet" accessibilityLabel={`Remove library run ${index + 1}`} disabled={busy} onPress={() => setRemovingRun(libraryRun.id)} />}
+        </View>)}
         {trendFor(activeSession).length > 1 && <>
           <Copy>TREND FOR THIS DRILL</Copy>
           {trendFor(activeSession).map(t => <Copy key={t.id}>{`${new Date(t.recordedAt).toLocaleDateString()} · ${t.meanRadius !== null ? t.meanRadius.toFixed(1) + ' in mean radius' : 'no hits'} · ${offsetText(t.offset)}` + (t.totalTime !== null ? ` · ${t.totalTime.toFixed(2)} s` : '')}</Copy>)}
@@ -146,6 +188,9 @@ export default function Training() {
       </Panel>}
     </EditorSheet>
     {!!message && <Notice tone="warning">{message}</Notice>}
+    {activeSession && <LibraryRunEditor visible={loggingLibrary} context={activeSession.context ?? 'DRY_FIRE'} powerFactor={profile?.powerFactor ?? 'minor'}
+      pars={profile?.drillPars ?? {}} onClose={() => setLoggingLibrary(false)} onSave={(r, par) => saveLibraryRun(activeSession, r, par)} />}
+    <YourNumbers visible={numbersOpen} records={records} profile={profile} onClose={() => setNumbersOpen(false)} />
     {activeSession && <DrillRunEditor visible={loggingRun} initialFamily="USPSA" onClose={() => setLoggingRun(false)} onSave={r => saveRun(activeSession, r)} />}
     {selectedRecord && selectedVideo && <VideoAnalysisEditor key={selectedVideo.session.id} record={selectedRecord} initialVideo={selectedVideo}
       onSaved={updated => setRecords(current => current.map(r => r.id === updated.id ? updated : r))} onClose={() => setSelected(null)} />}

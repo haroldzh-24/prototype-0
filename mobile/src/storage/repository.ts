@@ -6,13 +6,14 @@ import type { StagePlan } from '../planning/model';
 import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
+import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations } from '../training/drillLibrary';
 import { drillRunProblem, MAX_RUNS_PER_SESSION } from '../training/drillLog';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
 import { normalizeVideo, videoObservations } from '../training/videoAnalysis';
 import { changeObservation, setManualOverride, trainingContexts, withPerformanceObservations, withVideoObservations } from '../training/observations';
 import type { PerformanceObservation, TrainingContext } from '../training/observations';
-import type { TimingFactor } from '../profile/model';
+import type { PowerFactor, TimingFactor } from '../profile/model';
 import { isTargetFamily } from '../stage/targetFamily';
 import { validDownrange } from '../stage/orientation';
 import type { TargetFamily } from '../stage/targetFamily';
@@ -62,6 +63,11 @@ export function savedDocumentProblem(d: StageDocument): string | null {
   return null;
 }
 
+const validPar = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 600;
+function validDrillPars(input: unknown): Record<string, number> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  return Object.fromEntries(Object.entries(input).filter(([k, v]) => k.length > 0 && k.length <= 200 && validPar(v)).slice(0, 500));
+}
 export class Repository {
   private trainingWrites: Promise<unknown> = Promise.resolve();
   trainingReadWarnings: string[] = [];
@@ -304,6 +310,15 @@ export class Repository {
         runIds.add(run.id);
       }
     }
+    if (record.libraryRuns !== undefined) {
+      if (!Array.isArray(record.libraryRuns) || record.libraryRuns.length > MAX_LIBRARY_RUNS) throw new Error('Invalid drill library runs.');
+      const runIds = new Set<string>();
+      for (const run of record.libraryRuns) {
+        const problem = libraryRunProblem(run);
+        if (problem || runIds.has(run.id)) throw new Error(problem ?? 'Duplicate drill library run.');
+        runIds.add(run.id);
+      }
+    }
     if (record.videos === undefined) return record;
     if (!Array.isArray(record.videos) || record.videos.length > 100) throw new Error('Invalid training videos or video count exceeds the supported limit.');
     const videos = record.videos.map(normalizeVideo), ids = new Set<string>();
@@ -349,8 +364,14 @@ export class Repository {
         const observations = (profile.performanceObservations ?? []).filter(o => o.source !== 'VIDEO_ANALYSIS' || o.trainingSessionId !== record.id
           || valid.some(v => v.id === o.id && v.evidenceKey === o.evidenceKey));
         const remaining = selected ? observations.filter(o => o.source !== 'VIDEO_ANALYSIS' || o.videoId !== selected.session.id) : observations;
-        const next = selected ? [...remaining, ...videoObservations(selected, record.startingType)] : remaining;
-        if (selected || next.length !== (profile.performanceObservations ?? []).length) {
+        const withVideo = selected ? [...remaining, ...videoObservations(selected, record.startingType)] : remaining;
+        // Library runs are the source of truth for their measurements: re-derive them on every save, so editing or
+        // deleting a run (or switching off "count toward my profile") updates the profile in the same transaction.
+        const library = sessionLibraryObservations(record);
+        const next = [...withVideo.filter(o => !isLibraryObservation(o, record.id)), ...library];
+        const before = (profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id));
+        const libraryChanged = JSON.stringify(before) !== JSON.stringify(library);
+        if (selected || libraryChanged || next.length !== (profile.performanceObservations ?? []).length) {
           const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
           await this.persistProfile(updated);
         }
@@ -372,6 +393,9 @@ export class Repository {
         .every(k => { const n = profile.performance[k as keyof UserProfile['performance']]; return typeof n === 'number' && Number.isFinite(n) && n >= 0; })
       || profile.performanceObservations !== undefined && !Array.isArray(profile.performanceObservations))
       throw new Error('Damaged profile data. The saved copy has not been changed.');
+    // Optional settings: anything malformed reads as unset rather than blocking the profile.
+    if (profile.powerFactor !== undefined && profile.powerFactor !== 'minor' && profile.powerFactor !== 'major') delete profile.powerFactor;
+    if (profile.drillPars !== undefined) profile.drillPars = validDrillPars(profile.drillPars);
     if (profile.performanceObservations === undefined && !profile.calibrationInputs && !profile.videoCalibrationBase) return profile;
     const rebuilt = withPerformanceObservations(profile, profile.performanceObservations ?? [], profile.calibrationContext ?? 'LIVE_FIRE', false);
     rebuilt.calibrationWarnings = [...new Set([...(profile.calibrationWarnings ?? []), ...(rebuilt.calibrationWarnings ?? [])])].sort();
@@ -389,6 +413,19 @@ export class Repository {
   addObservation(observation: PerformanceObservation) { return this.updateProfile(p => changeObservation(p, { operation: 'add', observation })); }
   replaceObservation(observation: PerformanceObservation) { return this.updateProfile(p => changeObservation(p, { operation: 'replace', observation })); }
   removeObservation(id: string) { return this.updateProfile(p => changeObservation(p, { operation: 'remove', id })); }
+  setPowerFactor(powerFactor: PowerFactor) {
+    if (powerFactor !== 'minor' && powerFactor !== 'major') return Promise.reject(new Error('Invalid power factor.'));
+    return this.updateProfile(p => ({ ...p, powerFactor }));
+  }
+  /** Par time for one drill-library variant (`variantKey`); null clears it. */
+  setDrillPar(key: string, seconds: number | null) {
+    if (typeof key !== 'string' || !key || key.length > 200 || seconds !== null && !validPar(seconds)) return Promise.reject(new Error('Invalid par time.'));
+    return this.updateProfile(p => {
+      const drillPars = { ...validDrillPars(p.drillPars) };
+      if (seconds === null) delete drillPars[key]; else drillPars[key] = seconds;
+      return { ...p, drillPars };
+    });
+  }
   setManualOverride(factor: TimingFactor, value: number | null) { return this.updateProfile(p => setManualOverride(p, factor, value)); }
   rebuildProfile(context?: TrainingContext) { return this.updateProfile(p => withPerformanceObservations(p, p.performanceObservations ?? [], context ?? p.calibrationContext ?? 'LIVE_FIRE')); }
 }

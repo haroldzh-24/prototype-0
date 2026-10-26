@@ -825,3 +825,95 @@ test('review 3: dragging a layer in 3D moves its target by the drag, keeping the
   assert.ok(Math.abs(after.position.x - (parent.position.x + 12)) <= 3 && Math.abs(after.position.y - (parent.position.y - 6)) <= 3, `moved by the drag: ${after.position.x - parent.position.x}, ${after.position.y - parent.position.y}`);
   assert.equal(after.position.z, parent.position.z, 'height unchanged');
 });
+
+test('Drill library editor: pick a drill and options, paste timer times, count hits, save with a par', async () => {
+  let saved, savedPar;
+  const props = { visible: true, context: 'LIVE_FIRE', powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onClose() {}, onSave: async (r, par) => { saved = r; savedPar = par; } };
+  const h = harness('training/LibraryRunEditor.tsx', props);
+  assert.equal(h.child('EditorSheet').title, 'DRILL LIBRARY');
+  for (const name of ['Bill Drill', 'Distance ladder', 'Sprint', 'Shuffle', 'El Presidente']) assert.ok(h.nodes().some(n => n.props.title === name), name);
+  h.press('Sprint');
+  assert.equal(h.child('EditorSheet').title, 'Sprint');
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('SIDEWAYS')).props.onChange('BACK'); h.render();
+  const par = () => h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'PAR TIME (SECONDS, BLANK = NONE)');
+  assert.equal(par().props.value, '3.5', 'the saved par for this variant');
+  h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'SHOT TIMES FROM THE TIMER (4)').props.onChangeText('1.42 1.68 3.40 3.62'); h.render();
+  const rows = () => h.nodes().filter(n => n.type === 'DataRow');
+  assert.equal(rows().find(n => n.props.label === 'Shot 3 · Move').props.value, '1.72 s');
+  // Zone counters are a local component: drive them through their props.
+  const counter = zone => h.find(n => n.type?.name === 'Counter' && n.props.label === zone);
+  counter('A').props.onChange(3); h.render(); counter('C').props.onChange(1); h.render();
+  assert.equal(counter('A').props.value, 3);
+  assert.equal(rows().find(n => n.props.label === 'USPSA major points').props.value, '19 of 20 (95%)');
+  assert.equal(rows().find(n => n.props.label === 'Against par').props.value, '0.12 s over');
+  par().props.onChangeText('3.4'); h.render();
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saved.drillId, 'sprint'); assert.deepEqual(saved.choices, { move: '10', direction: 'back' });
+  assert.deepEqual(saved.shotTimes, [1.42, 1.68, 3.4, 3.62]); assert.equal(saved.totalTime, 3.62);
+  assert.deepEqual(saved.zones, { A: 3, C: 1 }); assert.equal(saved.powerFactor, 'major'); assert.equal(savedPar, 3.4);
+  assert.equal(require('../src/training/drillLibrary.ts').libraryRunProblem(saved), null);
+});
+
+test('Drill library editor: wrong shot count is explained; dry fire counts no hits; total-only runs', async () => {
+  let saved;
+  const h = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'DRY_FIRE', powerFactor: 'minor', pars: {}, onClose() {}, onSave: async r => { saved = r; } });
+  h.press('Bill Drill');
+  assert.ok(h.nodes().some(n => n.props.children === 'Dry fire: hits are not counted. Times count toward your dry-fire numbers only.'));
+  assert.ok(!h.nodes().some(n => n.type?.name === 'Counter'));
+  h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.5 1.7'); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Bill Drill has 6 shots; 3 entered.'));
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saved, undefined); assert.ok(h.nodes().some(n => n.type === 'Notice' && /6 shots; 3 times entered/.test(n.props.children)));
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('TOTAL ONLY')).props.onChange('TOTAL ONLY'); h.render();
+  h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'TOTAL TIME (SECONDS)').props.onChangeText('2.9'); h.render();
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('LOG ONLY')).props.onChange('LOG ONLY'); h.render();
+  h.press('SAVE RUN'); await h.settle();
+  assert.deepEqual([saved.shotTimes, saved.totalTime, saved.zones, saved.counts], [[], 2.9, undefined, false]);
+});
+
+test('Training sessions list library runs, log new ones with the par, and remove one after a confirm', async () => {
+  const L = require('../src/training/drillLibrary.ts');
+  const libraryRun = { id: 'lr1', drillId: 'bill', recordedAt: '2026-10-05T12:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55,
+    family: 'USPSA', zones: { A: 6 }, notes: '' };
+  const record = { id: 'r', userId: 'local', drillName: 'Library', context: 'LIVE_FIRE', startingType: 'competitionHolster', occurredAt: '2026-10-05T12:00:00Z', segments: [], notes: '', totalTime: null, videos: [], libraryRuns: [libraryRun] };
+  const writes = [], pars = [];
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [record],
+    loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }), saveTraining: async r => { writes.push(r); }, setDrillPar: async (k, v) => { pars.push([k, v]); } } });
+  await h.settle();
+  assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Your numbers: what your drills have measured'));
+  h.child('LibraryCard').more(); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === '1. Bill Drill · 7 yd · 2.55 s · 100% points · HF 11.76'));
+  h.press('LOG LIBRARY DRILL');
+  const editor = h.find(n => n.type === 'LibraryRunEditor');
+  assert.equal(editor.props.visible, true); assert.equal(editor.props.context, 'LIVE_FIRE');
+  const second = { ...libraryRun, id: 'lr2' };
+  await editor.props.onSave(second, 2.4); await h.settle();
+  assert.deepEqual(writes[0].libraryRuns.map(r => r.id), ['lr1', 'lr2']);
+  assert.deepEqual(pars, [[L.variantKey(second), 2.4]]);
+  editor.props.onClose(); h.render();
+  h.press('Remove library run 1'); h.press('Confirm removing library run 1'); await h.settle();
+  assert.deepEqual(writes[1].libraryRuns.map(r => r.id), ['lr2']);
+});
+
+test('Your numbers shows measured values with run counts, the planner values, and a trend against par', async () => {
+  const mk = (id, drillId, choices, shotTimes, extra = {}) => ({ id, drillId, recordedAt: `2026-10-0${id.slice(-1)}T12:00:00Z`, choices, shotTimes, totalTime: shotTimes[shotTimes.length - 1], family: 'USPSA', notes: '', ...extra });
+  const runs = [mk('a1', 'bill', { distance: '7' }, [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { zones: { A: 6 } }), mk('a2', 'bill', { distance: '7' }, [1.5, 1.75, 2.0, 2.25, 2.5, 2.75], { zones: { A: 5, C: 1 } }),
+    mk('a3', 'sprint', { move: '10', direction: 'lateral' }, [1.4, 1.65, 3.15, 3.4])];
+  const records = [{ id: 's', context: 'LIVE_FIRE', libraryRuns: runs }];
+  const profile = { performance: { drawTime: 1.4, reloadTime: 2, averageSplitTime: 0.25, transitionTime: 0.4, movementSpeed: 240,
+    timingEvidence: { drawTime: { source: 'MEASURED', sampleCount: 2 } } }, drillPars: { 'bill|distance=7': 2.6 } };
+  const h = harness('training/YourNumbers.tsx', { visible: true, records, profile, onClose() {} });
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.equal(row('Draw'), '1.40 s · measured, 2 samples'); assert.equal(row('Reload'), '2.00 s · generic default'); assert.equal(row('Split'), '0.25 s · generic default');
+  assert.equal(row('Average speed'), '6.7 yd/s · generic default');
+  assert.equal(row('Competition Holster'), '1.40 s ± 0.14 · 2 runs · best 1.30 s');
+  assert.equal(row('7 yd').startsWith('0.25 s'), true); assert.match(row('7 yd'), /3 runs/);
+  assert.equal(row('Sideways 10 yd'), '1.50 s · 1 run');
+  assert.match(h.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Sideways').props.value, /average \(1 run at one distance/);
+  h.press('Trend Bill Drill · 7 yd');
+  assert.equal(row('Par'), '2.60 s');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /Green runs are at or under par/.test([].concat(n.props.children).join(''))));
+  assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Par mark'));
+  h.child('Segmented').onChange('Dry Fire'); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /No drill-library runs in dry fire yet/.test([].concat(n.props.children).join(''))));
+});

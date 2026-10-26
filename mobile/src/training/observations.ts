@@ -1,6 +1,10 @@
 import { createLocalProfile } from '../profile/model';
 import type { ShooterPerformanceProfile, TimingFactor, UserProfile } from '../profile/model';
 import { buildPersonalizedModel, timingFactors } from '../profile/personalizedPerformance';
+import { fitMovement, moveDirections } from '../profile/movementModel';
+import type { MoveDirection } from '../profile/movementModel';
+import { startingTypes } from './model';
+import type { StartingType } from './model';
 
 export const trainingContexts = ['DRY_FIRE', 'LIVE_FIRE', 'PRESSURE_MATCH'] as const;
 export type TrainingContext = typeof trainingContexts[number];
@@ -13,7 +17,27 @@ export type PerformanceObservation = {
   eventIds?: string[]; evidenceKey?: string; confirmed?: boolean;
   difficultyModel?: 'DISTANCE_ONLY'; difficulty?: number; distanceInches?: number; durationSeconds?: number;
   excluded?: boolean; validity?: 'VALID' | 'INVALID';
+  /** Conditions recorded by drill-library runs. Observations under a special condition stay out of the profile's
+   *  general numbers (see `generalSample`) and feed their own tables instead. */
+  movement?: MoveDirection; moving?: boolean; startingType?: StartingType;
+  targetKind?: 'paper' | 'steel' | 'partial'; position?: 'square' | 'port' | 'lean';
+  /** Transitions: distance between the two targets, inches. */
+  spreadInches?: number;
 };
+/** Starts that are a draw from the holster with the hands relaxed; other starts get their own numbers. */
+export const HOLSTER_STARTS: readonly StartingType[] = ['competitionHolster', 'retentionHolster', 'appendix'];
+/**
+ * True when an observation belongs in the profile's general value for its factor: draws from the holster, splits
+ * and transitions standing square on full paper, reloads standing still. Moving, steel, partial-target, port/lean
+ * and other-start samples are kept and shown separately; they never pull the general numbers.
+ */
+export function generalSample(o: PerformanceObservation): boolean {
+  if (o.factor === 'drawTime') return !o.startingType || HOLSTER_STARTS.includes(o.startingType);
+  if (o.factor === 'reloadTime') return o.moving !== true;
+  if (o.factor === 'averageSplitTime') return o.moving !== true && (o.targetKind ?? 'paper') === 'paper' && (o.position ?? 'square') === 'square';
+  if (o.factor === 'transitionTime') return o.moving !== true && o.targetKind !== 'steel' && (o.position ?? 'square') === 'square';
+  return true;
+}
 const factors: ObservationFactor[] = [...timingFactors, 'stimulusResponseTime', 'firstShotAcquisitionTime'];
 const positive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
 const nonnegative = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
@@ -33,6 +57,12 @@ export function isPerformanceObservation(input: unknown): input is PerformanceOb
   if (o.difficulty !== undefined && (!nonnegative(o.difficulty) || o.difficultyModel !== 'DISTANCE_ONLY')) return false;
   if (o.difficultyModel !== undefined && o.difficultyModel !== 'DISTANCE_ONLY') return false;
   if (o.distanceInches !== undefined && !positive(o.distanceInches) || o.durationSeconds !== undefined && !positive(o.durationSeconds)) return false;
+  if (o.movement !== undefined && (!moveDirections.includes(o.movement) || o.factor !== 'movementSpeed')) return false;
+  if (o.moving !== undefined && typeof o.moving !== 'boolean') return false;
+  if (o.startingType !== undefined && !Object.hasOwn(startingTypes, o.startingType)) return false;
+  if (o.targetKind !== undefined && !['paper', 'steel', 'partial'].includes(o.targetKind)) return false;
+  if (o.position !== undefined && !['square', 'port', 'lean'].includes(o.position)) return false;
+  if (o.spreadInches !== undefined && !positive(o.spreadInches)) return false;
   // Legacy 8A speed samples already certified physical distance at extraction; retain that format.
   if (o.factor === 'movementSpeed' && o.source !== 'VIDEO_ANALYSIS' && !positive(o.distanceInches)) return false;
   if (o.factor === 'movementSpeed' && o.durationSeconds !== undefined && o.distanceInches !== undefined
@@ -86,7 +116,7 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
   const performance = { ...baseline, timingEvidence: { ...baseline.timingEvidence } };
   const aggregates = Object.fromEntries(trainingContexts.map(c => [c, {}])) as Record<TrainingContext, Partial<Record<ObservationFactor, SampleStatistics>>>;
   for (const c of trainingContexts) for (const factor of factors) {
-    const samples = eligible.filter(o => o.context === c && o.factor === factor);
+    const samples = eligible.filter(o => o.context === c && o.factor === factor && generalSample(o));
     if (samples.length) aggregates[c][factor] = statistics(samples);
   }
   const valueSources = {} as Record<TimingFactor, 'MANUAL_OVERRIDE' | 'MEASURED' | 'GENERIC_ESTIMATED'>;
@@ -105,7 +135,7 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
       valueSources[factor] = 'MEASURED';
     } else valueSources[factor] = 'GENERIC_ESTIMATED';
   }
-  const shooting = eligible.filter(o => o.context === context && o.factor === 'averageSplitTime' && o.difficulty !== undefined);
+  const shooting = eligible.filter(o => o.context === context && o.factor === 'averageSplitTime' && o.difficulty !== undefined && generalSample(o));
   const curve = [...new Set(shooting.map(o => o.difficulty!))].sort((a, b) => a - b).map(difficulty => {
     const stats = statistics(shooting.filter(o => o.difficulty === difficulty));
     return { difficultyModel: 'DISTANCE_ONLY' as const, difficulty, splitTime: stats.mean,
@@ -114,6 +144,11 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
   // A split override applies to planner shooting costs too; measured curves remain in history/statistics.
   if (valueSources.averageSplitTime === 'MANUAL_OVERRIDE') performance.shootingObservations = [];
   else if (curve.length) performance.shootingObservations = curve;
+  // Every move with a measured distance and time, in this context; manual speed overrides keep the plain average.
+  const moves = eligible.filter(o => o.context === context && o.factor === 'movementSpeed' && o.distanceInches !== undefined && o.durationSeconds !== undefined)
+    .map(o => ({ direction: o.movement, distanceInches: o.distanceInches!, durationSeconds: o.durationSeconds! }));
+  const movementModel = valueSources.movementSpeed === 'MANUAL_OVERRIDE' ? {} : fitMovement(moves);
+  if (Object.keys(movementModel).length) performance.movementModel = movementModel; else delete performance.movementModel;
   const model = buildPersonalizedModel(performance);
   return { performance, observations, aggregates, shootingAggregates: curve, valueSources, warnings,
     confidence: model.confidence, confidenceSupport: { factors: model.factors, curve: model.curve } };
@@ -148,13 +183,18 @@ function inputsFor(profile: UserProfile, captureEdits = true): NonNullable<UserP
   }
   return { version: 1, baseline, manualOverrides };
 }
+/** The fit is derived: a rebuild without enough movement data must not keep a stale one from the saved profile. */
+function withMovementModel(performance: ShooterPerformanceProfile, rebuilt: ShooterPerformanceProfile): ShooterPerformanceProfile {
+  const { movementModel: _stale, ...rest } = performance;
+  return rebuilt.movementModel ? { ...rest, movementModel: rebuilt.movementModel } : rest;
+}
 export function withPerformanceObservations(profile: UserProfile, observations: unknown, context: TrainingContext = profile.calibrationContext ?? 'LIVE_FIRE', captureEdits = true): UserProfile {
   const calibrationInputs = inputsFor(profile, captureEdits);
   const result = rebuildPerformanceProfile({ ...calibrationInputs, observations, context });
   const { videoCalibrationBase: _legacy, ...rest } = profile;
   return { ...rest, calibrationInputs, performanceObservations: result.observations, calibrationContext: context,
-    calibrationWarnings: result.warnings, performance: { ...profile.performance, ...result.performance,
-      magazineCapacity: profile.performance.magazineCapacity, startingRounds: profile.performance.startingRounds, chamberedRound: profile.performance.chamberedRound } };
+    calibrationWarnings: result.warnings, performance: withMovementModel({ ...profile.performance, ...result.performance,
+      magazineCapacity: profile.performance.magazineCapacity, startingRounds: profile.performance.startingRounds, chamberedRound: profile.performance.chamberedRound }, result.performance) };
 }
 /** Compatibility entry point used by Phase 8A. */
 export const withVideoObservations = withPerformanceObservations;
@@ -163,7 +203,7 @@ export function setManualOverride(profile: UserProfile, factor: TimingFactor, va
   const calibrationInputs = inputsFor(profile);
   if (value === null) delete calibrationInputs.manualOverrides[factor]; else calibrationInputs.manualOverrides[factor] = value;
   const result = rebuildPerformanceProfile({ ...calibrationInputs, observations: profile.performanceObservations ?? [], context: profile.calibrationContext ?? 'LIVE_FIRE' });
-  return { ...profile, calibrationInputs, performance: { ...profile.performance, ...result.performance },
+  return { ...profile, calibrationInputs, performance: withMovementModel({ ...profile.performance, ...result.performance }, result.performance),
     performanceObservations: result.observations, calibrationWarnings: result.warnings };
 }
 /** Add detects conflicts; replace is an explicit revision of an ID; remove withdraws all versions. */

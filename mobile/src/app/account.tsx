@@ -23,6 +23,13 @@ export default function Account() {
         <DataRow label="MOVEMENT" value={metricValue(profile.performance.movementSpeed, 'in/s')} />
         <DataRow label="TRANSITION" value={metricValue(profile.performance.transitionTime, 's')} />
       </View>
+      <Text style={ui.eyebrow}>POWER FACTOR</Text>
+      <Segmented options={['MINOR', 'MAJOR']} value={(profile.powerFactor ?? 'minor').toUpperCase()} onChange={v => {
+        const powerFactor = v === 'MAJOR' ? 'major' as const : 'minor' as const;
+        setProfile({ ...profile, powerFactor });
+        repo.setPowerFactor(powerFactor).catch(e => setError(String(e)));
+      }} />
+      <Copy>Scores C and D hits in library drills (USPSA Appendix B1: minor A 5, C 3, D 1; major A 5, C 4, D 2).</Copy>
       <DataRow label="Magazine capacity" value={profile.performance.magazineCapacity} />
       <DataRow label="Starting rounds" value={profile.performance.startingRounds} />
       <DataRow label="Chamber" value={profile.performance.chamberedRound ? 'Loaded' : 'Empty'} />

@@ -1,4 +1,5 @@
 import type { PerformanceObservation, TrainingContext } from '../training/observations';
+import type { MovementModel } from './movementModel';
 export type TimingFactor = 'drawTime' | 'reloadTime' | 'averageSplitTime' | 'transitionTime' | 'movementSpeed';
 /** Metadata describes the existing scalar; it never stores a duplicate timing value. */
 export type PerformanceEvidence = {
@@ -16,11 +17,18 @@ export type ShooterPerformanceProfile = {
   movementSpeed: number; magazineCapacity: number; startingRounds: number; chamberedRound: boolean;
   timingEvidence?: Partial<Record<TimingFactor, PerformanceEvidence>>;
   shootingObservations?: ShootingObservation[];
+  /** Fitted from sprint and shuffle runs (rebuilt from observations, never edited directly). */
+  movementModel?: MovementModel;
 };
+export type PowerFactor = 'minor' | 'major';
 export type UserProfile = { id: string; displayName: string; identity: { provider: 'local' | 'apple'; subject: string | null }; performance: ShooterPerformanceProfile;
   performanceObservations?: PerformanceObservation[]; videoCalibrationBase?: ShooterPerformanceProfile; calibrationContext?: TrainingContext;
   calibrationInputs?: { version: 1; baseline: ShooterPerformanceProfile; manualOverrides: Partial<Record<TimingFactor, number>> };
-  calibrationWarnings?: string[] };
+  calibrationWarnings?: string[];
+  /** Scoring power factor for drills and plans; a match can override it. Missing: minor. */
+  powerFactor?: PowerFactor;
+  /** Par times you set per drill-library variant (`variantKey`), seconds. */
+  drillPars?: Record<string, number> };
 export const createLocalProfile = (): UserProfile => ({
   id: 'local', displayName: 'Local shooter', identity: { provider: 'local', subject: null },
   performance: { drawTime: 1.5, reloadTime: 2, averageSplitTime: 0.25, transitionTime: 0.4,

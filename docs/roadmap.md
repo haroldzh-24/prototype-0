@@ -28,7 +28,7 @@ Scope comes from the owner's ideas (2026-10-26, marked ★) and the earlier revi
 
 Decision deferred: on-phone reading vs a paid cloud vision service. Test both on 10–20 real match book photos, then choose (the cloud option needs internet, a small server and a rule change).
 
-## Milestone C: plan by time and points
+## Milestone C: plan by time and points — C1 and C2 done 2026-10-26 (batch 17; `docs/drill-library.md`)
 
 | # | Item | Done when |
 | --- | --- | --- |

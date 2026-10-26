@@ -5,6 +5,8 @@ import type { RouteConnection } from './routeGeometry';
 import type { StagePosition, StageSize } from '../stage/coordinates';
 import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
+import { moveDirection, predictMove, validMovementModel } from '../profile/movementModel';
+import { stageDownrange } from '../stage/orientation';
 import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
 import { analyzeEngagements, validEngagementRules } from './engagements';
@@ -104,12 +106,16 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   const startingRounds = (magazines.get(magazineId ?? '') ?? 0) + chamber;
   const validProfile = profile && [profile.drawTime, profile.reloadTime, profile.averageSplitTime, profile.transitionTime].every(v => Number.isFinite(v) && v >= 0) && Number.isFinite(profile.movementSpeed) && profile.movementSpeed > 0;
   if (!validProfile) warnings.push('Timing unavailable: load a valid shooter performance profile.');
+  // Your fitted sprint/shuffle model times each leg by its direction to downrange; otherwise the average speed.
+  const movementModel = validProfile ? validMovementModel(profile.movementModel) : undefined, downrange = stageDownrange(stage);
+  const legSeconds = (distance: number, from: StagePosition, to: StagePosition) =>
+    predictMove(movementModel, moveDirection(from, to, downrange), distance)?.seconds ?? distance / profile!.movementSpeed;
   for (const reload of route.reloads) if (!route.positions.some(p => p.id === reload.positionId)) warnings.push('Reload references a deleted shooting position.');
   for (const p of route.positions) {
     let incomingSeconds = 0;
     if (origin) {
       const distance = pathLength(connectionPoints(route, fromId, p.id, origin, p.position));
-      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? distance / profile.movementSpeed : null });
+      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? legSeconds(distance, origin, p.position) : null });
       incomingSeconds = segments[segments.length - 1].seconds ?? 0;
     }
     origin = p.position; fromId = p.id;
@@ -162,7 +168,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   if (engagementAnalysis) warnings.push(...engagementAnalysis.warnings);
   const moving = route.positions.some(p => p.movingTargetIds?.length);
   if (moving) warnings.push('Moving engagement is geometry-only; performance timing is unavailable until movement/firing overlap is calibrated.');
-  const timing = validProfile && !moving ? { movement: distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
+  const timing = validProfile && !moving ? { movement: segments.reduce((n, s) => n + (s.seconds ?? 0), 0), draw: targetCount ? profile.drawTime : 0,
     splits: splits * profile.averageSplitTime, transitions: transitions * profile.transitionTime,
     reloads: reloadDetails.reduce((sum, r) => sum + r.additionalPenalty, 0),
     rawReloadDuration: reloadDetails.reduce((sum, r) => sum + r.rawDuration, 0),

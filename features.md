@@ -2,8 +2,8 @@
 
 Full plan with "done when" for each item: [docs/roadmap.md](docs/roadmap.md). Milestones in order:
 - A. The stage as it really is: **done 2026-10-26 (batch 15)** — IDPA rules on hold (targets kept); layers (hostage no-shoots, doubles) with slide/rotate/snap; the five hard-cover presets; rule checks for layers and PCSL mixing; drill-logger web fix. Needs a phone check.
-- B. Fast stage entry: stage from a photo of a match book page; trace-over check screen; shooting areas from fault lines.
-- C. Plan by time and points: sprint and shuffle drills; drill library; expected AA/AC/CC per target; stage time and hit factor; 2-3 plans side by side; "is slowing down worth it" per target.
+- B. Fast stage entry: shooting areas from fault lines done (batch 16); drawing under the plan and Photos import started (batch 16).
+- C. Plan by time and points: sprint and shuffle drills and the drill library **done 2026-10-26 (batch 17, `docs/drill-library.md`)**: 13 drills, timer-time entry, zone counts, par times, trends, Your numbers with run counts, move timing per direction used by ANALYZE. Next: expected AA/AC/CC per target; stage time and hit factor; 2-3 plans side by side; "is slowing down worth it" per target.
 - D. Post-match result vs plan; backup, export, sharing.
 - E. Phone build and device checklist; 3-5 testers; store readiness.
 Dropped: coach chat. Parked: extending 3D/EYE and Ask; IDPA rules.
