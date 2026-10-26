@@ -1,3 +1,9 @@
+# Fixed 2026-10-26 (batch 14)
+
+- New route rules defaulted to the USPSA ruleset in PCSL and IDPA matches, so the planner used USPSA steel distances and allowed shooting on the move in IDPA until the ruleset was changed in Route settings. New rules (from AREAS or Route settings) now use the match's ruleset. Stages saved with the wrong ruleset keep it; change it in Route settings → ruleset.
+- Route summary said "1 waypoints".
+- Drill logger, web version only: tapped hits land in the target's top-left corner and the group stats show NaN. Likely cause: the web press event has no `locationX`. Not fixed yet; the phone uses native touch coordinates (unverified on a device).
+
 # 3D view and eye-level walk - 2026-10-25
 
 - Fixed (batch 11, from an independent review): ON THE MOVE lasting about an inch; a first position on the start box not selectable; route tools staying in 3D; ground layers flickering on 16-bit depth buffers; USPSA rules used for IDPA visibility without route settings; a flaky route-assistant timing test (two clocks).

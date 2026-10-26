@@ -9,9 +9,9 @@ import { downrangeLabel, stageDownrange } from '../stage/orientation';
 import type { EngagementRules, FiringArea } from './engagements';
 
 /** Stage-brief authoring. Coordinate pairs are physical yards, not screen pixels. */
-export default function EngagementSettings({ stage, initial, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
+export default function EngagementSettings({ stage, initial, family, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; family?: EngagementRules['ruleset']; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
   const [section, setSection] = useState<'areas' | 'safety' | 'targets' | null>(null), [advanced, setAdvanced] = useState(false);
-  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules(stage));
+  const [rules, setRules] = useState(() => initial ?? defaultEngagementRules(stage, family));
   const [spacing, setSpacing] = useState(String(rules.sampleSpacingInches));
   const [direction, setDirection] = useState(String(rules.safeDirectionDegrees));
   const [angle, setAngle] = useState(String(rules.safeHalfAngleDegrees));
@@ -53,7 +53,7 @@ export default function EngagementSettings({ stage, initial, onApply, onCancel }
     <TextInput accessibilityLabel="Engagement sample spacing inches" style={ui.input} value={spacing} onChangeText={setSpacing} />
     </>}
     {section === 'areas' && <>
-    <Copy>Firing areas: enter points in boundary order, in yards. Areas exclude their boundary. Fault-line marks alone do not identify the legal side. The whole-stage button supplies a rectangle you can edit to follow your course boundaries.</Copy>
+    <Copy>Easier: draw areas on the stage with AREAS in the route bar. Here you can enter points in boundary order, in yards. Areas exclude their boundary. Fault-line marks alone do not identify the legal side. The whole-stage button supplies a rectangle you can edit to follow your course boundaries.</Copy>
     {areas.map((a, areaIndex) => <View key={a.id} style={{ gap: 4 }}>
       <Action title={'Firing area ' + (areaIndex + 1) + (areaId === a.id ? ' / Close' : ' >')} onPress={() => setAreaId(areaId === a.id ? null : a.id)} />
       {areaId === a.id && <>

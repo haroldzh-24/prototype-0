@@ -27,6 +27,8 @@ import AutoPositionOverlay from './AutoPositionOverlay';
 import type { DiscoveredPosition } from '../planning/positionDiscovery';
 import type { RouteOverlayProps } from './RouteOverlay';
 import RouteAIOverlay from './RouteAIOverlay';
+import FiringAreaOverlay from './FiringAreaOverlay';
+import type { FiringAreaOverlayProps } from './FiringAreaOverlay';
 import type { RouteAssistantContext, RouteChangePreview, Highlights } from '../planning/routeAssistant/types';
 
 type Props = {
@@ -38,6 +40,10 @@ type Props = {
   tool?: DesignerTool;
   draft?: { start: StagePosition; end: StagePosition } | null;
   onRoutePoint?: (point: StagePosition) => void;
+  /** Firing areas drawn on the plan (route mode). */
+  firingAreas?: FiringAreaOverlayProps;
+  /** Area mode: a deliberate tap on the canvas (adds a corner, or selects the area under it). */
+  onAreaPoint?: (point: StagePosition) => void;
   onPlace?: (point: StagePosition) => void;
   /** Press and hold on the bay (selection tool): opens the radial add menu at that point. `at` is in canvas pixels. */
   onLongPress?: (point: StagePosition, at: { x: number; y: number }) => void;
@@ -186,6 +192,8 @@ export default function StageViewport(props: Props) {
       } else if (drawing()) {
         if (inside && !intent.current.multiple && (hadAnchor.current || intent.current.moved)) p.onDraw?.('commit',point);
         else if (!inside || intent.current.multiple) p.onDraw?.('cancel',point);
+      } else if (!p.readOnly && p.onAreaPoint) {
+        if (inside && deliberateTap(intent.current, Date.now())) p.onAreaPoint(point);
       } else if (!p.readOnly && p.routeEditing && p.onRoutePoint) {
         if (inside && deliberateTap(intent.current, Date.now())) p.onRoutePoint(point);
       } else if (!p.readOnly && !p.routeEditing && p.tool === 'target') {
@@ -231,7 +239,8 @@ export default function StageViewport(props: Props) {
           })()}
           {props.autoPositions && <AutoPositionOverlay positions={props.autoPositions} transform={transform} />}
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
-          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.manualEngage && !props.manualReview && !props.readOnly && !props.onRoutePoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
+          {props.firingAreas && <FiringAreaOverlay {...props.firingAreas} transform={transform} />}
+          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.manualEngage && !props.manualReview && !props.readOnly && !props.onRoutePoint && !props.onAreaPoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />
           </View>}
           {props.routePlanning && <ManualEngagementOverlay stage={props.stage} route={props.routePlanning.route} transform={transform} selectedId={props.manualReview?.selectedEngagementId ?? props.manualEngage?.selectedId} highlightTarget={!props.manualReview} draft={engagementDraft} onSelect={id => props.manualEngage?.onSelect(id)} />}

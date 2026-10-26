@@ -78,7 +78,7 @@ test('ASK integrates controlled Apply dirty state explicit Save and normal undo 
   r.engagementRules={...require('../src/planning/engagements.ts').defaultEngagementRules(),firingAreas:[{id:'goal',vertices:[{x:50,y:50},{x:160,y:50},{x:160,y:70},{x:50,y:70}]}]};
   const mock=require('../src/planning/routeAI/testing/mockAdapter.ts').mockAdapter([{intent:'MOVE_WAYPOINT',waypointReference:'waypoint 1',distanceValue:2,distanceUnit:'yards',direction:'left'},{intent:'UNDO'}]);
   const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA',routeAIAdapter:mock.adapter});
-  await h.settle();h.press('ROUTE');h.press('ASK');
+  await h.settle();h.press('PLAN');h.press('Route tools');h.press('Ask Route AI');
   let sheet=h.child('RouteAISheet');await sheet.controller.send('Move waypoint 1 two yards left');h.render();
   assert.equal(h.saved.length,0);assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,150);
   assert.equal(h.child('StageViewport').routeAI.preview.proposedRoute.positions[0].position.x,78);
@@ -192,8 +192,8 @@ test('stage cards retain name-only creation and overflow actions', async () => {
   h.press('+ STAGE'); const fields = h.nodes().filter(n => n.type === 'TextInput'); assert.equal(fields.length, 1); assert.equal(fields[0].props.accessibilityLabel, 'Stage name');
 });
 test('BUILD/ROUTE switches preserve route and explicit save boundary', () => {
-  const r = route(); const h = initial(r); h.press('ROUTE'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r);
-  h.press('BUILD'); h.press('ROUTE'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r); assert.equal(h.saved.length, 0);
+  const r = route(); const h = initial(r); h.press('PLAN'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r);
+  h.press('BUILD'); h.press('PLAN'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r); assert.equal(h.saved.length, 0);
 });
 test('BUILD has SELECT/ADD/DRAW and target placement repeats until Done', () => {
   const h = initial(); h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'target', presetId: 'uspsa-metric-chl-v1', noShoot: false }); h.render();
@@ -214,8 +214,8 @@ test('selected object opens existing inspector and keeps contextual duplicate/de
   h.child('StageViewport').onSelect(target.id); h.render(); h.press('EDIT'); assert.equal(h.child('ObjectInspector').item.id, target.id);
   assert.ok(h.nodes().some(n => n.props.title === 'DUPLICATE')); assert.ok(h.nodes().some(n => n.props.title === 'DELETE'));
 });
-test('empty route PLAN exposes prerequisites without leaving ROUTE', () => {
-  const h = initial(); h.press('ROUTE'); h.press('OPTIMIZE MOVEMENT');
+test('the movement-only optimizer (Route tools) exposes prerequisites without leaving PLAN', () => {
+  const h = initial(); h.press('PLAN'); h.press('Route tools'); h.press('Movement-only optimizer (older)');
   for (const section of ['loadout', 'targets', 'rules']) {
     h.child('AutoPlannerPanel').onConfigure(section); h.render();
     assert.equal(h.child('StageViewport').routeEditing, true);
@@ -223,14 +223,14 @@ test('empty route PLAN exposes prerequisites without leaving ROUTE', () => {
     if (section === 'rules') assert.ok(h.child('EngagementSettings')); else { assert.equal(h.child('PlanningPanel').section, section); h.press('Back to MOVEMENT OPTIMIZER'); }
   }
 });
-test('EDIT controls, waypoint sheet and reload share the existing route state', () => {
-  const h = initial(); h.press('ROUTE'); h.press('Edit manually'); h.press('ADD WAYPOINT');
+test('PATH controls, waypoint sheet and reload share the existing route state', () => {
+  const h = initial(); h.press('PLAN'); h.press('PATH'); h.press('ADD WAYPOINT');
   assert.equal(h.child('StageViewport').routePlanning.route.positions.length, 0);
   h.child('StageViewport').onRoutePoint({ space: 'stage', x: 120, y: 180, z: 0 }); h.render();
   assert.equal(h.child('StageViewport').routePlanning.route.positions.length, 1); h.press('WAYPOINT 1'); h.press('RELOAD'); assert.equal(h.child('RoutePanel').section, 'reload');
 });
 test('ANALYZE opens the read-only component and layer changes never save', () => {
-  const h = initial(route()); h.press('ROUTE'); h.press('ANALYZE'); assert.ok(h.child('RouteAnalysis'));
+  const h = initial(route()); h.press('PLAN'); h.press('ANALYZE'); assert.ok(h.child('RouteAnalysis'));
   h.press('Route tools'); h.press('Overlay Layers'); h.press('Target Arrows SELECTED');
   assert.equal(h.child('StageViewport').routePlanning.layers.arrows, 'ALL'); h.press('Grid OFF'); assert.equal(h.child('StageViewport').gridVisible, true); assert.equal(h.saved.length, 0);
 });
@@ -331,7 +331,7 @@ test('structured firing area fields retain yard parsing and reject incomplete co
 });
 
 test('candidate preview omits editable-route Save and Back returns to results', () => {
-  const h = initial(route()); h.press('ROUTE'); h.press('OPTIMIZE');
+  const h = initial(route()); h.press('PLAN'); h.press('Route tools'); h.press('Movement-only optimizer (older)');
   h.child('AutoPlannerPanel').onPreview({ route: route(), number: 1, label: 'Candidate' }); h.render();
   assert.ok(!h.nodes().some(n => n.props.title === 'Save'));
   h.press('Back to results'); assert.equal(h.child('AutoPlannerPanel').preview, null); assert.equal(h.saved.length, 0);
@@ -472,7 +472,7 @@ test('Video Results show confirmed values and hold tentative values behind endpo
 
 test('PATH exposes connection editing and preserves stage objects through style edits',()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*50,y:100,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
- const h=initial(r);h.press('ROUTE');h.press('PATH');
+ const h=initial(r);h.press('PLAN');h.press('PATH');
  const before=JSON.stringify(h.child('StageViewport').stage);
  assert.equal(h.child('StageViewport').routePlanning.editing,true);
  assert.ok(h.nodes().some(n=>n.props.title==='ENGAGE'&&!n.props.disabled));
@@ -483,7 +483,7 @@ test('PATH exposes connection editing and preserves stage objects through style 
 test('ENGAGE preserves PATH and supports contextual assignment, order, direction, delete, undo and Save', async()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
  r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
- const h=initial(r);await h.settle();h.press('ROUTE');h.press('PATH');h.press('ENGAGE');
+ const h=initial(r);await h.settle();h.press('PLAN');h.press('PATH');h.press('ENGAGE');
  let v=h.child('StageViewport');const before=JSON.stringify(v.stage),targets=v.stage.objects.filter(require('../src/planning/model.ts').isEngageable);
  assert.equal(v.routePlanning.editing,false);assert.ok(v.manualEngage);assert.equal(v.routePlanning.layers.nodes,false);
  v.manualEngage.onCreate({kind:'waypoint',waypointId:'a'},targets[0].id,0);h.render();
@@ -529,7 +529,7 @@ test('manual overlay shows short arrows, selected target and temporary dotted gu
 
 test('REVIEW derives manual coverage, preserves canvas and annotations across modes, and highlights saved anchors',()=>{
  const r=route(),document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
- const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('ROUTE');h.press('PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();h.press('ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();h.press('REVIEW');
+ const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');h.press('PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();h.press('ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();h.press('REVIEW');
  let v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,false);assert.deepEqual(v.viewport,pan);assert.equal(v.manualReview.review.assignedTargets,1);assert.equal(v.manualReview.selectedEngagementId,'e');
  v.manualReview.onSelectTarget(target.id);h.render();let panel=h.child('ManualReviewPanel');assert.equal(panel.selectedTargetId,target.id);panel.onHighlight(panel.review.engagements[0]);h.render();assert.deepEqual(h.child('StageViewport').focusPosition,r.positions[0].position);
  h.child('ManualReviewPanel').onToggle();h.render();assert.equal(h.child('StageViewport').manualReview.onlyUnassigned,true);assert.equal(h.child('StageViewport').manualReview.selectedTargetId,null);
@@ -537,7 +537,7 @@ test('REVIEW derives manual coverage, preserves canvas and annotations across mo
 });
 test('REVIEW retains invalid loaded entries for explicit removal and restores them through document undo',()=>{
  const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'missing',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'orphan',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'gone'},direction:0}];
- const h=initial(r);h.press('ROUTE');h.press('REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);h.child('ManualReviewPanel').onUndo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.child('ManualReviewPanel').onRedo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
+ const h=initial(r);h.press('PLAN');h.press('REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);h.child('ManualReviewPanel').onUndo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.child('ManualReviewPanel').onRedo();h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
 });
 test('REVIEW overlay distinguishes status with symbols and filters assigned highlights',()=>{
  const document=stage(),r=route(),targets=document.objects.filter(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:targets[0].id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
@@ -572,7 +572,7 @@ test('PATH marker ignores tap jitter, latches pinch interruption, and exposes bo
 
 test('ENGAGE button creation on rounded sections survives dismissal, mode changes, undo, redo and Save',async()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
- const h=initial(r);await h.settle();h.press('ROUTE');h.press('ENGAGE');h.press('ENGAGEMENTS');h.press('Create engagement without dragging');h.press('Anchor: Route section 1 midpoint');
+ const h=initial(r);await h.settle();h.press('PLAN');h.press('ENGAGE');h.press('ENGAGEMENTS');h.press('Create engagement without dragging');h.press('Anchor: Route section 1 midpoint');
  const create=h.nodes().find(n=>n.props.title?.startsWith('Create engagement to '));h.press(create.props.title);h.child('EditorSheet').close();h.render();
  const created=h.child('StageViewport').routePlanning.route;assert.equal(created.manualEngagements.length,1);assert.equal(created.manualEngagements[0].anchor.fraction,.5);assert.deepEqual(created.connections,r.connections);
  h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements?.length??0,0);h.press('Redo');h.press('REVIEW');h.press('PATH');assert.deepEqual(h.child('StageViewport').routePlanning.route,created);h.press('Save');await h.settle();assert.deepEqual(h.saved[0][3].route,created);
@@ -643,7 +643,7 @@ test('PLAN ROUTE (V2) explains missing firing areas instead of planning', async 
   const { createRoute } = require('../src/planning/route.ts');
   const plan = createPlan(); plan.route = createRoute('r');
   const h = harness('planning/v2/RoutePlannerV2Panel.tsx', { stage: createDefaultStage('USPSA'), plan, preview: null, onClose() {}, onUse() { assert.fail('nothing to use'); }, onPreview() {}, onConfigure() {} });
-  assert.ok(h.nodes().some(n => typeof n.props.children === 'string' && /Add firing areas first/.test(n.props.children)));
+  assert.ok(h.nodes().some(n => typeof n.props.children === 'string' && /Draw firing areas first/.test(n.props.children)));
   h.press('PLAN ROUTE'); await new Promise(resolve => setTimeout(resolve, 120)); h.render();
   assert.ok(h.nodes().some(n => n.props.children === 'THE STAGE NEEDS SETUP FIRST'));
 });
@@ -678,14 +678,18 @@ test('3D and eye-level views share the document: select, move, raise and rotate 
   assert.ok(!h.nodes().some(n => n.props?.title === 'SELECT'), 'the bottom bar steps aside for the walk-through');
   h.child('EyeLevelView').onExit(); h.render();
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
-  // Route editing tools are plan-only, however they are opened (PATH, the route bar's EDIT, Edit manually).
-  h.press('3D view'); h.press('ROUTE'); h.press('PATH');
+  // Route tools are plan-only, however they are opened (PATH, ENGAGE, REVIEW, AREAS).
+  h.press('3D view'); h.press('PLAN'); h.press('PATH');
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
   h.press('DONE'); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
-  h.press('Edit manually'); h.render();
-  assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'Edit manually returns to the plan');
-  h.press('DONE'); h.press('3D view'); h.press('EDIT'); h.render();
-  assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'the route bar EDIT returns to the plan');
+  for (const tool of ['ENGAGE', 'REVIEW', 'AREAS']) {
+    h.press(tool); h.render();
+    assert.ok(h.nodes().some(n => n.type === 'StageViewport'), tool + ' returns to the plan');
+    h.press(tool); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
+  }
+  // WALK is the eye-level walk-through of the plan; PLAN comes back to the 2D plan.
+  h.press('WALK'); assert.ok(h.child('EyeLevelView')); assert.ok(!h.nodes().some(n => n.props?.title === 'PATH'), 'route tools step aside while walking');
+  h.press('PLAN'); assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
 });
 
 test('press and hold on the bay opens the radial menu there; a choice places it at that spot', () => {
@@ -704,6 +708,49 @@ test('press and hold on the bay opens the radial menu there; a choice places it 
   h.child('StageViewport').onLongPress({ space: 'stage', x: 60, y: 60, z: 0 }, { x: 40, y: 40 }); h.render();
   h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render();
   assert.equal(h.child('StageViewport').tool, 'wall'); assert.ok(h.child('StageViewport').draft, 'segment started');
-  h.press('ROUTE');
+  h.press('PLAN');
   assert.equal(h.child('StageViewport').onLongPress, undefined);
+});
+
+test('AREAS: draw a firing area on the plan by tapping corners, adjust a corner, delete and undo, without saving', () => {
+  const h = harness('editor/StageBuilder.tsx', { initial: { id: 's', name: 'Stage', matchId: 'm', document: stage(), plan: plan() }, targetFamily: 'PCSL' });
+  h.press('PLAN'); h.press('AREAS');
+  let v = h.child('StageViewport');
+  assert.equal(typeof v.onAreaPoint, 'function'); assert.equal(v.firingAreas, undefined, 'nothing drawn yet');
+  h.press('NEW AREA');
+  for (const [x, y] of [[100.4, 200], [300, 200.2], [300, 320], [100, 320]]) { h.child('StageViewport').onAreaPoint({ space: 'stage', x, y, z: 0 }); h.render(); }
+  v = h.child('StageViewport');
+  assert.deepEqual(v.firingAreas.draft.map(p => [p.x, p.y]), [[100, 200], [300, 200], [300, 320], [100, 320]], 'corners land on whole inches');
+  h.press('FINISH AREA');
+  v = h.child('StageViewport');
+  const rules = v.routePlanning.route.engagementRules;
+  assert.equal(rules.firingAreas.length, 1); assert.equal(rules.ruleset, 'PCSL', 'new route rules follow the match ruleset');
+  assert.equal(v.firingAreas.selectedId, rules.firingAreas[0].id); assert.equal(v.firingAreas.editing, true);
+  // Drag a corner (one undo step); a move that would cross the edges is refused.
+  v.firingAreas.onDragging(true); v.firingAreas.onMoveCorner(rules.firingAreas[0].id, 2, { x: 340.6, y: 360 }); v.firingAreas.onDragging(false); h.render();
+  assert.deepEqual(h.child('StageViewport').routePlanning.route.engagementRules.firingAreas[0].vertices[2], { x: 341, y: 360 });
+  h.child('StageViewport').firingAreas.onMoveCorner(rules.firingAreas[0].id, 2, { x: 50, y: 260 }); h.render();
+  assert.deepEqual(h.child('StageViewport').routePlanning.route.engagementRules.firingAreas[0].vertices[2], { x: 341, y: 360 }, 'bow-tie refused');
+  // Tapping outside every area clears the selection; tapping inside selects it.
+  h.child('StageViewport').onAreaPoint({ space: 'stage', x: 20, y: 20, z: 0 }); h.render();
+  assert.equal(h.child('StageViewport').firingAreas.selectedId, null);
+  h.child('StageViewport').onAreaPoint({ space: 'stage', x: 200, y: 260, z: 0 }); h.render();
+  assert.equal(h.child('StageViewport').firingAreas.selectedId, rules.firingAreas[0].id);
+  h.press('DELETE AREA'); assert.equal(h.child('StageViewport').routePlanning.route.engagementRules.firingAreas.length, 0);
+  h.press('UNDO'); assert.equal(h.child('StageViewport').routePlanning.route.engagementRules.firingAreas.length, 1, 'undo brings it back');
+  // Too few corners cannot finish; the whole bay is one tap.
+  h.press('NEW AREA'); h.child('StageViewport').onAreaPoint({ space: 'stage', x: 10, y: 10, z: 0 }); h.render();
+  assert.ok(h.nodes().find(n => n.props?.title === 'FINISH AREA').props.disabled);
+  h.press('Cancel the new area'); h.press('WHOLE BAY');
+  assert.equal(h.child('StageViewport').routePlanning.route.engagementRules.firingAreas.length, 2);
+  h.press('DONE'); assert.equal(h.child('StageViewport').onAreaPoint, undefined);
+  assert.equal(h.saved.length, 0, 'drawing areas never saves on its own');
+});
+
+test('the planner opens area drawing directly when there are no firing areas', () => {
+  const h = initial(); h.press('PLAN'); h.press('AUTO-PLAN');
+  h.child('RoutePlannerV2Panel').onConfigure('areas'); h.render();
+  const v = h.child('StageViewport');
+  assert.deepEqual(v.firingAreas.draft, [], 'a new area is ready for its first corner'); assert.equal(typeof v.onAreaPoint, 'function');
+  assert.ok(!h.nodes().some(n => n.type === 'RoutePlannerV2Panel'));
 });

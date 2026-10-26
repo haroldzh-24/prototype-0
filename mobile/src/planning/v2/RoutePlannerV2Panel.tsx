@@ -38,7 +38,7 @@ export function v2PreviewCard(result: RoutePlan, stage: StageDocument, plan: Sta
 
 export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, onClose, onUse, onConfigure }: {
   stage: StageDocument; plan: StagePlan; preview: PlannerCard | null; onPreview: (card: PlannerCard) => void;
-  onClose: () => void; onUse: (plan: StagePlan) => void; onConfigure: (section: 'rules' | 'start') => void;
+  onClose: () => void; onUse: (plan: StagePlan) => void; onConfigure: (section: 'rules' | 'start' | 'areas') => void;
 }) {
   const [result, setResult] = useState<RoutePlan | null>(null), [running, setRunning] = useState(false), [confirm, setConfirm] = useState(false), [error, setError] = useState('');
   const rules = plan.route?.engagementRules;
@@ -80,7 +80,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     {movingAvailable
       ? <Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
       : <Copy>{rules?.ruleset === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
-    {!snapshot.firingAreas.length && <Notice>Add firing areas first: positions are only planned inside them.</Notice>}
+    {!snapshot.firingAreas.length && <Notice>Draw firing areas first: positions are only planned inside them.</Notice>}
+    <Action title={snapshot.firingAreas.length ? 'EDIT FIRING AREAS' : 'DRAW FIRING AREAS'} variant={snapshot.firingAreas.length ? undefined : 'primary'} onPress={() => onConfigure('areas')} />
     <Action title="ROUTE SETTINGS" onPress={() => onConfigure('rules')} />
     {running && <><Loading label="Planning route..." /><Action title="CANCEL" onPress={cancel} /></>}
     {!!error && <Notice tone="error">{error}</Notice>}

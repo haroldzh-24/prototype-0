@@ -43,8 +43,9 @@ export function engagementLabel(index: number): string {
   return label;
 }
 /** Safe direction defaults to the stage's downrange (up the screen when no stage is given). */
-export function defaultEngagementRules(stage?: Pick<StageDocument, 'downrangeDegrees'>): EngagementRules {
-  return { version: 1, ruleset: 'USPSA', sampleSpacingInches: 2, firingAreas: [], allowOutsideTravel: true,
+/** New route rules for a stage. Pass the match's ruleset: steel distances and on-the-move rules depend on it. */
+export function defaultEngagementRules(stage?: Pick<StageDocument, 'downrangeDegrees'>, ruleset: EngagementRules['ruleset'] = 'USPSA'): EngagementRules {
+  return { version: 1, ruleset, sampleSpacingInches: 2, firingAreas: [], allowOutsideTravel: true,
     allowMoving: true, safeDirectionDegrees: stage ? signedDegrees(stageDownrange(stage)) : -90, safeHalfAngleDegrees: 90, targetProcedures: {} };
 }
 /** -180..180 form, matching how directions have always been entered (0 right, 90 down, -90 up). */

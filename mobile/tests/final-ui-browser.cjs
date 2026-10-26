@@ -89,12 +89,12 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Stage tools'); await click('Target Rounds');
     const labels = await evaluate("[...document.querySelectorAll('input')].map(e=>e.getAttribute('aria-label')).filter(s=>s?.startsWith('Planned rounds for '))");
     for (const label of labels) { await fill(label,'2'); await evaluate(`(() => {const e=[...document.querySelectorAll('input')].find(e=>e.getAttribute('aria-label')===${JSON.stringify(label)}); const b=e.parentElement.querySelector('[role=button]');b.click()})()`); await pause(100); }
-    await click('Done'); await click('ROUTE'); await capture('route'); await click('OPTIMIZE'); await capture('plan');
+    await click('Done'); await click('Plan the route'); await capture('route'); await click('Route tools'); await click('Movement-only optimizer (older)'); await capture('plan');
     await click('CONFIGURE'); await capture('route-settings'); await click('FIRING AREAS', true); await click('Add whole-stage firing area'); await click('APPLY ROUTE SETTINGS'); await click('GENERATE ROUTE'); await wait('ROUTE FOUND'); await capture('route-result');
     await click('VIEW ON STAGE'); assert.ok(!(await text()).split('\n').includes('Save'), 'Preview has no Save'); await capture('route-preview'); await click('Back to results'); await click('USE ROUTE');
-    await click('EDIT'); await click('ADD WAYPOINT'); r = await rect('[data-testid=stage-canvas]'); await tap({x:r.x+r.width*.5,y:r.y+r.height*.7}); await wait('WAYPOINT'); await capture('waypoint-selected');
+    await click('Draw or edit the path'); await click('ADD WAYPOINT'); r = await rect('[data-testid=stage-canvas]'); await tap({x:r.x+r.width*.5,y:r.y+r.height*.7}); await wait('WAYPOINT'); await capture('waypoint-selected');
     await click('WAYPOINT', true); await fill('Waypoint label','Long waypoint label for review'); await click('TARGETS'); await capture('waypoint-targets'); await click('Back to waypoint'); await click('RELOAD'); await capture('waypoint-reload'); await click('Done'); await click('DONE');
-    await click('ANALYZE'); await capture('route-analysis'); await click('Done'); await click('Save'); await pause(500); await click('Back'); await wait('STAGES');
+    await click('Time, ammunition and coverage'); await capture('route-analysis'); await click('Done'); await click('Save'); await pause(500); await click('Back'); await wait('STAGES');
     await click('‹ Back'); await wait('MATCHES'); await click('‹ Back'); await wait('Prepare for your next session.');
     await click('Open TRAINING'); await wait('+ SESSION'); await capture('training'); await click('+ SESSION'); await capture('create-session');
     const sessionName='Final video review '+Date.now(); await fill('SESSION NAME',sessionName); await click('CREATE SESSION'); await wait(sessionName); await click('Open '+sessionName); await click('ADD VIDEO');

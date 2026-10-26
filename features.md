@@ -1,3 +1,13 @@
+# Roadmap - 2026-10-26
+
+Full roadmap with status and "done when" for each item: [docs/roadmap.md](docs/roadmap.md). In order:
+1. Phone build and testers (owner, open). Done 2026-10-26: firing areas drawn on the stage; BUILD → PLAN → WALK with one row of route tools (changelog batch 14). Still open in this group: shooting areas from fault lines and bay edges; "trace over the picture" import.
+2. Time-based planning with reloads and 2–3 plans side by side.
+3. Profile built from your own splits and drill runs; post-match comparison against the plan.
+4. Drill library with par times and trend charts. Drills chosen for the planner's numbers (docs/roadmap.md): draw to first hit, Bill Drill, distance ladder, Blake Drill, wide transitions, reloads, position-to-position, shooting on the move, steel, port/lean, El Presidente.
+5. Backup, export and stage sharing.
+Parked: extending 3D/EYE and the Ask chat; the automatic picture detector is to be replaced by trace-over.
+
 # Planned: rulebook gap list, redesign and 3D - 2026-10-25
 
 The prioritized list is [docs/rules/gap-list.md](docs/rules/gap-list.md), built from the USPSA, PCSL and IDPA rulebook research in `docs/rules/`. Summary:

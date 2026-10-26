@@ -1,3 +1,13 @@
+# RC2 batch 14: BUILD → PLAN → WALK, and firing areas drawn on the stage - 2026-10-26
+
+- **Step bar: BUILD · PLAN · WALK** at the top of the stage editor. PLAN is the old ROUTE. WALK opens the eye-level walk-through of the planned route; PLAN brings you back to the 2D plan.
+- **One row of route tools:** PATH · ENGAGE · REVIEW · AREAS. Tap the active one again to leave it. The duplicate controls are gone: the "No route yet" buttons (now a one-line hint) and the PLAN/OPTIMIZE/EDIT/ANALYZE/ASK bar (now **AUTO-PLAN · ANALYZE · •••**).
+- **Moved to ••• Route tools:** "Ask Route AI" and the "Movement-only optimizer (older)", which overlaps with AUTO-PLAN.
+- **Draw firing areas on the stage (AREAS).** Tap NEW AREA, then the corners in order; FINISH AREA. Corners snap to the corners of other areas and to wall and fault-line ends, otherwise to whole inches, and stay in the bay. Select an area to drag its corners (one undo step per drag); moves that would make the edges cross are refused. WHOLE BAY, DELETE AREA (also clears target procedures that used it) and UNDO. Areas show as tinted shapes on the plan, day and night. Typing corners in yards (Route settings) still works.
+- **AUTO-PLAN** offers DRAW FIRING AREAS when the stage has none, and EDIT FIRING AREAS otherwise.
+- New route rules use the match's ruleset (they were always USPSA; see bugs.md).
+- Validation: 919/919 tests (6 new: 4 for the area geometry, 2 for the editor flow; 8 updated for the new labels), TypeScript passed. Checked in the web build, day and night: drawing an area, dragging a corner, AUTO-PLAN inside it, USE ROUTE, WALK. No device testing.
+
 # RC2 batch 13: target catalog for USPSA, PCSL and IDPA - 2026-10-25
 
 - **USPSA names follow the rulebook.** "USPSA Target (CHL)" (formerly Metric) and "IPSC Target (CHL)" (formerly Classic), confirmed by NROI. Saved stages keep their preset ids.
