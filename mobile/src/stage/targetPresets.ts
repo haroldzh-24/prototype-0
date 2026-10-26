@@ -9,11 +9,16 @@ export type TargetPreset = Readonly<{
   verification: 'verified' | 'approximate' | 'unverified';
   /** Kept so saved stages and imports still resolve, but no longer offered (no source found). */
   retired?: true;
+  /** Menu label; defaults to the name without family or maker. */
+  short?: string;
+  /** USPSA cardboard: USPSA and IPSC types may not be mixed in one stage (USPSA 4.2.1). */
+  cardboardType?: 'USPSA' | 'IPSC';
 }>;
 const polygon = (points: readonly (readonly [number, number])[]): TargetOutline => ({ kind: 'polygon', points });
 // Illustrative outside contours, not scoring zones or certified cutting templates.
 const torso = polygon([[.33,0],[.67,0],[.67,.2],[1,.35],[1,.85],[.75,1],[.25,1],[0,.85],[0,.35],[.33,.2]]);
 const classic = polygon([[.5,0],[1,.25],[1,.75],[.7,1],[.3,1],[0,.75],[0,.25]]);
+const hexagon = polygon([[.25,0],[.75,0],[1,.5],[.75,1],[.25,1],[0,.5]]); // flats top and bottom
 const competition = polygon([[.25,0],[.75,0],[1,.2],[1,.85],[.75,1],[.25,1],[0,.85],[0,.2]]);
 const popper = polygon([[.5,0],[.75,.08],[.75,.22],[1,.35],[1,.5],[.65,.62],[.65,.9],[.8,1],[.2,1],[.35,.9],[.35,.62],[0,.5],[0,.35],[.25,.22],[.25,.08]]);
 const chl = 'https://chltargets.com/';
@@ -22,9 +27,10 @@ const idpa = 'https://www.idpa.com/wp-content/uploads/2026/01/2026-IDPA-Rulebook
 const paper = (id: string, name: string, family: TargetFamily, variant: string, width: number, height: number, outline: TargetOutline, source: string, reference: string): TargetPreset =>
   ({ id, name, family, variant, width, height, outline, source, reference, sourceUnits: 'in', verification: 'approximate', type: 'cardboardTarget' });
 const entries: TargetPreset[] = [
-  paper('uspsa-metric-chl-v1', 'USPSA Metric (CHL)', 'USPSA', 'Full size', 18.12, 29.93, torso, chl+'uspsa-ipsc-cb-torso-cardboard-20-target-pack-free-shipping/', 'Manufacturer overall target dimensions; approximate outline. Not shipping or scoring-zone size.'),
-  paper('uspsa-classic-chl-v1', 'IPSC Classic (CHL)', 'USPSA', 'Full size', 18.12, 22.84, classic, chl+'uspsa-ipsc-cb-classic-cardboard-60-target-pack/', 'Manufacturer overall dimensions including outer cardboard; approximate outline.'),
-  paper('uspsa-reduced-at-v1', 'Reduced USPSA (Action Target)', 'USPSA', 'Reduced size', 9.125, 14.875, torso, 'https://shop.actiontarget.com/', 'Manufacturer reduced IPSC-CB product dimensions; not inferred by halving a different vendor target. Approximate contour.'),
+  { ...paper('uspsa-metric-chl-v1', 'USPSA Target (CHL)', 'USPSA', 'Full size (formerly "Metric")', 18.12, 29.93, torso, chl+'uspsa-ipsc-cb-torso-cardboard-20-target-pack-free-shipping/', 'The USPSA Target (renamed from the Metric target; NROI). Overall size from licensed makers CHL and TA Targets (18.12 x 29.93 in). Approximate outline; scoring zones not drawn.'), short: 'USPSA', cardboardType: 'USPSA' },
+  { ...paper('uspsa-classic-chl-v1', 'IPSC Target (CHL)', 'USPSA', 'Full size (formerly "Classic")', 18.12, 22.84, classic, chl+'uspsa-ipsc-cb-classic-cardboard-60-target-pack/', 'The IPSC Target (the former Classic; NROI). Overall size from CHL (18.12 x 22.84 in); CHL\'s own IPSC no-shoot lists 17.32 x 22.83 in, so makers differ. Approximate outline.'), short: 'IPSC', cardboardType: 'IPSC' },
+  { ...paper('uspsa-half-chl-v1', 'Half-size USPSA Target (CHL)', 'USPSA', 'Half size', 9.26, 15.16, torso, chl+'uspsa-cb-metric-half-size-100-target-pack-free-shipping/', 'Licensed maker CHL: "9.26 x 15.16, scaled to 50% of a standard USPSA (METRIC) target". Approved at all levels (USPSA 4.2.1.1); not mounted on full-size no-shoots. Approximate outline.'), short: 'Half USPSA', cardboardType: 'USPSA' },
+  { ...paper('uspsa-reduced-at-v1', 'Reduced USPSA (Action Target)', 'USPSA', 'Reduced size', 9.125, 14.875, torso, 'https://shop.actiontarget.com/', 'Retired: a reduced-size practice target, not a USPSA half-size target. Kept so stages that used it still open.'), verification: 'unverified', retired: true },
   paper('pcsl-practical-2025-v1', 'PCSL Practical', 'PCSL', '2025+ full size', 18, 24, torso, chl+'pcsl-practical-target-2025-version-cb-100-target-pack-free-shipping/', 'Supplier explicitly calls the overall dimensions approximate; contour/notches unverified.'),
   paper('pcsl-mini-practical-2025-v1', 'PCSL Mini Practical', 'PCSL', '2025+ half scale', 9, 12, torso, chl+'pcsl-mini-practical-target-scale-2025-version-cb-100-target-pack-free-shipping/', 'Supplier approximate overall dimensions; not the 3 × 4.5-inch A zone.'),
   paper('pcsl-competition-2025-v1', 'PCSL Competition', 'PCSL', '2025+ non-humanoid', 18, 24, competition, chl+'pcsl-competition-target-2025-version-cb-100-target-pack-free-shipping/', 'Supplier approximate overall dimensions; contour/notches unverified.'),
@@ -36,6 +42,14 @@ const entries: TargetPreset[] = [
     source: family === 'USPSA' ? uspsa : family === 'IDPA' ? idpa : 'https://rules.pcsleague.com/rulebook/08-re-shoots.html', reference: family === 'PCSL'
       ? 'Explicit 8-inch circular preset; PCSL names an 8-inch round plate as an example (8.6.2.2) and sets only minimum sizes by distance (10.9). Not a required size.'
       : 'Explicit 8-inch circular preset; exact nominal geometry, not a universal required plate size or match legality certification.' })),
+  // USPSA plates (Appendix B3): round 8-12 in, square or rectangular 6-12 in a side, polygons 6-12 in flat to flat, +/- 1/4 in.
+  // Level I and II only, and never the only targets on a stage (4.3.1.4).
+  ...([['uspsa-round-12-v1', 'USPSA 12-inch round plate', '12 in round', 12, 12, { kind: 'ellipse' as const }, 'Largest round plate B3 allows.'],
+    ['uspsa-square-6-v1', 'USPSA 6-inch square plate', '6 in square', 6, 6, { kind: 'rectangle' as const }, 'Smallest square plate B3 allows.'],
+    ['uspsa-square-12-v1', 'USPSA 12-inch square plate', '12 in square', 12, 12, { kind: 'rectangle' as const }, 'Largest square plate B3 allows.'],
+    ['uspsa-hex-8-v1', 'USPSA 8-inch hexagon plate', '8 in hex', 8 / Math.cos(Math.PI / 6), 8, hexagon, '8 in measured flat to flat, as B3 measures polygons; 9.24 in across the corners.'],
+  ] as const).map(([id, name, short, width, height, outline, note]): TargetPreset => ({ id, name, short, family: 'USPSA', variant: short, type: 'steelPlate', width, height, outline,
+    sourceUnits: 'in', verification: 'verified', source: 'https://rules.uspsa.org/uspsa/appendix/B3', reference: note + ' Plates are allowed at Level I and II only and never as the only targets (4.3.1.4).' })),
   { id: 'idpa-round-6-v1', name: 'IDPA 6-inch round plate', family: 'IDPA', variant: '6-inch diameter', type: 'steelPlate', width: 6, height: 6, outline: { kind: 'ellipse' }, sourceUnits: 'in', verification: 'verified', source: idpa, reference: 'Nominal 6-inch circle: the smallest round plate rule 4.12.8 allows.' },
   { id: 'idpa-steel-legs-v1', name: 'IDPA steel legs', family: 'IDPA', variant: '3 x 15-inch minimum', type: 'steelPlate', width: 3, height: 15, outline: { kind: 'rectangle' }, sourceUnits: 'in', verification: 'verified', source: idpa, reference: 'Vertical steel plates representing target legs, at the rule 4.12.3 minimum of 3 in wide and 15 in tall; calibration zone is the upper half. Stationary only. No maker product size found.' },
   { id: 'idpa-square-6-v1', name: 'IDPA 6-inch square plate', family: 'IDPA', variant: '6-inch square', type: 'steelPlate', width: 6, height: 6, outline: { kind: 'rectangle' }, sourceUnits: 'in', verification: 'verified', source: idpa, reference: 'Nominal 6-inch square; rule 4.12.9 allows this minimum size.' },
@@ -47,7 +61,7 @@ const entries: TargetPreset[] = [
       source: 'https://www.bluesteeltargets.com/products/mini-pepper-popper-28', reference: (family === 'IDPA' ? 'Meets IDPA 4.12.2 minimums. ' : 'PCSL defines steel classes, not shapes. ') + 'Maker states 28-inch height and an 8-inch circle, used as the maximum width. Simplified contour; base excluded.' },
   ]),
   { id: 'uspsa-popper-42-ss-v1', name: 'USPSA Popper (full size)', family: 'USPSA', variant: '42-inch full size', type: 'steelPopper', width: 12, height: 42, outline: popper, sourceUnits: 'in', verification: 'approximate', source: 'https://shootsteel.com/product/3-8-ar500-42-uspsa-popper-target/', reference: 'Manufacturer states 42-inch overall height and a 12-inch scoring circle, built to full-size USPSA popper specification; the circle is used as the maximum width. Simplified contour; USPSA Appendix B2 drawing not machine-verified. Base dimensions excluded.' },
-  { id: 'uspsa-mini-popper-bst-v1', name: 'Mini Pepper Popper (Blue Steel)', family: 'USPSA', variant: '28-inch mini', type: 'steelPopper', width: 8, height: 28, outline: popper, sourceUnits: 'in', verification: 'approximate', source: 'https://www.bluesteeltargets.com/products/mini-pepper-popper-28', reference: 'Manufacturer gives 28-inch target height and 8-inch circle; simplified contour and maximum silhouette width require drawing verification. Base dimensions excluded.' },
+  { id: 'uspsa-mini-popper-bst-v1', name: 'USPSA Mini-Popper', short: 'Mini popper', family: 'USPSA', variant: '28-inch mini', type: 'steelPopper', width: 8, height: 28, outline: popper, sourceUnits: 'in', verification: 'approximate', source: 'https://www.bluesteeltargets.com/products/mini-pepper-popper-28', reference: 'USPSA Mini-Popper (formerly the US Popper). Listed USPSA makers MGM and ShootSteel state 28 in tall; Blue Steel states the 8-inch circle, used as the maximum width. Simplified contour; calibration zone and base not drawn.' },
 ];
 // Freeze nested outlines too: placed objects receive their own serializable snapshot.
 for (const preset of entries) { if (preset.outline.kind === 'polygon') { preset.outline.points.forEach(Object.freeze); Object.freeze(preset.outline.points); } Object.freeze(preset.outline); Object.freeze(preset); }
@@ -56,8 +70,9 @@ export const targetPreset = (id: string): TargetPreset | undefined => targetPres
 /** Presets offered for new targets (retired ones still resolve by id for saved stages). */
 export const presetsForFamily = (family: TargetFamily) => targetPresets.filter(p => p.family === family && !p.retired);
 export const defaultTargetPreset = (family: TargetFamily): TargetPreset => presetsForFamily(family)[0];
-/** A short menu label: the name without the family or the vendor ("USPSA Metric (CHL)" → "Metric"). */
-export function shortPresetName(preset: Pick<TargetPreset, 'name' | 'family'>): string {
+/** A short menu label: the name without the family or the vendor ("PCSL Practical (CHL)" → "Practical"; a preset's own short name wins). */
+export function shortPresetName(preset: Pick<TargetPreset, 'name' | 'family' | 'short'>): string {
+  if (preset.short) return preset.short;
   const plain = preset.name.replace(/\s*\([^)]*\)\s*$/, '').replace(new RegExp('^' + preset.family + '\\s+'), '').replace(/\s+plate$/i, '').trim();
   const short = plain.replace(/-inch/g, ' in').replace(/^Mini Pepper Popper$/i, 'Mini popper') || preset.name;
   return short[0].toUpperCase() + short.slice(1);

@@ -6,6 +6,7 @@ import { targetFace } from '../planning/v2/normalizeStage';
 import type { TargetFace } from '../planning/v2/normalizeStage';
 import { distanceToSegment } from '../planning/v2/coverage';
 import { inside } from '../planning/routeSolver/traversability';
+import { targetPreset } from '../stage/targetPresets';
 
 /**
  * Stage check: rule limits a stage design can be checked against from its geometry alone. Every finding names the
@@ -109,12 +110,35 @@ export function checkStage(doc: StageDocument, rules: EngagementRules | undefine
   if (ruleset === 'USPSA' && procedures.length && rounds > 20) findings.push({ severity: 'rule', code: 'USPSA_FREESTYLE', rule: 'USPSA 1.1.5, 1.1.5.1', objectIds: procedures.map(([id]) => id),
     message: 'This is a long course: "engage from" and "engage after" procedures are allowed only in Level I short and medium courses, classifiers, standard exercises and speed shoots.' });
 
+  if (ruleset === 'USPSA') findings.push(...uspsaTargetFindings(doc));
+
   if (ruleset === 'IDPA') {
     const threats = paper, nonThreats = doc.objects.filter(o => o.type === 'noShootTarget').length;
     if (nonThreats > Math.ceil(threats / 2)) findings.push({ severity: 'rule', code: 'IDPA_NON_THREATS', rule: 'IDPA 6.5.15', objectIds: [],
       message: `${nonThreats} non-threats for ${threats} threats: at most 1 per 2 threats (rounded up) in a string.` });
     if (rounds > 0 && steel / rounds > 0.25) findings.push({ severity: 'rule', code: 'IDPA_STEEL_SHARE', rule: 'IDPA 6.5.7', objectIds: [],
       message: `Steel is ${Math.round(steel / rounds * 100)}% of the shots; at most 25% of a string may be steel.` });
+  }
+  return findings;
+}
+
+/** USPSA target rules that follow from which targets a stage uses (USPSA 4.2.1, 4.3.1.4). */
+function uspsaTargetFindings(doc: StageDocument): Finding[] {
+  const findings: Finding[] = [];
+  const targets = doc.objects.filter(o => o.type === 'cardboardTarget' || o.type === 'noShootTarget' || o.type === 'steelPlate' || o.type === 'steelPopper');
+  const typeOf = (o: (typeof targets)[number]) => (o.presetId ? targetPreset(o.presetId)?.cardboardType : undefined);
+  const uspsa = targets.filter(o => typeOf(o) === 'USPSA'), ipsc = targets.filter(o => typeOf(o) === 'IPSC');
+  if (uspsa.length && ipsc.length) {
+    const fewer = uspsa.length <= ipsc.length ? uspsa : ipsc;
+    findings.push({ severity: 'rule', code: 'USPSA_TARGET_MIX', rule: 'USPSA 4.2.1', objectIds: fewer.map(o => o.id),
+      message: `This stage mixes USPSA and IPSC cardboard (${uspsa.length} USPSA, ${ipsc.length} IPSC, no-shoots included). The two types must not be used together in one stage.` });
+  }
+  const scoring = targets.filter(isEngageable), plates = scoring.filter(o => o.type === 'steelPlate');
+  if (plates.length) {
+    if (plates.length === scoring.length) findings.push({ severity: 'rule', code: 'USPSA_PLATES_ONLY', rule: 'USPSA 4.3.1.4', objectIds: plates.map(o => o.id),
+      message: 'Metal plates must not be the only targets: add at least one cardboard target or popper.' });
+    findings.push({ severity: 'info', code: 'USPSA_PLATE_LEVEL', rule: 'USPSA 4.3.1.4', objectIds: plates.map(o => o.id),
+      message: `${plates.length} metal plate${plates.length === 1 ? '' : 's'}: plates are allowed at Level I and II matches only.` });
   }
   return findings;
 }

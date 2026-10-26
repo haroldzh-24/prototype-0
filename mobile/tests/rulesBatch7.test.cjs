@@ -129,3 +129,43 @@ test('stage check: IDPA string, non-threat and steel limits; PCSL maximum distan
   steelHeavy.objects = [createObject('start', 'start', 50, 580), createObject('cardboardTarget', 'T', 100, 40), createObject('steelPlate', 'S1', 300, 40), createObject('steelPlate', 'S2', 400, 40)];
   assert.ok(checkStage(steelHeavy, undefined, 'IDPA').some(f => f.code === 'IDPA_STEEL_SHARE'), '2 of 4 shots are steel');
 });
+
+test('stage check: USPSA and IPSC cardboard are never mixed in a stage (4.2.1); plates are never the only targets (4.3.1.4)', () => {
+  const { placeTarget } = require('../src/stage/targetPlacement.ts');
+  const build = placements => placements.reduce((stage, [preset, id, x, noShoot]) => { const r = placeTarget(stage, preset, id, { x, y: 200, z: 0, space: 'stage' }, noShoot); assert.ok(!r.error, r.error); return r.stage; },
+    { ...createDefaultStage('USPSA'), objects: [createObject('start', 'start', 300, 580)] });
+  const codes = stage => checkStage(stage, undefined, 'USPSA').map(f => f.code);
+  // Full and half-size USPSA targets go together; an IPSC no-shoot among them does not.
+  assert.ok(!codes(build([['uspsa-metric-chl-v1', 'T1', 100], ['uspsa-half-chl-v1', 'T2', 200]])).includes('USPSA_TARGET_MIX'));
+  const mixed = checkStage(build([['uspsa-metric-chl-v1', 'T1', 100], ['uspsa-metric-chl-v1', 'T2', 200], ['uspsa-classic-chl-v1', 'N1', 300, true]]), undefined, 'USPSA');
+  const mix = mixed.find(f => f.code === 'USPSA_TARGET_MIX');
+  assert.ok(mix, 'IPSC no-shoot with USPSA targets'); assert.deepEqual(mix.objectIds, ['N1'], 'the odd one out is highlighted'); assert.equal(mix.rule, 'USPSA 4.2.1');
+  // Other rulesets have no such rule.
+  assert.ok(!checkStage(build([['uspsa-metric-chl-v1', 'T1', 100], ['uspsa-classic-chl-v1', 'T2', 300]]), undefined, 'PCSL').some(f => f.code === 'USPSA_TARGET_MIX'));
+  // Plates: Level I and II only; with no cardboard or popper they cannot be the whole stage.
+  const plates = codes(build([['uspsa-round-12-v1', 'P1', 100], ['uspsa-hex-8-v1', 'P2', 200]]));
+  assert.ok(plates.includes('USPSA_PLATES_ONLY') && plates.includes('USPSA_PLATE_LEVEL'));
+  const withPopper = codes(build([['uspsa-round-12-v1', 'P1', 100], ['uspsa-popper-42-ss-v1', 'S1', 300]]));
+  assert.ok(!withPopper.includes('USPSA_PLATES_ONLY') && withPopper.includes('USPSA_PLATE_LEVEL'));
+  assert.ok(!codes(build([['uspsa-metric-chl-v1', 'T1', 100]])).includes('USPSA_PLATE_LEVEL'));
+});
+
+test('USPSA catalog: rulebook names, half-size target, B3 plates within the limits, practice target retired', () => {
+  const P = require('../src/stage/targetPresets.ts');
+  assert.equal(P.targetPreset('uspsa-metric-chl-v1').name, 'USPSA Target (CHL)');
+  assert.equal(P.targetPreset('uspsa-classic-chl-v1').name, 'IPSC Target (CHL)');
+  const half = P.targetPreset('uspsa-half-chl-v1');
+  assert.deepEqual([half.width, half.height, half.cardboardType], [9.26, 15.16, 'USPSA']);
+  const offered = P.presetsForFamily('USPSA').map(p => p.id);
+  assert.ok(!offered.includes('uspsa-reduced-at-v1') && P.targetPreset('uspsa-reduced-at-v1'), 'retired but still opens');
+  for (const p of P.presetsForFamily('USPSA').filter(p => p.type === 'steelPlate')) {
+    // B3: round 8-12 in, square 6-12 in a side, polygons 6-12 in flat to flat (the hexagon's height).
+    assert.equal(p.verification, 'verified', p.id); assert.match(p.source, /appendix\/B3|USPSA-Competition-Rules/);
+    const across = p.outline.kind === 'polygon' ? p.height : Math.min(p.width, p.height);
+    const [lo, hi] = p.outline.kind === 'ellipse' ? [8, 12] : [6, 12];
+    assert.ok(across >= lo && across <= hi && Math.max(p.width, p.height) <= (p.outline.kind === 'polygon' ? 12 / Math.cos(Math.PI / 6) : 12), p.id);
+  }
+  const hex = P.targetPreset('uspsa-hex-8-v1');
+  assert.ok(Math.abs(hex.width - 9.2376) < 1e-3 && hex.height === 8);
+  assert.equal(P.targetPreset('uspsa-mini-popper-bst-v1').height, 28);
+});

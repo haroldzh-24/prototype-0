@@ -16,14 +16,14 @@ export function targetColours(preset: Pick<TargetPreset, 'family' | 'type'>, rol
   if (steel) {
     if (role === 'noShoot') return preset.family === 'PCSL'
       ? { face: '#D7262E', edge: INK, note: 'PCSL steel no-shoots are solid red (10.8.1).' }
-      : { face: '#D7262E', edge: INK, note: 'Metal no-shoots use one colour unique to no-shoots.' };
-    return preset.family === 'PCSL' ? { face: '#2F6FD6', edge: INK, note: 'PCSL handgun steel is blue (10.6).' }
-      : preset.family === 'USPSA' ? { face: '#F7F7F5', edge: INK, note: 'USPSA steel is one colour, preferably white (4.1.3).' }
+      : { face: '#D7262E', edge: INK, note: 'Metal no-shoots use one colour unique to no-shoots (USPSA 4.1.3).' };
+    return preset.family === 'PCSL' ? { face: '#2F6FD6', edge: INK, note: 'PCSL handgun steel is blue (10.6.1).' }
+      : preset.family === 'USPSA' ? { face: '#F7F7F5', edge: INK, note: 'USPSA steel is one colour, preferably white, never black, red or green (4.1.2.2).' }
       : { face: '#F7F7F5', edge: INK, note: 'Shown white; colour is set by the match.' };
   }
   if (role === 'noShoot') return preset.family === 'PCSL' ? { face: '#D7262E', edge: INK, note: 'PCSL paper no-shoots are solid red with a black X (10.3.1).' }
     : preset.family === 'IDPA' ? { face: '#C9A266', edge: INK, note: 'IDPA non-threats carry a pair of open hands in a contrasting colour (4.8.1).' }
-    : { face: '#F2F2EE', edge: INK, note: 'USPSA no-shoots use one colour unique to no-shoots, usually white (4.1.2).' };
+    : { face: '#F2F2EE', edge: INK, note: 'USPSA no-shoots use one colour unique to no-shoots for the whole match (4.1.3); shown white, the usual back.' };
   return { face: preset.family === 'PCSL' ? '#B98A55' : '#C9A266', edge: INK,
     note: preset.family === 'PCSL' ? 'PCSL handgun targets use the brown side (10.2.2).' : 'Cardboard scoring area is brown or tan.' };
 }

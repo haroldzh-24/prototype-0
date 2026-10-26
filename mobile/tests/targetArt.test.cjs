@@ -44,7 +44,9 @@ test('colours follow each rulebook: USPSA white no-shoots, PCSL red with an X, I
 });
 
 test('short menu names drop the family and the vendor', () => {
-  assert.equal(P.shortPresetName(P.targetPreset('uspsa-metric-chl-v1')), 'Metric');
+  assert.equal(P.shortPresetName(P.targetPreset('uspsa-metric-chl-v1')), 'USPSA');
+  assert.equal(P.shortPresetName(P.targetPreset('uspsa-classic-chl-v1')), 'IPSC');
+  assert.equal(P.shortPresetName({ name: 'PCSL Practical (Test)', family: 'PCSL' }), 'Practical');
   assert.equal(P.shortPresetName(P.targetPreset('pcsl-k-zone-legacy-v1')), 'K-Zone');
   assert.equal(P.shortPresetName(P.targetPreset('idpa-square-6-v1')), '6 in square');
   assert.equal(P.shortPresetName(P.targetPreset('uspsa-mini-popper-bst-v1')), 'Mini popper');

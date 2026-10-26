@@ -1,3 +1,13 @@
+# RC2 batch 13: target catalog for USPSA, PCSL and IDPA - 2026-10-25
+
+- **USPSA names follow the rulebook.** "USPSA Target (CHL)" (formerly Metric) and "IPSC Target (CHL)" (formerly Classic), confirmed by NROI. Saved stages keep their preset ids.
+- **New USPSA targets:** half-size USPSA target (9.26 × 15.16 in, CHL), and metal plates at the Appendix B3 limits: 12 in round, 6 in and 12 in square, 8 in hexagon (measured flat to flat). Mini popper renamed "USPSA Mini-Popper"; its 28 in height is now backed by two listed USPSA makers.
+- **New IDPA and PCSL steel:** IDPA 6 in round plate and 3 × 15 in steel legs (the rule minimums), full and mini poppers for IDPA and PCSL.
+- **Retired** (still open in saved stages, no longer offered): the Action Target reduced USPSA target (a dry-fire product) and the IDPA "Alternate" target (no source names it).
+- **Stage check (USPSA):** flags mixing USPSA and IPSC cardboard in one stage, no-shoots included (4.2.1); plates as the only targets (4.3.1.4); and notes that plates are Level I and II only.
+- Sources for every size: `docs/target-preset-sources.md`. Scoring zones are still not drawn: no rulebook text gives their positions.
+- Validation: 913/913 tests (2 new), TypeScript passed; radial rings, the hexagon card and the 4.2.1 finding checked in the web build. No device testing.
+
 # RC2 batch 12: radial add menu and target pictures - 2026-10-25
 
 - **Radial add menu.** Press and hold on the bay (or tap ADD) and the choices fan out around your finger: PAPER, NO-SHOOT, POPPERS, PLATES, WALL, FAULT LINE, START. A category opens a second ring with that family's targets, each drawn at its real proportions. A press-and-hold places the target exactly there and selects it; a wall or fault line starts at that point. ADD keeps tap-to-place for laying out several. USPSA / PCSL / IDPA chips switch families. Replaces the old Add list.

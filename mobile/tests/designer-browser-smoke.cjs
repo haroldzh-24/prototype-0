@@ -58,7 +58,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const drag=async(a,b)=>{await touch('touchStart',[a]);await touch('touchMove',[b]);await touch('touchEnd',[]);};
     for(let i=0;i<200 && !(await objects()).length;i++)await sleep(100);
     const initialObjects=await objects();assert.ok(initialObjects.length>0,'Canvas finished layout');const base=initialObjects.length;
-    await click('ADD'); await waitText('USPSA Metric (CHL)'); await click('USPSA Metric (CHL)'); await waitText('Tap to place');
+    await click('ADD'); await waitText('USPSA Target (CHL)'); await click('USPSA Target (CHL)'); await waitText('Tap to place');
     let c=await canvas(),a={x:c.x+c.width*.4,y:c.y+c.height*.4};
     await tap(a);await tap({x:a.x+45,y:a.y+20});
     assert.equal((await objects()).length,base+2,'Repeated placement remains active');
@@ -76,7 +76,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('ADD');await click('PCSL');await click('PCSL Mini Practical');c=await canvas();await tap({x:c.x+c.width*.72,y:c.y+c.height*.55});
     await click('Done');
     // Select the first newly placed target by its stable saved ID.
-    let r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Metric');
+    let r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Target');
     await fill('Rotation (degrees)','359');await click('Apply changes');await click('Done');
     const angle=await evaluate('document.body.innerText');assert.ok(angle.includes('359.0\u00b0'));
     const wheel=await rect('[aria-label="Drag target rotation wheel"]');const w={x:wheel.x+22,y:wheel.y+22};await drag(w,{x:w.x+18,y:w.y+2});
@@ -90,7 +90,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.equal(await evaluate(`document.querySelector('input[aria-label="Length"]').value`),'2.125');
     assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`),'45');await click('Done');
     await click('Save');await waitText('SAVED');const count=(await objects()).length;await send('Page.reload');await waitText('SELECT');assert.equal((await objects()).length,count,'Reopen retains all objects');
-    r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Metric');assert.equal(Number(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`)),rotation);await click('Done');
+    r=await rect('[data-testid="'+first+'"]');await tap({x:r.x+r.width/2,y:r.y+r.height/2});await click('Edit');await waitText('Preset: USPSA Target');assert.equal(Number(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`)),rotation);await click('Done');
     const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(__dirname, '../.expo/designer-tools.png'),Buffer.from(shot.data,'base64'));
     assert.deepEqual(errors,[]);console.log('PASS: 390x844 browser touch placement, pan/pinch guards, connected walls, fault line, tool changes, undo/redo, wheel and numeric rotation, endpoint dragging/numeric edits, save/reopen.');
   } finally { socket.close(); }

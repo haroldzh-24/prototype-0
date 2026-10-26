@@ -95,7 +95,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Fit'); await click('Edit');
     assert.deepEqual(await evaluate(`[document.querySelector('input[aria-label="X"]').value, document.querySelector('input[aria-label="Y"]').value]`),physical,'Pinching from an object does not move its physical coordinates');
     await click('Done');
-    for (const label of ['USPSA Metric (CHL)', 'USPSA 8-inch round plate', 'Mini Pepper Popper (Blue Steel)']) {
+    for (const label of ['USPSA Target (CHL)', 'USPSA 8-inch round plate', 'USPSA Mini-Popper']) {
       await click('ADD'); await click(label);
       const c = await rect('stage-canvas'), point = center(c);
       await touch('touchStart',[point]); await touch('touchEnd',[]); await click('Done');
