@@ -5,7 +5,8 @@ import type { RouteConnection } from './routeGeometry';
 import type { StagePosition, StageSize } from '../stage/coordinates';
 import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
-import { moveDirection, predictMove, validMovementModel } from '../profile/movementModel';
+import { moveDirection, moveDirectionLabels, predictMove, validMovementModel } from '../profile/movementModel';
+import type { MoveDirection } from '../profile/movementModel';
 import { stageDownrange } from '../stage/orientation';
 import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
@@ -108,14 +109,29 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   if (!validProfile) warnings.push('Timing unavailable: load a valid shooter performance profile.');
   // Your fitted sprint/shuffle model times each leg by its direction to downrange; otherwise the average speed.
   const movementModel = validProfile ? validMovementModel(profile.movementModel) : undefined, downrange = stageDownrange(stage);
-  const legSeconds = (distance: number, from: StagePosition, to: StagePosition) =>
-    predictMove(movementModel, moveDirection(from, to, downrange), distance)?.seconds ?? distance / profile!.movementSpeed;
+  const moveNotes = new Set<string>();
+  const legSeconds = (points: readonly StagePosition[], distance: number, label: string) => {
+    if (!movementModel) return distance / profile!.movementSpeed;
+    // A leg routed around a wall can turn: it is timed as the direction it covers the most ground in.
+    const ground = new Map<MoveDirection, number>();
+    for (let i = 1; i < points.length; i++) {
+      const d = moveDirection(points[i - 1], points[i], downrange);
+      if (d) ground.set(d, (ground.get(d) ?? 0) + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+    }
+    const direction = [...ground].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const prediction = predictMove(movementModel, direction, distance);
+    if (!prediction) return distance / profile!.movementSpeed;
+    const kind = prediction.direction === 'all' ? '' : moveDirectionLabels[prediction.direction].toLowerCase() + ' ';
+    if (prediction.beyondData) moveNotes.add(`${label}: the ${(distance / 36).toFixed(1)} yd move is longer than your longest measured ${kind}move (${(prediction.fit.maxInches / 36).toFixed(1)} yd); its time extends your fit.`);
+    if (direction && prediction.direction === 'all') moveNotes.add(`No ${moveDirectionLabels[direction].toLowerCase()} moves measured yet: those legs use your fit across all directions.`);
+    return prediction.seconds;
+  };
   for (const reload of route.reloads) if (!route.positions.some(p => p.id === reload.positionId)) warnings.push('Reload references a deleted shooting position.');
   for (const p of route.positions) {
     let incomingSeconds = 0;
     if (origin) {
-      const distance = pathLength(connectionPoints(route, fromId, p.id, origin, p.position));
-      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? legSeconds(distance, origin, p.position) : null });
+      const points = connectionPoints(route, fromId, p.id, origin, p.position), distance = pathLength(points);
+      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? legSeconds(points, distance, p.label) : null });
       incomingSeconds = segments[segments.length - 1].seconds ?? 0;
     }
     origin = p.position; fromId = p.id;
@@ -168,7 +184,9 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   if (engagementAnalysis) warnings.push(...engagementAnalysis.warnings);
   const moving = route.positions.some(p => p.movingTargetIds?.length);
   if (moving) warnings.push('Moving engagement is geometry-only; performance timing is unavailable until movement/firing overlap is calibrated.');
-  const timing = validProfile && !moving ? { movement: segments.reduce((n, s) => n + (s.seconds ?? 0), 0), draw: targetCount ? profile.drawTime : 0,
+  warnings.push(...moveNotes);
+  // Without a fitted model keep the original single division, so stored comparisons re-evaluate to the same digits.
+  const timing = validProfile && !moving ? { movement: movementModel ? segments.reduce((n, s) => n + (s.seconds ?? 0), 0) : distance / profile.movementSpeed, draw: targetCount ? profile.drawTime : 0,
     splits: splits * profile.averageSplitTime, transitions: transitions * profile.transitionTime,
     reloads: reloadDetails.reduce((sum, r) => sum + r.additionalPenalty, 0),
     rawReloadDuration: reloadDetails.reduce((sum, r) => sum + r.rawDuration, 0),

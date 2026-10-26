@@ -27,7 +27,8 @@ function Counter({ label, value, onChange, disabled }: { label: string; value: n
 /** Log one drill-library run: pick the drill, its options, the times from your timer and the hits by zone. */
 export default function LibraryRunEditor({ visible, context, powerFactor, pars, onSave, onClose }: {
   visible: boolean; context: TrainingContext; powerFactor: PowerFactor; pars: Record<string, number>;
-  onSave: (run: LibraryRun, par: number | null) => Promise<void> | void; onClose: () => void;
+  /** `par`: undefined = unchanged, null = cleared, a number = set for this drill variant. */
+  onSave: (run: LibraryRun, par: number | null | undefined) => Promise<void> | void; onClose: () => void;
 }) {
   const [drillId, setDrillId] = useState<string | null>(null);
   const drill = drillId ? libraryDrill(drillId) : undefined;
@@ -37,17 +38,19 @@ export default function LibraryRunEditor({ visible, context, powerFactor, pars, 
   const pf = chosenPf ?? powerFactor;
   const [mode, setMode] = useState<Mode>('SHOT TIMES'), [times, setTimes] = useState(''), [total, setTotal] = useState('');
   const [zones, setZones] = useState<Record<string, number>>({}), [procedurals, setProcedurals] = useState('');
-  const [notes, setNotes] = useState(''), [counts, setCounts] = useState(true), [par, setPar] = useState('');
+  const [notes, setNotes] = useState(''), [counts, setCounts] = useState(true);
+  // Null until you type: the field shows the saved par (which may arrive after the sheet opens) and saving leaves it alone.
+  const [parEdit, setParEdit] = useState<string | null>(null);
   const [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const dry = context === 'DRY_FIRE';
 
   const pick = (d: LibraryDrill) => {
     const next = choicesFor(d); setDrillId(d.id); setChoices(next); setZones({}); setTimes(''); setTotal(''); setError('');
-    setPar(String(pars[variantKey({ drillId: d.id, choices: next })] ?? ''));
+    setParEdit(null);
   };
   const choose = (key: string, value: string) => {
     const next = { ...choices, [key]: value }; setChoices(next);
-    if (drill) setPar(String(pars[variantKey({ drillId: drill.id, choices: next })] ?? ''));
+    setParEdit(null);
   };
   const parsed = mode === 'TOTAL ONLY' ? { times: [] as number[] } : parseShotTimes(times, mode === 'SPLITS' ? 'splits' : 'times');
   const shotTimes = 'times' in parsed ? parsed.times : [];
@@ -60,7 +63,7 @@ export default function LibraryRunEditor({ visible, context, powerFactor, pars, 
     ...(!dry && (steel ? mode === 'TOTAL ONLY' : Object.keys(counted).length) ? { zones: steel ? { M: zones.M ?? 0 } : counted } : {}),
     ...(parseNumber(procedurals) ? { procedurals: parseNumber(procedurals)! } : {}), ...(counts ? {} : { counts: false }) } : null;
   const analysis = run ? analyzeLibraryRun(run, powerFactor) : null;
-  const parValue = parseNumber(par);
+  const par = parEdit ?? (run ? String(pars[variantKey(run)] ?? '') : ''), parValue = parseNumber(par);
 
   async function save() {
     if (!drill || !run) return;
@@ -71,7 +74,7 @@ export default function LibraryRunEditor({ visible, context, powerFactor, pars, 
     const problem = libraryRunProblem(next);
     if (problem) { setError(problem); return; }
     setSaving(true); setError('');
-    try { await onSave(next, parValue); setTimes(''); setTotal(''); setZones({}); setProcedurals(''); setNotes(''); }
+    try { await onSave(next, parEdit === null ? undefined : parValue); setTimes(''); setTotal(''); setZones({}); setProcedurals(''); setNotes(''); }
     catch (e) { setError(String(e)); } finally { setSaving(false); }
   }
 
@@ -110,7 +113,7 @@ export default function LibraryRunEditor({ visible, context, powerFactor, pars, 
       {dry ? <Copy>Dry fire: hits are not counted. Times count toward your dry-fire numbers only.</Copy> : steel ? <>
         <Text style={ui.eyebrow}>MISSES</Text>
         {mode === 'TOTAL ONLY' ? <Counter label="Missed shots" value={zones.M ?? 0} disabled={saving} onChange={n => setZones({ M: n })} />
-          : <DataRow label="Makeup shots (from the shot count)" value={analysis?.steelMisses ?? 0} />}
+          : <DataRow label="Makeup shots (from the shot count)" value={analysis?.steelMisses ?? '—'} />}
       </> : <>
         <Text style={ui.eyebrow}>HITS BY ZONE · {drill.requiredHits} REQUIRED</Text>
         <Segmented options={libraryFamilies} value={family} disabled={saving} onChange={f => { setFamily(f as LibraryFamily); setZones({}); }} />
@@ -119,12 +122,13 @@ export default function LibraryRunEditor({ visible, context, powerFactor, pars, 
           disabled={saving} onChange={n => setZones(z => ({ ...z, [zone]: n }))} />)}
         <Input autoFocus={false} label="PROCEDURALS" value={procedurals} disabled={saving} onChange={setProcedurals} />
         {analysis?.score ? <>
-          <DataRow label={`${analysis.score.method} points`} value={`${analysis.score.points} of ${analysis.score.maxPoints} (${Math.round(analysis.score.percent * 100)}%)`} />
+          <DataRow label={`${analysis.score.method} points`} value={`${analysis.score.approximate ? '≈ ' : ''}${analysis.score.points} of ${analysis.score.maxPoints} (${Math.round(analysis.score.percent * 100)}%)`} />
+          {analysis.score.approximate && <Copy>Estimate: PCSL caps points per target and a T counts as two hits, so counts for the whole run can score higher than target by target.</Copy>}
           <DataRow label="Hit factor" value={analysis.score.hitFactor !== null ? analysis.score.hitFactor.toFixed(4) : 'Enter the times'} />
         </> : <Copy>Hits not counted yet. Leave them at zero to log the times only.</Copy>}
       </>}
 
-      <Input autoFocus={false} label="PAR TIME (SECONDS, BLANK = NONE)" value={par} disabled={saving} onChange={setPar} />
+      <Input autoFocus={false} label="PAR TIME (SECONDS, BLANK = NONE)" value={par} disabled={saving} onChange={setParEdit} />
       {parValue !== null && Number.isFinite(parValue) && parValue > 0 && run.totalTime !== null &&
         <DataRow label="Against par" value={run.totalTime <= parValue ? `${seconds(parValue - run.totalTime)} under` : `${seconds(run.totalTime - parValue)} over`} />}
       <Input autoFocus={false} label="NOTES" value={notes} disabled={saving} onChange={setNotes} />

@@ -1,3 +1,15 @@
+# RC2 batch 17b: fixes from the independent review of batch 17 - 2026-10-26
+
+13 confirmed defects, each with a regression test (`tests/drillLibrary.test.cjs`, `tests/ui-reorganization.test.cjs`):
+- Saved video-vs-plan comparisons could read as damaged: route movement time is computed exactly as before when there is no move fit.
+- Removing your last distance-ladder run left its split-by-distance curve in the profile (the planner kept using it). The curve is now rebuilt every time, like the move fit.
+- Your numbers counted LOG ONLY runs; El Presidente's "parts add up" included the El Presidente runs themselves; a PCSL T counted as one hit in the accuracy table (it is two A hits, 11.3.2.1); dry-fire steel showed a 0% miss rate nobody measured; the sheet always opened on Live Fire.
+- A damaged saved move fit could stop the Training screen from opening; it is now dropped on load and never shown.
+- More hits and misses than shots is refused; PCSL scores from whole-run counts with T hits on several targets are marked ≈ (an estimate), since PCSL caps points per target.
+- ANALYZE warns when a leg is longer than your longest measured move, or uses the fit across all directions because that direction has no runs; a leg bending around a wall is timed as its main direction.
+- Saving an unchanged session no longer rewrites the profile; the steel editor no longer shows negative makeup shots while you type; decimal commas (1,42) are read as decimals; the par field changes the saved par only when you type in it; a failed power-factor save puts the old choice back and says so; wording fixes (average-speed note, PCSL citation, power factor scope).
+- Validation: 968/968 tests (10 new), TypeScript passed. Web build rechecked (library flow). No device testing.
+
 # RC2 batch 17: milestone C1 and C2 — sprint/shuffle drills, drill library, Your numbers - 2026-10-26
 
 - **Drill library** (Training → session → LOG LIBRARY DRILL): 13 drills — draw to first hit, Bill, distance ladder, Blake, wide transitions, reload, sprint, shuffle, shoot on the move, steel, port/lean, hostage/partial, El Presidente. Enter the shot times your timer lists (or splits, or only a total); each time is labelled with what it measured (draw, split, transition, reload, move). Hits are counted by zone with − / + and scored with the drill logger's rules; USPSA minor or major. Optional par time per drill variant; LOG ONLY keeps a run out of your numbers. Runs can be removed (with a confirm). Details: `docs/drill-library.md`.

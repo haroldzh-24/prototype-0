@@ -270,3 +270,97 @@ test('Your numbers: values with run counts, by distance, spread, direction and c
   const trend = S.libraryTrend([record(runs)], 'bill|distance=7');
   assert.deepEqual(trend.map(t => t.total), [2.55, 2.75]); near(trend[1].hitFactor, 30 / 2.75);
 });
+
+// Regression tests for the independent review of batch 17.
+test('review: without a move fit, route movement time is computed exactly as before (stored comparisons still match)', () => {
+  const { createDefaultStage } = require('../src/stage/defaults.ts');
+  const { createRoute, evaluateRoute } = require('../src/planning/route.ts');
+  const stage = createDefaultStage(undefined, { size: { width: 1200, depth: 600 } });
+  const p = (id, x, y) => ({ id, label: id, position: { space: 'stage', x, y, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] });
+  const plan = { engagements: {}, loadout: { magazines: [], startingMagazineId: null, chamberLoaded: false } };
+  const profile = createLocalProfile().performance;
+  let rng = 7; const rand = () => (rng = (rng * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 50; i++) {
+    const route = { ...createRoute('r'), positions: [p('A', rand() * 1200, rand() * 600), p('B', rand() * 1200, rand() * 600), p('C', rand() * 1200, rand() * 600)] };
+    const e = evaluateRoute(stage, plan, route, { ...profile, movementSpeed: 97.3 });
+    assert.equal(e.timing.movement, e.distance / 97.3);
+  }
+});
+
+test('review: removing the last ladder run removes the split curve it made', async () => {
+  const ladder = { id: 'l', factor: 'averageSplitTime', value: 0.8, difficultyModel: 'DISTANCE_ONLY', difficulty: 25, context: 'LIVE_FIRE', measuredAt: at(1), source: 'STRUCTURED_TRAINING' };
+  const withCurve = O.withPerformanceObservations(createLocalProfile(), [ladder], 'LIVE_FIRE');
+  assert.equal(withCurve.performance.shootingObservations.length, 1);
+  const cleared = O.withPerformanceObservations(withCurve, [], 'LIVE_FIRE');
+  assert.equal('shootingObservations' in cleared.performance, false);
+  const repo = open(); await repo.initialize();
+  await repo.saveTraining(record([run('ladder', [1.8, 2.6], { choices: { distance: '25' } })]));
+  assert.deepEqual((await repo.loadProfile()).performance.shootingObservations.map(c => [c.difficulty, c.sampleCount]), [[25, 1]]);
+  await repo.saveTraining(record([]));
+  assert.equal((await repo.loadProfile()).performance.shootingObservations, undefined);
+});
+
+test('review: Your numbers leaves out LOG ONLY runs; El Presidente is not compared with itself; PCSL T counts twice; dry steel has no miss rate', () => {
+  const numbers = S.libraryNumbers([record([run('reload', [1.4, 3.0]), run('reload', [1.4, 9.0], { counts: false })])], 'LIVE_FIRE');
+  assert.equal(numbers.reloads[0].stat.n, 1); near(numbers.reloads[0].stat.mean, 1.6);
+  assert.equal(numbers.runs, 1);
+  const el = run('elPresidente', [2.0, 2.25, 2.55, 2.8, 3.1, 3.35, 5.0, 5.25, 5.55, 5.8, 6.1, 6.35], { zones: { A: 12 } });
+  assert.equal(S.libraryNumbers([record([el])], 'LIVE_FIRE').elPresidente.predicted, null, 'nothing else measured');
+  const parts = [el, run('ladder', [1.6, 1.9], { choices: { distance: '10' } }), run('blake', [1.4, 1.62, 1.92, 2.14, 2.44, 2.66]), run('reload', [1.4, 3.0])];
+  near(S.libraryNumbers([record(parts)], 'LIVE_FIRE').elPresidente.predicted, 6 * 0.3 + 4 * 0.3 + 1.6);
+  const pcsl = S.libraryNumbers([record([run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { family: 'PCSL', zones: { T: 3 } })])], 'LIVE_FIRE');
+  assert.deepEqual([pcsl.accuracy[0].a, pcsl.accuracy[0].miss], [1, 0]);
+  const dry = S.libraryNumbers([record([run('steel', [], { totalTime: 4.1 })], { context: 'DRY_FIRE' })], 'DRY_FIRE');
+  assert.deepEqual([dry.steel[0].missRuns, dry.steel[0].shots, dry.steel[0].misses], [0, 0, 0]);
+  const live = S.libraryNumbers([record([run('steel', [1.8, 2.3, 2.8, 3.4, 3.9, 4.4]), run('steel', [1.8, 2.3, 2.8])].filter(r => !L.libraryRunProblem(r)))], 'LIVE_FIRE');
+  assert.deepEqual([live.steel[0].missRuns, live.steel[0].shots, live.steel[0].misses], [1, 6, 1]);
+});
+
+test('review: hit counts cannot exceed the shots; PCSL counts over several targets are an estimate; typing steel shows no negative makeups', () => {
+  assert.match(L.libraryRunProblem(run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { zones: { A: 9 } })), /9 hits and misses counted for 6 shots/);
+  assert.equal(L.libraryRunProblem(run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { zones: { A: 6, NS: 1 } })), null, 'a no-shoot hit is extra');
+  const blake = run('blake', [1.4, 1.62, 1.92, 2.14, 2.44, 2.66], { family: 'PCSL', zones: { A: 4, T: 1, M: 1 } });
+  assert.equal(L.scoreLibraryRun(blake).approximate, true);
+  assert.equal(L.scoreLibraryRun({ ...blake, zones: { A: 5, M: 1 } }).approximate, false, 'no T: pooled equals per target');
+  assert.equal(L.scoreLibraryRun(run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { family: 'PCSL', zones: { T: 3 } })).approximate, false, 'one target');
+  assert.equal(L.analyzeLibraryRun({ ...run('steel', []), shotTimes: [1.8, 2.3, 2.8] }).steelMisses, null);
+});
+
+test('review: decimal commas are read as decimals, comma-separated times as separate shots', () => {
+  assert.deepEqual(L.parseShotTimes('1,42 1,68', 'times'), { times: [1.42, 1.68] });
+  assert.deepEqual(L.parseShotTimes('1.42,1.68', 'times'), { times: [1.42, 1.68] });
+  assert.deepEqual(L.parseShotTimes('1.42, 1.68, 2.1', 'times'), { times: [1.42, 1.68, 2.1] });
+  assert.deepEqual(L.parseShotTimes('1,8', 'times'), { times: [1.8] });
+});
+
+test('review: route timing warns when a leg is longer than any measured move or uses another direction\'s fit', () => {
+  const { createDefaultStage } = require('../src/stage/defaults.ts');
+  const { createRoute, evaluateRoute } = require('../src/planning/route.ts');
+  const stage = createDefaultStage(undefined, { size: { width: 1200, depth: 900 } });
+  const start = stage.objects.find(o => o.type === 'start').position;
+  const model = M.fitMovement([{ direction: 'lateral', distanceInches: 36, durationSeconds: 0.9 }, { direction: 'lateral', distanceInches: 108, durationSeconds: 1.3 }]);
+  const profile = { ...createLocalProfile().performance, movementModel: model };
+  const p = (id, x, y) => ({ id, label: id, position: { space: 'stage', x, y, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] });
+  const plan = { engagements: {}, loadout: { magazines: [], startingMagazineId: null, chamberLoaded: false } };
+  const far = evaluateRoute(stage, plan, { ...createRoute('r'), positions: [p('P1', start.x + 540, start.y)] }, profile);
+  assert.ok(far.warnings.some(w => /P1: the 15\.0 yd move is longer than your longest measured sideways move \(3\.0 yd\)/.test(w)), far.warnings.join('\n'));
+  const back = evaluateRoute(stage, plan, { ...createRoute('r'), positions: [p('P1', start.x, start.y + 72)] }, profile);
+  assert.ok(back.warnings.some(w => /No back moves measured yet/.test(w)));
+  const short = evaluateRoute(stage, plan, { ...createRoute('r'), positions: [p('P1', start.x + 72, start.y)] }, profile);
+  assert.ok(!short.warnings.some(w => /measured/.test(w)));
+});
+
+test('review: saving an unchanged session does not rewrite the profile; a damaged saved fit is dropped on load', async () => {
+  const db = new DatabaseSync(':memory:'); let profileWrites = 0;
+  const repo = new Repository({ execAsync: async sql => db.exec(sql), runAsync: async (sql, ...a) => { if (/UPDATE profiles/.test(sql)) profileWrites++; return db.prepare(sql).run(...a); },
+    getAllAsync: async (sql, ...a) => db.prepare(sql).all(...a), getFirstAsync: async (sql, ...a) => db.prepare(sql).get(...a) ?? null }, randomUUID);
+  await repo.initialize();
+  const runs = [run('reload', [1.4, 3.0], { id: 'zz-run' }), run('reload', [1.5, 3.1], { id: 'aa-run' })];
+  await repo.saveTraining(record(runs)); const after = profileWrites;
+  await repo.saveTraining({ ...record(runs), notes: 'changed notes' });
+  assert.equal(profileWrites, after);
+  const fresh = open(); await fresh.initialize();
+  const profile = await fresh.loadProfile();
+  await fresh.saveProfile({ ...profile, performance: { ...profile.performance, movementModel: { all: {} } } });
+  assert.equal((await fresh.loadProfile()).performance.movementModel, undefined);
+});

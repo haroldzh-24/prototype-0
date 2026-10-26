@@ -5,13 +5,14 @@ import { useRepository } from '@/storage/StorageProvider';
 import type { UserProfile } from '@/profile/model';
 import { contextLabels, metricValue } from '@/training/presentation';
 import { trainingContexts } from '@/training/observations';
-import { Screen, ScreenHeader, Copy, Panel, DataRow, Loading, ErrorState, Segmented, ui } from '@/ui/kit';
+import { Screen, ScreenHeader, Copy, Panel, DataRow, Loading, ErrorState, Notice, Segmented, ui } from '@/ui/kit';
 import { setThemePreference, themePreference } from '@/ui/theme';
 import type { ThemePreference } from '@/ui/theme';
 import { useThemeMode } from '@/ui/theme';
 export default function Account() {
   useThemeMode();
   const repo = useRepository(), [profile, setProfile] = useState<UserProfile>(), [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useFocusEffect(useCallback(() => { let active = true; setError(''); repo.loadProfile().then(value => { if (active) { setProfile(value); setError(''); } }).catch(e => { if (active) setError(String(e)); }); return () => { active = false; }; }, [repo, attempt]));
   return <Screen safeTop header={<ScreenHeader back={() => router.dismissTo('/')} title="PROFILE" />}>{!profile && !error && <Loading label="Loading profile…" />}{!!error && <ErrorState title="Couldn’t load profile." detail={error} retry={() => setAttempt(value => value + 1)} />}<Panel><Copy>{profile?.displayName ?? 'Local shooter'}</Copy><Text style={ui.eyebrow}>LOCAL PROFILE</Text><Copy>On this device</Copy></Panel>
@@ -25,10 +26,12 @@ export default function Account() {
       </View>
       <Text style={ui.eyebrow}>POWER FACTOR</Text>
       <Segmented options={['MINOR', 'MAJOR']} value={(profile.powerFactor ?? 'minor').toUpperCase()} onChange={v => {
-        const powerFactor = v === 'MAJOR' ? 'major' as const : 'minor' as const;
-        setProfile({ ...profile, powerFactor });
-        repo.setPowerFactor(powerFactor).catch(e => setError(String(e)));
+        const powerFactor = v === 'MAJOR' ? 'major' as const : 'minor' as const, previous = profile;
+        setProfile({ ...profile, powerFactor }); setSaveError('');
+        // A failed save puts the old choice back and says so here (not as a failed profile load).
+        repo.setPowerFactor(powerFactor).catch(e => { setProfile(previous); setSaveError('Couldn’t save the power factor: ' + String(e)); });
       }} />
+      {!!saveError && <Notice tone="error">{saveError}</Notice>}
       <Copy>Scores C and D hits in library drills (USPSA Appendix B1: minor A 5, C 3, D 1; major A 5, C 4, D 2).</Copy>
       <DataRow label="Magazine capacity" value={profile.performance.magazineCapacity} />
       <DataRow label="Starting rounds" value={profile.performance.startingRounds} />

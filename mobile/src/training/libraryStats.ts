@@ -36,7 +36,8 @@ export type LibraryNumbers = {
   reloads: { mode: 'standing' | 'stepping'; stat: Stat }[];
   movement: { model: MovementModel; moves: { direction: MoveDirection; yards: number; stat: Stat }[] };
   onTheMove: { mode: 'standing' | 'toward' | 'across'; split: Stat; points: Stat | null }[];
-  steel: { yards: number; perPlate: Stat | null; runs: number; shots: number; misses: number }[];
+  /** `missRuns`: runs whose misses are known (shots and misses count only those). */
+  steel: { yards: number; perPlate: Stat | null; runs: number; missRuns: number; shots: number; misses: number }[];
   /** Shooting time (first to last shot); extra = against standing square at the same distance. */
   positions: { position: 'square' | 'port' | 'lean'; yards: number; shooting: Stat; extra: number | null }[];
   partial: { face: 'head' | 'diagonal' | 'full'; yards: number; split: Stat | null; points: Stat | null }[];
@@ -55,7 +56,8 @@ function groupBy<K, T>(items: readonly T[], key: (t: T) => K): Map<K, T[]> {
 const sorted = <T extends { yards: number }>(rows: T[]) => rows.sort((a, b) => a.yards - b.yards);
 
 export function libraryNumbers(records: readonly TrainingRecord[], context: TrainingContext, powerFactor: PowerFactor = 'minor'): LibraryNumbers {
-  const rows: Row[] = records.filter(r => (r.context ?? 'DRY_FIRE') === context).flatMap(r => (r.libraryRuns ?? []).flatMap(run => {
+  // LOG ONLY runs stay out of your numbers (they still show in the session and its trend).
+  const rows: Row[] = records.filter(r => (r.context ?? 'DRY_FIRE') === context).flatMap(r => (r.libraryRuns ?? []).filter(run => run.counts !== false).flatMap(run => {
     const drill = libraryDrill(run.drillId), a = analyzeLibraryRun(run, powerFactor);
     if (!drill || !a) return [];
     const choices = choicesFor(drill, run.choices);
@@ -94,10 +96,11 @@ export function libraryNumbers(records: readonly TrainingRecord[], context: Trai
   const onTheMove = [...groupBy(of(['onTheMove']).filter(r => r.a.splits.length), r => r.choices.mode as 'standing' | 'toward' | 'across')]
     .map(([mode, list]) => ({ mode, split: stat(list.map(r => ({ value: avg(r.a.splits), at: r.at })))!, points: pts(list) }));
 
+  // Misses are known from the shot count, or counted with a total; dry fire records none.
   const steel = sorted([...groupBy(rows.filter(r => r.run.drillId === 'steel'), r => r.yards)].map(([yards, list]) => {
-    const shots = list.reduce((s, r) => s + (r.run.shotTimes.length || 5 + (r.a.steelMisses ?? 0)), 0);
-    return { yards, runs: list.length, shots, misses: list.reduce((s, r) => s + (r.a.steelMisses ?? 0), 0),
-      perPlate: stat(list.flatMap(r => r.a.perPlate !== null ? [{ value: r.a.perPlate, at: r.at }] : [])) };
+    const known = context === 'DRY_FIRE' ? [] : list.filter(r => r.a.steelMisses !== null);
+    return { yards, runs: list.length, missRuns: known.length, shots: known.reduce((s, r) => s + 5 + r.a.steelMisses!, 0),
+      misses: known.reduce((s, r) => s + r.a.steelMisses!, 0), perPlate: stat(list.flatMap(r => r.a.perPlate !== null ? [{ value: r.a.perPlate, at: r.at }] : [])) };
   }));
 
   const positionRows = of(['port']).filter(r => r.a.shooting !== null);
@@ -119,17 +122,21 @@ export function libraryNumbers(records: readonly TrainingRecord[], context: Trai
     let required = 0, a = 0, c = 0, d = 0, noShoots = 0;
     for (const r of list) {
       const z = r.run.zones!, need = libraryDrill(r.run.drillId)!.requiredHits!;
-      // T (PCSL) is inside the A-zone; hits beyond the required count were extra shots, best ones first.
+      // A PCSL T counts as two A hits (11.3.2.1); hits beyond the required count were extra shots, best ones first.
       let left = need;
       const take = (n: number) => { const used = Math.min(left, n); left -= used; return used; };
-      required += need; a += take((z.T ?? 0) + (z.A ?? 0)); c += take(z.C ?? 0); d += take(z.D ?? 0); noShoots += z.NS ?? 0;
+      required += need; a += take(2 * (z.T ?? 0) + (z.A ?? 0)); c += take(z.C ?? 0); d += take(z.D ?? 0); noShoots += z.NS ?? 0;
     }
     return { yards, runs: list.length, required, a: a / required, c: c / required, d: d / required, miss: (required - a - c - d) / required, noShoots };
   }));
 
   const elRows = rows.filter(r => r.run.drillId === 'elPresidente');
-  const split10 = splits.find(s => s.yards === 10)?.stat.mean, t1 = transitions.find(t => t.spreadYards === 1)?.stat.mean;
-  const standingReload = reloads.find(r => r.mode === 'standing')?.stat.mean;
+  // The prediction uses your other drills only, never the El Presidente runs it is compared with.
+  const others = (list: Row[]) => list.filter(r => r.run.drillId !== 'elPresidente');
+  const mean = (list: Row[], pick: (r: Row) => number[]) => list.length ? avg(list.map(r => avg(pick(r)))) : undefined;
+  const split10 = mean(others(splitRows).filter(r => r.yards === 10), r => r.a.splits);
+  const t1 = mean(others(transitionRows).filter(r => spread(r) === 1), r => r.a.transitions);
+  const standingReload = mean(others(reloadRows).filter(r => r.choices.mode !== 'stepping'), r => r.a.reloads);
   const elPresidente = elRows.length ? {
     hitFactor: stat(elRows.flatMap(r => r.a.score?.hitFactor != null ? [{ value: r.a.score.hitFactor, at: r.at }] : []), true),
     shooting: stat(elRows.filter(r => r.a.shooting !== null).map(r => ({ value: r.a.shooting!, at: r.at }))),

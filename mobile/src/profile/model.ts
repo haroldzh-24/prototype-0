@@ -25,7 +25,7 @@ export type UserProfile = { id: string; displayName: string; identity: { provide
   performanceObservations?: PerformanceObservation[]; videoCalibrationBase?: ShooterPerformanceProfile; calibrationContext?: TrainingContext;
   calibrationInputs?: { version: 1; baseline: ShooterPerformanceProfile; manualOverrides: Partial<Record<TimingFactor, number>> };
   calibrationWarnings?: string[];
-  /** Scoring power factor for drills and plans; a match can override it. Missing: minor. */
+  /** Power factor for scoring C and D hits in library drills. Missing: minor. */
   powerFactor?: PowerFactor;
   /** Par times you set per drill-library variant (`variantKey`), seconds. */
   drillPars?: Record<string, number> };

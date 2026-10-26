@@ -36,6 +36,8 @@ export type LibraryDrill = Readonly<{
   requiredHits: number | null;
   /** Target distance in yards when the drill has no distance choice. */
   yards: number;
+  /** Targets in the drill (zone counts are for the whole run, not per target). */
+  targets: number;
 }>;
 
 const yd = (...values: number[]) => values.map(v => ({ value: String(v), label: v + ' YD' }));
@@ -46,55 +48,55 @@ const direction = (initial: MoveDirection): DrillChoice => ({ key: 'direction', 
   options: [{ value: 'forward', label: 'FORWARD' }, { value: 'lateral', label: 'SIDEWAYS' }, { value: 'back', label: 'BACK' }] });
 
 export const libraryDrills: readonly LibraryDrill[] = Object.freeze([
-  { id: 'draw', name: 'Draw to first hit', group: 'Draw', yards: 7, requiredHits: 1, intervals: ['start'],
+  { id: 'draw', targets: 1, name: 'Draw to first hit', group: 'Draw', yards: 7, requiredHits: 1, intervals: ['start'],
     setup: 'One target. From the buzzer, draw and fire one shot. Log runs from each start position you see at matches.',
     gives: 'Draw time for each start position, and how often the first shot is an A.', planner: 'Stage start time by start position.',
     choices: [{ key: 'start', label: 'START', initial: 'competitionHolster', options: [{ value: 'competitionHolster', label: 'HANDS AT SIDES' },
       { value: 'surrender', label: 'SURRENDER' }, { value: 'lowReady', label: 'LOW READY' }, { value: 'highReady', label: 'HIGH READY' }] }, distance(7, 5, 7, 10)] },
-  { id: 'bill', name: 'Bill Drill', group: 'Shooting', yards: 7, requiredHits: 6, intervals: ['start', 'split', 'split', 'split', 'split', 'split'],
+  { id: 'bill', targets: 1, name: 'Bill Drill', group: 'Shooting', yards: 7, requiredHits: 6, intervals: ['start', 'split', 'split', 'split', 'split', 'split'],
     setup: 'One target. Draw and fire six shots as fast as you can keep them in the A-zone.',
     gives: 'Close-target split, and the points you drop when you push.', planner: 'Split on close targets.', choices: [distance(7, 5, 7, 10)] },
-  { id: 'ladder', name: 'Distance ladder', group: 'Shooting', yards: 5, requiredHits: 2, intervals: ['start', 'split'],
+  { id: 'ladder', targets: 1, name: 'Distance ladder', group: 'Shooting', yards: 5, requiredHits: 2, intervals: ['start', 'split'],
     setup: 'One target. Two shots from the buzzer at 5, 10, 15, 20 and 25 yd. Log one run per distance.',
     gives: 'Split and points at each distance.', planner: 'Time and expected hits per engagement by distance.', choices: [distance(5, 5, 10, 15, 20, 25)] },
-  { id: 'blake', name: 'Blake Drill', group: 'Transitions', yards: 7, requiredHits: 6, intervals: pairs(3, 'transition'),
+  { id: 'blake', targets: 3, name: 'Blake Drill', group: 'Transitions', yards: 7, requiredHits: 6, intervals: pairs(3, 'transition'),
     setup: 'Three targets about 1 yd apart at 7 yd. Two shots on each.',
     gives: 'Split and transition on a tight array.', planner: 'Tight arrays.', choices: [] },
-  { id: 'wide', name: 'Wide transitions', group: 'Transitions', yards: 7, requiredHits: 4, intervals: pairs(2, 'transition'),
+  { id: 'wide', targets: 2, name: 'Wide transitions', group: 'Transitions', yards: 7, requiredHits: 4, intervals: pairs(2, 'transition'),
     setup: 'Two targets the chosen distance apart. Two shots on each.',
     gives: 'Transition time against how far apart the targets are.', planner: 'Transitions that depend on the array.',
     choices: [{ key: 'spread', label: 'TARGETS APART', options: yd(1, 3, 5), initial: '3' }, distance(7, 7, 10, 15)] },
-  { id: 'reload', name: 'Reload', group: 'Reloads', yards: 7, requiredHits: 2, intervals: ['start', 'reload'],
+  { id: 'reload', targets: 1, name: 'Reload', group: 'Reloads', yards: 7, requiredHits: 2, intervals: ['start', 'reload'],
     setup: 'One target at 7 yd. One shot, reload, one shot. Stand still, or take a step during the reload.',
     gives: 'Shot-to-shot reload, standing and stepping.', planner: 'Where to reload; reloading on the move.',
     choices: [{ key: 'mode', label: 'DURING THE RELOAD', initial: 'standing', options: [{ value: 'standing', label: 'STANDING' }, { value: 'stepping', label: 'STEPPING' }] }] },
-  { id: 'sprint', name: 'Sprint', group: 'Movement', yards: 7, requiredHits: 4, intervals: ['start', 'split', 'move', 'split'],
+  { id: 'sprint', targets: 2, name: 'Sprint', group: 'Movement', yards: 7, requiredHits: 4, intervals: ['start', 'split', 'move', 'split'],
     setup: 'Two shooting spots 5, 10 or 15 yd apart, targets about 7 yd from both. Two shots, run, two shots. Forward runs toward the targets, back runs away from them.',
     gives: 'Top speed and the fixed cost of starting and stopping, for each direction.', planner: 'Long moves.',
     choices: [{ key: 'move', label: 'RUN', options: yd(5, 10, 15), initial: '10' }, direction('lateral')] },
-  { id: 'shuffle', name: 'Shuffle', group: 'Movement', yards: 7, requiredHits: 4, intervals: ['start', 'split', 'move', 'split'],
+  { id: 'shuffle', targets: 2, name: 'Shuffle', group: 'Movement', yards: 7, requiredHits: 4, intervals: ['start', 'split', 'move', 'split'],
     setup: 'Two spots 1 to 3 yd apart, targets about 7 yd away. Two shots, step, two shots.',
     gives: 'Time for short repositioning.', planner: 'Short moves and stepping past walls.',
     choices: [{ key: 'move', label: 'STEP', options: yd(1, 2, 3), initial: '2' }, direction('lateral')] },
-  { id: 'onTheMove', name: 'Shoot on the move', group: 'Movement', yards: 7, requiredHits: 4, intervals: pairs(2, 'transition'),
+  { id: 'onTheMove', targets: 2, name: 'Shoot on the move', group: 'Movement', yards: 7, requiredHits: 4, intervals: pairs(2, 'transition'),
     setup: 'Two targets 5 to 10 yd away. Two shots on each while walking toward them or across them. Log a standing run to compare.',
     gives: 'Split and points moving against standing.', planner: 'Whether shooting on the move beats stopping, for you.',
     choices: [{ key: 'mode', label: 'WHILE', initial: 'toward', options: [{ value: 'toward', label: 'TOWARD' }, { value: 'across', label: 'ACROSS' }, { value: 'standing', label: 'STANDING' }] },
       distance(7, 5, 7, 10)] },
-  { id: 'steel', name: 'Steel', group: 'Shooting', yards: 10, requiredHits: null, makeups: true, intervals: ['start', 'transition', 'transition', 'transition', 'transition'],
+  { id: 'steel', targets: 5, name: 'Steel', group: 'Shooting', yards: 10, requiredHits: null, makeups: true, intervals: ['start', 'transition', 'transition', 'transition', 'transition'],
     setup: 'Five plates. One shot per plate; log every shot, makeups included.',
     gives: 'Time per plate, and how often you miss.', planner: 'Steel engagements (misses cost makeup shots).', choices: [distance(10, 10, 15, 20, 25)] },
-  { id: 'port', name: 'Port / lean', group: 'Positions', yards: 10, requiredHits: 4, intervals: pairs(2, 'transition'),
+  { id: 'port', targets: 2, name: 'Port / lean', group: 'Positions', yards: 10, requiredHits: 4, intervals: pairs(2, 'transition'),
     setup: 'Two targets, two shots on each, through a low port or around a hard lean. Log a standing-square run to compare.',
     gives: 'The extra time an awkward position costs you.', planner: 'Cost of awkward positions.',
     choices: [{ key: 'position', label: 'POSITION', initial: 'port', options: [{ value: 'square', label: 'SQUARE' }, { value: 'port', label: 'LOW PORT' }, { value: 'lean', label: 'HARD LEAN' }] },
       distance(10, 7, 10, 15)] },
-  { id: 'partial', name: 'Hostage / partial', group: 'Shooting', yards: 7, requiredHits: 2, intervals: ['start', 'split'],
+  { id: 'partial', targets: 1, name: 'Hostage / partial', group: 'Shooting', yards: 7, requiredHits: 2, intervals: ['start', 'split'],
     setup: 'Two shots on a target with head-only or diagonal hard cover, or a no-shoot overlap, at 7 and 15 yd. Log a full-target run to compare.',
     gives: 'Split and points on partial faces.', planner: 'Expected hits on partly covered targets.',
     choices: [{ key: 'face', label: 'TARGET', initial: 'head', options: [{ value: 'head', label: 'HEAD ONLY' }, { value: 'diagonal', label: 'DIAGONAL' }, { value: 'full', label: 'FULL' }] },
       distance(7, 7, 15)] },
-  { id: 'elPresidente', name: 'El Presidente', group: 'Combined', yards: 10, requiredHits: 12,
+  { id: 'elPresidente', targets: 3, name: 'El Presidente', group: 'Combined', yards: 10, requiredHits: 12,
     intervals: [...pairs(3, 'transition'), 'reload', 'split', 'transition', 'split', 'transition', 'split'],
     setup: 'Three targets 1 yd apart at 10 yd, your back to them. Turn, draw, two on each, reload, two on each.',
     gives: 'Hit factor for a combined string, and whether your parts add up.', planner: 'Checks the planner’s numbers against a real string.', choices: [] },
@@ -143,7 +145,9 @@ export const targetYards = (drill: LibraryDrill, choices: Choices) => choiceNumb
 
 /** Times typed or pasted from a shot timer: shot times from the buzzer, or splits (the first is the draw). */
 export function parseShotTimes(text: string, mode: 'times' | 'splits'): { times: number[] } | { problem: string } {
-  const parts = text.split(/[\s,;]+/).filter(Boolean);
+  // "1,42" (no space, digits both sides, no point) is a decimal comma; otherwise commas separate times.
+  const parts = text.split(/[\s;]+/).filter(Boolean).flatMap(token => /^\d+,\d+$/.test(token) && !/[.]/.test(token) && !/,\d+,/.test(token)
+    ? [token.replace(',', '.')] : token.split(',')).filter(Boolean);
   if (!parts.length) return { times: [] };
   const values = parts.map(Number);
   if (values.some(v => !Number.isFinite(v) || v <= 0)) return { problem: 'Times must be numbers of seconds, for example 1.42 1.68.' };
@@ -183,6 +187,9 @@ export function libraryRunProblem(run: LibraryRun): string | null {
     if (!run.zones || typeof run.zones !== 'object' || Object.entries(run.zones).some(([k, n]) => !allowed.includes(k) || !Number.isInteger(n) || n < 0 || n > 300))
       return 'Invalid hit counts.';
     if (drill.makeups && run.shotTimes.length && (run.zones.M ?? 0) > run.shotTimes.length - listed) return 'More misses than makeup shots.';
+    const shots = ['A', 'C', 'D', 'T', 'M'].reduce((n, z) => n + (run.zones![z] ?? 0), 0);
+    if (!drill.makeups && run.shotTimes.length && shots > run.shotTimes.length)
+      return `${shots} hits and misses counted for ${run.shotTimes.length} shots. Count each shot once (no-shoot hits are extra).`;
   }
   if (run.procedurals !== undefined && !(Number.isInteger(run.procedurals) && run.procedurals >= 0 && run.procedurals <= 100)) return 'Invalid procedurals.';
   if (typeof run.notes !== 'string' || run.notes.length > 2000) return 'Invalid notes.';
@@ -192,6 +199,9 @@ export function libraryRunProblem(run: LibraryRun): string | null {
 
 export type LibraryScore = {
   points: number; maxPoints: number; percent: number; hitFactor: number | null; misses: number; penalties: number; method: string;
+  /** PCSL caps points per target and a T counts as two hits, so with T hits on a multi-target drill the counts for the
+   *  whole run can score higher than per-target scoring would (PCSL 11.3.2.1, 11.3.4). Shown as an estimate. */
+  approximate: boolean;
 };
 /** Paper drills: zone counts scored by the family's rules (drillLog `scoreRun`). Steel and dry runs: null. */
 export function scoreLibraryRun(run: LibraryRun, fallback: PowerFactor = 'minor'): LibraryScore | null {
@@ -203,7 +213,8 @@ export function scoreLibraryRun(run: LibraryRun, fallback: PowerFactor = 'minor'
     run.powerFactor ?? fallback);
   // Both rulebooks cap a hit at 5 points (USPSA Appendix B1, PCSL 11.3.2).
   const maxPoints = 5 * drill.requiredHits, points = score.points ?? 0;
-  return { points, maxPoints, percent: maxPoints ? points / maxPoints : 0, hitFactor: score.hitFactor, misses: score.misses, penalties: score.penalties, method: score.method };
+  return { points, maxPoints, percent: maxPoints ? points / maxPoints : 0, hitFactor: score.hitFactor, misses: score.misses, penalties: score.penalties, method: score.method,
+    approximate: run.family === 'PCSL' && drill.targets > 1 && (run.zones.T ?? 0) > 0 };
 }
 
 export type LibraryAnalysis = {
@@ -222,7 +233,8 @@ export function analyzeLibraryRun(run: LibraryRun, fallback: PowerFactor = 'mino
   const intervals = intervalsOf(drill, run.shotTimes);
   const of = (kind: IntervalKind) => intervals.filter(i => i.kind === kind).map(i => i.seconds);
   const n = run.shotTimes.length, listed = drill.intervals.length;
-  const steelMisses = drill.makeups ? (n ? n - listed : run.zones?.M ?? null) : null;
+  // Shots past the five listed are makeups; while typing (fewer than five) it is not known yet.
+  const steelMisses = drill.makeups ? (n ? (n >= listed ? n - listed : null) : run.zones?.M ?? null) : null;
   return { drill, intervals, start: n ? run.shotTimes[0] : null, splits: of('split'), transitions: of('transition'), reloads: of('reload'), moves: of('move'),
     shooting: n > 1 ? run.shotTimes[n - 1] - run.shotTimes[0] : null,
     perPlate: drill.makeups && n === listed ? (run.shotTimes[n - 1] - run.shotTimes[0]) / (listed - 1) : null, steelMisses,

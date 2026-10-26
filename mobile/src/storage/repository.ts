@@ -7,6 +7,7 @@ import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
 import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations } from '../training/drillLibrary';
+import { validMovementModel } from '../profile/movementModel';
 import { drillRunProblem, MAX_RUNS_PER_SESSION } from '../training/drillLog';
 import { createLocalProfile } from '../profile/model';
 import type { UserProfile } from '../profile/model';
@@ -369,8 +370,9 @@ export class Repository {
         // deleting a run (or switching off "count toward my profile") updates the profile in the same transaction.
         const library = sessionLibraryObservations(record);
         const next = [...withVideo.filter(o => !isLibraryObservation(o, record.id)), ...library];
-        const before = (profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id));
-        const libraryChanged = JSON.stringify(before) !== JSON.stringify(library);
+        // Stored observations come back sorted by id; compare in the same order so an unchanged session writes nothing.
+        const byId = (list: PerformanceObservation[]) => JSON.stringify([...list].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+        const libraryChanged = byId((profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id))) !== byId(library);
         if (selected || libraryChanged || next.length !== (profile.performanceObservations ?? []).length) {
           const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
           await this.persistProfile(updated);
@@ -396,6 +398,11 @@ export class Repository {
     // Optional settings: anything malformed reads as unset rather than blocking the profile.
     if (profile.powerFactor !== undefined && profile.powerFactor !== 'minor' && profile.powerFactor !== 'major') delete profile.powerFactor;
     if (profile.drillPars !== undefined) profile.drillPars = validDrillPars(profile.drillPars);
+    // The move fit is derived; a damaged saved copy is dropped (a rebuild below recomputes it from the measurements).
+    if (profile.performance.movementModel !== undefined) {
+      const model = validMovementModel(profile.performance.movementModel);
+      if (model) profile.performance.movementModel = model; else delete profile.performance.movementModel;
+    }
     if (profile.performanceObservations === undefined && !profile.calibrationInputs && !profile.videoCalibrationBase) return profile;
     const rebuilt = withPerformanceObservations(profile, profile.performanceObservations ?? [], profile.calibrationContext ?? 'LIVE_FIRE', false);
     rebuilt.calibrationWarnings = [...new Set([...(profile.calibrationWarnings ?? []), ...(rebuilt.calibrationWarnings ?? [])])].sort();

@@ -142,8 +142,10 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
       sampleCount: stats.sampleCount, standardDeviation: stats.standardDeviation, measuredAt: stats.measuredAt };
   });
   // A split override applies to planner shooting costs too; measured curves remain in history/statistics.
+  // The curve is derived like every measured value: rebuilt each time, gone when its measurements are gone.
   if (valueSources.averageSplitTime === 'MANUAL_OVERRIDE') performance.shootingObservations = [];
   else if (curve.length) performance.shootingObservations = curve;
+  else delete performance.shootingObservations;
   // Every move with a measured distance and time, in this context; manual speed overrides keep the plain average.
   const moves = eligible.filter(o => o.context === context && o.factor === 'movementSpeed' && o.distanceInches !== undefined && o.durationSeconds !== undefined)
     .map(o => ({ direction: o.movement, distanceInches: o.distanceInches!, durationSeconds: o.durationSeconds! }));
@@ -183,17 +185,18 @@ function inputsFor(profile: UserProfile, captureEdits = true): NonNullable<UserP
   }
   return { version: 1, baseline, manualOverrides };
 }
-/** The fit is derived: a rebuild without enough movement data must not keep a stale one from the saved profile. */
-function withMovementModel(performance: ShooterPerformanceProfile, rebuilt: ShooterPerformanceProfile): ShooterPerformanceProfile {
-  const { movementModel: _stale, ...rest } = performance;
-  return rebuilt.movementModel ? { ...rest, movementModel: rebuilt.movementModel } : rest;
+/** Derived fields (move fit, split curve): a rebuild without the data must not keep stale ones from the saved profile. */
+function withDerived(performance: ShooterPerformanceProfile, rebuilt: ShooterPerformanceProfile): ShooterPerformanceProfile {
+  const { movementModel: _model, shootingObservations: _curve, ...rest } = performance;
+  return { ...rest, ...(rebuilt.movementModel ? { movementModel: rebuilt.movementModel } : {}),
+    ...(rebuilt.shootingObservations ? { shootingObservations: rebuilt.shootingObservations } : {}) };
 }
 export function withPerformanceObservations(profile: UserProfile, observations: unknown, context: TrainingContext = profile.calibrationContext ?? 'LIVE_FIRE', captureEdits = true): UserProfile {
   const calibrationInputs = inputsFor(profile, captureEdits);
   const result = rebuildPerformanceProfile({ ...calibrationInputs, observations, context });
   const { videoCalibrationBase: _legacy, ...rest } = profile;
   return { ...rest, calibrationInputs, performanceObservations: result.observations, calibrationContext: context,
-    calibrationWarnings: result.warnings, performance: withMovementModel({ ...profile.performance, ...result.performance,
+    calibrationWarnings: result.warnings, performance: withDerived({ ...profile.performance, ...result.performance,
       magazineCapacity: profile.performance.magazineCapacity, startingRounds: profile.performance.startingRounds, chamberedRound: profile.performance.chamberedRound }, result.performance) };
 }
 /** Compatibility entry point used by Phase 8A. */
@@ -203,7 +206,7 @@ export function setManualOverride(profile: UserProfile, factor: TimingFactor, va
   const calibrationInputs = inputsFor(profile);
   if (value === null) delete calibrationInputs.manualOverrides[factor]; else calibrationInputs.manualOverrides[factor] = value;
   const result = rebuildPerformanceProfile({ ...calibrationInputs, observations: profile.performanceObservations ?? [], context: profile.calibrationContext ?? 'LIVE_FIRE' });
-  return { ...profile, calibrationInputs, performance: withMovementModel({ ...profile.performance, ...result.performance }, result.performance),
+  return { ...profile, calibrationInputs, performance: withDerived({ ...profile.performance, ...result.performance }, result.performance),
     performanceObservations: result.observations, calibrationWarnings: result.warnings };
 }
 /** Add detects conflicts; replace is an explicit revision of an ID; remove withdraws all versions. */

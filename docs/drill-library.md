@@ -8,9 +8,9 @@ Training → open a session → **LOG LIBRARY DRILL** → pick a drill → set i
 
 - **Times.** SHOT TIMES: the times your timer lists, from the buzzer (`1.42 1.68 3.40 3.62`). SPLITS: the timer's splits, the first being buzzer to first shot. TOTAL ONLY: a total gives the hit factor and the trend, but no draw, split or move times. The run must have exactly the drill's number of shots (steel: five or more; extra shots are makeups).
 - **What each time measured** is shown as you type (`Shot 3 · Move 1.72 s`).
-- **Hits** are counted by zone with − / + (USPSA: A, C, D, M, NS; PCSL adds T) and scored with the drill logger's rules: best hits up to the required count, −10 per missing hit, no-shoot hit and procedural; USPSA minor A 5 / C 3 / D 1, major A 5 / C 4 / D 2 (Appendix B1); PCSL T counts as two A hits (11.3.4). Leave all at zero to log times only. Dry-fire sessions don't count hits.
-- **Par time** per drill variant (same drill and options), optional; shown against the run and on the trend.
-- **PROFILE: COUNTS / LOG ONLY.** LOG ONLY keeps the run out of your numbers (a warm-up, a bad setup).
+- **Hits** are counted by zone with − / + (USPSA: A, C, D, M, NS; PCSL adds T) and scored with the drill logger's rules: best hits up to the required count, −10 per missing hit, no-shoot hit and procedural; USPSA minor A 5 / C 3 / D 1, major A 5 / C 4 / D 2 (Appendix B1); PCSL T counts as two A hits (11.3.2.1). Counts are for the whole run, so scoring assumes the drill's shots per target were fired; on a PCSL drill with several targets, T hits make the score an estimate (PCSL caps points per target), shown as ≈. More hits and misses than shots is refused. Leave all at zero to log times only. Dry-fire sessions don't count hits.
+- **Par time** per drill variant (same drill and options), optional; shown against the run and on the trend. The field shows the saved par; it changes only when you type in it.
+- **PROFILE: COUNTS / LOG ONLY.** LOG ONLY keeps the run out of your profile and Your numbers (a warm-up, a bad setup); it still shows in the session and its trend.
 - Runs are listed in the session; **REMOVE** (with a confirm) deletes one and withdraws its measurements.
 
 ## The drills
@@ -47,14 +47,15 @@ A move is timed from the last shot before it to the first shot after it, so it i
 
 - per direction (forward = toward downrange within 45°, back = away, otherwise sideways) when that direction has runs at two or more distances;
 - otherwise the direction uses the start-and-stop fitted over all directions with its own speed, or, with runs at a single distance only, its average speed (the app says so and asks for another distance).
-- Below the shortest measured move the time scales down to zero (a lean costs less than a full step); past the longest it follows the line and is marked as beyond your data.
+- Below the shortest measured move the time scales down to zero (a lean costs less than a full step); past the longest it follows the line, and ANALYZE warns that the leg is longer than your longest measured move. A leg in a direction you haven't measured uses the fit across all directions, with a warning.
+- A leg that bends around a wall is timed as the direction it covers the most ground in.
 - A typed-in movement speed (manual override) wins over the fit.
 
-Route timing (**ANALYZE**) now times each leg with the fit for its direction to downrange; without sprint/shuffle data it keeps using the average speed. AUTO-PLAN still chooses routes by distance; time-based planning is C4.
+Route timing (**ANALYZE**) now times each leg with the fit for its direction to downrange; without sprint/shuffle data it keeps using the average speed, computed exactly as before. Older planners that rank candidates by estimated time use it too. AUTO-PLAN (Route Planner V2) still chooses routes by distance; time-based planning is C4.
 
 ## Your numbers
 
-Training → **YOUR NUMBERS**, by context: what the planner uses (with "measured, n samples", "typed in" or "generic default"), then draw by start, splits and accuracy (A/C/D/miss shares of required hits) by distance, transitions by spread (with the cost per extra yard once two spreads are logged), reloads, move fits and times, shooting on the move, steel, ports and leans, partial targets, El Presidente, and a trend per drill variant against its par. Every value shows its run count; sample SD is shown from two runs.
+Training → **YOUR NUMBERS**, by context: what the planner uses (with "measured, n samples", "typed in" or "generic default"), then draw by start, splits and accuracy (A/C/D/miss shares of required hits) by distance, transitions by spread (with the cost per extra yard once two spreads are logged), reloads, move fits and times, shooting on the move, steel, ports and leans, partial targets, El Presidente, and a trend per drill variant against its par. Every value shows its run count; sample SD is shown from two runs. El Presidente's "parts add up" uses your other drills only (10 yd splits, transitions 1 yd apart, standing reloads), never the El Presidente runs themselves. Steel misses show only for runs whose misses are known (not dry fire). It opens on the context the planner uses.
 
 ## Not used by the planner yet
 

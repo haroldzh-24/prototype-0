@@ -909,11 +909,61 @@ test('Your numbers shows measured values with run counts, the planner values, an
   assert.equal(row('Competition Holster'), '1.40 s ± 0.14 · 2 runs · best 1.30 s');
   assert.equal(row('7 yd').startsWith('0.25 s'), true); assert.match(row('7 yd'), /3 runs/);
   assert.equal(row('Sideways 10 yd'), '1.50 s · 1 run');
-  assert.match(h.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Sideways').props.value, /average \(1 run at one distance/);
+  assert.match(h.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Sideways').props.value, /average \(1 run; all at one distance/);
   h.press('Trend Bill Drill · 7 yd');
   assert.equal(row('Par'), '2.60 s');
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /Green runs are at or under par/.test([].concat(n.props.children).join(''))));
   assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Par mark'));
   h.child('Segmented').onChange('Dry Fire'); h.render();
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /No drill-library runs in dry fire yet/.test([].concat(n.props.children).join(''))));
+});
+
+test('review: Your numbers survives a damaged saved move fit and opens on the planner context; par is left alone unless typed', async () => {
+  const loaded = { calibrationContext: 'DRY_FIRE', performance: { drawTime: 1.5, reloadTime: 2, averageSplitTime: 0.25, transitionTime: 0.4, movementSpeed: 120, movementModel: { all: {} } } };
+  // The profile arrives after the screen mounts.
+  const props = { visible: true, records: [], profile: null, onClose() {} };
+  const h = harness('training/YourNumbers.tsx', props);
+  assert.equal(h.child('Segmented').value, 'Live Fire');
+  props.profile = loaded; h.render();
+  assert.equal(h.child('Segmented').value, 'Dry Fire', 'follows the planner context once the profile loads');
+  assert.ok(!h.nodes().some(n => n.props?.label === 'Move time (used for legs)'), 'damaged fit not shown, no crash');
+  h.child('Segmented').onChange('Live Fire'); h.render();
+  props.visible = false; h.render(); props.visible = true; h.render();
+  assert.equal(h.child('Segmented').value, 'Dry Fire', 'opens on the planner context again');
+  assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === 'Draw'), 'planner values shown for the planner context');
+
+  let savedPar = 'not called';
+  const e = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'LIVE_FIRE', powerFactor: 'minor', pars: { 'bill|distance=7': 2.4 }, onClose() {}, onSave: async (_r, par) => { savedPar = par; } });
+  e.press('Bill Drill');
+  const parInput = () => e.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'PAR TIME (SECONDS, BLANK = NONE)');
+  assert.equal(parInput().props.value, '2.4');
+  e.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.55 1.8 2.05 2.3 2.55'); e.render();
+  e.press('SAVE RUN'); await e.settle();
+  assert.equal(savedPar, undefined, 'untouched par is not cleared or rewritten');
+  parInput().props.onChangeText(''); e.render();
+  e.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.55 1.8 2.05 2.3 2.55'); e.render();
+  e.press('SAVE RUN'); await e.settle();
+  assert.equal(savedPar, null, 'emptied on purpose: cleared');
+});
+
+test('review: a PCSL score from whole-run counts over several targets is marked as an estimate', () => {
+  const e = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'LIVE_FIRE', powerFactor: 'minor', pars: {}, onClose() {}, onSave() {} });
+  e.press('Blake Drill');
+  e.find(n => n.type === 'Segmented' && n.props.options.includes('PCSL')).props.onChange('PCSL'); e.render();
+  e.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.4 1.62 1.92 2.14 2.44 2.66'); e.render();
+  const counter = zone => e.find(n => n.type?.name === 'Counter' && n.props.label === zone);
+  counter('A').props.onChange(4); e.render(); counter('T').props.onChange(1); e.render();
+  assert.equal(e.nodes().find(n => n.type === 'DataRow' && n.props.label === 'PCSL points').props.value, '≈ 30 of 30 (100%)');
+  assert.ok(e.nodes().some(n => n.type === 'Copy' && /^Estimate: PCSL caps points per target/.test(n.props.children)));
+});
+
+test('review: a failed power factor save puts the old choice back and says so on the profile', async () => {
+  const profile = { displayName: 'Local shooter', performance: { drawTime: 1.5, reloadTime: 2, averageSplitTime: 0.25, movementSpeed: 120, transitionTime: 0.4 }, powerFactor: 'minor' };
+  const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => profile, setPowerFactor: async () => { throw new Error('disk full'); } } });
+  await h.settle();
+  const pf = () => h.find(n => n.type === 'Segmented' && n.props.options.includes('MAJOR'));
+  pf().props.onChange('MAJOR'); h.render(); await h.settle();
+  assert.equal(pf().props.value, 'MINOR');
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /Couldn’t save the power factor: Error: disk full/.test(n.props.children)));
+  assert.ok(!h.nodes().some(n => n.type === 'ErrorState'), 'not shown as a failed profile load');
 });

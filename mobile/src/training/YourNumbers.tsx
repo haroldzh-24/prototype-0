@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import EditorSheet from '../editor/EditorSheet';
@@ -7,7 +7,7 @@ import { colors } from '../ui/tokens';
 import { useThemeMode } from '../ui/theme';
 import type { TimingFactor, UserProfile } from '../profile/model';
 import { factorLabels, timingFactors } from '../profile/personalizedPerformance';
-import { moveDirectionLabels, moveDirections } from '../profile/movementModel';
+import { moveDirectionLabels, moveDirections, validMovementModel } from '../profile/movementModel';
 import type { MoveFit } from '../profile/movementModel';
 import type { TrainingRecord } from './model';
 import { trainingContexts } from './observations';
@@ -27,7 +27,8 @@ export function statText(stat: Stat, unit: (v: number) => string = s2, best = tr
 const ydPerSecond = (fit: MoveFit) => (fit.inchesPerSecond / 36).toFixed(1) + ' yd/s';
 export function fitText(fit: MoveFit) {
   const span = `${Math.round(fit.minInches / 36)}–${Math.round(fit.maxInches / 36)} yd`;
-  if (fit.method === 'AVERAGE_SPEED') return `${ydPerSecond(fit)} average (${runs(fit.sampleCount)} at one distance; run another distance to separate start-and-stop time)`;
+  if (fit.method === 'AVERAGE_SPEED') return `${ydPerSecond(fit)} average (${runs(fit.sampleCount)}; ` + (fit.maxInches - fit.minInches < 6
+    ? 'all at one distance: log another distance to separate start-and-stop time)' : 'longer moves are not yet clearly slower, so start-and-stop time can’t be separated: log more runs)');
   return `${s2(fit.overheadSeconds)} to start and stop + ${ydPerSecond(fit)}${fit.method === 'SHARED_OVERHEAD' ? ' (start-and-stop shared with other directions)' : ''} · ${runs(fit.sampleCount)}, ${span}`;
 }
 const factorUnit = (factor: TimingFactor, value: number) => factor === 'movementSpeed' ? (value / 36).toFixed(1) + ' yd/s' : s2(value);
@@ -39,6 +40,8 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
   useThemeMode();
   const planning = profile?.calibrationContext ?? 'LIVE_FIRE';
   const [context, setContext] = useState<TrainingContext>(planning), [trendKey, setTrendKey] = useState<string | null>(null);
+  // Open on the context the planner uses (the profile may load after the screen does).
+  useEffect(() => { if (visible) { setContext(planning); setTrendKey(null); } }, [visible, planning]);
   const pf = profile?.powerFactor ?? 'minor';
   const n = libraryNumbers(records, context, pf);
   const variants = [...new Map(records.filter(r => (r.context ?? 'DRY_FIRE') === context).flatMap(r => r.libraryRuns ?? [])
@@ -47,6 +50,8 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
   const par = trendKey ? profile?.drillPars?.[trendKey] : undefined;
   const longest = Math.max(par ?? 0, ...trend.map(t => t.total ?? 0));
   const performance = profile?.performance ?? null, evidence = performance?.timingEvidence ?? {};
+  // Saved profiles are untrusted: a damaged fit is not shown rather than breaking the screen.
+  const moveFitAll = validMovementModel(performance?.movementModel)?.all;
   const section = (title: string, rows: ReactNode, show: boolean) => show ? <View style={{ gap: 4 }}><Text style={ui.eyebrow}>{title}</Text>{rows}</View> : null;
 
   return <EditorSheet title="YOUR NUMBERS" visible={visible} close={onClose}><Panel>
@@ -55,7 +60,7 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
     {context === planning && performance && section('WHAT THE PLANNER USES', <>
       {timingFactors.map(f => { const e = evidence[f]; return <DataRow key={f} label={f === 'movementSpeed' ? 'Average speed' : factorLabels[f]}
         value={factorUnit(f, performance[f]) + ' · ' + (e?.source === 'MEASURED' ? `measured, ${e.sampleCount ?? 0} sample${e.sampleCount === 1 ? '' : 's'}` : e?.source === 'MANUAL' ? 'typed in' : 'generic default')} />; })}
-      {performance.movementModel?.all && <DataRow label="Move time (used for legs)" value={fitText(performance.movementModel.all)} />}
+      {moveFitAll && <DataRow label="Move time (used for legs)" value={fitText(moveFitAll)} />}
       <Copy>Splits, transitions and reloads above are standing square on full paper; moving, steel, partial-target and port runs are kept separately below.</Copy>
     </>, true)}
     {context !== planning && <Copy>The planner uses your {contextLabels[planning].toLowerCase()} numbers. These {contextLabels[context].toLowerCase()} numbers are for comparison.</Copy>}
@@ -78,7 +83,8 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
     {section('SHOOTING ON THE MOVE', n.onTheMove.map(m => <DataRow key={m.mode} label={m.mode === 'standing' ? 'Standing' : m.mode === 'toward' ? 'Walking toward' : 'Walking across'}
       value={statText(m.split) + (m.points ? ' · ' + pct(m.points.mean) + ' of points' : '')} />), n.onTheMove.length > 0)}
     {section('STEEL', n.steel.map(s => <DataRow key={s.yards} label={s.yards + ' yd'}
-      value={(s.perPlate ? statText(s.perPlate) + ' per plate' : 'no clean runs yet') + ` · ${s.misses} missed in ${s.shots} shots (${pct(s.shots ? s.misses / s.shots : 0)})`} />), n.steel.length > 0)}
+      value={(s.perPlate ? statText(s.perPlate) + ' per plate' : 'per-plate time needs a run with every shot time and no makeups')
+        + (s.missRuns ? ` · ${s.misses} missed in ${s.shots} shots (${pct(s.misses / s.shots)}), ${runs(s.missRuns)}` : context === 'DRY_FIRE' ? ' · misses are not recorded in dry fire' : '')} />), n.steel.length > 0)}
     {section('PORTS AND LEANS', n.positions.map(p => <DataRow key={p.position + p.yards} label={`${p.position === 'square' ? 'Square' : p.position === 'port' ? 'Low port' : 'Hard lean'}, ${p.yards} yd`}
       value={statText(p.shooting) + (p.extra !== null ? ` · ${p.extra >= 0 ? '+' : '−'}${s2(Math.abs(p.extra))} against square` : '')} />), n.positions.length > 0)}
     {section('PARTIAL TARGETS', n.partial.map(p => <DataRow key={p.face + p.yards} label={`${p.face === 'head' ? 'Head only' : p.face === 'diagonal' ? 'Diagonal' : 'Full'}, ${p.yards} yd`}

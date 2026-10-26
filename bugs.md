@@ -1,5 +1,6 @@
 # Fixed 2026-10-26 (batch 17)
 
+- From the independent review of batch 17 (13 confirmed, fixed in batch 17b; see changelog): stale split curve after removing runs, stored comparisons reading as damaged, LOG ONLY runs in Your numbers, El Presidente compared with itself, PCSL T in accuracy, dry-fire steel miss rate, damaged move fit crashing Training, hits beyond shots accepted, no extrapolation warning in ANALYZE, needless profile rewrites, negative makeups while typing, par cleared by an untouched field, power-factor save failure shown as a load failure.
 - Drill logger: all five fields asked for the keyboard focus when the form opened, so it could open scrolled to the last field instead of the target. Seen in the new library form in the web build (same pattern); both forms now open at the top (`Input autoFocus={false}`). Not checked on a phone.
 - Profile: measured values showed every decimal (`0.24266666666666664 s`, `194.6511627906977 in/s`). Now two decimals at most.
 

@@ -83,12 +83,12 @@ export default function Training() {
   const [loggingLibrary, setLoggingLibrary] = useState(false), [numbersOpen, setNumbersOpen] = useState(false);
   const [removingRun, setRemovingRun] = useState<string | null>(null);
   // The repository re-derives the session's profile measurements from its library runs in the same save.
-  const saveLibraryRun = async (record: TrainingRecord, libraryRun: LibraryRun, par: number | null) => {
+  const saveLibraryRun = async (record: TrainingRecord, libraryRun: LibraryRun, par: number | null | undefined) => {
     const updated = { ...record, libraryRuns: [...(record.libraryRuns ?? []), libraryRun] };
     await repo.saveTraining(updated);
     setRecords(current => current.map(r => r.id === record.id ? updated : r));
     const key = variantKey(libraryRun);
-    if ((profile?.drillPars?.[key] ?? null) !== par) await repo.setDrillPar(key, par);
+    if (par !== undefined && (profile?.drillPars?.[key] ?? null) !== par) await repo.setDrillPar(key, par);
     await loadProfile();
   };
   const removeLibraryRun = (record: TrainingRecord, runId: string) => run(async token => {
