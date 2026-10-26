@@ -107,8 +107,8 @@ test('every screen re-renders on a theme switch and the choice is saved', () => 
   }
   const layout = src('app/_layout.tsx');
   assert.match(layout, /setThemePreference\(loadThemePreference\(\)\)/); assert.match(layout, /saveThemePreference\(themePreference\(\)\)/);
-  assert.match(src('ui/themeStore.ts'), /getItemSync\(KEY\)/, 'native reads the choice synchronously, before the first render');
-  assert.doesNotMatch(src('ui/themeStore.web.ts'), /expo-sqlite/, 'web does not open a second SQLite database next to the app one');
+  assert.match(src('ui/prefsStore.ts'), /getItemSync\(key\)/, 'native reads the choice synchronously, before the first render');
+  assert.doesNotMatch(src('ui/prefsStore.web.ts'), /expo-sqlite/, 'web does not open a second SQLite database next to the app one');
   for (const weight of ['barlow/500Medium', 'barlow/600SemiBold', 'barlow/700Bold', 'barlow-condensed/700Bold', 'barlow-condensed/800ExtraBold']) assert.match(layout, new RegExp(`'@expo-google-fonts/${weight}'`), 'only the weights in use are bundled');
   assert.doesNotMatch(layout, /from '@expo-google-fonts\/barlow(-condensed)?'/, 'the package index would bundle every weight');
   assert.match(layout, /useColorScheme\(\)/, 'follows the phone appearance when set to System');

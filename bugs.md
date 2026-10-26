@@ -1,3 +1,8 @@
+# 3D view and eye-level walk - 2026-10-25
+
+- To check on a device after the next build (3D needs `expo-gl`, a native module): orbit and pinch feel, dragging a selected object, frame rate on a large stage, the eye view's scrubber, day/night colours outdoors.
+- Known limits: sight lines in the eye view are plan-view lines with wall heights (same assumption as the planner); targets do not cast shadows or show scoring zones in 3D; route editing stays in 2D.
+
 # Redesign and night mode - 2026-10-25
 
 - Fixed before release (batch 9): with the React Compiler on, screens kept their old colours after a theme switch; turned the compiler off. Web: a second SQLite database for the theme choice made fresh loads fail about 1 in 3 times; web now uses localStorage.

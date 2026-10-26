@@ -26,6 +26,7 @@ export type Palette = {
   cardboard: string; steel: string; noShoot: string; noShootRed: string; faceEdge: string;
   /** Editing handles and snap guides. */ handle: string;
   /** Review states: detected by the app (unconfirmed) and suggested (needs a look). */ detected: string; suggested: string;
+  /** 3D view: sky, ground, and a mid-tone wall so lighting shows its faces. */ sky: string; ground3d: string; wall3d: string;
 };
 
 export const dayPalette: Palette = {
@@ -36,6 +37,7 @@ export const dayPalette: Palette = {
   wall: '#0A0A0A', port: '#FF6A13', faultLine: '#0A0A0A', startFill: '#FFFFFF',
   cardboard: '#C9A266', steel: '#D3D8DC', noShoot: '#FFFFFF', noShootRed: '#E65959', faceEdge: '#0A0A0A',
   handle: '#0040E0', detected: '#6B2FD6', suggested: '#7A4A00',
+  sky: '#D9E2EC', ground3d: '#F7F7F5', wall3d: '#5B636D',
 };
 export const nightPalette: Palette = {
   background: '#0B0D10', panel: '#14181D', secondary: '#1B2027', selected: '#1A2B52', border: '#C9CED6', hairline: '#2C323A',
@@ -45,6 +47,7 @@ export const nightPalette: Palette = {
   wall: '#E8EAED', port: '#C2410C', faultLine: '#E8EAED', startFill: '#0F1216',
   cardboard: '#B69964', steel: '#9AA6AE', noShoot: '#E5E7DF', noShootRed: '#E65959', faceEdge: '#0B0D10',
   handle: '#6E9BFF', detected: '#C498FF', suggested: '#FFD45C',
+  sky: '#06080B', ground3d: '#161A20', wall3d: '#7E8894',
 };
 
 let active: Palette = dayPalette;

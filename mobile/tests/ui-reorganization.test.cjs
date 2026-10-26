@@ -646,3 +646,38 @@ test('PLAN ROUTE (V2) explains missing firing areas instead of planning', async 
   h.press('PLAN ROUTE'); await new Promise(resolve => setTimeout(resolve, 120)); h.render();
   assert.ok(h.nodes().some(n => n.props.children === 'THE STAGE NEEDS SETUP FIRST'));
 });
+
+test('3D and eye-level views share the document: select, move, raise and rotate in 3D, then back to the plan', () => {
+  const h = initial();
+  h.press('3D view');
+  let view = h.child('Stage3DView');
+  assert.equal(view.editable, true);
+  assert.ok(!h.nodes().some(n => n.type === 'StageViewport'), 'the 3D view replaces the plan canvas');
+  const wall = view.stage.objects.find(o => o.type === 'wall'), target = view.stage.objects.find(o => o.type === 'cardboardTarget');
+  view.onSelect(wall.id); h.render();
+  h.press('Raise the wall'); h.press('Rotate right');
+  view = h.child('Stage3DView');
+  const raised = view.stage.objects.find(o => o.id === wall.id);
+  assert.equal(raised.geometry.height, wall.geometry.height + 6);
+  assert.equal(raised.rotation, (wall.rotation + 15) % 360);
+  // Dragging on the ground moves it through the editor's snapping, as one undo step.
+  const before = view.stage, to = { space: 'stage', x: wall.position.x + 37, y: wall.position.y + 5, z: wall.position.z };
+  const { resolveMovement, DEFAULT_SNAPPING } = require('../src/stage/snapping.ts');
+  const expected = resolveMovement(before, wall.id, to, DEFAULT_SNAPPING).position;
+  view.onMoveStart(); view.onMove(wall.id, to); view.onMoveEnd(); h.render();
+  const moved = h.child('Stage3DView').stage.objects.find(o => o.id === wall.id).position;
+  assert.deepEqual([moved.x, moved.y], [expected.x, expected.y], 'the same snapping as a 2D drag');
+  assert.notEqual(moved.x, raised.position.x);
+  h.press('Stage tools'); h.press('UNDO EDIT');
+  assert.deepEqual(h.child('Stage3DView').stage.objects.find(o => o.id === wall.id).position, raised.position, 'one undo step');
+  h.child('Stage3DView').onSelect(target.id); h.render(); h.press('Raise the target');
+  assert.equal(h.child('Stage3DView').stage.objects.find(o => o.id === target.id).position.z, target.position.z + 3);
+  h.press('Eye-level view');
+  assert.ok(h.nodes().some(n => n.type === 'EyeLevelView'));
+  assert.ok(!h.nodes().some(n => n.props?.title === 'SELECT'), 'the bottom bar steps aside for the walk-through');
+  h.child('EyeLevelView').onExit(); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
+  // Route editing tools are plan-only.
+  h.press('3D view'); h.press('ROUTE'); h.press('PATH');
+  assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
+});

@@ -1,3 +1,12 @@
+# RC2 batch 10: 3D stage view and eye-level walk-through - 2026-10-25
+
+- **2D · 3D · EYE** at the top left of the stage canvas. Details: `docs/stage-3d.md`.
+- **3D**: orbit (one finger), pan and zoom (two fingers or − / + / FIT), tap to select, drag the selected object along the ground with the same snapping and bounds as in 2D (one undo step), wall height and target elevation − / +, rotate, EDIT. Walls show their real height and port openings; raised targets stand on posts. In ROUTE mode the walking path, moving-engagement stretches and stops are drawn on the ground.
+- **EYE**: stand at the start, at any stop, or anywhere along the planned walk (scrubber with the moving-engagement stretches marked, ◀ ▶ a yard at a time). The view turns toward what the plan engages there. Each target is listed as ON THE MOVE (with yards of window left), FROM HERE, LEGAL, VISIBLE with the reason it is not legal, HIDDEN, or DONE, using the planner's own legality rules. Eye height − / + (default 5 ft 3 in), remembered on the device.
+- Built on `expo-gl` with a small WebGL 1 renderer (no three.js). If GL cannot start, the view says so and shows the older 2.5D preview.
+- Each object's 3D geometry is cached by the object, so dragging one object rebuilds only that object (about 0.4 ms instead of 6.6 ms per frame for a 40-wall, 40-target stage, measured in Node).
+- Validation: 905/905 tests (9 new in `tests/stage3d.test.cjs`, 1 new editor test), TypeScript passed; 3D and EYE checked in the web build (WebGL in Chromium) in day and night, including select, drag, raise, rotate, orbit, planning a route and walking it. No device testing. **Needs a new build** (`expo-gl` is native).
+
 # RC2 batch 9: outdoor high-contrast redesign and night mode - 2026-10-25
 
 - **Night mode.** Profile → APPEARANCE: SYSTEM / DAY / NIGHT. System follows the phone; the choice is saved on the device and applied before the first screen draws. Switching restyles every open screen in place, including the stage editor, without losing unsaved work.

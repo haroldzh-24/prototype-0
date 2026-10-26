@@ -3,7 +3,7 @@
 The approved mockups (outdoor high-contrast: black on white for full sun, a near-black night version) are the reference. Implementation:
 
 - `mobile/src/ui/tokens.ts`: `dayPalette` and `nightPalette` (same keys, every text pair at least 4.5:1 and every plan mark at least 3:1, checked by `tests/theme.test.cjs`), fonts, spacing, touch sizes (48 / 56 pt), borders, typography. `colors` always reads the active palette.
-- `mobile/src/ui/theme.ts`: preference (system / day / night), the phone's mode, `useThemeMode()`. `themeStore.ts` / `themeStore.web.ts` save the preference (native key-value store, read before the first render; localStorage on web).
+- `mobile/src/ui/theme.ts`: preference (system / day / night), the phone's mode, `useThemeMode()`. `themePrefs.ts` saves the preference through `prefsStore.ts` / `prefsStore.web.ts` (native key-value store, read before the first render; localStorage on web).
 - Rules for components, so a switch restyles the screen in place:
   - Read colours at render time: `colors.x` inline, or `const styles = themed(c => ({ ... }))` instead of `StyleSheet.create` (it rebuilds per palette and caches).
   - Every screen calls `useThemeMode()`; a component wrapped in `memo` calls it too (`StageGrid`).

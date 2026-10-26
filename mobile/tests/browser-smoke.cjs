@@ -107,7 +107,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     }
     await click('ADD'); await click('Start Position');
     await click('Rotate'); await click('Edit'); assert.equal(await evaluate(`document.querySelector('input[aria-label="Rotation (degrees)"]').value`), '15'); await click('Done');
-    await click('Stage tools'); await click('2.5D Preview'); await waitText('2.5D / READ ONLY'); await click('Back');
+    await click('Stage tools'); await click('3D view'); await waitText('DRAG TO ORBIT · PINCH TO ZOOM · TAP TO SELECT'); await click('Plan view');
     await click('Stage tools'); await click('Loadout'); await click('ADD MAGAZINE');
     await fill('Magazine capacity', '20'); await fill('Magazine loaded rounds', '13');
     await click('APPLY MAGAZINE'); await click('USE AS STARTING MAGAZINE');

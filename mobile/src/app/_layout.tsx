@@ -11,7 +11,7 @@ import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed/700
 import { BarlowCondensed_800ExtraBold } from '@expo-google-fonts/barlow-condensed/800ExtraBold';
 import { colors } from '../ui/tokens';
 import { onThemeChange, setSystemMode, setThemePreference, themePreference, useThemeMode } from '../ui/theme';
-import { loadThemePreference, saveThemePreference } from '../ui/themeStore';
+import { loadThemePreference, saveThemePreference } from '../ui/themePrefs';
 import { StorageProvider } from '@/storage/StorageProvider';
 
 export default function Layout() {

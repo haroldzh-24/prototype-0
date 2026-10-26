@@ -11,6 +11,10 @@ From the rulebook research in this folder, the 2026-10-22 audit, and the product
 | Stage check in the editor: round count and USPSA course type, steel distance from firing areas, USPSA freestyle limits on long courses, PCSL 50 yd limit, IDPA 18-round strings, non-threat ratio, steel share, target distance | USPSA 1.1.5, 1.2.1, 2.1.3; PCSL 10.9.1; IDPA 6.5.3–6.5.15 | `rules/stageCheck.ts` |
 | Doc corrections: IDPA preset sizes are vendor-sourced; PCSL occlusion is a planning choice; PCSL is silent on walls under 69 in | — | `docs/target-preset-sources.md`, `docs/route-planner-v2.md` |
 
+## Done in RC2 batches 9 and 10
+
+Items 1–3 below: the redesign with night mode (batch 9), 3D view and editing, and the eye-level walk-through with engagements on the move (batch 10, `docs/stage-3d.md`).
+
 ## Next (needs your go-ahead: big)
 
 | # | Item | Why | Effort |
