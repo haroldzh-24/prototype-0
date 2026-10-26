@@ -57,6 +57,69 @@ export async function planRouteAsync(snapshot: StageSnapshot, options: PlanRoute
   return step.value;
 }
 
+type MovingSlot = { targetId: string; start: number; end: number };
+const SAMPLE_INCHES = 3;
+
+/** Point at distance s along a polyline (clamped to its ends). */
+export function pointAlong(path: readonly Point[], s: number): Point {
+  let rest = Math.max(0, s);
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (rest <= len || i === path.length - 1) { const t = len ? Math.min(1, rest / len) : 0; return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; }
+    rest -= len;
+  }
+  return path[path.length - 1];
+}
+const pathLength = (path: readonly Point[]) => path.slice(1).reduce((s, b, i) => s + Math.hypot(b.x - path[i].x, b.y - path[i].y), 0);
+
+/** Legal intervals along a path, sampled every few inches with boundaries refined by bisection. */
+export function legalIntervals(path: readonly Point[], legal: (p: Point) => boolean): { start: number; end: number }[] {
+  const total = pathLength(path), n = Math.max(1, Math.ceil(total / SAMPLE_INCHES)), out: { start: number; end: number }[] = [];
+  const at = (s: number) => legal(pointAlong(path, s));
+  const edge = (yes: number, no: number) => { for (let k = 0; k < 18; k++) { const m = (yes + no) / 2; if (at(m)) yes = m; else no = m; } return yes; };
+  let open: number | null = null, prevS = 0, prevOk = false;
+  for (let k = 0; k <= n; k++) {
+    const s = total * k / n, ok = at(s);
+    if (ok && open === null) open = k === 0 ? 0 : edge(s, prevS);
+    if (!ok && open !== null) { out.push({ start: open, end: edge(prevS, s) }); open = null; }
+    prevS = s; prevOk = ok;
+  }
+  if (open !== null && prevOk) out.push({ start: open, end: total });
+  return out;
+}
+
+/** Legal walking just before the end of a path: the length of the legal interval that reaches its end. */
+function approachLength(path: readonly Point[], legal: (p: Point) => boolean): number {
+  const intervals = legalIntervals(path, legal), total = pathLength(path), last = intervals[intervals.length - 1];
+  return last && Math.abs(last.end - total) < 1e-6 ? last.end - last.start : 0;
+}
+
+/**
+ * Places each target on the path in a stretch of at least `length` inches inside its legal intervals, one after another,
+ * honouring "engage after" (a target waits for everything it must follow). Greedy: the target whose earliest
+ * placement ends soonest goes next. Returns null when some target cannot be placed.
+ */
+export function scheduleOnPath(path: readonly Point[], ids: readonly string[], engagedBefore: ReadonlySet<string>, length: number,
+  legalAt: (p: Point, id: string) => boolean, after: (id: string) => readonly string[]): MovingSlot[] | null {
+  const windows = new Map(ids.map(id => [id, legalIntervals(path, p => legalAt(p, id))] as const));
+  const done = new Set(engagedBefore), slots: MovingSlot[] = [], remaining = [...ids];
+  let cursor = 0;
+  while (remaining.length) {
+    let pick: { id: string; start: number } | null = null;
+    for (const id of remaining) {
+      if (after(id).some(pre => !done.has(pre))) continue;
+      for (const w of windows.get(id)!) {
+        const start = Math.max(cursor, w.start);
+        if (start + length <= w.end + 1e-9) { if (!pick || start + length < pick.start + length - 1e-9 || (Math.abs(start - pick.start) < 1e-9 && id < pick.id)) pick = { id, start }; break; }
+      }
+    }
+    if (!pick) return null;
+    slots.push({ targetId: pick.id, start: pick.start, end: pick.start + length });
+    done.add(pick.id); cursor = pick.start + length; remaining.splice(remaining.indexOf(pick.id), 1);
+  }
+  return slots;
+}
+
 const popcount = (m: bigint) => { let c = 0; for (let x = m; x; x &= x - 1n) c++; return c; };
 function segmentDistance(p: Point, a: Point, b: Point): number {
   const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
@@ -254,6 +317,7 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
         && areaClearance(p, stage, id) >= Math.min(AREA_MARGIN_INCHES, inset) - 1e-9;
     });
   const assess = (point: Point) => new Map(stage.targets.map(t => [t.id, checkEngagement(point, t, stage, half, policy)] as const));
+  const assumptions0 = new Set<string>();
   for (let round = 0; round < (options.refine === false ? 0 : 4); round++) {
     let improved = false;
     for (let i = 0; i < stops.length; i++) {
@@ -273,12 +337,56 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
     }
     if (!improved) break;
   }
+
+  // 6. Engaging on the move. A stop is dropped when everything it covered (and anything already engaged on the move
+  // on its neighbouring legs) can be engaged, in order, from the walking path that replaces it, each target with at
+  // least `minWindow` inches of legal walking to itself. The last stop is kept: the course ends there.
+  const movingWanted = options.moving === true, movingAllowed = movingWanted && stage.ruleset !== 'IDPA';
+  if (movingWanted && !movingAllowed) warnings.push('Engaging on the move is not planned for IDPA: cover and tactical priority are not modelled.');
+  const minWindow = Math.max(1, options.minMovingWindowInches ?? 36);
+  const movingInto: MovingSlot[][] = stops.map(() => []);
+  const canMove = (id: string) => !stage.procedures[id]?.stationaryOnly;
+  const legalAt = (p: Point, id: string) => checkEngagement(p, faces.get(id)!, stage, half, policy).legal;
+  let removedStops = 0;
+  if (movingAllowed && stops.length > 1) {
+    const sequenceValid = () => {
+      const done = new Set<string>();
+      for (let i = 0; i < stops.length; i++) for (const id of [...movingInto[i].map(m => m.targetId), ...assignedTo[i]]) {
+        if (after(id).some(pre => !done.has(pre))) return false;
+        done.add(id);
+      }
+      return true;
+    };
+    for (let guard = 0; guard < 64; guard++) {
+      yield;
+      let best: { i: number; slots: MovingSlot[]; saving: number } | null = null;
+      for (let i = 0; i + 1 < stops.length; i++) {
+        const ids = [...movingInto[i].map(m => m.targetId), ...assignedTo[i], ...movingInto[i + 1].map(m => m.targetId)];
+        if (!ids.every(canMove)) continue;
+        const prev = legFrom(i), next = stops[i + 1].point, path = graph.path(prev, next);
+        if (!path) continue;
+        const done = new Set<string>();
+        for (let j = 0; j < i; j++) { for (const m of movingInto[j]) done.add(m.targetId); for (const id of assignedTo[j]) done.add(id); }
+        const slots = scheduleOnPath(path, ids, done, minWindow, legalAt, after);
+        if (!slots) continue;
+        const saving = graph.distance(prev, stops[i].point) + graph.distance(stops[i].point, next) - graph.distance(prev, next);
+        if (!best || saving > best.saving + 1e-9) best = { i, slots, saving };
+      }
+      if (!best) break;
+      const saved = { stops: [...stops], assignedTo: [...assignedTo], movingInto: [...movingInto] };
+      stops.splice(best.i, 1); assignedTo.splice(best.i, 1); movingInto.splice(best.i, 1);
+      movingInto[best.i] = best.slots;
+      if (!sequenceValid()) { stops.splice(0, stops.length, ...saved.stops); assignedTo.splice(0, assignedTo.length, ...saved.assignedTo); movingInto.splice(0, movingInto.length, ...saved.movingInto); break; }
+      removedStops++;
+    }
+  }
+  if (removedStops) assumptions0.add(`Engaging on the move needs at least ${Math.round(minWindow)} in of legal walking per target; shooting time and accuracy on the move are not checked.`);
   const nudge = Math.hypot(origin.x - stage.start.x, origin.y - stage.start.y);
   const movementInches = nudge + stops.reduce((sum, stop, i) => sum + graph.distance(legFrom(i), stop.point), 0);
 
   // Report each stop with engagements ordered across downrange (IDPA: near to far), then by procedure order.
-  const positions: PlannedPosition[] = [], legs: Point[][] = [], assumptions = new Set<string>();
-  const assigned = new Map<string, string>();
+  const positions: PlannedPosition[] = [], legs: Point[][] = [], assumptions = assumptions0;
+  const assigned = new Map<string, string>(), movingIds = new Set<string>();
   stops.forEach((stop, index) => {
     const id = `v2-p${index + 1}`, row = stop.row;
     const engageable = stage.targets.filter(t => row.get(t.id)?.legal).map(t => t.id);
@@ -292,35 +400,48 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
       const pick = Math.max(0, mine.findIndex(t => after(t.id).every(pre => !here.has(pre) || placed.has(pre))));
       sequence.push(mine[pick]); placed.add(mine[pick].id); mine.splice(pick, 1);
     }
-    const engagements: PlannedEngagement[] = sequence.map((t, i) => {
-      const c = row.get(t.id)!; assigned.set(t.id, id);
+    const leg = graph.path(legFrom(index), stop.point) ?? [legFrom(index), stop.point];
+    const reported = index === 0 && nudge > 0 ? [stage.start, ...leg] : leg, offset = index === 0 ? nudge : 0;
+    const note = (t: { id: string }, c: EngagementCheck) => {
       if (c.overLowWall) assumptions.add('Some targets are only visible over walls lower than 69 in; the plan assumes shooting over them is allowed and possible from eye height.');
       if (c.passesAboveOrBelow) assumptions.add('Some lines of sight cross another target or no-shoot in plan view and are treated as passing above or below it, using the face heights in the stage model.');
       if (c.throughNoShoot) warnings.push(`${t.id}: every visible line passes a non-threat (penalty risk).`);
-      return { targetId: t.id, order: i + 1, visibleFraction: c.visibleFraction, safeMarginDegrees: c.safeMarginDegrees,
-        nearSafeAngle: c.safeMarginDegrees < nearMargin, throughNoShoot: c.throughNoShoot, overLowWall: c.overLowWall };
+    };
+    const movingEngagements: PlannedEngagement[] = movingInto[index].map((slot, i) => {
+      const at = pointAlong(leg, slot.start), c = checkEngagement(at, faces.get(slot.targetId)!, stage, half, policy);
+      assigned.set(slot.targetId, id); movingIds.add(slot.targetId); note({ id: slot.targetId }, c);
+      return { targetId: slot.targetId, order: i + 1, visibleFraction: c.visibleFraction, safeMarginDegrees: c.safeMarginDegrees,
+        nearSafeAngle: c.safeMarginDegrees < nearMargin, throughNoShoot: c.throughNoShoot, overLowWall: c.overLowWall,
+        moving: { startInches: slot.start + offset, endInches: slot.end + offset, at } };
     });
-    positions.push({ id, point: stop.point, engagements, engageableTargetIds: engageable });
-    const leg = graph.path(legFrom(index), stop.point) ?? [legFrom(index), stop.point];
-    legs.push(index === 0 && nudge > 0 ? [stage.start, ...leg] : leg);
+    const engagements: PlannedEngagement[] = sequence.map((t, i) => {
+      const c = row.get(t.id)!; assigned.set(t.id, id); note(t, c);
+      const approach = movingAllowed && canMove(t.id) ? approachLength(leg, p => legalAt(p, t.id)) : 0;
+      return { targetId: t.id, order: movingEngagements.length + i + 1, visibleFraction: c.visibleFraction, safeMarginDegrees: c.safeMarginDegrees,
+        nearSafeAngle: c.safeMarginDegrees < nearMargin, throughNoShoot: c.throughNoShoot, overLowWall: c.overLowWall,
+        ...(approach >= minWindow ? { approachInches: approach } : {}) };
+    });
+    positions.push({ id, point: stop.point, engagements, movingEngagements, engageableTargetIds: engageable });
+    legs.push(reported);
   });
   const covered: TargetReport[] = stage.targets.filter(t => assigned.has(t.id))
-    .map(t => ({ targetId: t.id, status: 'covered', reasons: [], positionId: assigned.get(t.id), legalCandidateCount: legalCount.get(t.id) ?? 0 }));
+    .map(t => ({ targetId: t.id, status: 'covered', reasons: [], positionId: assigned.get(t.id), mode: movingIds.has(t.id) ? 'moving' : 'standing', legalCandidateCount: legalCount.get(t.id) ?? 0 }));
   const missedByWalk: TargetReport[] = stage.targets.filter(t => !assigned.has(t.id) && (required & bit.get(t.id)!))
     .map(t => ({ targetId: t.id, status: 'uncovered', reasons: [ordered ? 'PROCEDURE_ORDER' : 'UNREACHABLE'], legalCandidateCount: legalCount.get(t.id) ?? 0 }));
-  const nearSafeAngle = positions.flatMap(p => p.engagements.filter(e => e.nearSafeAngle).map(e => ({ targetId: e.targetId, positionId: p.id, marginDegrees: e.safeMarginDegrees })));
+  const nearSafeAngle = positions.flatMap(p => [...p.movingEngagements, ...p.engagements].filter(e => e.nearSafeAngle).map(e => ({ targetId: e.targetId, positionId: p.id, marginDegrees: e.safeMarginDegrees })));
   const stoppedBy = coverBudget.stoppedBy === 'time' || walkBudget.stoppedBy === 'time' ? 'time' as const
     : coverBudget.stoppedBy || walkBudget.stoppedBy ? 'nodes' as const : null;
   if (truncated) warnings.push('Candidate positions were thinned to stay within the search bound; a denser grid might find a shorter walk.');
   if (stoppedBy === 'time') warnings.push(`The search reached its ${(maxMs / 1000).toFixed(1)} s time limit; this is the best plan found in time and may differ on a faster device.`);
   if (!walk.complete) warnings.push('The distance search stopped at its budget; this is the best walk found, not a proven shortest one.');
   if (!exactPositions) warnings.push('The minimum number of positions was not proven within the search budget.');
+  if (removedStops) warnings.push(`${removedStops} stop(s) replaced by engaging on the move; the fewest-positions proof applies to standing-only plans.`);
   if (nearSafeAngle.length) warnings.push(`${nearSafeAngle.length} engagement(s) are within ${nearMargin}° of the safe-angle limit.`);
   const targets = [...covered, ...missedByWalk, ...uncoveredReports].sort((a, b) => stage.targets.findIndex(t => t.id === a.targetId) - stage.targets.findIndex(t => t.id === b.targetId));
   const allCovered = targets.every(t => t.status === 'covered');
   return finish({ ...base, status: allCovered ? 'complete' : 'partial', positions, legs, movementInches, targets,
     safety: { ...base.safety, nearSafeAngle }, assumptions: [...assumptions], warnings,
-    diagnostics: { ...diagnosticsBase, minimumPositions: minimumProven, exactPositions,
+    diagnostics: { ...diagnosticsBase, minimumPositions: minimumProven, exactPositions: exactPositions && !removedStops, movingStopsRemoved: removedStops,
       exactDistance: exactPositions && walk.complete && !reduced && !truncated, refinedInches: Math.max(0, before - (movementInches - nudge)),
       searchNodes: coverBudget.nodes + walkBudget.nodes, durationMs: 0, stoppedBy } });
 }

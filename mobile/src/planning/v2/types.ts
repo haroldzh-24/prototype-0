@@ -34,6 +34,14 @@ export type PlanRouteOptions = {
   travel?: 'anywhere' | 'within-areas';
   /** Treat target stands as obstacles for movement. Default true. */
   targetsBlockTravel?: boolean;
+  /**
+   * Plan engagements on the move: drop a stop when every target it would cover can be engaged legally from the walking
+   * path that replaces it, and report how far before each remaining stop its targets can already be engaged.
+   * Not planned for IDPA (cover rules are not modelled). Default false; the app passes the route's setting.
+   */
+  moving?: boolean;
+  /** Legal walking needed per target engaged on the move, inches. A geometric threshold, not timing. Default 36. */
+  minMovingWindowInches?: number;
   /** Slide stops below grid resolution after the search (never loosening safety margins). Default true. */
   refine?: boolean;
   /** Representative points kept per distinct coverage set for the distance search. Default 4. */
@@ -67,11 +75,22 @@ export type PlannedEngagement = {
   throughNoShoot: boolean;
   /** USPSA/PCSL: visible only over a wall lower than 69 in (an assumption). */
   overLowWall: boolean;
+  /** Engaged on the walk into the position: where on that leg (inches along legs[i]) and the point it starts. */
+  moving?: { startInches: number; endInches: number; at: Point };
+  /** Standing engagements: legal walking just before the stop from which this target can already be engaged, inches. */
+  approachInches?: number;
 };
 
-export type PlannedPosition = { id: string; point: Point; engagements: PlannedEngagement[]; engageableTargetIds: string[] };
+export type PlannedPosition = {
+  id: string; point: Point;
+  /** Engaged standing at the position, in order. */
+  engagements: PlannedEngagement[];
+  /** Engaged on the move along the leg into this position, in order, before the standing engagements. */
+  movingEngagements: PlannedEngagement[];
+  engageableTargetIds: string[];
+};
 
-export type TargetReport = { targetId: string; status: 'covered' | 'uncovered'; reasons: ReasonCode[]; positionId?: string; legalCandidateCount: number };
+export type TargetReport = { targetId: string; status: 'covered' | 'uncovered'; reasons: ReasonCode[]; positionId?: string; mode?: 'standing' | 'moving'; legalCandidateCount: number };
 
 export type RoutePlan = {
   version: 2;
@@ -94,6 +113,8 @@ export type RoutePlan = {
     /** Inches saved by sliding stops below grid resolution after the search. */
     refinedInches?: number;
     searchNodes: number; durationMs: number; truncatedCandidates: boolean;
+    /** Stops replaced by engagements on the move (the minimum-positions proof is for standing-only plans). */
+    movingStopsRemoved?: number;
     /** Why a search phase stopped early, if it did. */
     stoppedBy: 'nodes' | 'time' | null;
   };

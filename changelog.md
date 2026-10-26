@@ -1,3 +1,9 @@
+# RC2 batch 8: engaging on the move - 2026-10-25
+
+- Route Planner V2 can plan engagements on the move (plan panel: STANDING ONLY / ON THE MOVE; on by default when Route settings allow moving engagement, not offered for IDPA). Stops are dropped when their targets can be shot from the walking path, each with at least 36 in of legal walking; "engage after" and "stationary required" are kept, and the last stop stays. Standing engagements also say how far out they could already be started on the walk in.
+- Adopted plans carry these as ordinary moving engagements, and the engagement analysis covers the same targets (all 23 random plans that used moving engagements in the new test agreed).
+- Validation: 887/887 tests (7 new in `tests/movingPlan.test.cjs`), TypeScript passed. No device testing.
+
 # RC2 batch 7: rulebook research, steel distance, drill penalties, stage check - 2026-10-25
 
 - Researched the current USPSA (Edition 2026-09), PCSL (2026-09-14) and IDPA (2026 v2) rulebooks for what the app needs; references with section citations in `docs/rules/`, and a prioritized gap list in `docs/rules/gap-list.md`.

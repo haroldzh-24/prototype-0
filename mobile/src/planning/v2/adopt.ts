@@ -25,10 +25,17 @@ export function optionsFromPlan(plan: StagePlan): PlanRouteOptions {
  */
 export function planToStageRoute(plan: RoutePlan, stage: StageDocument, current: StagePlan): StageRoute {
   const startId = stage.objects.find(o => o.type === 'start')?.id ?? 'start';
-  const positions = plan.positions.map((p, i) => ({
-    id: p.id, label: `P${i + 1}`, position: { space: 'stage' as const, x: p.point.x, y: p.point.y, z: 0 },
-    visibleTargetIds: [...p.engageableTargetIds], engagedTargetIds: p.engagements.map(e => e.targetId),
-  }));
+  // Engagements on the move ride on the leg into a waypoint and come before its standing engagements (route format).
+  // They need engagement rules, which every plan made from route settings has.
+  const rules = !!current.route?.engagementRules;
+  const positions = plan.positions.map((p, i) => {
+    const moving = rules ? (p.movingEngagements ?? []).map(e => e.targetId) : [];
+    return {
+      id: p.id, label: `P${i + 1}`, position: { space: 'stage' as const, x: p.point.x, y: p.point.y, z: 0 },
+      visibleTargetIds: [...new Set([...p.engageableTargetIds, ...moving])], engagedTargetIds: [...moving, ...p.engagements.map(e => e.targetId)],
+      ...(moving.length ? { movingTargetIds: moving } : {}),
+    };
+  });
   const connections: RouteConnection[] = plan.legs.flatMap((leg, i) => leg.length > 2 ? [{
     fromId: i === 0 ? startId : positions[i - 1].id, toId: positions[i].id, style: 'STRAIGHT' as const,
     bends: leg.slice(1, -1).map((b, j) => ({ id: `${positions[i].id}-bend-${j + 1}`, position: { space: 'stage' as const, x: b.x, y: b.y, z: 0 } })),

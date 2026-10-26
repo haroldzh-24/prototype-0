@@ -22,7 +22,7 @@ The app passes the route's own settings with `optionsFromPlan(plan)`: safe direc
 - Geometry in inches; stage plane origin top-left, +X right, +Y down the screen, headings in degrees (0 = +X, 90 = +Y).
 - Downrange comes from the route's safe direction when set, else from the stage (`stageDownrange()`), default 270° (up the screen). When the two differ by more than 1° the plan warns and uses the route setting.
 - A shooting position must be **strictly inside** a firing area (boundary counts as outside). This is deliberately stricter than USPSA 2.2.1.2, where fault lines count as inside the shooting area, so a planned stop never sits on a line.
-- All engagements are from stops. Shooting on the move is not planned by V2 (the manual ENGAGE tools still support it).
+- Engagements are from stops unless engaging on the move is turned on (see below).
 
 ## Pipeline
 
@@ -56,6 +56,15 @@ Reason codes per target: `NO_ALLOWED_AREA`, `IDPA_AREAS_REQUIRED` (IDPA target w
 With outside travel turned off, the analysis treats walking along an area's edge as inside the area (the planner's travel rule); only shooting positions use the strict rule.
 
 In a saved order, a stationary target that cannot be engaged at its waypoint is skipped with a warning; the targets after it are still checked. (Saved moving orders are still authoritative: an infeasible moving order stops there, as before.)
+
+## Engaging on the move
+
+With `moving: true` (the plan panel's ON THE MOVE, available when Route settings allow moving engagement; not for IDPA, whose cover rules are not modelled), after the standing plan is found:
+
+1. **Stops are dropped** when every target a stop covered, plus anything already engaged on the move on its neighbouring legs, can be engaged from the walking path that replaces it. Each target needs at least `minMovingWindowInches` (default 36 in) of walking where it is legal by the same check as standing shots (firing area, steel distance, safe angle across the face, line of sight). Targets are placed one after another along the leg; "engage after" is kept and "stationary required" targets are never moved. The last stop is kept. The stop whose removal shortens the walk most goes first; this repeats until none can go.
+2. **Approach** (`approachInches` on standing engagements): how far before each remaining stop its target is already legal on the walk in, when that is at least the same threshold.
+
+Moving engagements are reported per position (`movingEngagements`, in order, with their stretch along `legs[i]`), adopted as ordinary moving engagements on the waypoint, and checked by the same engagement analysis. The fewest-positions proof applies to the standing plan (`diagnostics.movingStopsRemoved`, and `exactPositions` is false when stops were dropped). Shooting time and accuracy on the move are not checked; the threshold is geometric.
 
 ## Refinement
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Action, Copy, DataRow, Loading, Notice, Panel } from '../../ui/kit';
+import { Action, Copy, DataRow, Loading, Notice, Panel, Segmented } from '../../ui/kit';
 import EditorSheet from '../../editor/EditorSheet';
 import { meaningfulRoute } from '../../editor/routePresentation';
 import type { StageDocument } from '../../stage/model';
@@ -41,6 +41,10 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
   onClose: () => void; onUse: (plan: StagePlan) => void; onConfigure: (section: 'rules' | 'start') => void;
 }) {
   const [result, setResult] = useState<RoutePlan | null>(null), [running, setRunning] = useState(false), [confirm, setConfirm] = useState(false), [error, setError] = useState('');
+  const rules = plan.route?.engagementRules;
+  // Engaging on the move follows the route setting; IDPA is planned standing (cover rules are not modelled).
+  const movingAvailable = !!rules && rules.allowMoving !== false && rules.ruleset !== 'IDPA';
+  const [moving, setMoving] = useState(movingAvailable);
   const abort = useRef<AbortController | null>(null);
   // A stage or route edit invalidates any result or run in progress.
   useEffect(() => { setResult(null); setConfirm(false); return () => { abort.current?.abort(); abort.current = null; }; }, [stage, plan]);
@@ -52,7 +56,7 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     setRunning(true); setResult(null); setConfirm(false); setError('');
     try {
       // Runs in short slices on the JS thread so the screen stays responsive and Cancel works.
-      const planned = await planRouteAsync(snapshot, optionsFromPlan(plan), controller.signal);
+      const planned = await planRouteAsync(snapshot, { ...optionsFromPlan(plan), moving: moving && movingAvailable }, controller.signal);
       if (!controller.signal.aborted) setResult(planned);
     } catch (e) {
       if (!controller.signal.aborted) setError('Planning failed for this geometry. Review the stage and try again.');
@@ -73,6 +77,9 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     <DataRow label="Firing areas" value={snapshot.firingAreas.length} />
     <DataRow label="Ruleset" value={snapshot.ruleset ?? 'USPSA'} />
     <DataRow label="Downrange" value={downrangeLabel(stageDownrange(stage))} />
+    {movingAvailable
+      ? <Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
+      : <Copy>{rules?.ruleset === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
     {!snapshot.firingAreas.length && <Notice>Add firing areas first: positions are only planned inside them.</Notice>}
     <Action title="ROUTE SETTINGS" onPress={() => onConfigure('rules')} />
     {running && <><Loading label="Planning route..." /><Action title="CANCEL" onPress={cancel} /></>}
@@ -84,7 +91,9 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
       {!!result.positions.length && <>
         <DataRow label="Positions" value={result.positions.length + (result.diagnostics.exactPositions ? ' (minimum)' : '')} />
         <DataRow label="Movement" value={formatYardsFixed(result.movementInches)} />
-        {result.positions.map((p, i) => <Copy key={p.id}>{`P${i + 1}: ` + p.engagements.map(e => label(e.targetId) + (e.nearSafeAngle ? ` (${Math.round(e.safeMarginDegrees)}° from limit)` : '')).join(', ')}</Copy>)}
+        {result.positions.map((p, i) => <Copy key={p.id}>{`P${i + 1}: `
+          + (p.movingEngagements.length ? 'on the way in ' + p.movingEngagements.map(e => label(e.targetId)).join(', ') + ' · then ' : '')
+          + p.engagements.map(e => label(e.targetId) + (e.nearSafeAngle ? ` (${Math.round(e.safeMarginDegrees)}° from limit)` : '') + (e.approachInches ? ` (can start ${formatYardsFixed(e.approachInches)} out)` : '')).join(', ')}</Copy>)}
       </>}
       {result.targets.filter(t => t.status === 'uncovered').map(t => <Notice key={t.targetId}>{label(t.targetId) + ': ' + t.reasons.map(r => reasonText[r]).join(' ')}</Notice>)}
       {result.warnings.map(w => <Notice key={w}>{w}</Notice>)}

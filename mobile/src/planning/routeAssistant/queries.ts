@@ -105,7 +105,7 @@ export function getPlanDiagnostics(c: RouteAssistantContext) {
   const label = (id: string) => targetLabel(c.stage as StageDocument, id);
   return {
     source: 'Route Planner V2 (computed)', status: plan.status, errors: plan.errors.slice(0, 3),
-    positions: plan.positions.map((p, i) => ({ label: `P${i + 1}`, targets: p.engagements.map(e => label(e.targetId)) })),
+    positions: plan.positions.map((p, i) => ({ label: `P${i + 1}`, onTheMove: (p.movingEngagements ?? []).map(e => label(e.targetId)), targets: p.engagements.map(e => label(e.targetId)) })),
     movementYards: Number((plan.movementInches / 36).toFixed(2)),
     uncovered: plan.targets.filter(t => t.status === 'uncovered').map(t => ({ target: label(t.targetId), reasons: t.reasons })),
     nearSafeAngle: plan.safety.nearSafeAngle.length, minimumProven: plan.diagnostics.exactPositions,
