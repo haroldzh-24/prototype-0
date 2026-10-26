@@ -50,7 +50,10 @@ test('painted areas, open area and the planner extent', () => {
   assert.ok(e.fraction > 0.08 && e.fraction < 0.2, 'the head is a small share: ' + e.fraction);
   near(e.extent.left, -0.17 * W, 0.6); near(e.extent.right, 0.17 * W, 0.6); near(e.extent.bottom, 0.8 * H, 0.6); near(e.extent.top, H, 1e-6);
   const face = targetFace(get(stage, 'T'), stage);
-  near(face.bottom - get(stage, 'T').position.z, 0.8 * H, 0.6, 'the planner aims at the open head'); near(Math.hypot(face.right.x - face.left.x, face.right.y - face.left.y), 0.34 * W, 1.2);
+  const z = get(stage, 'T').position.z;
+  near(face.aimBottom - z, 0.8 * H, 0.6, 'the planner aims at the open head'); near(face.aimTop - z, H, 1e-6);
+  near(face.bottom - z, 0, 1e-6, 'but the whole face still blocks: paint stops bullets'); near(Math.hypot(face.right.x - face.left.x, face.right.y - face.left.y), W, 1e-6);
+  assert.ok(face.sightSamples.every(p => Math.abs(p.x - get(stage, 'T').position.x) <= 0.17 * W + 0.5), 'aimed through the head columns');
   assert.equal(L.setHardCover(stage, 'T', () => []).objects.find(o => o.id === 'T').hardCover, undefined, 'removing the last paint clears the field');
 });
 
@@ -114,7 +117,8 @@ test('stage check: partly covered targets, half-size on a full-size no-shoot, PC
   stage = { ...stage, objects: stage.objects.map(o => o.id === 'NS' ? { ...o, attachment: { ...o.attachment, parentId: 'H', offset: { x: 12, y: 0 } } } : o) };
   stage = L.syncLayers(stage);
   const codes = checkStage(stage, undefined, 'USPSA').map(f => f.code);
-  assert.ok(codes.includes('USPSA_HALF_ON_FULL_NO_SHOOT') && codes.includes('USPSA_HALF_A_ZONE') && codes.includes('TARGET_PARTLY_COVERED'));
+  assert.ok(codes.includes('USPSA_HALF_ON_FULL_NO_SHOOT') && codes.includes('USPSA_A_ZONE_MINIMUM') && codes.includes('TARGET_PARTLY_COVERED'));
+  assert.equal(checkStage(stage, undefined, 'USPSA').find(f => f.code === 'USPSA_A_ZONE_MINIMUM').rule, 'USPSA 4.2.5, 4.2.1.1, B1');
   let pcsl = { ...createDefaultStage('PCSL', { size: { width: 720, depth: 720 } }), objects: [createObject('start', 'start', 360, 700)] };
   for (const [preset, id, x] of [['pcsl-practical-2025-v1', 'P', 200], ['pcsl-competition-2025-v1', 'C', 400], ['pcsl-mini-practical-2025-v1', 'M', 500]])
     pcsl = placeTarget(pcsl, preset, id, { space: 'stage', x, y: 100, z: 0 }).stage;
@@ -137,4 +141,89 @@ test('duplicating a target copies its layers onto the copy', () => {
   assert.equal(copyLayers.length, 1); assert.notEqual(copyLayers[0].id, 'N');
   near(copyLayers[0].position.x, copy.position.x - 0.55 * W, 1e-9);
   assert.equal(L.layersOf(result.stage, 'T').length, 1, 'the original keeps its own');
+});
+
+// ---- Fixes from the independent review of batch 15 ----
+
+const planRules = (stage, x0 = 250, x1 = 470, y0 = 480, y1 = 560) => ({ stage, ruleset: 'USPSA', firingAreas: [{ id: 'A', vertices: [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }] }], targetProcedures: {} });
+
+test('review 1: painted hard cover still stops shots at a target behind it', () => {
+  let stage = stageWith(['uspsa-metric-chl-v1', 'F', 360], ['uspsa-metric-chl-v1', 'B', 361]);
+  stage = { ...stage, objects: stage.objects.map(o => o.id === 'B' ? { ...o, position: { ...o.position, y: 20 } } : o) };
+  const { checkEngagement } = require('../src/planning/v2/coverage.ts');
+  const { normalizeStage } = require('../src/planning/v2/normalizeStage.ts');
+  const legalFor = s => { const n = normalizeStage(planRules(s, 340, 380, 500, 520), {}).stage; return checkEngagement({ x: 360, y: 510 }, n.targets.find(t => t.id === 'B'), n, 90, 'occlude').legal; };
+  assert.equal(legalFor(stage), false, 'B is hidden behind F');
+  assert.equal(legalFor(L.setHardCover(stage, 'F', () => [L.hardCoverFromPreset('headOnly', W, H, 'c')])), false, 'still hidden when F is painted');
+});
+
+test('review 2: every face drawn in front in a stack covers, including a hostage over a target behind', () => {
+  let stage = stageWith(['uspsa-metric-chl-v1', 'P', 300]);
+  stage = L.addLayer(stage, 'P', 'target', 'T2').stage; // behind, at +0.6 w
+  stage = L.addLayer(stage, 'P', 'noShoot', 'N').stage;
+  stage = L.updateAttachment(stage, 'N', a => ({ ...a, offset: { ...get(stage, 'T2').attachment.offset } })); // exactly over T2, in front
+  assert.equal(L.stackOrder(stage, 'P').map(o => o.id).join(','), 'T2,P,N');
+  assert.ok(L.exposure(stage, get(stage, 'T2')).fraction < L.OPEN_MIN, 'T2 is fully hidden');
+  assert.ok(checkStage(stage, undefined, 'USPSA').some(f => f.code === 'TARGET_COVERED' && f.objectIds[0] === 'T2'));
+  const result = planRoute(planRules(stage), { candidateSpacingInches: 12 });
+  assert.ok(!result.positions.some(p => p.engagements.some(e => e.targetId === 'T2')), 'T2 is never planned');
+});
+
+test('review 6: a rolled no-shoot blocks with its rolled size', () => {
+  let stage = stageWith(['uspsa-metric-chl-v1', 'T', 300]);
+  stage = L.addLayer(stage, 'T', 'noShoot', 'N').stage;
+  stage = L.updateAttachment(stage, 'N', a => ({ ...a, roll: 90 }));
+  const face = targetFace(get(stage, 'N'), stage);
+  near(Math.hypot(face.right.x - face.left.x, face.right.y - face.left.y), H, 0.6, 'turned on its side: 29.9 in across');
+  near(face.top - face.bottom, W, 0.6);
+});
+
+test('review 7: face left and right are the shooter\'s, whichever way downrange runs', () => {
+  for (const [downrange, side] of [[270, -1], [90, 1]]) {
+    let stage = { ...stageWith(['uspsa-metric-chl-v1', 'T', 300]), downrangeDegrees: downrange };
+    stage = L.addLayer(stage, 'T', 'noShoot', 'N').stage; // 10 in to the shooter's left
+    assert.equal(L.shooterSign(stage, 0), downrange === 270 ? 1 : -1);
+    assert.equal(Math.sign(get(stage, 'N').position.x - get(stage, 'T').position.x), side, `downrange ${downrange}`);
+    // OPEN TOP LEFT paint: the planner aims to the shooter's left, whichever way the target faces on screen.
+    const painted = L.setHardCover({ ...stage, objects: stage.objects.filter(o => o.id !== 'N') }, 'T', () => [L.hardCoverFromPreset('diagonalTopLeft', W, H, 'c')]);
+    const face = targetFace(get(painted, 'T'), painted);
+    assert.equal(Math.sign(face.center.x - get(painted, 'T').position.x), side, 'aimed at the open top left');
+  }
+});
+
+test('review 9 and 10: damaged layer data is refused or set aside; paint follows a resized face', () => {
+  let stage = stageWith(['uspsa-metric-chl-v1', 'T', 300]);
+  assert.ok(!L.validAttachment({ parentId: 'T' }) && L.validAttachment({ parentId: 'T', offset: { x: 0, y: 0 }, roll: 0, front: true }));
+  assert.ok(!L.validHardCovers([{ id: 'c', kind: 'edge', angle: 0 }]) && L.validHardCovers([L.hardCoverFromPreset('centreStrip', W, H, 'c')]));
+  const broken = { ...stage, objects: [...stage.objects, { ...createObject('noShootTarget', 'X', 10, 10), attachment: { parentId: 'T' } }] };
+  const synced = L.syncLayers(broken);
+  assert.equal(get(synced, 'X').attachment, undefined, 'kept as a standalone no-shoot instead of crashing');
+  const { editObject } = require('../src/stage/operations.ts');
+  stage = L.setHardCover(stage, 'T', () => [L.hardCoverFromPreset('headOnly', W, H, 'c')]);
+  const before = L.exposure(stage, get(stage, 'T')).fraction;
+  const resized = editObject(stage, 'T', { geometry: { faceWidth: W / 2, faceHeight: H / 2 } });
+  assert.equal(resized.error, undefined);
+  near(L.exposure(resized.stage, get(resized.stage, 'T')).fraction, before, 0.03, 'HEAD ONLY still leaves the head open');
+  near(get(resized.stage, 'T').hardCover[0].at.y, L.faceLandmarks(W / 2, H / 2).neck, 1e-9);
+  const strip = L.scaleCovers([L.hardCoverFromPreset('centreStrip', W, H, 's')], 0.5, 2)[0];
+  near(strip.width, 0.17 * W, 1e-9, 'an upright strip narrows with the width'); assert.equal(strip.angle, 0);
+});
+
+test('review 4: dragging a target never snaps it to its own layers', () => {
+  let stage = stageWith(['uspsa-metric-chl-v1', 'T', 330]);
+  stage = L.addLayer(stage, 'T', 'noShoot', 'N').stage;
+  const { resolveMovement } = require('../src/stage/snapping.ts');
+  const settings = { enabled: true, gridIncrement: 0.25, objectAlignment: true, tolerance: 6, rotationIncrement: 15 };
+  const start = get(stage, 'T').position;
+  const moved = resolveMovement(stage, 'T', { ...start, x: start.x + 0.4 }, settings);
+  assert.ok(!moved.guides.some(g => g.targetId === 'N'), 'no guide to its own hostage');
+});
+
+test('review 5: the eye view uses the planner\'s face (paint and layers)', () => {
+  const { sightStage } = require('../src/stage3d/walk.ts');
+  let stage = stageWith(['uspsa-metric-chl-v1', 'T', 300]);
+  stage = L.setHardCover(stage, 'T', () => [L.hardCoverFromPreset('topOpen', W, H, 'a'), { ...L.hardCoverFromPreset('topOpen', W, H, 'b'), angle: 180 }]);
+  const sight = sightStage(stage, { route: undefined });
+  const face = sight.stage.targets.find(t => t.id === 'T');
+  assert.deepEqual(face.sightSamples, [], 'fully painted: nothing to aim at');
 });

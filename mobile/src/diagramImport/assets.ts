@@ -32,6 +32,15 @@ export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reco
   if (mime !== 'application/pdf' && !mime.startsWith('image/')) throw new Error('Choose a PDF or image.');
   return { asset: await preserveFile(item.uri, item.name, mime), kind: mime === 'application/pdf' ? 'pdf' : 'image' };
 }
+/** A match book page, printout or screenshot from the photo album. PHPicker: no photo library permission is asked. */
+export async function pickPhoto(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> {
+  const module = requireOptionalNativeModule<{ pickImage?(): Promise<{ uri: string; name: string; size: number } | null> }>('TrainingMedia');
+  if (!module?.pickImage) throw new Error('Choosing from Photos needs the rebuilt iPhone app. You can import the picture with Import PDF or image.');
+  const picked = await module.pickImage();
+  if (!picked) return null;
+  const mime = /\.png$/i.test(picked.name) ? 'image/png' : /\.hei[cf]$/i.test(picked.name) ? 'image/heic' : 'image/jpeg';
+  return { asset: await preserveFile(picked.uri, picked.name, mime), kind: 'image' };
+}
 export async function photographPaper(): Promise<{ asset: DocumentAsset; kind: 'paper-photo' } | null> {
   const module = requireOptionalNativeModule<{ capture(): Promise<string | null> }>('DiagramImport');
   if (!module) throw new Error('Paper capture needs the rebuilt iPhone app. You can import an existing photograph with Import PDF or image.');

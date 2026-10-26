@@ -118,3 +118,71 @@ export function removeArea<R extends { firingAreas: FiringArea[]; targetProcedur
   }));
   return { ...rules, firingAreas: rules.firingAreas.filter(a => a.id !== id), targetProcedures };
 }
+
+/**
+ * A first draft of the shooting area from the fault lines: the bay, minus everything downrange of a fault line
+ * (looking downrange from where you stand, a fault line in front of you is a limit). Fault lines that run
+ * downrange (side lines) are ignored; which side of them is legal is not shown by the line itself. A draft to check
+ * and adjust: it does not read the stage brief.
+ */
+export function areaFromFaultLines(stage: StageDocument, downrangeDegrees: number, id: string): FiringArea {
+  const r = downrangeDegrees * Math.PI / 180, f = { x: Math.cos(r), y: Math.sin(r) }, a = { x: -f.y, y: f.x };
+  const toFrame = (p: Point) => ({ s: p.x * a.x + p.y * a.y, t: p.x * f.x + p.y * f.y });
+  const fromFrame = (s: number, t: number): Point => ({ x: s * a.x + t * f.x, y: s * a.y + t * f.y });
+  const { width, depth } = stage.stage;
+  const bay = [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: depth }, { x: 0, y: depth }];
+  const segments = stage.objects.filter(o => o.type === 'faultLine').map(o => {
+    const e = endpoints(o as Extract<typeof o, { type: 'faultLine' }>), p = toFrame(e.start), q = toFrame(e.end);
+    return p.s <= q.s ? { s1: p.s, t1: p.t, s2: q.s, t2: q.t } : { s1: q.s, t1: q.t, s2: p.s, t2: p.t };
+  }).filter(g => g.s2 - g.s1 >= 1); // lines running downrange do not limit how far forward you may stand
+  if (!segments.length) return wholeBayArea(stage, id);
+  const frameBay = bay.map(toFrame), sMin = Math.min(...frameBay.map(p => p.s)) - 1, sMax = Math.max(...frameBay.map(p => p.s)) + 1;
+  const tMin = Math.min(...frameBay.map(p => p.t)) - 1, tMax = Math.max(...frameBay.map(p => p.t)) + 1;
+  const tAt = (g: typeof segments[number], s: number) => g.t1 + (g.t2 - g.t1) * (s - g.s1) / (g.s2 - g.s1);
+  // Breakpoints: segment ends and crossings; between two breakpoints the limit is one segment (or none).
+  const breaks = new Set<number>([sMin, sMax]);
+  for (const g of segments) { breaks.add(g.s1); breaks.add(g.s2); }
+  for (let i = 0; i < segments.length; i++) for (let j = i + 1; j < segments.length; j++) {
+    const g = segments[i], h = segments[j], lo = Math.max(g.s1, h.s1), hi = Math.min(g.s2, h.s2);
+    if (hi <= lo) continue;
+    const dLo = tAt(g, lo) - tAt(h, lo), dHi = tAt(g, hi) - tAt(h, hi);
+    if (dLo * dHi < 0) breaks.add(lo + (hi - lo) * dLo / (dLo - dHi));
+  }
+  const xs = [...breaks].filter(s => s >= sMin && s <= sMax).sort((p, q) => p - q);
+  // The front limit along the bay, walked across; the polygon then closes far uprange.
+  const front: { s: number; t: number }[] = [];
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const lo = xs[i], hi = xs[i + 1], mid = (lo + hi) / 2;
+    let limit: typeof segments[number] | null = null;
+    for (const g of segments) if (g.s1 <= mid && mid <= g.s2 && (!limit || tAt(g, mid) < tAt(limit, mid))) limit = g;
+    front.push(limit ? { s: lo, t: tAt(limit, lo) } : { s: lo, t: tMax }, limit ? { s: hi, t: tAt(limit, hi) } : { s: hi, t: tMax });
+  }
+  const region = [...front, { s: sMax, t: tMin }, { s: sMin, t: tMin }];
+  // Keep the uprange side: in the frame, t grows downrange, so the region is t <= limit. Clip it to the bay.
+  let poly: Point[] = region.map(p => fromFrame(p.s, p.t));
+  for (let i = 0; i < bay.length; i++) {
+    const p = bay[i], q = bay[(i + 1) % bay.length], inner = (v: Point) => (q.x - p.x) * (v.y - p.y) - (q.y - p.y) * (v.x - p.x) >= 0;
+    const next: Point[] = [];
+    for (let k = 0; k < poly.length; k++) {
+      const u = poly[k], v = poly[(k + 1) % poly.length], iu = inner(u), iv = inner(v);
+      if (iu) next.push(u);
+      if (iu !== iv) {
+        const den = (q.x - p.x) * (v.y - u.y) - (q.y - p.y) * (v.x - u.x);
+        const t = ((q.x - p.x) * (p.y - u.y) - (q.y - p.y) * (p.x - u.x)) / den;
+        next.push({ x: u.x + (v.x - u.x) * t, y: u.y + (v.y - u.y) * t });
+      }
+    }
+    poly = next;
+  }
+  // Tidy: whole inches, no repeated or straight-through corners.
+  let vertices = poly.map(v => ({ x: Math.round(v.x), y: Math.round(v.y) }));
+  vertices = vertices.filter((v, i) => { const w = vertices[(i + 1) % vertices.length]; return v.x !== w.x || v.y !== w.y; });
+  for (let changed = true; changed && vertices.length > 3;) {
+    changed = false;
+    for (let i = 0; i < vertices.length && vertices.length > 3; i++) {
+      const p = vertices[(i + vertices.length - 1) % vertices.length], v = vertices[i], n = vertices[(i + 1) % vertices.length];
+      if (Math.abs((v.x - p.x) * (n.y - p.y) - (v.y - p.y) * (n.x - p.x)) < 1e-9) { vertices.splice(i, 1); changed = true; i--; }
+    }
+  }
+  return { id, vertices };
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { activeRuleset } from '../rules/rulesets';
 import { View } from 'react-native';
 import { Action, Copy, DataRow } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
@@ -18,7 +19,7 @@ export default function EngagementPanel({ stage, route, onChange, authoring = tr
     {editing && <EngagementSettings stage={stage} initial={rules} onCancel={() => setEditing(false)} onApply={value => { onChange({ ...route, engagementRules: value }); setEditing(false); setError(''); }} />}
     {!!error && <Copy>{error}</Copy>}
     {analysis && <>
-      <Copy>{rules!.ruleset} / Circle = engagement. Dashed teal = moving; solid = stationary. Waypoints control the path and do not require stops.</Copy>
+      <Copy>{activeRuleset(rules!.ruleset)} / Circle = engagement. Dashed teal = moving; solid = stationary. Waypoints control the path and do not require stops.</Copy>
       <Action title="Recalculate engagement assignments and order" onPress={() => { onChange(suggestEngagements(stage, route)); setError(''); }} />
       <DataRow label="Stationary engagement nodes" value={analysis.nodes.filter(n => n.kind === 'stationary').length} />
       <DataRow label="Moving sections" value={new Set(analysis.nodes.filter(n => n.kind === 'moving').map(n => n.waypointId)).size} />

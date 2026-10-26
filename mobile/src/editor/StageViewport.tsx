@@ -28,6 +28,8 @@ import type { DiscoveredPosition } from '../planning/positionDiscovery';
 import type { RouteOverlayProps } from './RouteOverlay';
 import RouteAIOverlay from './RouteAIOverlay';
 import FiringAreaOverlay from './FiringAreaOverlay';
+import StageBackdrop from './StageBackdrop';
+import type { Backdrop } from './StageBackdrop';
 import type { FiringAreaOverlayProps } from './FiringAreaOverlay';
 import type { RouteAssistantContext, RouteChangePreview, Highlights } from '../planning/routeAssistant/types';
 
@@ -40,6 +42,8 @@ type Props = {
   tool?: DesignerTool;
   draft?: { start: StagePosition; end: StagePosition } | null;
   onRoutePoint?: (point: StagePosition) => void;
+  /** A calibrated stage drawing under the plan, for tracing over (stage inches). */
+  backdrop?: Backdrop;
   /** Firing areas drawn on the plan (route mode). */
   firingAreas?: FiringAreaOverlayProps;
   /** Area mode: a deliberate tap on the canvas (adds a corner, or selects the area under it). */
@@ -226,6 +230,8 @@ export default function StageViewport(props: Props) {
             width: props.stage.stage.width * transform.scale + 4,
             height: props.stage.stage.depth * transform.scale + 4,
           }]} />
+          {/* The stage drawing goes over the grid and bay outline (it has its own) and under everything traced onto it. */}
+          {props.backdrop && <StageBackdrop backdrop={props.backdrop} transform={transform} />}
           <View accessibilityElementsHidden={props.readOnly} importantForAccessibility={props.readOnly ? 'no-hide-descendants' : 'auto'} pointerEvents={(props.routeEditing || props.readOnly || (props.tool && props.tool !== 'select')) ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           {props.stage.objects.map((item) => <DraggableObject key={item.id}
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}

@@ -165,3 +165,25 @@ test('Photos video import explains when the rebuilt app is needed, and adopts pi
     'expo-modules-core': { requireOptionalNativeModule: () => ({ pickVideo: async () => null }) } });
   assert.equal(await cancelled.importVideoAsset('v2', 'photos'), null);
 });
+
+test('stage pictures from Photos: copied into the app, old app builds explained, cancel is quiet, Swift picker has no permission prompt', async () => {
+  const files = new Set(['file:///tmp/picked-2.heic']);
+  class File {
+    constructor(...parts) { this.uri = parts.map(p => typeof p === 'string' ? p : p.uri).map((p, i) => i ? p.replace(/^\/+/, '') : p.replace(/\/+$/, '')).join('/'); }
+    get exists() { return files.has(this.uri); } get size() { return 2048; }
+    delete() { files.delete(this.uri); }
+    copy(destination) { files.add(destination.uri); }
+  }
+  const fsMock = { File, Directory: class { create() {} }, Paths: { document: { uri: 'file:///docs/' }, cache: { uri: 'file:///cache/' } } };
+  const base = { 'expo-file-system': fsMock, 'expo-document-picker': {} };
+  const old = loadWith('../src/diagramImport/assets.ts', { ...base, 'expo-modules-core': { uuid: { v4: () => 'u1' }, requireOptionalNativeModule: () => ({ pickVideo() {} }) } });
+  await assert.rejects(old.pickPhoto(), /rebuilt iPhone app/);
+  const picker = loadWith('../src/diagramImport/assets.ts', { ...base, 'expo-modules-core': { uuid: { v4: () => 'u2' }, requireOptionalNativeModule: () => ({ pickImage: async () => ({ uri: 'file:///tmp/picked-2.heic', name: 'Stage 4.heic', size: 2048 }) }) } });
+  const picked = await picker.pickPhoto();
+  assert.equal(picked.kind, 'image'); assert.equal(picked.asset.mime, 'image/heic'); assert.equal(picked.asset.path, 'diagram-imports/u2.heic');
+  assert.ok(files.has('file:///docs/diagram-imports/u2.heic') && !files.has('file:///tmp/picked-2.heic'), 'kept in the app, temporary copy removed');
+  const cancelled = loadWith('../src/diagramImport/assets.ts', { ...base, 'expo-modules-core': { uuid: { v4: () => 'u3' }, requireOptionalNativeModule: () => ({ pickImage: async () => null }) } });
+  assert.equal(await cancelled.pickPhoto(), null);
+  const swift = fs.readFileSync(path.join(__dirname, '../modules/training-media/ios/TrainingMediaModule.swift'), 'utf8');
+  assert.match(swift, /AsyncFunction\("pickImage"\)[^]*filter: \.images/); assert.doesNotMatch(swift, /PHPhotoLibrary\.requestAuthorization|requestAccess/);
+});

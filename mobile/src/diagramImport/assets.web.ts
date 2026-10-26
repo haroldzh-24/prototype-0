@@ -49,6 +49,8 @@ export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reco
   if (item.file.type !== 'application/pdf' && !item.file.type.startsWith('image/')) throw new Error('Choose a PDF or image.');
   return { asset: await storeBlob(item.file, item.name), kind: item.file.type === 'application/pdf' ? 'pdf' : 'image' };
 }
+/** The browser has no photo album: a picture file is chosen the same way as any document. */
+export async function pickPhoto(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> { return pickDocument(); }
 export async function photographPaper(): Promise<{ asset: DocumentAsset; kind: 'paper-photo' } | null> {
   throw new Error('Use your phone camera to photograph the paper, then Import PDF or image. Direct capture is available in the rebuilt iPhone app.');
 }

@@ -797,3 +797,31 @@ test('layers panel: add a hostage and paint, slide and turn them, front/behind, 
   h.child('Segmented').onChange('BEHIND'); h.render(); assert.equal(layer().attachment.front, false);
   h.press('REMOVE LAYER'); assert.ok(!props.stage.objects.some(o => o.id === id)); assert.equal(props.selectedId, 'T');
 });
+
+test('AREAS: FROM FAULT LINES drafts the shooting area once the stage has a fault line', () => {
+  const h = initial(); h.press('PLAN'); h.press('AREAS');
+  assert.ok(h.nodes().find(n => n.props?.title === 'FROM FAULT LINES').props.disabled, 'no fault lines yet');
+  const { createObject } = require('../src/stage/defaults.ts');
+  const v = h.child('StageViewport'), w = v.stage.stage.width;
+  v.setStage(s => ({ ...s, objects: [...s.objects, { ...createObject('faultLine', 'F1', w / 2, 200), endpoints: { start: { space: 'stage', x: 40, y: 200, z: 0 }, end: { space: 'stage', x: w - 40, y: 200, z: 0 } } }] })); h.render();
+  h.press('FROM FAULT LINES');
+  const areas = h.child('StageViewport').routePlanning.route.engagementRules.firingAreas;
+  assert.equal(areas.length, 1); assert.equal(h.child('StageViewport').firingAreas.selectedId, areas[0].id);
+  assert.ok(h.nodes().some(n => typeof n.props?.children === 'string' && /Drafted from the fault lines/.test(n.props.children)));
+  assert.ok(areas[0].vertices.every(p => p.y >= 0), 'inside the bay');
+});
+
+test('review 3: dragging a layer in 3D moves its target by the drag, keeping the target\'s height', () => {
+  const h = initial(), L = require('../src/stage/targetLayers.ts');
+  const target = h.child('StageViewport').stage.objects.find(o => o.type === 'cardboardTarget');
+  h.child('StageViewport').onSelect(target.id); h.render(); h.press('LAYERS');
+  h.child('LayerPanel').setStage(L.addLayer(h.child('LayerPanel').stage, target.id, 'noShoot', 'layer-1').stage); h.render();
+  h.find(n => n.type === 'EditorSheet' && n.props.title === 'Layers').props.close(); h.render();
+  h.press('3D view');
+  const before = h.child('Stage3DView').stage.objects, parent = before.find(o => o.id === target.id), layer = before.find(o => o.id === 'layer-1');
+  h.child('Stage3DView').onMove('layer-1', { ...layer.position, x: layer.position.x + 12, y: layer.position.y - 6 }); h.render();
+  const after = h.child('Stage3DView').stage.objects.find(o => o.id === target.id);
+  // Grid snapping (6 in by default) may round the result; the old bug moved it ~9 in sideways and ~4.5 in down.
+  assert.ok(Math.abs(after.position.x - (parent.position.x + 12)) <= 3 && Math.abs(after.position.y - (parent.position.y - 6)) <= 3, `moved by the drag: ${after.position.x - parent.position.x}, ${after.position.y - parent.position.y}`);
+  assert.equal(after.position.z, parent.position.z, 'height unchanged');
+});

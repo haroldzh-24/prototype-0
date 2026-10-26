@@ -1,4 +1,5 @@
 import { validOutline } from '../stage/targetShape';
+import { validAttachment, validHardCovers } from '../stage/targetLayers';
 import { isSegment, validSavedEndpoints } from '../stage/segments';
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from '../planning/model';
@@ -186,7 +187,8 @@ export class Repository {
         || ('targetFamily' in o && o.targetFamily !== undefined && !isTargetFamily(o.targetFamily))
         || !geometryFields[o.type].every(k => Object.hasOwn(o.geometry, k))
         || o.type === 'wall' && (!Array.isArray(o.ports) || o.ports.some(p => !p || ![p.offset, p.width, p.height, p.sill].every(Number.isFinite)))
-        || (o.type === 'cardboardTarget' || o.type === 'noShootTarget') && (!o.faceCut || !['full', 'upper', 'lower', 'left', 'right'].includes(o.faceCut.preset)))
+        || (o.type === 'cardboardTarget' || o.type === 'noShootTarget') && (!o.faceCut || !['full', 'upper', 'lower', 'left', 'right'].includes(o.faceCut.preset)
+          || (o.attachment !== undefined && !validAttachment(o.attachment)) || (o.hardCover !== undefined && !validHardCovers(o.hardCover))))
       || !Array.isArray(data.plan.loadout.magazines) || data.plan.loadout.magazines.some((m: StagePlan['loadout']['magazines'][number]) =>
         !m || typeof m.id !== 'string' || ![m.capacity, m.startingRounds].every(n => Number.isFinite(n) && n >= 0)))
       throw new Error('Unsupported or damaged stage data. The saved copy has not been changed.');

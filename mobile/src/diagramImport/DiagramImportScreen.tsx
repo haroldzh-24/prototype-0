@@ -12,10 +12,10 @@ import { objectLabel } from '../stage/model';
 import type { StageDocument } from '../stage/model';
 import type { TargetFamily } from '../stage/targetFamily';
 import { presetsForFamily } from '../stage/targetPresets';
-import { assetUri, deleteDocumentFiles, pickDocument, photographPaper, openOriginal } from './assets';
+import { assetUri, deleteDocumentFiles, pickDocument, pickPhoto, photographPaper, openOriginal } from './assets';
 import { takeDerivatives } from './sessionFiles';
 import { alignPage, preparePage } from './preparation';
-import { fullCrop, fullQuad, reconstruct, validQuad, validCrop, validProposal, imagePoint, validateReconstruction } from './model';
+import { fullCrop, fullQuad, latestBackdrop, reconstruct, validQuad, validCrop, validProposal, imagePoint, validateReconstruction } from './model';
 import type { DocumentAsset, Point, Proposal, Reconstruction } from './model';
 
 function NumberField({ label, value, change, disabled = false }: { label: string; value: number; change: (value: number) => void; disabled?: boolean }) {
@@ -50,10 +50,24 @@ function ProposalOverlay({ proposal: p, number, selected }: { proposal: Proposal
 }
 const row = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 4 };
 const objectTypes = ['cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper', 'wall', 'faultLine', 'start'] as const;
-export default function DiagramImportScreen({ visible, stageId, stage, family, close, apply }: {
+export default function DiagramImportScreen({ visible, stageId, stage, family, close, apply, onBackdrop }: {
   visible: boolean; stageId: string; stage: StageDocument; family: TargetFamily; close: () => void; apply: (stage: StageDocument) => void;
+  /** The latest calibrated top-down drawing, for the editor to show under the plan (null when there is none). */
+  onBackdrop?: (backdrop: { uri: string; left: number; top: number; width: number; height: number } | null) => void;
 }) {
+
   const repo = useRepository(), gate = useRef(new OperationGate());
+  // Whenever the import closes, hand the editor the drawing to trace over.
+  useEffect(() => {
+    if (visible || !onBackdrop) return;
+    let active = true;
+    repo.loadDiagramImports(stageId).then(async drafts => {
+      const latest = latestBackdrop(drafts);
+      const next = latest ? { uri: await assetUri(latest.backdrop.asset), left: latest.backdrop.left, top: latest.backdrop.top, width: latest.backdrop.width, height: latest.backdrop.height } : null;
+      if (active) onBackdrop(next);
+    }).catch(() => { if (active) onBackdrop(null); });
+    return () => { active = false; };
+  }, [visible, stageId]);
   const recognitionAbort = useRef<AbortController | null>(null);
   const [recognizing,setRecognizing] = useState(false), [batchIds,setBatchIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Reconstruction | null>(null), [references, setReferences] = useState<Reconstruction[]>([]);
@@ -113,10 +127,10 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
   const changeProposal = (changes: Partial<Proposal>) => { if (draft && selected) update({ proposals: draft.proposals.map(p => p.id === selected.id ? { ...p, ...changes } : p) }); };
   const saveDraft = async (value: Reconstruction) => { validateReconstruction(value); await repo.saveDiagramImport(stageId, value); };
   const load = (value: Reconstruction) => { setDraft(value); setBatchIds([]); setSelectedId(null); setStep(value.aligned ? 'preview' : value.rectified ? 'layout' : 'page'); setPageNumber(value.page?.page ?? 1); setShowOriginal(false); if (value.calibration) { setA(value.calibration.a); setB(value.calibration.b); setDistance(value.calibration.inches); setUnit('in'); setEvidence(value.calibration.evidence); } };
-  const importSource = (camera: boolean) => void run(async current => {
+  const importSource = (camera: 'file' | 'photos' | 'camera') => void run(async current => {
     current(() => setCameraDenied(false));
     let picked;
-    try { picked = await (camera ? photographPaper() : pickDocument()); }
+    try { picked = await (camera === 'camera' ? photographPaper() : camera === 'photos' ? pickPhoto() : pickDocument()); }
     catch (error) { if ((error as { code?: string }).code === 'CAMERA_DENIED') current(() => setCameraDenied(true)); throw error; }
     if (!picked) return;
     const value: Reconstruction = { version: 1, id: uuid.v4(), source: picked.asset, sourceKind: picked.kind, alignment: { corners: fullQuad(), rotation: 0, crop: fullCrop() }, projection: 'unknown', origin: { x: 0, y: 0 }, proposals: [] };
@@ -150,7 +164,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
       <ScrollView style={{ flex: 1 }} pointerEvents={busy ? 'none' : 'auto'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 12, gap: 10 }}>
         {confirmClose && <View><Notice>Reference drafts are saved separately. Geometry added to the editor still needs the editor Save action.</Notice><Action title="Keep editing import" onPress={() => setConfirmClose(false)} /><Action title="Save reference draft and close" disabled={!draft || busy} onPress={() => void run(async current => { await saveDraft(draft!); current(exit); })} /><Action title="Close without saving preview changes" onPress={exit} /></View>}
         <Copy>Import a stage briefing PDF, exported plan, screenshot, or photograph of printed paper. Top-down plans are required for reconstruction.</Copy>
-        <View style={row}><Action title="Import PDF or image" disabled={busy} onPress={() => importSource(false)} /><Action title="Photograph paper" disabled={busy} onPress={() => importSource(true)} /></View>
+        <View style={row}>{Platform.OS === 'ios' && <Action title="Choose from Photos" disabled={busy} onPress={() => importSource('photos')} />}<Action title="Import PDF or image" disabled={busy} onPress={() => importSource('file')} /><Action title="Photograph paper" disabled={busy} onPress={() => importSource('camera')} /></View>
         {cameraDenied && <Action title="Open Settings to allow camera" onPress={() => { void Linking.openSettings(); }} />}
         {references.map(value => <View key={value.id} style={row}>
           <Action title={'Reference: ' + value.source.name} disabled={busy} onPress={() => load(value)} />

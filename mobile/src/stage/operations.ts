@@ -9,6 +9,7 @@ import { createObject } from './defaults';
 import type { TargetFamily } from './targetFamily';
 import { constrainPosition, rotatedHalfExtents, footprint } from './geometry';
 import { snapRotation } from './snapping';
+import { scaleCovers } from './targetLayers';
 import type { RotationIncrement } from './snapping';
 import type { ObjectGeometry, WallGeometry, TargetGeometry, StageDocument, StageObject } from './model';
 
@@ -21,6 +22,13 @@ export type ObjectEdit = {
 };
 export type EditResult = { stage: StageDocument; error?: string };
 
+/** Painted hard cover keeps its place on the face when the face is resized. */
+function withScaledPaint<T extends Extract<StageObject, { type: 'cardboardTarget' | 'noShootTarget' }>>(next: T, before: T): T {
+  if (!next.hardCover?.length) return next;
+  const sx = next.geometry.faceWidth / before.geometry.faceWidth, sy = next.geometry.faceHeight / before.geometry.faceHeight;
+  if (!Number.isFinite(sx) || !Number.isFinite(sy) || sx <= 0 || sy <= 0 || (sx === 1 && sy === 1)) return next;
+  return { ...next, hardCover: scaleCovers(next.hardCover, sx, sy) };
+}
 /** Atomic validated edits. Inspector, dragging, and rotation share this boundary rule. */
 export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, rotationIncrement: RotationIncrement = null): EditResult {
   const original = stage.objects.find((object) => object.id === id);
@@ -40,8 +48,8 @@ export function editObject(stage: StageDocument, id: string, edit: ObjectEdit, r
   switch (original.type) {
     case 'wall': updated = { ...original, ports: edit.ports ?? original.ports, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'faultLine': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
-    case 'noShootTarget': updated = { ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
-    case 'cardboardTarget': updated = { ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
+    case 'noShootTarget': updated = withScaledPaint({ ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }, original); break;
+    case 'cardboardTarget': updated = withScaledPaint({ ...original, faceCut: edit.faceCut ?? original.faceCut, position, geometry: { ...original.geometry, ...edit.geometry } }, original); break;
     case 'steelPlate': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'steelPopper': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;
     case 'start': updated = { ...original, position, geometry: { ...original.geometry, ...edit.geometry } }; break;

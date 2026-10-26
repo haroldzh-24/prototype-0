@@ -2,6 +2,7 @@ import type { StageDocument, StageObject } from './model';
 import { footprint } from './geometry';
 import { activeFaceExtent } from './targetFace';
 import { presetFacePoints } from './presetFace';
+import type { TargetObject } from './targetPlacement';
 
 export type Point3 = { x: number; y: number; z: number };
 export type Surface = { objectId: string; points: Point3[]; color: string; ground?: boolean };
@@ -50,7 +51,7 @@ export function wallSurfaces(wall: Extract<StageObject, { type: 'wall' }>): Surf
   return faces;
 }
 
-export function objectSurfaces(object: StageObject): Surface[] {
+export function objectSurfaces(object: StageObject, sign: 1 | -1 = 1): Surface[] {
   if (object.type === 'wall') return wallSurfaces(object);
   const face = (points: number[][], color: string, ground = false): Surface[] => [{ objectId: object.id, color, ground,
     points: points.map(([x,y,z]) => localToWorld(object,x,y,z)) }];
@@ -58,7 +59,9 @@ export function objectSurfaces(object: StageObject): Surface[] {
     const { width, depth } = footprint(object);
     return face([[-width/2,-depth/2,0],[width/2,-depth/2,0],[width/2,depth/2,0],[-width/2,depth/2,0]], object.type === 'start' ? '#64734d' : '#b9a663', true);
   }
-  if (object.outline) return face(presetFacePoints(object).map(([x,z]) => [x,0,z]), object.type === 'noShootTarget' ? object.targetFamily === 'PCSL' ? '#e65959' : '#dce0d5' : object.type === 'cardboardTarget' ? '#9d8255' : '#8aa4a0');
+  // A rolled layer without a saved outline is drawn from the rectangle, rolled like any other layer.
+  const rolled = (object.type === 'cardboardTarget' || object.type === 'noShootTarget') && !!object.attachment?.roll;
+  if (object.outline || rolled) return face(presetFacePoints(object as TargetObject, sign).map(([x,z]) => [x,0,z]), object.type === 'noShootTarget' ? object.targetFamily === 'PCSL' ? '#e65959' : '#dce0d5' : object.type === 'cardboardTarget' ? '#9d8255' : '#8aa4a0');
   if (object.type === 'cardboardTarget' || object.type === 'noShootTarget') {
     const f = activeFaceExtent(object);
     return face([[f.left,0,f.bottom],[f.right,0,f.bottom],[f.right,0,f.top],[f.left,0,f.top]], object.type === 'cardboardTarget' ? '#9d8255' : '#dce0d5');
@@ -74,7 +77,7 @@ export function objectSurfaces(object: StageObject): Surface[] {
 export function stageSurfaces(stage: StageDocument): Surface[] {
   return [{ objectId: '', color: '#202a21', ground: true, points: [
     {x:0,y:0,z:0},{x:stage.stage.width,y:0,z:0},{x:stage.stage.width,y:stage.stage.depth,z:0},{x:0,y:stage.stage.depth,z:0},
-  ] }, ...stage.objects.flatMap(objectSurfaces)];
+  ] }, ...stage.objects.flatMap(o => objectSurfaces(o))];
 }
 
 /** SVG uses only basic polygons/lines/text supported by the installed expo-image renderer. */

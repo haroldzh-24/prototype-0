@@ -7,7 +7,7 @@ import type { TargetFace } from '../planning/v2/normalizeStage';
 import { distanceToSegment } from '../planning/v2/coverage';
 import { inside } from '../planning/routeSolver/traversability';
 import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE } from './rulesets';
-import { exposure, isPaper, layered, stackOf } from '../stage/targetLayers';
+import { exposure, isPaper, layered, OPEN_MIN, stackOf } from '../stage/targetLayers';
 import { targetPreset } from '../stage/targetPresets';
 
 /**
@@ -151,22 +151,27 @@ function uspsaTargetFindings(doc: StageDocument): Finding[] {
 /** Targets with layers (hostage no-shoots, doubles) or painted hard cover: what is left to shoot at. */
 function layerFindings(doc: StageDocument, ruleset: string): Finding[] {
   const findings: Finding[] = [];
+  const half = (o: { presetId?: string }) => o.presetId === 'uspsa-half-chl-v1';
   for (const o of doc.objects) {
     if (!isPaper(o) || o.type !== 'cardboardTarget' || !layered(doc, o)) continue;
     const open = exposure(doc, o).fraction, name = targetLabel(doc, o.id);
-    if (open < 0.02) findings.push({ severity: 'rule', code: 'TARGET_COVERED', rule: '', objectIds: [o.id],
+    if (open < OPEN_MIN) findings.push({ severity: 'rule', code: 'TARGET_COVERED', rule: '', objectIds: [o.id],
       message: `${name} has no scoring area showing: hard cover or faces in front of it cover all of it.` });
     else if (open < 0.999) findings.push({ severity: 'info', code: 'TARGET_PARTLY_COVERED', rule: '', objectIds: [o.id],
       message: `${name}: about ${Math.round(open * 100)}% of the face is open scoring area.` });
-    // USPSA 4.2.1.1: half-size targets keep at least half of the lower A-zone visible, and never go on full-size no-shoots.
-    if (ruleset === 'USPSA' && o.presetId === 'uspsa-half-chl-v1') {
-      const stack = stackOf(doc, o);
-      const fullNoShoot = stack ? doc.objects.some(n => n.type === 'noShootTarget' && stackOf(doc, n) === stack && n.presetId !== 'uspsa-half-chl-v1' && n.geometry.faceHeight > o.geometry.faceHeight + 1) : false;
-      if (fullNoShoot) findings.push({ severity: 'rule', code: 'USPSA_HALF_ON_FULL_NO_SHOOT', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
-        message: `${name} is a half-size target stacked with a full-size no-shoot; half-size targets may not be mounted on full-size no-shoots.` });
-      if (open < 0.999) findings.push({ severity: 'info', code: 'USPSA_HALF_A_ZONE', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
-        message: `${name} is a partly covered half-size target: at least half of its lower A-zone must stay visible. Check it on the target (A-zone positions are not in the app).` });
-    }
+    if (ruleset !== 'USPSA') continue;
+    const stack = stackOf(doc, o);
+    const noShoots = stack ? doc.objects.filter((n): n is Extract<typeof n, { type: 'noShootTarget' }> => n.type === 'noShootTarget' && stackOf(doc, n) === stack) : [];
+    // USPSA 4.2.1.1: half-size targets and full-size no-shoots are never mounted together, either way round.
+    if (half(o) && noShoots.some(n => !half(n))) findings.push({ severity: 'rule', code: 'USPSA_HALF_ON_FULL_NO_SHOOT', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
+      message: `${name} is a half-size target stacked with a full-size no-shoot; they may not be mounted together.` });
+    if (!half(o) && noShoots.some(n => half(n))) findings.push({ severity: 'rule', code: 'USPSA_HALF_NO_SHOOT_ON_FULL', rule: 'USPSA 4.2.1.1', objectIds: [o.id],
+      message: `${name} is a full-size target stacked with a half-size no-shoot; half-size targets may not be used as no-shoots on full-size targets.` });
+    // USPSA 4.2.5 and Appendix B1: minimum A-zone left visible around hard cover and overlapping no-shoots.
+    if (open < 0.999 && open >= OPEN_MIN) findings.push({ severity: 'info', code: 'USPSA_A_ZONE_MINIMUM', rule: half(o) ? 'USPSA 4.2.5, 4.2.1.1, B1' : 'USPSA 4.2.5, B1', objectIds: [o.id],
+      message: half(o)
+        ? `${name} is a partly covered half-size target: at least half of its lower A-zone must stay visible. Check it on the target (A-zone positions are not in the app).`
+        : `${name} is partly covered: at least 25% of the lower A-zone, or the whole upper A-zone, must stay visible. Check it on the target (A-zone positions are not in the app).` });
   }
   return findings;
 }
@@ -179,8 +184,8 @@ function pcslTargetFindings(doc: StageDocument): Finding[] {
   if (practical.length && competition.length) findings.push({ severity: 'rule', code: 'PCSL_PRACTICAL_COMPETITION', rule: 'PCSL 9.2.2.1', objectIds: (practical.length <= competition.length ? practical : competition).map(o => o.id),
     message: `This stage uses both Practical (${practical.length}) and Competition (${competition.length}) full-size targets; they may not both be used for the same firearm on one stage. Mini Practical targets are fine with either.` });
   if (kZone.length && practical.length) findings.push({ severity: 'rule', code: 'PCSL_KZONE_PRACTICAL', rule: 'PCSL 9.2.1.1', objectIds: kZone.map(o => o.id),
-    message: 'K-Zone targets may not be used in the same match as Practical full-size targets.' });
-  else if (kZone.length) findings.push({ severity: 'info', code: 'PCSL_KZONE_LEVEL', rule: 'PCSL 9.2.1.4, 10.1.4.1', objectIds: kZone.map(o => o.id),
+    message: 'K-Zone targets may not be used in the same match as Practical full-size targets (checked on this stage only).' });
+  if (kZone.length) findings.push({ severity: 'info', code: 'PCSL_KZONE_LEVEL', rule: 'PCSL 9.2.1.4, 10.1.4.1', objectIds: kZone.map(o => o.id),
     message: 'K-Zone targets: Level 1 matches only, outside classifier stages.' });
   return findings;
 }

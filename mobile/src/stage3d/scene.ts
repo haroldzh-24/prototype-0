@@ -1,5 +1,5 @@
 import type { StageDocument, StageObject } from '../stage/model';
-import { coverPolygons, faceOutline, rollPoint } from '../stage/targetLayers';
+import { coverPolygons, faceOutline, rollPoint, shooterSign } from '../stage/targetLayers';
 import { objectSurfaces, wallSurfaces } from '../stage/projection';
 import { isTarget } from '../stage/targetPlacement';
 import type { Palette } from '../ui/tokens';
@@ -112,7 +112,7 @@ function groundChunk(stage: StageDocument, palette: Palette, grid: boolean): Chu
 }
 
 /** One object's faces, edges, pick triangles and label. */
-function objectChunk(object: StageObject, palette: Palette, label: string, selected: boolean, tint: string | undefined): Chunk {
+function objectChunk(object: StageObject, palette: Palette, label: string, selected: boolean, tint: string | undefined, sign: 1 | -1 = 1): Chunk {
   const b = builder(), accent = rgb(palette.accent), ink = rgb(palette.ink), edge = rgb(palette.faceEdge);
   const tinted = (base: RGB): RGB => {
     let c = base;
@@ -151,7 +151,8 @@ function objectChunk(object: StageObject, palette: Palette, label: string, selec
   const color = tinted(rgb(base)), outline = selected ? accent : edge, r = object.rotation * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r);
   const along = (u: number, z: number, v = 0) => toWorld({ x: object.position.x + u * cos - v * sin, y: object.position.y + u * sin + v * cos, z });
   const steel = object.type === 'steelPlate' || object.type === 'steelPopper', w = object.geometry.faceWidth;
-  for (const s of objectSurfaces(object)) {
+  // Face x is the shooter's right; `sign` says whether it runs along or against the rotation (where downrange is).
+  for (const s of objectSurfaces(object, sign)) {
     const points = s.points.map(toWorld);
     b.polygon(points, color, object.id, true);
     b.loop(points, outline);
@@ -179,7 +180,7 @@ function objectChunk(object: StageObject, palette: Palette, label: string, selec
       // Painted hard cover, on both sides so it reads from any angle; a layered face's paint rolls with it.
       const h = object.geometry.faceHeight, roll = object.attachment?.roll ?? 0, paint = rgb(palette.hardCover), outlineFace = faceOutline(object);
       for (const poly of object.hardCover.flatMap(c => coverPolygons(c, outlineFace))) for (const v of [-0.06, 0.06])
-        b.polygon(poly.map(p => rollPoint(p, roll)).map(p => along(p.x, object.position.z + h / 2 + p.y, v)), paint, object.id, true);
+        b.polygon(poly.map(p => rollPoint(p, roll)).map(p => along(sign * p.x, object.position.z + h / 2 + p.y, v)), paint, object.id, true);
     }
     if (object.type === 'noShootTarget' && object.targetFamily === 'PCSL') {
       // PCSL paper no-shoots are solid red with a black X (10.3.1); USPSA and IDPA ones are told apart by colour and marking.
@@ -225,11 +226,12 @@ export function buildScene(stage: StageDocument, palette: Palette, options: Scen
   const layered: Chunk[][] = [[ground], [], [], []];
   for (const object of stage.objects) {
     const label = isTarget(object) ? shortTargetLabel(stage, object) : '', selected = options.selectedId === object.id, tint = options.tints?.[object.id];
-    const key = `${pid}|${selected ? 1 : 0}|${tint ?? ''}|${label}`;
+    const sign = shooterSign(stage, object.rotation);
+    const key = `${pid}|${selected ? 1 : 0}|${tint ?? ''}|${label}|${sign}`;
     let byKey = objectCache.get(object);
     if (!byKey) { byKey = new Map(); objectCache.set(object, byKey); }
     let chunk = byKey.get(key);
-    if (!chunk) { if (byKey.size > 6) byKey.clear(); chunk = objectChunk(object, palette, label, selected, tint); byKey.set(key, chunk); }
+    if (!chunk) { if (byKey.size > 6) byKey.clear(); chunk = objectChunk(object, palette, label, selected, tint, sign); byKey.set(key, chunk); }
     layered[object.type === 'start' || object.type === 'faultLine' ? LAYERS.markings : LAYERS.objects].push(chunk);
   }
   if (options.route) layered[LAYERS.route].push(routeChunk(options.route, palette));

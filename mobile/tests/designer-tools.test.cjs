@@ -129,6 +129,15 @@ test('SQLite reopen retains presets, fractional dimensions, rotation and endpoin
 });
 test('repository rejects damaged saved contours/endpoints without rewriting the saved record',async()=>{
  const {db,repo}=open(':memory:');try{await repo.initialize();const match=await repo.createMatch('M','USPSA');let stage=placeTarget(createDefaultStage(),preset,'new',point(50,50)).stage;stage=addSegment(stage,'wall','draw',point(20,20),point(100,20)).stage;const id=await repo.createStage('S',stage,createPlan(),match);const raw=db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload;
- for(const corrupt of [d=>{d.objects.find(o=>o.id==='new').outline={kind:'polygon',points:[[0,0],[2,1],[0,1]]};},d=>{d.objects.find(o=>o.id==='draw').endpoints.end.x=50;}]){const data=JSON.parse(raw);corrupt(data.document);const payload=JSON.stringify(data);db.prepare('UPDATE stages SET payload=? WHERE id=?').run(payload,id);await assert.rejects(repo.loadStage(id),/damaged/);assert.equal(db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,payload);}
+ for(const corrupt of [d=>{d.objects.find(o=>o.id==='new').outline={kind:'polygon',points:[[0,0],[2,1],[0,1]]};},d=>{d.objects.find(o=>o.id==='draw').endpoints.end.x=50;},d=>{d.objects.find(o=>o.id==='new').attachment={parentId:'new'};},d=>{d.objects.find(o=>o.id==='new').hardCover=[{id:'c',kind:'edge',angle:0}];}]){const data=JSON.parse(raw);corrupt(data.document);const payload=JSON.stringify(data);db.prepare('UPDATE stages SET payload=? WHERE id=?').run(payload,id);await assert.rejects(repo.loadStage(id),/damaged/);assert.equal(db.prepare('SELECT payload FROM stages WHERE id=?').get(id).payload,payload);}
+ }finally{db.close();}
+});
+test('layers and paint save and reopen intact',async()=>{
+ const L=require('../src/stage/targetLayers.ts');
+ const {db,repo}=open(':memory:');try{await repo.initialize();const match=await repo.createMatch('M','USPSA');let stage=placeTarget(createDefaultStage(),preset,'base',point(150,80)).stage;
+ stage=L.addLayer(stage,'base','noShoot','hostage').stage;stage=L.updateAttachment(stage,'hostage',a=>({...a,roll:15}));stage=L.setHardCover(stage,'base',()=>[L.hardCoverFromPreset('diagonalTopRight',18.12,29.93,'paint')]);
+ const id=await repo.createStage('S',stage,createPlan(),match);const loaded=(await repo.loadStage(id)).document;
+ assert.deepEqual(loaded.objects.find(o=>o.id==='hostage').attachment,stage.objects.find(o=>o.id==='hostage').attachment);
+ assert.deepEqual(loaded.objects.find(o=>o.id==='base').hardCover,stage.objects.find(o=>o.id==='base').hardCover);
  }finally{db.close();}
 });

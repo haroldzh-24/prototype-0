@@ -1,5 +1,6 @@
 import type { StageDocument, StageObject } from '../../stage/model';
-import { exposure, layered, stackOf } from '../../stage/targetLayers';
+import { exposure, layered, shooterSign, stackOf } from '../../stage/targetLayers';
+import type { FaceBox } from '../../stage/targetLayers';
 import { activeFaceExtent } from '../../stage/targetFace';
 import { rotatedHalfExtents } from '../../stage/geometry';
 import { stageDownrange } from '../../stage/orientation';
@@ -27,6 +28,11 @@ export type TargetFace = {
   stack?: string;
   /** Share of the face that is open scoring area after hard cover and stacked faces (1 when not layered). */
   openFraction?: number;
+  /**
+   * Heights of the open area aimed at, when a painted or stacked face is only partly open. `bottom`/`top` (and
+   * `left`/`right`) stay the whole face, which is what blocks shots at other targets: paint stops bullets too.
+   */
+  aimBottom?: number; aimTop?: number;
 };
 export type NormalizedStage = {
   size: { width: number; depth: number };
@@ -63,24 +69,32 @@ const SIGHT_FRACTIONS = [0.1, 0.3, 0.5, 0.7, 0.9];
 /** Plan-view face of a target or no-shoot, or null for other objects. */
 export function targetFace(object: StageObject, doc?: StageDocument): TargetFace | null {
   if (object.type !== 'cardboardTarget' && object.type !== 'noShootTarget' && object.type !== 'steelPlate' && object.type !== 'steelPopper') return null;
-  // A painted or stacked scoring face is engaged on its open area only (no-shoots keep their whole face as blockers).
-  const open = doc && object.type === 'cardboardTarget' && layered(doc, object) ? exposure(doc, object) : null;
-  const stack = doc ? stackOf(doc, object) ?? undefined : undefined;
-  const extent = open ? open.extent ?? { left: 0, right: 0, bottom: 0, top: 0 }
-    : object.type === 'cardboardTarget' || object.type === 'noShootTarget'
-    ? activeFaceExtent(object)
+  const paper = object.type === 'cardboardTarget' || object.type === 'noShootTarget';
+  // A painted or stacked face: it blocks with its whole (rolled) face, and is aimed at through its open area only.
+  const e = doc && paper && layered(doc, object) ? exposure(doc, object) : null;
+  const sign = e && doc ? shooterSign(doc, object.rotation) : 1;
+  const along = (box: FaceBox): FaceBox => sign > 0 ? box : { ...box, left: -box.right, right: -box.left };
+  const material = e ? along(e.material) : paper ? activeFaceExtent(object)
     : { left: -object.geometry.faceWidth / 2, right: object.geometry.faceWidth / 2, bottom: 0, top: object.geometry.faceHeight };
+  const scoring = object.type === 'cardboardTarget';
+  const aim = e && scoring ? (e.extent ? along(e.extent) : null) : material;
+  const stack = doc ? stackOf(doc, object) ?? undefined : undefined;
   const r = object.rotation * Math.PI / 180, ux = Math.cos(r), uy = Math.sin(r);
   const at = (x: number): Point => ({ x: object.position.x + ux * x, y: object.position.y + uy * x });
-  const lerp = (t: number) => extent.left + (extent.right - extent.left) * t;
+  // Aim through columns that really have open area (an open area need not be one simple shape).
+  const columns = e && scoring ? e.columns.map(x => sign * x).sort((a, b) => a - b) : [];
+  const sampleXs = !aim ? [] : columns.length ? SIGHT_FRACTIONS.map(t => columns[Math.round(t * (columns.length - 1))])
+    : SIGHT_FRACTIONS.map(t => aim.left + (aim.right - aim.left) * t);
   // A face with no open area has nothing to aim at: no sight samples, so it is never visible.
-  const sightSamples = open && !open.extent ? [] : SIGHT_FRACTIONS.map(t => at(lerp(t)));
-  const left = at(extent.left), right = at(extent.right);
+  const sightSamples = sampleXs.map(at);
+  const left = at(material.left), right = at(material.right);
+  const ends = aim ? [at(aim.left), at(aim.right)] : [left, right];
   return {
     id: object.id, kind: object.type === 'noShootTarget' ? 'no-shoot' : object.type === 'cardboardTarget' ? 'paper' : 'steel',
-    left, right, center: at(lerp(0.5)), sightSamples, angleSamples: [left, ...sightSamples, right],
-    bottom: object.position.z + extent.bottom, top: object.position.z + extent.top,
-    ...(stack ? { stack } : {}), ...(open ? { openFraction: open.fraction } : {}),
+    left, right, center: at(aim ? (aim.left + aim.right) / 2 : (material.left + material.right) / 2), sightSamples, angleSamples: [ends[0], ...sightSamples, ends[1]],
+    bottom: object.position.z + material.bottom, top: object.position.z + material.top,
+    ...(stack ? { stack } : {}), ...(e ? { openFraction: e.fraction } : {}),
+    ...(aim && aim !== material ? { aimBottom: object.position.z + aim.bottom, aimTop: object.position.z + aim.top } : {}),
   };
 }
 

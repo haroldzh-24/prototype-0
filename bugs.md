@@ -1,3 +1,7 @@
+# Fixed 2026-10-26 (batch 16): independent review of batch 15
+
+Ten confirmed defects in target layers, each with a regression test (`tests/targetLayers.test.cjs`, `tests/ui-reorganization.test.cjs`, `tests/designer-tools.test.cjs`): paint stopped blocking other targets; layers in one stack ignored each other; a 3D drag of a layer moved its target onto the layer; a target snapped to its own layers; the eye view ignored paint and layers; rolled no-shoots blocked unrolled; face left/right followed the rotation instead of the shooter; an A-zone rule was cited as 4.2.1.1 instead of 4.2.5/B1; damaged layer data loaded and then crashed; paint did not resize with the face. Open: layers can sit outside the bay when their target is at the edge.
+
 # Fixed 2026-10-26 (batch 14)
 
 - New route rules defaulted to the USPSA ruleset in PCSL and IDPA matches, so the planner used USPSA steel distances and allowed shooting on the move in IDPA until the ruleset was changed in Route settings. New rules (from AREAS or Route settings) now use the match's ruleset. Stages saved with the wrong ruleset keep it; change it in Route settings → ruleset.

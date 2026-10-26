@@ -106,9 +106,37 @@ export function insidePolygon(p: FacePoint, poly: readonly FacePoint[]): boolean
   return inside;
 }
 
+/**
+ * Which way face x (the shooter's right) runs along a face line drawn at `rotation`: +1 along the rotation direction,
+ * -1 against it. Faces have no front of their own, so the shooter is taken to look downrange at them.
+ */
+export function shooterSign(stage: Pick<StageDocument, 'downrangeDegrees'>, rotation: number): 1 | -1 {
+  const r = rad(rotation), d = rad(stageDownrange(stage));
+  return Math.cos(r) * -Math.sin(d) + Math.sin(r) * Math.cos(d) >= -1e-9 ? 1 : -1;
+}
+
+const fin = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+const facePoint = (p: unknown) => !!p && fin((p as FacePoint).x) && fin((p as FacePoint).y);
+/** Saved-data checks: a damaged layer or paint entry must not load (it would break drawing and planning). */
+export const validAttachment = (a: unknown): a is TargetAttachment => {
+  const v = a as TargetAttachment | undefined;
+  return !!v && typeof v.parentId === 'string' && !!v.parentId.trim() && facePoint(v.offset) && fin(v.roll) && typeof v.front === 'boolean';
+};
+export const validHardCovers = (c: unknown): c is HardCover[] => Array.isArray(c) && c.length <= 8 && c.every((v: HardCover) =>
+  !!v && typeof v.id === 'string' && (v.kind === 'edge' || v.kind === 'strip') && facePoint(v.at) && fin(v.angle) && (v.kind === 'edge' || (fin(v.width) && v.width! >= 0)));
+
+/** Paint keeps its place on the face when the face is resized (a stretched edge keeps meeting the same landmarks). */
+export function scaleCovers(covers: readonly HardCover[], sx: number, sy: number): HardCover[] {
+  return covers.map(c => {
+    const d = { x: Math.cos(rad(c.angle)) * sx, y: -Math.sin(rad(c.angle)) * sy };
+    const angle = Math.abs(d.x) < 1e-12 && Math.abs(d.y) < 1e-12 ? c.angle : -Math.atan2(d.y, d.x) * 180 / Math.PI;
+    return { ...c, at: { x: c.at.x * sx, y: c.at.y * sy }, angle: Math.abs(angle) < 1e-9 ? 0 : angle, ...(c.width !== undefined ? { width: c.width * Math.hypot(Math.cos(rad(c.angle)) * sx, Math.sin(rad(c.angle)) * sy) } : {}) };
+  });
+}
+
 /** Where a layered face stands: along the parent's face line, a little in front of or behind it, at its offset height. */
 export function attachedPose(stage: Pick<StageDocument, 'downrangeDegrees'>, parent: Paper, child: Paper, a: TargetAttachment) {
-  const r = rad(parent.rotation), u = { x: Math.cos(r), y: Math.sin(r) };
+  const r = rad(parent.rotation), sign = shooterSign(stage, parent.rotation), u = { x: Math.cos(r) * sign, y: Math.sin(r) * sign };
   const down = rad(stageDownrange(stage)), toward = { x: -Math.cos(down), y: -Math.sin(down) };
   // The face normal that points back uprange, toward the shooter.
   let n = { x: -u.y, y: u.x }; if (n.x * toward.x + n.y * toward.y < 0) n = { x: -n.x, y: -n.y };
@@ -133,6 +161,8 @@ export function syncLayers(stage: StageDocument): StageDocument {
   const objects: StageObject[] = [];
   for (const o of stage.objects) {
     if (!isPaper(o) || !o.attachment) { objects.push(o); continue; }
+    // A damaged attachment leaves the face standing on its own rather than breaking the stage.
+    if (!validAttachment(o.attachment)) { const { attachment: _drop, ...rest } = o; objects.push(rest as Paper); changed = true; continue; }
     const parent = byId.get(o.attachment.parentId);
     if (!isPaper(parent) || parent.attachment || parent.id === o.id) { changed = true; continue; }
     const pose = attachedPose(stage, parent, o, o.attachment);
@@ -145,11 +175,19 @@ export function syncLayers(stage: StageDocument): StageDocument {
 
 // ---- Exposure ------------------------------------------------------------------------------------------------
 
+/** Below this share of open area a face counts as fully covered (planner and stage check agree). */
+export const OPEN_MIN = 0.02;
+
+export type FaceBox = { left: number; right: number; bottom: number; top: number };
 export type Exposure = {
-  /** Share of the face's material that is open scoring area (not painted, not behind another face in the stack). */
+  /** Share of the face's material that is open scoring area (not painted, not behind another face in its stack). */
   fraction: number;
-  /** Bounding box of the open area in the planner's face terms: across from the centre, up from the face bottom. */
-  extent: { left: number; right: number; bottom: number; top: number } | null;
+  /** Open area as the face stands (rolled), in face terms: across (shooter's right +) and up from the face bottom. */
+  extent: FaceBox | null;
+  /** Across positions (face terms, as it stands) of the columns that have open area: where to aim through. */
+  columns: number[];
+  /** The face's material as it stands (rolled): what it blocks. */
+  material: FaceBox;
 };
 
 /** True when a target is part of a stack or painted, so its open area differs from its outline. */
@@ -164,33 +202,49 @@ export function stackOf(stage: StageDocument, o: StageObject): string | null {
   return stage.objects.some(c => isPaper(c) && c.attachment?.parentId === o.id) ? o.id : null;
 }
 
+/** A stack from back to front: layers behind (stage order), the target, layers in front (stage order). */
+export function stackOrder(stage: StageDocument, rootId: string): Paper[] {
+  const root = stage.objects.find(o => o.id === rootId), layers = layersOf(stage, rootId);
+  return isPaper(root) ? [...layers.filter(c => !c.attachment!.front), root, ...layers.filter(c => c.attachment!.front)] : [];
+}
+
+/** A face's own point in its stack's parent face coordinates, and a parent point in a face's own coordinates. */
+const toStack = (o: Paper, p: FacePoint) => o.attachment ? childToParent(o.attachment, p) : p;
+const fromStack = (o: Paper, p: FacePoint) => o.attachment ? parentToChild(o.attachment, p) : p;
+
 /**
  * How much of a paper face is open scoring area, sampled on a fine grid (about 60 samples across the larger side).
- * Covered: its own hard cover; on a parent, the layers in front of it; on a layer placed behind, its parent.
+ * Covered: its own paint, and every face of its stack drawn in front of it.
  */
 export function exposure(stage: StageDocument, o: Paper): Exposure {
   const w = o.geometry.faceWidth, h = o.geometry.faceHeight, step = Math.max(0.25, Math.max(w, h) / 60);
-  const outline = faceOutline(o), covers = o.hardCover ?? [];
-  const fronts = stage.objects.filter((c): c is Paper => isPaper(c) && c.attachment?.parentId === o.id && c.attachment.front)
-    .map(c => ({ a: c.attachment!, outline: faceOutline(c) }));
-  const parent = o.attachment && !o.attachment.front ? stage.objects.find(p => p.id === o.attachment!.parentId) : undefined;
-  const parentOutline = isPaper(parent) ? faceOutline(parent) : null;
+  const outline = faceOutline(o), covers = validHardCovers(o.hardCover) ? o.hardCover : [], roll = o.attachment && validAttachment(o.attachment) ? o.attachment.roll : 0;
+  const stand = (p: FacePoint) => roll ? rollPoint(p, roll) : p;
+  const rolled = outline.map(stand);
+  const material = { left: Math.min(...rolled.map(p => p.x)), right: Math.max(...rolled.map(p => p.x)), bottom: Math.min(...rolled.map(p => p.y)) + h / 2, top: Math.max(...rolled.map(p => p.y)) + h / 2 };
+  const root = stackOf(stage, o), order = root ? stackOrder(stage, root) : [o], at = order.findIndex(f => f.id === o.id);
+  const front = order.slice(at + 1).filter(f => f.attachment === undefined || validAttachment(f.attachment)).map(f => ({ face: f, outline: faceOutline(f) }));
   let total = 0, open = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const columns = new Set<number>();
   for (let y = -h / 2 + step / 2; y < h / 2; y += step) for (let x = -w / 2 + step / 2; x < w / 2; x += step) {
     const p = { x, y };
     if (!insidePolygon(p, outline)) continue;
     total++;
     if (covers.some(c => painted(c, p))) continue;
-    if (fronts.some(f => insidePolygon(parentToChild(f.a, p), f.outline))) continue;
-    if (parentOutline && insidePolygon(childToParent(o.attachment!, p), parentOutline)) continue;
+    if (front.length && (o.attachment === undefined || validAttachment(o.attachment))) {
+      const q = toStack(o, p);
+      if (front.some(f => insidePolygon(fromStack(f.face, q), f.outline))) continue;
+    }
     open++;
-    // A rolled layer's open area is measured as it stands (rolled), since that is what the shooter sees.
-    const seen = o.attachment ? rollPoint(p, o.attachment.roll) : p;
+    // A rolled layer's open area is measured as it stands, since that is what the shooter sees.
+    const seen = stand(p);
     minX = Math.min(minX, seen.x - step / 2); maxX = Math.max(maxX, seen.x + step / 2);
     minY = Math.min(minY, seen.y - step / 2); maxY = Math.max(maxY, seen.y + step / 2);
+    columns.add(Math.round(seen.x / step) * step);
   }
-  if (!total || !open) return { fraction: 0, extent: null };
-  return { fraction: open / total, extent: { left: minX, right: maxX, bottom: minY + h / 2, top: maxY + h / 2 } };
+  const fraction = total ? open / total : 0;
+  if (fraction < OPEN_MIN) return { fraction, extent: null, columns: [], material };
+  return { fraction, extent: { left: minX, right: maxX, bottom: minY + h / 2, top: maxY + h / 2 }, columns: [...columns].sort((a, b) => a - b), material };
 }
 
 // ---- Editing -------------------------------------------------------------------------------------------------

@@ -1,7 +1,11 @@
 import type { TargetObject } from './targetPlacement';
 import { activeFaceExtent } from './targetFace';
 /** Saved contour in face coordinates: X across, Z up. Ellipses use 48 display edges. */
-export function presetFacePoints(item: TargetObject): [number, number][] {
+/**
+ * `sign` is +1 when face x (the shooter's right) runs along the object's rotation and -1 when it runs against it
+ * (see shooterSign in targetLayers.ts): a layer's roll, clockwise as the shooter sees it, turns the other way along the face line.
+ */
+export function presetFacePoints(item: TargetObject, sign: 1 | -1 = 1): [number, number][] {
   const shape = item.outline, w = item.geometry.faceWidth, h = item.geometry.faceHeight;
   const normalized = shape?.kind === 'polygon' ? shape.points : shape?.kind === 'ellipse'
     ? Array.from({ length: 48 }, (_,i) => [0.5+Math.cos(i*Math.PI/24)/2,0.5+Math.sin(i*Math.PI/24)/2] as const)
@@ -19,7 +23,7 @@ export function presetFacePoints(item: TargetObject): [number, number][] {
     points=next;
   }
   // A layered face (hostage no-shoot, double) may be rolled in its own plane about its centre, clockwise as seen.
-  const roll = item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? item.attachment?.roll ?? 0 : 0;
+  const roll = (item.type === 'cardboardTarget' || item.type === 'noShootTarget' ? item.attachment?.roll ?? 0 : 0) * sign;
   if (!roll) return points;
   const c = Math.cos(roll * Math.PI / 180), s = Math.sin(roll * Math.PI / 180);
   return points.map(([x, z]) => { const y = z - h / 2; return [x * c + y * s, -x * s + y * c + h / 2] as [number, number]; });

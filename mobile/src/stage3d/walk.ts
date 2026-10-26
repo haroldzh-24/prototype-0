@@ -168,7 +168,8 @@ export function targetStatuses(stage: StageDocument, plan: StagePlan, walk: Walk
     const done = window ? at.distance > window.to + 0.5 || (at.stop !== null && currentStop > stopIndex(window.waypointId))
       : standingAt ? at.distance > walk.stops[stopIndex(standingAt)].distance + 0.5 || currentStop > stopIndex(standingAt) : false;
     if (done) return { targetId: t.id, label, state: 'done', rounds, plannedAt, detail: 'already engaged' };
-    const face = targetFace(t);
+    // The planner's face for this target: layers and paint decide what is open to aim at.
+    const face = sight?.stage.targets.find(f => f.id === t.id) ?? targetFace(t, stage);
     if (!sight || !face) return { targetId: t.id, label, state: 'hidden', rounds, plannedAt, detail: 'cannot check from here' };
     const check = checkEngagement(at.point, face, sight.stage, sight.halfAngle, defaultNoShootPolicy(sight.stage.ruleset));
     const notes = [check.overLowWall && 'seen over a low wall (assumed)', check.throughNoShoot && 'past a no-shoot', check.passesAboveOrBelow && 'past another target (assumed)'].filter(Boolean).join(', ');

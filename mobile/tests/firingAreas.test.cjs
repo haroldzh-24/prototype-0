@@ -53,3 +53,28 @@ test('moving a corner stays valid; deleting an area clears target procedures tha
   assert.deepEqual(A.wholeBayArea(stage, 'x').vertices, square(0, 0, 600).map(p => ({ x: p.x, y: Math.min(p.y, 400) })));
   assert.equal(A.nextAreaId(rules.firingAreas), 'area-3'); assert.equal(A.nextAreaId(next.firingAreas), 'area-1');
 });
+
+test('a draft shooting area from the fault lines: the bay minus what lies downrange of them', () => {
+  const stage = createDefaultStage(undefined, { size: { width: 600, depth: 400 } });
+  const fault = (id, x1, y1, x2, y2) => { const o = createObject('faultLine', id, (x1 + x2) / 2, (y1 + y2) / 2); return { ...o, endpoints: { start: { space: 'stage', x: x1, y: y1, z: 0 }, end: { space: 'stage', x: x2, y: y2, z: 0 } } }; };
+  // Downrange is up the screen (270): a fault line across the middle cuts off what lies above it.
+  stage.objects = [fault('F1', 100, 250, 500, 250)];
+  let area = A.areaFromFaultLines(stage, 270, 'a');
+  assert.equal(A.areaProblem(area.vertices), null); assert.equal(Math.abs(A.polygonArea(area.vertices)), 600 * 400 - 400 * 250);
+  assert.ok(A.pointInPolygon({ x: 300, y: 300 }, area.vertices) && !A.pointInPolygon({ x: 300, y: 100 }, area.vertices) && A.pointInPolygon({ x: 50, y: 100 }, area.vertices));
+  // Two fault lines at different depths and a slanted one: the nearest one ahead of you is the limit.
+  stage.objects = [fault('F1', 100, 250, 500, 250), fault('F2', 300, 320, 600, 320), fault('S', 0, 200, 100, 150)];
+  area = A.areaFromFaultLines(stage, 270, 'a');
+  assert.equal(A.areaProblem(area.vertices), null);
+  assert.ok(!A.pointInPolygon({ x: 400, y: 300 }, area.vertices), 'beyond the nearer line F2');
+  assert.ok(A.pointInPolygon({ x: 200, y: 300 }, area.vertices), 'F2 does not reach x=200; F1 at 250 does not limit y=300');
+  assert.ok(!A.pointInPolygon({ x: 50, y: 160 }, area.vertices) && A.pointInPolygon({ x: 50, y: 190 }, area.vertices), 'the slanted line at x=50 is at y=175');
+  // A line running downrange is ignored; without limiting fault lines the draft is the whole bay.
+  stage.objects = [fault('Side', 200, 50, 200, 350)];
+  assert.equal(Math.abs(A.polygonArea(A.areaFromFaultLines(stage, 270, 'a').vertices)), 600 * 400);
+  // Downrange to the right (0 degrees): a fault line running up and down limits how far right you may stand.
+  stage.objects = [fault('F', 400, 0, 400, 400)];
+  area = A.areaFromFaultLines(stage, 0, 'a');
+  assert.equal(Math.abs(A.polygonArea(area.vertices)), 400 * 400);
+  assert.ok(A.pointInPolygon({ x: 350, y: 200 }, area.vertices) && !A.pointInPolygon({ x: 450, y: 200 }, area.vertices));
+});

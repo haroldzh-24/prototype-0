@@ -11,6 +11,7 @@ import type { StageDocument, StageObject } from '@/stage/model';
 import { footprint } from '@/stage/geometry';
 import { moveObject } from '@/stage/operations';
 import { resolveMovement } from '@/stage/snapping';
+import { shooterSign } from '@/stage/targetLayers';
 import type { SnapFeedback, SnapSettings } from '@/stage/snapping';
 
 type ObjectProps = {
@@ -66,6 +67,8 @@ export default function DraggableObject(props: ObjectProps) {
   const height = isTarget(item) ? Math.max(44, item.geometry.faceHeight * transform.scale) : Math.max(minimum, dimensions.depth * transform.scale);
   // A layered face is drawn on its parent's face diagram: shifted up or down by its height offset, then rolled.
   const layer = (item.type === 'cardboardTarget' || item.type === 'noShootTarget') ? item.attachment : undefined;
+  // A paper face is drawn as the shooter sees it: mirrored when the shooter's right runs against its rotation.
+  const mirror = (item.type === 'cardboardTarget' || item.type === 'noShootTarget') && shooterSign(props.stage, item.rotation) < 0 ? [{ scaleX: -1 }] : [];
   const layerTransform = layer ? [{ translateY: -layer.offset.y * transform.scale }, { rotate: layer.roll + 'deg' }] : [];
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
@@ -73,7 +76,7 @@ export default function DraggableObject(props: ObjectProps) {
     style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {
       left: center.x - width / 2, top: center.y - height / 2, width, height,
-      transform: [{ rotate: item.rotation + 'deg' }, ...layerTransform],
+      transform: [{ rotate: item.rotation + 'deg' }, ...mirror, ...layerTransform],
     }, selected && styles.selected]}>
     {isTarget(item) && <TargetFace item={item} scale={transform.scale} />}
     {item.type === 'wall' && item.ports.map((port, index) => <View key={port.id} pointerEvents="none"

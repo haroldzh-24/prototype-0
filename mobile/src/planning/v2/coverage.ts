@@ -32,7 +32,7 @@ export function wallEffect(p: Point, q: Point, wall: Wall, target: TargetFace, r
   if (wall.ports.some(port => low > port.offset - port.width / 2 + EPS && high < port.offset + port.width / 2 - EPS)) return 'clear';
   const top = wall.position.z + wall.geometry.height;
   // IDPA simulated walls extend infinitely (4.7.2). USPSA/PCSL low barriers stop at their built height.
-  if (ruleset !== 'IDPA' && top < LOW_WALL_LIMIT_INCHES && target.top > top + EPS) return 'over-low-wall';
+  if (ruleset !== 'IDPA' && top < LOW_WALL_LIMIT_INCHES && (target.aimTop ?? target.top) > top + EPS) return 'over-low-wall';
   return 'blocked';
 }
 
@@ -40,7 +40,8 @@ export function wallEffect(p: Point, q: Point, wall: Wall, target: TargetFace, r
 export const defaultNoShootPolicy = (ruleset: Ruleset): 'occlude' | 'warn' => ruleset === 'IDPA' ? 'warn' : 'occlude';
 
 export type SightResult = { visible: boolean; throughNoShoot: boolean; overLowWall: boolean; passesAboveOrBelow: boolean };
-const overlapsVertically = (a: TargetFace, b: TargetFace) => a.bottom < b.top - EPS && b.bottom < a.top - EPS;
+/** Does blocker `a` (its whole face) overlap the part of target `b` that is aimed at? */
+const overlapsVertically = (a: TargetFace, b: TargetFace) => a.bottom < (b.aimTop ?? b.top) - EPS && (b.aimBottom ?? b.bottom) < a.top - EPS;
 
 /** Line of sight from a shooting point to one face sample, applying the ruleset's occlusion policy. */
 export function sightLine(p: Point, q: Point, target: TargetFace, stage: NormalizedStage, noShootPolicy: 'occlude' | 'warn'): SightResult {

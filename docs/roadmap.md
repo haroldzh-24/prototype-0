@@ -18,7 +18,7 @@ Scope comes from the owner's ideas (2026-10-26, marked ★) and the earlier revi
 | A4 | **Rule checks for layers** | Coverage limits where the rulebook sets them (e.g. half-size targets keep half the lower A-zone visible, USPSA 4.2.1.1); PCSL Practical/Competition mixing (9.2.2.1). |
 | A5 | **Drill logger web fix** | Tapped hits land where tapped in the web version. |
 
-## Milestone B: fast stage entry
+## Milestone B: fast stage entry — B3 done; B2 started (drawing under the plan, Photos import) 2026-10-26, batch 16
 
 | # | Item | Done when |
 | --- | --- | --- |

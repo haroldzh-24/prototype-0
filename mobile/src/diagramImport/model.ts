@@ -113,3 +113,18 @@ export function reconstruct(d: Reconstruction, stage: StageDocument, family: Tar
   if (stage.objects.length + additions.length > 2000) throw new Error('This stage would exceed 2000 objects.');
   return additions.length ? { ...stage, objects: [...stage.objects, ...additions] } : stage;
 }
+
+/** Where a calibrated top-down drawing lies under the stage, in stage inches: the picture to trace over. */
+export type Backdrop = { asset: DocumentAsset; left: number; top: number; width: number; height: number };
+export function backdropOf(d: Reconstruction): Backdrop | null {
+  if (!d.aligned || !d.calibration || d.projection !== 'top-down') return null;
+  try {
+    const ipp = inchesPerPixel(d);
+    return { asset: d.aligned.asset, left: d.origin.x, top: d.origin.y, width: d.aligned.width * ipp, height: d.aligned.height * ipp };
+  } catch { return null; }
+}
+/** The drawing to show under the stage: the most recently listed draft that is aligned, calibrated and top-down. */
+export const latestBackdrop = (drafts: readonly Reconstruction[]): { id: string; backdrop: Backdrop } | null => {
+  for (let i = drafts.length - 1; i >= 0; i--) { const b = backdropOf(drafts[i]); if (b) return { id: drafts[i].id, backdrop: b }; }
+  return null;
+};

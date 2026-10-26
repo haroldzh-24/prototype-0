@@ -59,7 +59,8 @@ export function resolveMovement(stage: StageDocument, id: string, raw: StagePosi
       for (const axis of ['x', 'y'] as const) {
         let best: { distance: number; center: number; guide: SnapGuide } | undefined;
         for (const other of stage.objects) {
-          if (other.id === id) continue;
+          // Never snap to yourself or to your own layers (hostage no-shoots, doubles move with you).
+          if (other.id === id || ((other.type === 'cardboardTarget' || other.type === 'noShootTarget') && other.attachment?.parentId === id)) continue;
           for (const anchor of alignmentAnchors(other)) for (const own of moving) {
             const delta = anchor[axis] - own[axis];
             const distance = Math.abs(delta);

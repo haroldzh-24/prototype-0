@@ -8,9 +8,19 @@ private func mediaFailure(_ message: String) -> NSError {
 }
 
 /// PHPicker runs out of process: the app only receives the item the user picks, so no photo library
-/// permission (NSPhotoLibraryUsageDescription) is requested or needed.
-private final class VideoPickerDelegate: NSObject, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
+/// permission (NSPhotoLibraryUsageDescription) is requested or needed. One delegate per media kind.
+private final class MediaPickerDelegate: NSObject, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate {
+  let type: UTType
+  let noun: String
+  let fallbackExtension: String
   var completion: ((Result<[String: Any]?, Error>) -> Void)?
+
+  init(type: UTType, noun: String, fallbackExtension: String) {
+    self.type = type
+    self.noun = noun
+    self.fallbackExtension = fallbackExtension
+    super.init()
+  }
 
   func finish(_ result: Result<[String: Any]?, Error>) {
     let callback = completion
@@ -21,19 +31,21 @@ private final class VideoPickerDelegate: NSObject, PHPickerViewControllerDelegat
   func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
     picker.dismiss(animated: true)
     guard let provider = results.first?.itemProvider else { finish(.success(nil)); return }
-    guard provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) else {
-      finish(.failure(mediaFailure("Choose a video.")))
+    guard provider.hasItemConformingToTypeIdentifier(type.identifier) else {
+      finish(.failure(mediaFailure("Choose a \(self.noun).")))
       return
     }
     let suggested = provider.suggestedName
-    _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, error in
+    let fallback = fallbackExtension
+    let label = self.noun
+    _ = provider.loadFileRepresentation(forTypeIdentifier: type.identifier) { url, error in
       // The system deletes the provided file when this handler returns, so copy it first.
       guard let url = url else {
-        DispatchQueue.main.async { self.finish(.failure(error ?? mediaFailure("The video could not be read."))) }
+        DispatchQueue.main.async { self.finish(.failure(error ?? mediaFailure("The \(label) could not be read."))) }
         return
       }
       do {
-        let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+        let ext = url.pathExtension.isEmpty ? fallback : url.pathExtension
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent("picked-\(UUID().uuidString).\(ext)")
         try FileManager.default.copyItem(at: url, to: destination)
         let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -52,35 +64,44 @@ private final class VideoPickerDelegate: NSObject, PHPickerViewControllerDelegat
 }
 
 public final class TrainingMediaModule: Module {
-  private let pickerDelegate = VideoPickerDelegate()
+  private let videoDelegate = MediaPickerDelegate(type: .movie, noun: "video", fallbackExtension: "mov")
+  /// Stage diagrams: match book pages, printouts and screenshots from the photo album (HEIC, JPEG or PNG).
+  private let imageDelegate = MediaPickerDelegate(type: .image, noun: "picture", fallbackExtension: "jpg")
+
+  private func present(_ delegate: MediaPickerDelegate, filter: PHPickerFilter, promise: Promise) {
+    guard videoDelegate.completion == nil, imageDelegate.completion == nil else {
+      promise.reject("PICKER_BUSY", "The photo picker is already open.")
+      return
+    }
+    guard let controller = self.appContext?.utilities?.currentViewController(),
+          controller.viewIfLoaded?.window != nil,
+          controller.presentedViewController == nil else {
+      promise.reject("PICKER_UNAVAILABLE", "Close the current panel and try again.")
+      return
+    }
+    var configuration = PHPickerConfiguration()
+    configuration.filter = filter
+    configuration.selectionLimit = 1
+    configuration.preferredAssetRepresentationMode = .current
+    let picker = PHPickerViewController(configuration: configuration)
+    picker.delegate = delegate
+    picker.presentationController?.delegate = delegate
+    delegate.completion = { result in
+      switch result {
+      case .success(let value): promise.resolve(value)
+      case .failure(let error): promise.reject(error)
+      }
+    }
+    controller.present(picker, animated: true)
+  }
 
   public func definition() -> ModuleDefinition {
     Name("TrainingMedia")
     AsyncFunction("pickVideo") { (promise: Promise) in
-      guard self.pickerDelegate.completion == nil else {
-        promise.reject("PICKER_BUSY", "The video picker is already open.")
-        return
-      }
-      guard let controller = self.appContext?.utilities?.currentViewController(),
-            controller.viewIfLoaded?.window != nil,
-            controller.presentedViewController == nil else {
-        promise.reject("PICKER_UNAVAILABLE", "Close the current panel and try again.")
-        return
-      }
-      var configuration = PHPickerConfiguration()
-      configuration.filter = .videos
-      configuration.selectionLimit = 1
-      configuration.preferredAssetRepresentationMode = .current
-      let picker = PHPickerViewController(configuration: configuration)
-      picker.delegate = self.pickerDelegate
-      picker.presentationController?.delegate = self.pickerDelegate
-      self.pickerDelegate.completion = { result in
-        switch result {
-        case .success(let value): promise.resolve(value)
-        case .failure(let error): promise.reject(error)
-        }
-      }
-      controller.present(picker, animated: true)
+      self.present(self.videoDelegate, filter: .videos, promise: promise)
+    }.runOnQueue(.main)
+    AsyncFunction("pickImage") { (promise: Promise) in
+      self.present(self.imageDelegate, filter: .images, promise: promise)
     }.runOnQueue(.main)
   }
 }
