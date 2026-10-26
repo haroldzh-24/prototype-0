@@ -1,11 +1,13 @@
-import { colors } from '../ui/tokens';
+import { colors, themed } from '../ui/tokens';
 import { memo } from 'react';
+import { useThemeMode } from '../ui/theme';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
 import { gridLabel, gridLabelStepInches, isGridLabel, measurementGrid } from '@/stage/grid';
 
 export default memo(function StageGrid({ stage, transform: t }: { stage: StageSize; transform: ViewportTransform }) {
+  useThemeMode(); // memoized, so it re-renders itself when day/night changes
   const { fontScale } = useWindowDimensions();
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {measurementGrid(stage).map((line) => {
@@ -21,4 +23,4 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
     })}
   </View>;
 });
-const styles = StyleSheet.create({ label: { position: 'absolute', left: 2, top: 2, width: 60, fontSize: 10, color: colors.muted, backgroundColor: colors.panel } });
+const styles = themed(c => ({ label: { position: 'absolute', left: 2, top: 2, width: 60, fontSize: 10, color: c.muted } }));

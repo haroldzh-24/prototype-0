@@ -1,4 +1,4 @@
-import { colors } from '../ui/tokens';
+import { colors, themed } from '../ui/tokens';
 import { StyleSheet, View } from 'react-native';
 import Text from '@/editor/FieldText';
 import type { StageSize, ViewportTransform } from '@/stage/coordinates';
@@ -21,5 +21,5 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
     ].filter(Boolean).join(' | ')}</Text>}
   </View>;
 }
-const styles = StyleSheet.create({ status: { position: 'absolute', bottom: 6, left: 6,
-  backgroundColor: colors.panel, color: colors.accent, padding: 4, fontSize: 12 } });
+const styles = themed(c => ({ status: { position: 'absolute', bottom: 6, left: 6,
+  backgroundColor: c.panel, color: c.accent, padding: 4, fontSize: 12 } }));

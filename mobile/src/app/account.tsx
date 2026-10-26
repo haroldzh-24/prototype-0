@@ -5,8 +5,12 @@ import { useRepository } from '@/storage/StorageProvider';
 import type { UserProfile } from '@/profile/model';
 import { contextLabels, metricValue } from '@/training/presentation';
 import { trainingContexts } from '@/training/observations';
-import { Screen, ScreenHeader, Copy, Panel, DataRow, Loading, ErrorState, ui } from '@/ui/kit';
+import { Screen, ScreenHeader, Copy, Panel, DataRow, Loading, ErrorState, Segmented, ui } from '@/ui/kit';
+import { setThemePreference, themePreference } from '@/ui/theme';
+import type { ThemePreference } from '@/ui/theme';
+import { useThemeMode } from '@/ui/theme';
 export default function Account() {
+  useThemeMode();
   const repo = useRepository(), [profile, setProfile] = useState<UserProfile>(), [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useFocusEffect(useCallback(() => { let active = true; setError(''); repo.loadProfile().then(value => { if (active) { setProfile(value); setError(''); } }).catch(e => { if (active) setError(String(e)); }); return () => { active = false; }; }, [repo, attempt]));
@@ -25,6 +29,9 @@ export default function Account() {
       <Copy>Stage loadouts are configured independently in each stage.</Copy></Panel>}
     {profile && <Panel><Text style={ui.eyebrow}>TRAINING DATA</Text>{!(profile.performanceObservations ?? []).length && <Copy>No samples yet. Review video measurements in Training and add eligible measurements to your profile.</Copy>}{trainingContexts.map(context => <DataRow key={context} label={contextLabels[context]} value={(profile.performanceObservations ?? []).filter(sample => sample.context === context).length + ' samples'} />)}</Panel>}
     {profile && <Panel><Text style={ui.eyebrow}>CALIBRATION</Text>{profile.calibrationContext ? <DataRow label="Active context" value={contextLabels[profile.calibrationContext]} /> : <Copy>No training calibration yet. Add eligible measurements from Video Results.</Copy>}</Panel>}
+    <Panel><Text style={ui.eyebrow}>APPEARANCE</Text>
+      <Segmented options={['SYSTEM', 'DAY', 'NIGHT']} value={themePreference().toUpperCase()} onChange={v => setThemePreference(v.toLowerCase() as ThemePreference)} />
+      <Copy>Day is built for full sun at the range. Night is easier on the eyes indoors and after dark. System follows the phone.</Copy></Panel>
     <Panel><Text style={ui.eyebrow}>CLOUD SYNC</Text><Copy>Data is stored on this device. Cloud sync is not included in this release.</Copy></Panel>
   </Screen>;
 }

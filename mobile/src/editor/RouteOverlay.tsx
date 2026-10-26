@@ -24,7 +24,7 @@ export default function RouteOverlay(props: RouteOverlayProps & { stage: StageDo
     {(route.engagementRules ? [] : route.positions.filter(p => showTargetArrows(layers, p.id, props.selectedId))).flatMap(position => stage.objects.filter(t => isEngageable(t) && position.engagedTargetIds.includes(t.id)).map(target => {
       const a = stageToViewport(position.position, transform), b = stageToViewport(target.position, transform);
       const engaged = position.engagedTargetIds.includes(target.id), length = Math.hypot(b.x - a.x, b.y - a.y);
-      const color = engaged ? colors.accent : '#52858e';
+      const color = engaged ? colors.accent : colors.subdued;
       return <View key={'connection-' + position.id + '-' + target.id} pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0 }}>
         <View style={{ position: 'absolute', left: (a.x + b.x) / 2 - length / 2, top: (a.y + b.y) / 2, width: length, height: props.preview ? 1 : engaged ? 2 : 1, backgroundColor: color, transform: [{ rotate: Math.atan2(b.y - a.y, b.x - a.x) + 'rad' }] }} />
         <Text style={{ position: 'absolute', left: (a.x + b.x) / 2, top: (a.y + b.y) / 2 - 12, color, backgroundColor: colors.background }}>{engagementLabel(position.engagedTargetIds.indexOf(target.id))}</Text>
@@ -100,5 +100,5 @@ function TargetTap(props: { label: string; selected: boolean; toggle: () => void
     onPanResponderTerminate: () => { canceled.current = true; },
     onPanResponderRelease: (_, gesture) => { if (!canceled.current && Math.hypot(gesture.dx, gesture.dy) <= 6) latest.current.toggle(); },
   }));
-  return <View {...responder.panHandlers} accessible accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ selected: props.selected }} onAccessibilityTap={props.toggle} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: props.selected ? 3 : 1, borderColor: props.selected ? colors.accent : '#52858e', backgroundColor: props.selected ? '#58d5e033' : 'transparent' }} />;
+  return <View {...responder.panHandlers} accessible accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ selected: props.selected }} onAccessibilityTap={props.toggle} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: props.selected ? 3 : 1, borderColor: props.selected ? colors.accent : colors.subdued, backgroundColor: props.selected ? colors.selected : 'transparent', opacity: props.selected ? 0.85 : 1 }} />;
 }

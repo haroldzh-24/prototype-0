@@ -4,6 +4,7 @@ import StageBuilder from '@/editor/StageBuilder';
 import { useRepository } from '@/storage/StorageProvider';
 import type { Match, SavedStage } from '@/storage/repository';
 import { Screen, Loading, ErrorState, Action } from '@/ui/kit';
+import { useThemeMode } from '@/ui/theme';
 
 export default function BuilderRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -11,6 +12,7 @@ export default function BuilderRoute() {
   return <LoadedBuilder key={id} id={id} />;
 }
 function LoadedBuilder({ id }: { id: string }) {
+  useThemeMode();
   const repo = useRepository(), [data, setData] = useState<{ saved: SavedStage; match: Match }>(), [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useFocusEffect(useCallback(() => {

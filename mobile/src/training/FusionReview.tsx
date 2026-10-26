@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { Action, Copy, StatusBadge, ui } from '../ui/kit';
+import { Action, Copy, StatusBadge, colors, ui } from '../ui/kit';
 import { eventTypes } from './videoModel';
 import type { EventType } from './videoModel';
 import type { FusionResult, FusedHypothesis } from './eventFusion';
@@ -14,7 +14,7 @@ function EvidenceCard({ h, fusion, busy, onPreview, onReview }: {
   const [type, setType] = useState(h.type), [timestamp, setTimestamp] = useState(String(h.timestampMs));
   const [showTypes, setShowTypes] = useState(false);
   const suggested = h.status === 'SUGGESTED';
-  return <View style={{ gap: 6, borderLeftWidth: 3, borderLeftColor: suggested ? '#eab54d' : '#58c9b9', paddingLeft: 8 }}>
+  return <View style={{ gap: 6, borderLeftWidth: 3, borderLeftColor: suggested ? colors.suggested : colors.movement, paddingLeft: 8 }}>
     <StatusBadge tone={suggested ? 'warning' : h.status === 'CONFIRMED' ? 'success' : 'inactive'} label={h.status} /><Copy>{h.type.replaceAll('_', ' ')}</Copy><Copy>{(h.timestampMs / 1000).toFixed(2)} s</Copy><Copy>{h.confidence} CONFIDENCE</Copy><Copy>{h.families.map(f => labels[f]).join(' + ')}</Copy>
     <Action title={expanded ? 'Hide details' : 'Details'} onPress={() => setExpanded(!expanded)} />
     {expanded && <>

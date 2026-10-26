@@ -3,7 +3,7 @@ import { labeledPlanElements as plannedElements } from './presentation';
 import { OperationGate } from './operationGate';
 import { View } from 'react-native';
 import { uuid } from 'expo-modules-core';
-import { Action, Copy, Panel, DataRow, Notice, ErrorState, Loading } from '../ui/kit';
+import { Action, Copy, Panel, DataRow, Notice, ErrorState, Loading, colors } from '../ui/kit';
 import { useRepository } from '../storage/StorageProvider';
 import type { SavedStage, StageSummary } from '../storage/repository';
 import StageViewport from '../editor/StageViewport';
@@ -153,7 +153,7 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
           disabled={disabled} onPress={() => selectElement(p.id)} />)}
         <Copy>CONFIRMED TIMELINE INTERVALS</Copy>
         {!observed.intervals.some(i => i.kind === kind) && <Copy>No confirmed intervals of this kind. Review timeline endpoints first.</Copy>}
-        {observed.intervals.filter(i => i.kind === kind).map(i => <View key={i.id} style={{ borderLeftWidth: ((kind === 'STRING' || kind === 'POSITION') ? stringIds.includes(i.id) : intervalId === i.id) ? 3 : 0, borderLeftColor: '#58c9b9', paddingLeft: 6 }}>
+        {observed.intervals.filter(i => i.kind === kind).map(i => <View key={i.id} style={{ borderLeftWidth: ((kind === 'STRING' || kind === 'POSITION') ? stringIds.includes(i.id) : intervalId === i.id) ? 3 : 0, borderLeftColor: colors.movement, paddingLeft: 6 }}>
           <Action title={`${intervalId === i.id ? 'Selected · ' : ''}${seconds(i.startMs)} → ${seconds(i.endMs)} · ${seconds(i.durationMs)}`}
             disabled={disabled} onPress={() => { setIntervalId(i.id); onPreview(i.startMs);
               if (kind === 'STRING' || kind === 'POSITION') setStringIds(ids => ids.includes(i.id) ? ids.filter(id => id !== i.id) : [...ids, i.id]); }} />

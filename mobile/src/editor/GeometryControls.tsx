@@ -1,3 +1,4 @@
+import { colors } from '../ui/tokens';
 import { useRef, useState } from 'react';
 import { PanResponder, View, StyleSheet } from 'react-native';
 import Text from './FieldText';
@@ -18,7 +19,7 @@ function Handle({ x, y, label, begin, move, finish }: { x: number; y: number; la
     onPanResponderRelease: () => latest.current.finish(), onPanResponderTerminate: () => latest.current.finish(),
   }));
   return <View {...responder.panHandlers} accessible accessibilityLabel={label} accessibilityHint="Drag to adjust, or use Edit for numeric entry." style={{ position: 'absolute', left: x - 22, top: y - 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-    <View pointerEvents="none" style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#69d5df', borderWidth: 2, borderColor: '#101611' }} />
+    <View pointerEvents="none" style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: colors.handle, borderWidth: 2, borderColor: colors.canvas }} />
   </View>;
 }
 export default function GeometryControls(props: Props) {
@@ -42,8 +43,8 @@ export default function GeometryControls(props: Props) {
   const p = stageToViewport(item.position, transform), radius = Math.max(42, Math.hypot(item.geometry.faceWidth, item.geometry.faceHeight) * transform.scale / 2 + 18);
   const radians = (item.rotation - 90) * Math.PI / 180, x = Math.cos(radians) * radius, y = Math.sin(radians) * radius;
   return <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-    <View pointerEvents="none" style={{ position: 'absolute', left: p.x-radius, top: p.y-radius, width: radius*2, height: radius*2, borderWidth: 1, borderColor: '#69d5df88', borderRadius: radius }} />
-    <Text pointerEvents="none" style={{ position: 'absolute', left: p.x-40, top: p.y+radius+4, width: 80, textAlign: 'center', color: '#69d5df' }}>{item.rotation.toFixed(1)}°</Text>
+    <View pointerEvents="none" style={{ position: 'absolute', left: p.x-radius, top: p.y-radius, width: radius*2, height: radius*2, borderWidth: 1, borderColor: colors.handle, borderRadius: radius }} />
+    <Text pointerEvents="none" style={{ position: 'absolute', left: p.x-40, top: p.y+radius+4, width: 80, textAlign: 'center', color: colors.handle, fontWeight: 'bold' }}>{item.rotation.toFixed(1)}°</Text>
     <Handle x={p.x+x} y={p.y+y} label="Drag target rotation wheel" begin={() => {
       wheel.current = { angle: item.rotation, previous: item.rotation-90, x, y, radius }; props.onDragging(true);
     }} finish={() => props.onDragging(false)} move={(dx,dy) => {

@@ -1,4 +1,4 @@
-import { colors, typography } from '../ui/tokens';
+import { colors, typography, themed } from '../ui/tokens';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Text from '@/editor/FieldText';
@@ -34,7 +34,7 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
     <View style={styles.row}>{wall.ports.map((port, index) => <Pressable key={port.id}
       accessibilityRole="button" accessibilityState={{ selected: selected?.id === port.id, disabled }} disabled={disabled}
       onPress={() => { setSelectedId(port.id); setNotice(''); }} style={[styles.button, selected?.id === port.id && styles.selected]}>
-      <Text style={styles.buttonText}>Port {index + 1} &gt;</Text>
+      <Text style={[styles.buttonText, selected?.id === port.id && { color: colors.background }]}>Port {index + 1} &gt;</Text>
     </Pressable>)}</View>
     <Control title="ADD PORT" disabled={disabled} onPress={add} />
     {selected && <><Control title="Back to ports" disabled={disabled} onPress={() => setSelectedId(null)} /><Control title="Remove Port" disabled={disabled} onPress={remove} /><PortForm key={selected.id} port={selected} disabled={disabled} onApply={port => {
@@ -67,10 +67,10 @@ function Control({ title, disabled, onPress }: { title: string; disabled: boolea
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
     style={[styles.button, title.startsWith('Remove') && { borderColor: colors.danger }, disabled && { opacity: 0.4 }]}><Text style={[styles.buttonText, title.startsWith('Remove') && { color: colors.danger }]}>{title}</Text></Pressable>;
 }
-const styles = StyleSheet.create({
-  panel: { gap: 8, marginTop: 12 }, title: { ...typography.section, color: colors.text },
+const styles = themed(c => ({
+  panel: { gap: 8, marginTop: 12 }, title: { ...typography.section, color: c.text },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, field: { flexBasis: '40%', flexGrow: 1, minWidth: 120 },
-  input: { borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.secondary, padding: 8, minHeight: 44, color: colors.text, borderRadius: 2 },
-  button: { backgroundColor: colors.secondary, padding: 10, minHeight: 44, minWidth: 44, maxWidth: '100%', flexShrink: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
-  selected: { backgroundColor: colors.selected, borderColor: colors.accent }, buttonText: { color: colors.text, ...typography.label },
-});
+  input: { ...typography.body, borderWidth: 2, borderColor: c.border, backgroundColor: c.secondary, padding: 8, minHeight: 48, color: c.text },
+  button: { backgroundColor: c.secondary, padding: 10, minHeight: 48, minWidth: 48, maxWidth: '100%', flexShrink: 1, borderWidth: 2, borderColor: c.border, alignSelf: 'flex-start' },
+  selected: { backgroundColor: c.text, borderColor: c.text }, buttonText: { color: c.text, ...typography.label },
+}));

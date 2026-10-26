@@ -18,10 +18,12 @@ import { analyzeVideo } from '@/training/videoAnalysis';
 import type { VideoSession } from '@/training/videoModel';
 import { VideoAnalysisEditor } from '@/training/VideoAnalysisEditor';
 import EditorSheet from '@/editor/EditorSheet';
+import { useThemeMode } from '@/ui/theme';
 import { Segmented, EmptyState, Loading } from '@/ui/kit';
 import { Screen, ScreenHeader, Input, Notice, Copy, Panel, Action, ui } from '@/ui/kit';
 
 export default function Training() {
+  useThemeMode();
   const repo = useRepository(), [records, setRecords] = useState<TrainingRecord[]>([]), [message, setMessage] = useState('');
   const [name, setName] = useState('Practice session'), [context, setContext] = useState<TrainingContext>('DRY_FIRE');
   const [startingType, setStartingType] = useState<StartingType>('competitionHolster'), [busy, setBusy] = useState(false);

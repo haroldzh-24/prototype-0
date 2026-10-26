@@ -1,4 +1,4 @@
-import { colors } from '../ui/tokens';
+import { themed } from '../ui/tokens';
 import TargetFace from './TargetFace';
 import { isTarget } from '../stage/targetPlacement';
 import { useRef, useState } from 'react';
@@ -22,6 +22,8 @@ type ObjectProps = {
   onFeedback: (feedback: SnapFeedback) => void;
   item: StageObject; transform: ViewportTransform; selected: boolean;
 };
+/** Fault lines are dashed (a dash and a gap every DASH px); drawn with views because dashed borders differ per platform. */
+const DASH = 12;
 export default function DraggableObject(props: ObjectProps) {
   const latest = useRef(props);
   latest.current = props;
@@ -55,7 +57,9 @@ export default function DraggableObject(props: ObjectProps) {
   const dimensions = footprint(item);
   const target = item.type === 'cardboardTarget' || item.type === 'noShootTarget' || item.type === 'steelPlate' || item.type === 'steelPopper';
   const width = isTarget(item) ? Math.max(44, item.geometry.faceWidth * transform.scale) : dimensions.width * transform.scale;
-  const height = isTarget(item) ? Math.max(44, item.geometry.faceHeight * transform.scale) : dimensions.depth * transform.scale;
+  // Walls and fault lines are a few inches thick: drawn at least 4 / 3 px so they read like the lines on a stage diagram.
+  const minimum = item.type === 'wall' ? 4 : item.type === 'faultLine' ? 3 : 0;
+  const height = isTarget(item) ? Math.max(44, item.geometry.faceHeight * transform.scale) : Math.max(minimum, dimensions.depth * transform.scale);
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
@@ -73,18 +77,23 @@ export default function DraggableObject(props: ObjectProps) {
       }]}>
       <Text style={styles.portLabel}>{index + 1}</Text>
     </View>)}
+    {item.type === 'faultLine' && <View pointerEvents="none" style={styles.dashes}>{Array.from({ length: Math.max(1, Math.floor(width / DASH)) }, (_, i) =>
+      <View key={i} style={[styles.dash, { height: Math.min(3, height) }]} />)}</View>}
     {item.type === 'start' && <Text style={styles.startText}>START</Text>}
   </View>;
 }
 
-const styles = StyleSheet.create({
+const styles = themed(c => ({
   object: { position: 'absolute', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   targetMarker: { borderWidth: 0 },
-  port: { position: 'absolute', backgroundColor: colors.background, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#80a6a1', alignItems: 'center', justifyContent: 'center' },
-  portLabel: { position: 'absolute', top: -13, fontSize: 10, color: '#c5b476', fontWeight: 'bold' },
-  wall: { backgroundColor: '#303e35', borderColor: '#83927c' },
-  faultLine: { backgroundColor: '#bdab69', borderColor: '#8c8051' },
-  start: { backgroundColor: '#29392d', borderColor: '#9cab88', borderRadius: 3 },
-  selected: { borderColor: colors.accent, outlineColor: colors.accent, outlineWidth: 1, outlineStyle: 'solid' },
-  startText: { color: colors.text, fontWeight: 'bold', fontSize: 8, textAlign: 'center' },
-});
+  // Ports read as an orange gap in the ink wall, the way they are drawn on a stage diagram.
+  port: { position: 'absolute', backgroundColor: c.port, alignItems: 'center', justifyContent: 'center' },
+  portLabel: { position: 'absolute', top: -14, fontSize: 11, color: c.text, fontWeight: 'bold' },
+  wall: { backgroundColor: c.wall, borderColor: c.wall },
+  faultLine: { backgroundColor: 'transparent', borderWidth: 0 },
+  dashes: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', overflow: 'hidden' },
+  dash: { width: DASH * 0.6, backgroundColor: c.faultLine },
+  start: { backgroundColor: c.startFill, borderColor: c.ink, borderWidth: 2 },
+  selected: { borderColor: c.accent, outlineColor: c.accent, outlineWidth: 3, outlineStyle: 'solid' },
+  startText: { color: c.ink, fontWeight: 'bold', fontSize: 9, textAlign: 'center' },
+}));

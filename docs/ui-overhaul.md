@@ -1,3 +1,16 @@
+# Outdoor high-contrast redesign and night mode - October 25, 2026
+
+The approved mockups (outdoor high-contrast: black on white for full sun, a near-black night version) are the reference. Implementation:
+
+- `mobile/src/ui/tokens.ts`: `dayPalette` and `nightPalette` (same keys, every text pair at least 4.5:1 and every plan mark at least 3:1, checked by `tests/theme.test.cjs`), fonts, spacing, touch sizes (48 / 56 pt), borders, typography. `colors` always reads the active palette.
+- `mobile/src/ui/theme.ts`: preference (system / day / night), the phone's mode, `useThemeMode()`. `themeStore.ts` / `themeStore.web.ts` save the preference (native key-value store, read before the first render; localStorage on web).
+- Rules for components, so a switch restyles the screen in place:
+  - Read colours at render time: `colors.x` inline, or `const styles = themed(c => ({ ... }))` instead of `StyleSheet.create` (it rebuilds per palette and caches).
+  - Every screen calls `useThemeMode()`; a component wrapped in `memo` calls it too (`StageGrid`).
+  - Do not turn the React Compiler back on (`app.json`): it caches output on props and state only, so screens kept stale colours. A test guards this.
+  - No fixed colours on the stage plan; stage materials (`wall`, `port`, `faultLine`, `cardboard`, `steel`, `noShoot`, `handle`, …) are palette entries.
+- Exceptions by design: video overlays and the drill logger's paper target keep fixed colours because they sit on video or on a printed target.
+
 # Application UI overhaul — October 5, 2026
 
 ## Final source cleanup

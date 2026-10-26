@@ -1,3 +1,9 @@
+# Redesign and night mode - 2026-10-25
+
+- Fixed before release (batch 9): with the React Compiler on, screens kept their old colours after a theme switch; turned the compiler off. Web: a second SQLite database for the theme choice made fresh loads fail about 1 in 3 times; web now uses localStorage.
+- To check on a device: drag smoothness in the stage editor with the compiler off; switching Day / Night with the editor open (unsaved work must stay); System following the phone's dark mode (needs the next build, `userInterfaceStyle: automatic`).
+- Not yet restyled to the mockups in detail: the drill logger's target diagram and video analysis colours keep their own palette (they sit on video or a paper target), and route-plan overlays keep their existing shapes.
+
 # Rulebook research findings - 2026-10-25
 
 - Fixed (batch 7): steel could be planned from closer than the rulebook minimum (a DQ); drill scoring ignored USPSA miss and no-shoot penalties and over-penalized PCSL tagged misses.

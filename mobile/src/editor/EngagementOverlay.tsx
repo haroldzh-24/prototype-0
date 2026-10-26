@@ -33,7 +33,7 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
           style={{ position: 'absolute', left: (a.x + b.x) / 2 - width / 2, top: (a.y + b.y) / 2 - 22, width, height: 44, transform: [{ rotate: `${Math.atan2(b.y - a.y, b.x - a.x)}rad` }] }} />;
       })()}</View>))}
     {layers.nodes && analysis.nodes.map((node, i) => {
-      const p = stageToViewport(node.position, transform), moving = node.kind === 'moving', color = moving ? '#148578' : colors.accent;
+      const p = stageToViewport(node.position, transform), moving = node.kind === 'moving', color = moving ? colors.movement : colors.accent;
       return <View key={node.id} pointerEvents="box-none">
         {(layers.arrows === 'ALL' || layers.arrows === 'SELECTED' && (selectedNodeId ? selectedNodeId === node.id : node.waypointId === selectedId)) && node.targets.map(t => { const target = stage.objects.find(o => o.id === t.targetId); return target ? <View key={t.targetId}>{line(node.position, target.position, color, 2, t.orderLabel)}</View> : null; })}
         <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />

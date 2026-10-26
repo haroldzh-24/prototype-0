@@ -3,6 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/barlow": "^0.4.1",
+    "@expo-google-fonts/barlow-condensed": "^0.4.1",
     "@expo/ui": "~57.0.25",
     "expo": "~57.0.30",
     "expo-build-properties": "~57.0.22",

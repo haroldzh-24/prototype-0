@@ -18,7 +18,7 @@ import { RoundAssignment } from '@/planning/PlanningPanel';
 import { assignRounds, isEngageable, targetLabel } from '@/planning/model';
 import ToolIcon from '../ui/ToolIcon';
 import type { ToolIconName } from '../ui/ToolIcon';
-import { colors, typography } from '../ui/tokens';
+import { borders, colors, touch, typography, themed } from '../ui/tokens';
 import { ErrorState, ui } from '@/ui/kit';
 import { checkStage } from '@/rules/stageCheck';
 import AddMenu from './AddMenu';
@@ -353,12 +353,12 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="EDIT" active={routeEditing} onPress={() => { setRouteEditing(true); setPanel(null); }} />
         <Button title="ANALYZE" onPress={() => setPanel('summary')} />
         <Button title="ASK" onPress={() => {setAIOpen(true);setPanel(null);}} />
-        <Button title="&#8226;&#8226;&#8226;" label="Route tools" onPress={() => setPanel('more')} />
+        <Button title="&#8226;&#8226;&#8226;" label="Route tools" compact onPress={() => setPanel('more')} />
       </> : <>
         <Button title="SELECT" active={tool === 'select'} disabled={dragging} onPress={() => switchTool('select')} />
         <Button title="ADD" disabled={dragging || viewMode !== 'topDown'} onPress={() => setShowAdd(true)} />
         <Button title="DRAW" disabled={dragging || viewMode !== 'topDown'} onPress={() => setPanel('draw')} />
-        <Button title="&#8226;&#8226;&#8226;" label="Stage tools" disabled={dragging} onPress={() => setPanel('more')} />
+        <Button title="&#8226;&#8226;&#8226;" label="Stage tools" compact disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
     <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ check: 'Stage check', settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
@@ -514,35 +514,39 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
 
 function Button({ title, label, onPress, disabled = false, active = false, danger = false, compact = false, accent = false, icon, displayTitle }: { title: string; label?: string; onPress: () => void; disabled?: boolean; active?: boolean; danger?: boolean; compact?: boolean; accent?: boolean; icon?: ToolIconName; displayTitle?: string }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label ?? title} accessibilityState={{ disabled, selected: active }} disabled={disabled}
-    style={({ pressed }) => [styles.button, compact && styles.compact, icon && styles.tool, active && styles.activeButton, danger && styles.danger, pressed && styles.pressed, disabled && styles.disabled]} onPress={onPress}>
+    style={({ pressed }) => [styles.button, compact && styles.compact, icon && styles.tool, accent && styles.accentButton, active && !icon && styles.activeButton, danger && styles.danger, pressed && styles.pressed, disabled && styles.disabled]} onPress={onPress}>
     {icon && <ToolIcon name={icon} active={active} />}
-    <Text style={[styles.buttonText, icon && styles.toolLabel, (active || accent) && styles.accentText, danger && styles.dangerText]}>{displayTitle ?? title}</Text>
+    <Text style={[styles.buttonText, icon && styles.toolLabel, accent && styles.accentText, active && (icon ? styles.active : styles.activeText), danger && styles.dangerText]}>{displayTitle ?? title}</Text>
   </Pressable>;
 }
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  topbar: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+const styles = themed(c => ({
+  screen: { flex: 1, backgroundColor: c.background },
+  topbar: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: borders.strong, borderColor: c.border },
   name: { ...typography.section, flex: 1, minWidth: 0, borderBottomWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0 },
   readout: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
   canvas: { flex: 1, minHeight: 100, marginHorizontal: 0 },
   zoomBar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  modeOverlay: { position: 'absolute', top: 60, left: 8, right: 8, padding: 8, gap: 4, backgroundColor: colors.panel },
-  context: { position: 'absolute', bottom: 8, left: 8, right: 8, padding: 4, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel },
-  bottomBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 0, paddingHorizontal: 4, paddingVertical: 4, borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.panel },
-  title: { ...typography.section, color: colors.text },
-  status: { ...typography.category, color: colors.muted, marginVertical: 4, flexShrink: 1 },
-  active: { color: colors.accent },
-  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  button: { flexGrow: 1, flexShrink: 1, maxWidth: '100%', backgroundColor: colors.secondary, paddingVertical: 10, paddingHorizontal: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  compact: { flexGrow: 0, flexShrink: 0, paddingHorizontal: 12, backgroundColor: 'transparent', borderBottomWidth: 0 },
-  tool: { flex: 1, backgroundColor: 'transparent', gap: 4, paddingVertical: 6, paddingHorizontal: 2, minHeight: 54, borderBottomWidth: 0 },
-  toolLabel: { fontSize: 10, lineHeight: 14, color: colors.muted, fontWeight: '400' },
-  activeButton: { borderColor: colors.accent, backgroundColor: colors.selected },
-  danger: { borderColor: colors.danger },
-  dangerText: { color: colors.danger },
-  accentText: { color: colors.accent },
-  pressed: { backgroundColor: colors.selected },
+  modeOverlay: { position: 'absolute', top: 60, left: 8, right: 8, padding: 8, gap: 4, backgroundColor: c.panel, borderWidth: borders.strong, borderColor: c.border },
+  context: { position: 'absolute', bottom: 8, left: 8, right: 8, padding: 6, gap: 6, borderWidth: borders.strong, borderColor: c.border, backgroundColor: c.panel },
+  bottomBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingHorizontal: 4, paddingVertical: 6, borderTopWidth: borders.strong, borderColor: c.border, backgroundColor: c.panel },
+  title: { ...typography.section, color: c.text },
+  status: { ...typography.category, color: c.muted, marginVertical: 4, flexShrink: 1 },
+  active: { color: c.accent },
+  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 6, paddingTop: 6 },
+  button: { flexGrow: 1, flexShrink: 1, maxWidth: '100%', backgroundColor: c.secondary, paddingVertical: 10, paddingHorizontal: 7, minWidth: touch.min, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderWidth: borders.regular, borderColor: c.border },
+  compact: { flexGrow: 0, flexShrink: 0, paddingHorizontal: 12 },
+  tool: { flex: 1, backgroundColor: 'transparent', gap: 4, paddingVertical: 6, paddingHorizontal: 2, minHeight: 56, borderWidth: 0 },
+  toolLabel: { fontSize: 11, lineHeight: 14, color: c.muted },
+  // Selected reads as an inverse block, the same as the segmented controls elsewhere.
+  activeButton: { borderColor: c.text, backgroundColor: c.text },
+  activeText: { color: c.background },
+  accentButton: { backgroundColor: c.primary, borderColor: c.border },
+  accentText: { color: c.onPrimary },
+  danger: { borderColor: c.danger },
+  dangerText: { color: c.danger },
+  pressed: { opacity: 0.65 },
   disabled: { opacity: 0.4 },
-  error: { ...typography.body, color: colors.danger, padding: 8 },
-  buttonText: { ...typography.label, color: colors.text, textAlign: 'center' },
-});
+  error: { ...typography.body, color: c.danger, padding: 8 },
+  // A notch smaller than elsewhere: the route bar fits six commands across a 375 pt phone.
+  buttonText: { ...typography.label, fontSize: 16, letterSpacing: 0.2, color: c.text, textAlign: 'center' },
+}));

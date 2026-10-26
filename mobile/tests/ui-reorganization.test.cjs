@@ -143,14 +143,14 @@ test('shared selection controls expose active state and allow explicit selection
   assert.equal(h.nodes().filter(n => n.props.accessibilityState?.selected).length, 1);
   const button = h.find(n => n.props.accessibilityState?.selected === false);
   button.props.onPress(); assert.equal(selected, 'LIVE FIRE');
-  assert.ok(button.props.style.some(style => style.minHeight === 44));
+  assert.ok(button.props.style.some(style => style?.minHeight >= 44), 'at least 44 pt (48 in the outdoor design)');
 });
 
 test('shared primary action retains disabled accessibility and touch size', () => {
   const h = harness('ui/kit.tsx', { title: 'Save', disabled: true, variant: 'primary', onPress() {} }, {}, 'Action');
   const button = h.find(n => n.type === 'Pressable');
   assert.equal(button.props.accessibilityState.disabled, true);
-  assert.ok(button.props.style({ pressed: false }).some(style => style?.minHeight === 44));
+  assert.ok(button.props.style({ pressed: false }).some(style => style?.minHeight >= 44), 'at least 44 pt (56 for primary)');
 });
 
 test('Profile displays baseline and context-separated sample counts without sign-in controls', async () => {

@@ -7,9 +7,12 @@ import TargetFamilyPicker from '@/ui/TargetFamilyPicker';
 import { useRepository } from '@/storage/StorageProvider';
 import type { MatchSummary } from '@/storage/repository';
 import type { TargetFamily } from '@/stage/targetFamily';
+import { useThemeMode } from '@/ui/theme';
 
 export default function Matches() {
   const repo = useRepository();
+  useThemeMode();
+
   const [matches, setMatches] = useState<MatchSummary[]>([]), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), running = useRef(false);
   const [editing, setEditing] = useState<MatchSummary | 'new' | null>(null);

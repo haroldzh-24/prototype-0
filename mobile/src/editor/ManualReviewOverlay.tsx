@@ -11,7 +11,7 @@ export default function ManualReviewOverlay({ review, transform, selectedId, onl
     if (!('faceWidth' in target.geometry)) return null;
     const center = stageToViewport(target.position, transform), selected = selectedId === target.id;
     const width = Math.max(44, target.geometry.faceWidth * transform.scale) + 6, height = Math.max(44, target.geometry.faceHeight * transform.scale) + 6;
-    const color = selected ? colors.accent : assigned ? '#6EBB8A' : colors.warning;
+    const color = selected ? colors.accent : assigned ? colors.movement : colors.warning;
     return <View key={target.id} testID={'review-target-' + target.id} pointerEvents="none" accessible accessibilityRole="button"
       accessibilityLabel={target.id + (assigned ? ', assigned' : ', unassigned')} accessibilityState={{ selected }} onAccessibilityTap={() => onSelect(target.id)}
       style={{ position: 'absolute', left: center.x - width / 2, top: center.y - height / 2, width, height }}>

@@ -16,7 +16,7 @@ import { MediaPlayerBoundary } from './MediaPlayerBoundary';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, Panel, Screen, Stat, StatusBadge, Notice, ErrorState, ui } from '../ui/kit';
-import { Segmented } from '../ui/kit';
+import { Segmented, colors } from '../ui/kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EditorSheet from '../editor/EditorSheet';
 import { useRepository } from '../storage/StorageProvider';
@@ -361,11 +361,11 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
         {!!eventError && <Notice tone="error">{eventError}</Notice>}
         <Copy>Type</Copy><Action title={`Event type: ${type.replaceAll('_', ' ')}`} onPress={() => setShowTypes(!showTypes)} disabled={busy} />
         {showTypes && eventTypes.map(value => <Action key={value} title={value.replaceAll('_', ' ')} onPress={() => { setType(value); setShowTypes(false); }} />)}
-        <Copy>Timestamp (ms)</Copy><TextInput style={ui.input} accessibilityLabel="Marker milliseconds" value={timestamp} onChangeText={setTimestamp} keyboardType="decimal-pad" placeholder="Time in ms" placeholderTextColor="#888" />
-        {(type === 'SHOT' || type === 'FIRST_SHOT') && <><TextInput style={ui.input} accessibilityLabel="Target label" value={target} onChangeText={setTarget} placeholder="Target label (optional)" placeholderTextColor="#888" />
-        <TextInput style={ui.input} accessibilityLabel="Same-target string label" value={stringId} onChangeText={setStringId} placeholder="Same-target string label (optional)" placeholderTextColor="#888" />
-        </>}{(type === 'MOVEMENT_START' || type === 'MOVEMENT_STOP') && <><TextInput style={ui.input} accessibilityLabel="Movement type" value={movementType} onChangeText={setMovementType} placeholder="Movement type (optional)" placeholderTextColor="#888" />
-        <TextInput style={ui.input} accessibilityLabel="Known movement distance in inches" value={distance} onChangeText={setDistance} keyboardType="decimal-pad" placeholder="Known movement distance, inches (optional)" placeholderTextColor="#888" />
+        <Copy>Timestamp (ms)</Copy><TextInput style={ui.input} accessibilityLabel="Marker milliseconds" value={timestamp} onChangeText={setTimestamp} keyboardType="decimal-pad" placeholder="Time in ms" placeholderTextColor={colors.subdued} />
+        {(type === 'SHOT' || type === 'FIRST_SHOT') && <><TextInput style={ui.input} accessibilityLabel="Target label" value={target} onChangeText={setTarget} placeholder="Target label (optional)" placeholderTextColor={colors.subdued} />
+        <TextInput style={ui.input} accessibilityLabel="Same-target string label" value={stringId} onChangeText={setStringId} placeholder="Same-target string label (optional)" placeholderTextColor={colors.subdued} />
+        </>}{(type === 'MOVEMENT_START' || type === 'MOVEMENT_STOP') && <><TextInput style={ui.input} accessibilityLabel="Movement type" value={movementType} onChangeText={setMovementType} placeholder="Movement type (optional)" placeholderTextColor={colors.subdued} />
+        <TextInput style={ui.input} accessibilityLabel="Known movement distance in inches" value={distance} onChangeText={setDistance} keyboardType="decimal-pad" placeholder="Known movement distance, inches (optional)" placeholderTextColor={colors.subdued} />
         </>}<Copy>Use a target/string label only for shots on one target. Distance belongs on MOVEMENT_START and must come from known drill/stage data.</Copy>
         <Action title={editingId ? 'Apply marker edit' : 'Add marker at entered ms'} variant="primary" disabled={busy} onPress={() => guard(() => {
           const ms = timestamp.trim() ? Number(timestamp) : NaN;
@@ -380,13 +380,13 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
       <Panel><Copy>TIMELINE · milliseconds from video start</Copy>
         {video.analysis.movementSegments.map(s => <View key={s.id} style={{ gap: 4 }}>
           <Copy>MOVEMENT · {s.startMs.toFixed(0)}–{s.endMs.toFixed(0)} ms · {s.durationMs.toFixed(0)} ms · {s.confidence}</Copy>
-          <View style={{ height: 4, backgroundColor: '#263239' }}><View style={{ height: 4, backgroundColor: '#58c9b9',
+          <View style={{ height: 4, backgroundColor: colors.gridMinor }}><View style={{ height: 4, backgroundColor: colors.movement,
             marginLeft: `${100 * s.startMs / Math.max(1, video.session.durationMs ?? s.endMs)}%`,
             width: `${100 * s.durationMs / Math.max(1, video.session.durationMs ?? s.endMs)}%` }} /></View>
         </View>)}
         <Details>{video.analysis.poseRun?.segments.map(s => <View key={s.id} style={{ gap: 4 }}>
           <Copy>LAST POSE RUN · {s.startMs.toFixed(0)}–{s.endMs.toFixed(0)} ms · {s.durationMs.toFixed(0)} ms · {s.confidence}. Current review status is on the markers below.</Copy>
-          <View style={{ height: 4, backgroundColor: '#263239' }}><View style={{ height: 4, backgroundColor: '#c498ff',
+          <View style={{ height: 4, backgroundColor: colors.gridMinor }}><View style={{ height: 4, backgroundColor: colors.detected,
             marginLeft: `${100 * s.startMs / Math.max(1, video.session.durationMs ?? s.endMs)}%`,
             width: `${100 * s.durationMs / Math.max(1, video.session.durationMs ?? s.endMs)}%` }} /></View>
         </View>)}</Details>
@@ -398,7 +398,7 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
             changeEvents(reviewed.events, reviewed.fusion);
           })} />}
         {video.analysis.events.filter(e => (isTrustedEvent(e) || !video.analysis.fusion?.evidence.some(p => p.timelineEventId === e.id && video.analysis.fusion?.hypotheses.some(h => h.evidenceIds.includes(p.id))))).map(e => <View key={e.id} style={{ gap: 6, borderLeftWidth: 3, paddingLeft: 8,
-          borderLeftColor: !e.confirmed && e.source === 'POSE_DETECTED' ? '#c498ff' : e.source === 'AUDIO_DETECTED' && !e.confirmed ? '#eab54d' : '#58c9b9' }}>
+          borderLeftColor: !e.confirmed && e.source === 'POSE_DETECTED' ? colors.detected : e.source === 'AUDIO_DETECTED' && !e.confirmed ? colors.suggested : colors.movement }}>
           {e.source === 'VISION_DETECTED' && <Copy>{e.metadata?.note ?? 'CLOSE-UP'}{e.confirmed ? '' : ' ? review required'}</Copy>}
           {e.source === 'POSE_DETECTED' && !e.confirmed && <Copy>POSE SUGGESTION · review required</Copy>}
           {e.source === 'AUDIO_DETECTED' && !e.confirmed && <Copy>AUDIO SUGGESTION · review required</Copy>}

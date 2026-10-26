@@ -1,5 +1,5 @@
 import { targetPreset } from '../stage/targetPresets';
-import { colors, typography } from '../ui/tokens';
+import { colors, typography, themed } from '../ui/tokens';
 import { facePresets } from '@/stage/targetFace';
 import WallPortsInspector from './WallPortsInspector';
 import type { ReactNode } from 'react';
@@ -54,11 +54,11 @@ export default function ObjectInspector({ item, disabled, onApply, advancedConte
     {notice !== '' && <Text accessibilityLiveRegion="polite">{notice}</Text>}
   </View>;
 }
-const styles = StyleSheet.create({
-  panel: { paddingHorizontal: 16, paddingVertical: 12, gap: 10, backgroundColor: colors.panel },
-  title: { ...typography.section, color: colors.text }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+const styles = themed(c => ({
+  panel: { paddingHorizontal: 16, paddingVertical: 12, gap: 10, backgroundColor: c.panel },
+  title: { ...typography.section, color: c.text }, fields: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   field: { minWidth: 120, flexGrow: 1, flexBasis: '40%' },
-  input: { borderBottomWidth: 1, borderColor: colors.border, backgroundColor: colors.secondary, padding: 8, minHeight: 44, color: colors.text, borderRadius: 2 },
-  hint: { fontSize: 12, color: colors.muted }, button: { backgroundColor: colors.secondary, padding: 12, minHeight: 44, minWidth: 44, maxWidth: '100%', flexShrink: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border, alignSelf: 'flex-start' },
-  buttonText: { color: colors.text, ...typography.label },
-});
+  input: { ...typography.body, borderWidth: 2, borderColor: c.border, backgroundColor: c.secondary, padding: 8, minHeight: 48, color: c.text },
+  hint: { fontSize: 12, color: c.muted }, button: { backgroundColor: c.secondary, padding: 12, minHeight: 48, minWidth: 48, maxWidth: '100%', flexShrink: 1, borderWidth: 2, borderColor: c.border, alignSelf: 'flex-start' },
+  buttonText: { color: c.text, ...typography.label },
+}));

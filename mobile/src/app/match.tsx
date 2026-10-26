@@ -8,13 +8,21 @@ import { useRepository } from '@/storage/StorageProvider';
 import type { Match, StageSummary } from '@/storage/repository';
 import { createDefaultStage } from '@/stage/defaults';
 import { createPlan } from '@/planning/model';
+import { useThemeMode } from '@/ui/theme';
+import { checkStage, minimumRounds, uspsaCourseType } from '@/rules/stageCheck';
+import { meaningfulRoute } from '@/editor/routePresentation';
+import type { CardBadge } from '@/ui/LibraryCard';
+
+type StageFacts = { detail: string; badges: CardBadge[] };
 
 export default function MatchRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   return <MatchStages key={id ?? 'missing'} id={id} />;
 }
 function MatchStages({ id }: { id?: string }) {
+  useThemeMode();
   const repo = useRepository();
+  const [facts, setFacts] = useState<Record<string, StageFacts>>({});
   const [match, setMatch] = useState<Match | null>(null), [stages, setStages] = useState<StageSummary[]>([]);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), running = useRef(false);
   const [editing, setEditing] = useState<StageSummary | 'new' | null>(null), [name, setName] = useState('');
@@ -27,10 +35,21 @@ function MatchStages({ id }: { id?: string }) {
   }, [id, repo]);
   useFocusEffect(useCallback(() => {
     let active = true;
-    load().then(data => { if (active) { setMatch(data.match); setStages(data.stages); setError(''); } })
+    load().then(data => { if (active) { setMatch(data.match); setStages(data.stages); setError(''); describe(data.match, data.stages, () => active); } })
       .catch(cause => { if (active) { setMatch(null); setError(String(cause)); } });
     return () => { active = false; };
   }, [load]));
+  // Round count, course type, plan state and safety findings per stage; a stage that fails to load just shows less.
+  function describe(match: Match, list: StageSummary[], active: () => boolean) {
+    for (const summary of list) Promise.resolve().then(() => repo.loadStage(summary.id)).then(saved => {
+      if (!active()) return;
+      const { rounds } = minimumRounds(saved.document), type = match.targetFamily === 'USPSA' ? uspsaCourseType(rounds) : null;
+      const safety = checkStage(saved.document, saved.plan.route?.engagementRules, match.targetFamily).filter(f => f.severity === 'safety').length;
+      const badges: CardBadge[] = [meaningfulRoute(saved.plan.route) ? { label: 'Planned', tone: 'selected' } : { label: 'Not planned' }];
+      if (safety) badges.push({ label: `${safety} safety issue${safety > 1 ? 's' : ''}`, tone: 'error' });
+      setFacts(current => ({ ...current, [summary.id]: { detail: `${rounds} rounds` + (type ? ` · ${type} course` : ''), badges } }));
+    }).catch(() => {});
+  }
   async function run(work: () => Promise<unknown>) {
     if (running.current) return;
     running.current = true; setBusy(true); setError('');
@@ -46,8 +65,8 @@ function MatchStages({ id }: { id?: string }) {
       <Copy>{match.targetFamily} · {stages.length} {stages.length === 1 ? 'stage' : 'stages'}</Copy>
 
       {!stages.length && <EmptyState title="No stages" detail="Add your first stage to this match." />}
-      {stages.map(stage => <LibraryCard key={stage.id} name={stage.name} detail={'Edited ' + new Date(stage.updatedAt).toLocaleString()}
-        disabled={busy} open={() => router.push({ pathname: '/builder', params: { id: stage.id } })} more={() => setMenu(stage)} />)}
+      {stages.map(stage => <LibraryCard key={stage.id} name={stage.name} detail={facts[stage.id]?.detail ?? 'Edited ' + new Date(stage.updatedAt).toLocaleString()}
+        badges={facts[stage.id]?.badges} disabled={busy} open={() => router.push({ pathname: '/builder', params: { id: stage.id } })} more={() => setMenu(stage)} />)}
     </>}
     <EditorSheet title={menu?.name ?? 'Stage actions'} visible={!!menu} close={() => setMenu(null)}>
       <MenuRow title="Rename" onPress={() => { if (menu) { setEditing(menu); setName(menu.name); setError(''); } setMenu(null); }} />

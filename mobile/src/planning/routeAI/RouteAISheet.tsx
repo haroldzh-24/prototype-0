@@ -1,7 +1,7 @@
 import { TextInput, View } from 'react-native';
 import { useState } from 'react';
 import EditorSheet from '../../editor/EditorSheet';
-import { Action, Copy, DataRow, ErrorState, Loading, Notice, Panel, StatusBadge, ui } from '../../ui/kit';
+import { Action, Copy, DataRow, ErrorState, Loading, Notice, Panel, StatusBadge, colors, ui } from '../../ui/kit';
 import type { AIState, RouteAIController } from './controller';
 import { quickPrompts, isBusy } from './controller';
 import { formatYardsFixed } from '../../stage/measurements';
@@ -13,7 +13,7 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
   const send=()=>{const message=input.trim();if(!message||busy||preview||!available)return;setInput('');void controller.send(message);};
   const labels:Record<string,string>={UNKNOWN:'Checking availability',NATIVE_UNAVAILABLE:"On-device Route AI isn't available on this device.",UNSUPPORTED_OS:'Route AI requires iOS 26 or later.',UNSUPPORTED_DEVICE:'This device does not support Apple Intelligence.',APPLE_INTELLIGENCE_NOT_ENABLED:'Enable Apple Intelligence in Settings to use Route AI.',MODEL_NOT_READY:'The on-device model is downloading or not ready. Try again later.'};
   return <EditorSheet title="ROUTE AI" visible={visible} close={close} footer={<View style={{padding:12,gap:8}}>
-    <TextInput accessibilityLabel="Ask about this route" placeholder="Ask about this route…" placeholderTextColor="#a7b3c4" style={[ui.input,{maxHeight:100}]} multiline maxLength={600} value={input} onChangeText={setInput} editable={available&&!busy&&!preview} />
+    <TextInput accessibilityLabel="Ask about this route" placeholder="Ask about this route…" placeholderTextColor={colors.subdued} style={[ui.input,{maxHeight:100}]} multiline maxLength={600} value={input} onChangeText={setInput} editable={available&&!busy&&!preview} />
     <Action title="SEND" variant="primary" disabled={!available||busy||!!preview||!input.trim()} onPress={send} />
   </View>}><View testID="route-ai-sheet" style={{padding:12,gap:12}}>
     <StatusBadge label={available?'OFFLINE':state.availability.replaceAll('_',' ')} tone={available?'selected':'warning'} />

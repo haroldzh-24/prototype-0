@@ -2,7 +2,7 @@
 
 The prioritized list is [docs/rules/gap-list.md](docs/rules/gap-list.md), built from the USPSA, PCSL and IDPA rulebook research in `docs/rules/`. Summary:
 
-- Awaiting approval (big): the outdoor high-contrast UI redesign (mockups in the design canvas), 3D stage view and editing alongside the 2D plan (needs `expo-gl`, so a new build), and an eye-level view from each planned position.
+- Approved and in progress: the outdoor high-contrast redesign (done in batch 9 with night mode: tokens, type, home, libraries, profile, stage editor); 3D stage view and editing alongside the 2D plan (needs `expo-gl`, so a new build); an eye-level view that walks the planned route and shows what can be engaged on the move.
 - Then, rules for the planner: IDPA tactical priority and positions of cover; wall soft cover and "treat as infinite"; off-limits lines; fault lines that become firing areas; the USPSA 8-hits-per-view check; required hits per target; match level; activated and moving targets; muzzle safe points and exclusion zones.
 - Later: divisions and power factor on the profile, stage brief export, editor performance on large stages, Expo SDK 58.
 

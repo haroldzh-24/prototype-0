@@ -5,7 +5,7 @@ import { beginEngagementGesture, moveEngagementGesture, finishEngagementGesture 
 import type { EngagementGesture } from './manualEngagementGestures';
 import type { EngagementAnchor } from '../planning/manualEngagements';
 import ManualEngagementOverlay from './ManualEngagementOverlay';
-import { colors } from '../ui/tokens';
+import { colors, themed } from '../ui/tokens';
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Platform, StyleSheet, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
@@ -193,6 +193,12 @@ export default function StageViewport(props: Props) {
             height: props.stage.stage.depth * transform.scale,
           }]} />
           {props.gridVisible && <StageGrid stage={props.stage.stage} transform={transform} />}
+          {/* The bay outline goes over the grid so grid lines do not break it up. */}
+          <View pointerEvents="none" style={[styles.bay, {
+            left: transform.offsetX - 2, top: transform.offsetY - 2,
+            width: props.stage.stage.width * transform.scale + 4,
+            height: props.stage.stage.depth * transform.scale + 4,
+          }]} />
           <View accessibilityElementsHidden={props.readOnly} importantForAccessibility={props.readOnly ? 'no-hide-descendants' : 'auto'} pointerEvents={(props.routeEditing || props.readOnly || (props.tool && props.tool !== 'select')) ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           {props.stage.objects.map((item) => <DraggableObject key={item.id}
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
@@ -202,7 +208,7 @@ export default function StageViewport(props: Props) {
           {props.draft && (() => {
             const a = stageToViewport(props.draft.start, transform), b = stageToViewport(props.draft.end, transform);
             const length = Math.hypot(b.x-a.x,b.y-a.y), angle = Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
-            return <View pointerEvents="none" style={{ position: 'absolute', left: (a.x+b.x)/2-length/2, top: (a.y+b.y)/2-1, width: Math.max(1,length), height: 2, backgroundColor: '#69d5df', transform: [{ rotate: angle+'deg' }] }} />;
+            return <View pointerEvents="none" style={{ position: 'absolute', left: (a.x+b.x)/2-length/2, top: (a.y+b.y)/2-1, width: Math.max(1,length), height: 2, backgroundColor: colors.handle, transform: [{ rotate: angle+'deg' }] }} />;
           })()}
           {props.autoPositions && <AutoPositionOverlay positions={props.autoPositions} transform={transform} />}
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
@@ -218,8 +224,9 @@ export default function StageViewport(props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(c => ({
   frame: { flex: 1, overflow: 'hidden' },
-  viewport: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: colors.background },
-  ground: { position: 'absolute', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border },
-});
+  viewport: { flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: c.offStage },
+  ground: { position: 'absolute', backgroundColor: c.canvas },
+  bay: { position: 'absolute', borderWidth: 2, borderColor: c.ink },
+}));
