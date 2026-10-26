@@ -8,6 +8,7 @@ import type { ShooterPerformanceProfile } from '../profile/model';
 import { moveDirection, moveDirectionLabels, predictMove, validMovementModel } from '../profile/movementModel';
 import type { MoveDirection } from '../profile/movementModel';
 import { stageDownrange } from '../stage/orientation';
+import { formatYardsFixed } from '../stage/measurements';
 import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
 import { analyzeEngagements, validEngagementRules } from './engagements';
@@ -122,7 +123,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     const prediction = predictMove(movementModel, direction, distance);
     if (!prediction) return distance / profile!.movementSpeed;
     const kind = prediction.direction === 'all' ? '' : moveDirectionLabels[prediction.direction].toLowerCase() + ' ';
-    if (prediction.beyondData) moveNotes.add(`${label}: the ${(distance / 36).toFixed(1)} yd move is longer than your longest measured ${kind}move (${(prediction.fit.maxInches / 36).toFixed(1)} yd); its time extends your fit.`);
+    if (prediction.beyondData) moveNotes.add(`${label}: the ${formatYardsFixed(distance, 1)} move is longer than your longest measured ${kind}move (${formatYardsFixed(prediction.fit.maxInches, 1)}); its time extends your fit.`);
     if (direction && prediction.direction === 'all') moveNotes.add(`No ${moveDirectionLabels[direction].toLowerCase()} moves measured yet: those legs use your fit across all directions.`);
     return prediction.seconds;
   };

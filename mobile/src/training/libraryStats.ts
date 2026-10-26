@@ -9,6 +9,7 @@ import type { LibraryAnalysis, LibraryRun } from './drillLibrary';
 import { fitMovement, moveDirections } from '../profile/movementModel';
 import type { MoveDirection, MovementModel } from '../profile/movementModel';
 import type { PowerFactor } from '../profile/model';
+import { yardsToInches } from '../stage/measurements';
 
 export type Stat = { mean: number; sd: number | null; n: number; best: number; latestAt: string };
 type Sample = { value: number; at: string };
@@ -89,7 +90,7 @@ export function libraryNumbers(records: readonly TrainingRecord[], context: Trai
     .map(([mode, list]) => ({ mode, stat: stat(list.map(r => ({ value: avg(r.a.reloads), at: r.at })))! }));
 
   const moveRows = of(['sprint', 'shuffle']).filter(r => r.a.moves.length);
-  const samples = moveRows.map(r => ({ direction: r.choices.direction as MoveDirection, distanceInches: Number(r.choices.move) * 36, durationSeconds: r.a.moves[0] }));
+  const samples = moveRows.map(r => ({ direction: r.choices.direction as MoveDirection, distanceInches: yardsToInches(Number(r.choices.move)), durationSeconds: r.a.moves[0] }));
   const moves = moveDirections.flatMap(direction => [...groupBy(moveRows.filter(r => r.choices.direction === direction), r => Number(r.choices.move))]
     .map(([yards, list]) => ({ direction, yards, stat: stat(list.map(r => ({ value: r.a.moves[0], at: r.at })))! })).sort((a, b) => a.yards - b.yards));
 
@@ -117,7 +118,8 @@ export function libraryNumbers(records: readonly TrainingRecord[], context: Trai
     split: stat(list.filter(r => r.a.splits.length).map(r => ({ value: avg(r.a.splits), at: r.at }))), points: pts(list) }))
     .sort((a, b) => a.yards - b.yards || a.face.localeCompare(b.face));
 
-  const scored = rows.filter(r => general(r) && r.run.zones && libraryDrill(r.run.drillId)?.requiredHits);
+  // Whole-run PCSL counts with T hits on several targets are estimates; they stay out, as in the profile.
+  const scored = rows.filter(r => general(r) && r.run.zones && libraryDrill(r.run.drillId)?.requiredHits && !r.a.score?.approximate);
   const accuracy = sorted([...groupBy(scored, r => r.yards)].map(([yards, list]) => {
     let required = 0, a = 0, c = 0, d = 0, noShoots = 0;
     for (const r of list) {

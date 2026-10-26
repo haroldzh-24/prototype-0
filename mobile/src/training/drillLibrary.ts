@@ -10,6 +10,7 @@ import type { StartingType } from './model';
 import type { PerformanceObservation, TrainingContext } from './observations';
 import type { MoveDirection } from '../profile/movementModel';
 import type { HitCounts } from '../profile/hitModel';
+import { yardsToInches } from '../stage/measurements';
 import type { PowerFactor } from '../profile/model';
 import { scoreRun, zoneChoices } from './drillLog';
 import type { DrillHit } from './drillLog';
@@ -259,7 +260,7 @@ export function hitCounts(run: LibraryRun): HitCounts | null {
   let left = drill.requiredHits;
   const take = (n: number) => { const used = Math.min(left, n); left -= used; return used; };
   const a = take(2 * (z.T ?? 0) + (z.A ?? 0)), c = take(z.C ?? 0), d = take(z.D ?? 0);
-  return { a, c, d, miss: left };
+  return { a, c, d, miss: left, ...(z.NS ? { noShoot: z.NS } : {}) };
 }
 
 /** Conditions that keep a measurement out of the profile's general numbers (see observations `generalSample`). */
@@ -279,27 +280,30 @@ const spreadYards = (drill: LibraryDrill, choices: Record<string, string>) =>
  */
 export function libraryObservations(record: { id: string; context?: TrainingContext }, run: LibraryRun): PerformanceObservation[] {
   const drill = libraryDrill(run.drillId);
-  if (!drill || run.counts === false || libraryRunProblem(run) || !run.shotTimes.length) return [];
-  const a = analyzeLibraryRun(run)!, choices = choicesFor(drill, run.choices), yards = targetYards(drill, choices), inches = yards * 36;
+  if (!drill || run.counts === false || libraryRunProblem(run)) return [];
+  const a = analyzeLibraryRun(run)!, choices = choicesFor(drill, run.choices), yards = targetYards(drill, choices), inches = yardsToInches(yards);
   const out: PerformanceObservation[] = [], extra = conditions(drill, choices);
   const base = { context: record.context ?? 'DRY_FIRE', measuredAt: run.recordedAt, source: 'STRUCTURED_TRAINING' as const,
     trainingSessionId: record.id, drillId: 'library:' + drill.id, evidenceKey: run.id };
   const add = (o: Pick<PerformanceObservation, 'factor' | 'value'> & Partial<PerformanceObservation>) => {
     if (Number.isFinite(o.value) && o.value > 0) out.push({ ...base, ...o, id: `lib:${record.id}:${run.id}:${out.length + 1}` });
   };
+  // Hits count only where they were fired for real (dry fire records none). Whole-run PCSL counts with T hits on
+  // several targets are estimates (see LibraryScore.approximate), so they stay out of the hit shares.
+  const hits = base.context === 'DRY_FIRE' || a.score?.approximate ? null : hitCounts(run);
+  if (hits) add({ factor: 'hitZones', value: hits.a + hits.c + hits.d + hits.miss, hits, distanceInches: inches, ...extra });
+  // A total alone measures no draw, split or move.
+  if (!run.shotTimes.length) return out;
   if ((drill.id === 'draw' || drill.id === 'bill') && a.start !== null)
     add({ factor: 'drawTime', value: a.start, distanceInches: inches, startingType: (drill.id === 'draw' ? choices.start : 'competitionHolster') as StartingType });
   if (a.splits.length) add({ factor: 'averageSplitTime', value: mean(a.splits), difficultyModel: 'DISTANCE_ONLY', difficulty: yards, distanceInches: inches, ...extra });
   const spread = spreadYards(drill, choices);
-  if (a.transitions.length && !drill.makeups) add({ factor: 'transitionTime', value: mean(a.transitions), distanceInches: inches, ...(spread ? { spreadInches: spread * 36 } : {}), ...extra });
+  if (a.transitions.length && !drill.makeups) add({ factor: 'transitionTime', value: mean(a.transitions), distanceInches: inches, ...(spread ? { spreadInches: yardsToInches(spread) } : {}), ...extra });
   if (drill.makeups && a.perPlate !== null) add({ factor: 'transitionTime', value: a.perPlate, distanceInches: inches, ...extra });
   if (a.reloads.length) add({ factor: 'reloadTime', value: mean(a.reloads), distanceInches: inches, moving: drill.id === 'reload' && choices.mode === 'stepping' });
-  // Hits count only where they were fired for real (dry fire records none).
-  const hits = base.context === 'DRY_FIRE' ? null : hitCounts(run);
-  if (hits) add({ factor: 'hitZones', value: hits.a + hits.c + hits.d + hits.miss, hits, distanceInches: inches, ...extra });
   const move = choiceNumber(drill, choices, 'move');
   if (move) for (const seconds of a.moves)
-    add({ factor: 'movementSpeed', value: move * 36 / seconds, distanceInches: move * 36, durationSeconds: seconds, movement: choices.direction as MoveDirection });
+    add({ factor: 'movementSpeed', value: yardsToInches(move) / seconds, distanceInches: yardsToInches(move), durationSeconds: seconds, movement: choices.direction as MoveDirection });
   return out;
 }
 /** Every library measurement of one session, in run order. */

@@ -109,7 +109,7 @@ test('a run becomes profile measurements: one per factor, with its conditions', 
   assert.ok(L.libraryObservations(rec, run('partial', [1.6, 2.0], { choices: { face: 'head' } })).every(o => o.targetKind === 'partial'));
   assert.ok(L.libraryObservations(rec, run('port', [1.6, 2.0, 2.7, 3.0], { choices: { position: 'lean' } })).every(o => o.position === 'lean'));
   const steel = L.libraryObservations(rec, run('steel', [1.8, 2.3, 2.8, 3.4, 3.9]));
-  assert.deepEqual(steel.map(o => [o.factor, o.targetKind]), [['transitionTime', 'steel'], ['hitZones', 'steel']]);
+  assert.deepEqual(steel.map(o => [o.factor, o.targetKind]), [['hitZones', 'steel'], ['transitionTime', 'steel']]);
   assert.deepEqual(L.libraryObservations(rec, run('steel', [1.8, 2.3, 2.8, 3.4, 3.9, 4.3])).map(o => [o.factor, o.hits]), [['hitZones', { a: 5, c: 0, d: 0, miss: 1 }]],
     'a run with makeups gives no per-plate time, only its hits and misses');
   assert.deepEqual(L.libraryObservations(rec, run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { counts: false })), []);

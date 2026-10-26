@@ -3,6 +3,7 @@ import type { ShooterPerformanceProfile, TimingFactor, UserProfile } from '../pr
 import { buildPersonalizedModel, timingFactors } from '../profile/personalizedPerformance';
 import { fitMovement, moveDirections } from '../profile/movementModel';
 import { buildHitModel } from '../profile/hitModel';
+import { inchesToYards } from '../stage/measurements';
 import type { HitCounts, HitKind } from '../profile/hitModel';
 import type { MoveDirection } from '../profile/movementModel';
 import { startingTypes } from './model';
@@ -72,7 +73,7 @@ export function isPerformanceObservation(input: unknown): input is PerformanceOb
   const count = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 10000;
   if ((o.factor === 'hitZones') !== (o.hits !== undefined)) return false;
   if (o.hits !== undefined && (!o.hits || typeof o.hits !== 'object' || ![o.hits.a, o.hits.c, o.hits.d, o.hits.miss].every(count)
-    || o.hits.a + o.hits.c + o.hits.d + o.hits.miss !== o.value)) return false;
+    || o.hits.a + o.hits.c + o.hits.d + o.hits.miss !== o.value || o.hits.noShoot !== undefined && !count(o.hits.noShoot))) return false;
   // Legacy 8A speed samples already certified physical distance at extraction; retain that format.
   if (o.factor === 'movementSpeed' && o.source !== 'VIDEO_ANALYSIS' && !positive(o.distanceInches)) return false;
   if (o.factor === 'movementSpeed' && o.durationSeconds !== undefined && o.distanceInches !== undefined
@@ -165,7 +166,7 @@ export function rebuildPerformanceProfile({ baseline, observations: input, conte
   const kindOf = (o: PerformanceObservation): HitKind | null => o.moving || (o.position ?? 'square') !== 'square' ? null
     : o.targetKind === 'steel' ? 'steel' : o.targetKind === 'partial' ? 'partial' : 'paper';
   const hitModel = buildHitModel(eligible.filter(o => o.context === context && o.factor === 'hitZones' && o.hits && o.distanceInches !== undefined && kindOf(o))
-    .map(o => ({ kind: kindOf(o)!, yards: o.distanceInches! / 36, hits: o.hits! })));
+    .map(o => ({ kind: kindOf(o)!, yards: inchesToYards(o.distanceInches!), hits: o.hits! })));
   if (Object.keys(hitModel).length) performance.hitModel = hitModel; else delete performance.hitModel;
   const model = buildPersonalizedModel(performance);
   return { performance, observations, aggregates, shootingAggregates: curve, valueSources, warnings,

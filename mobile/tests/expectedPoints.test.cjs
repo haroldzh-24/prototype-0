@@ -171,3 +171,71 @@ test('a planned pair stays that pair: AC with a 5% miss risk is AC 90% of the ti
   const t2 = E.estimateStagePoints(stage, plan, route, { hitModel }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T2');
   near(t2.expectedPoints, 6.6); near(t2.odds.AC, 0.9025); assert.equal(t2.odds.AA, 0);
 });
+
+// Regression tests for the independent review of batch 18.
+test('review: fewer planned rounds than required hits lose the missing hit; PCSL extra rounds earn nothing', () => {
+  const { stage, route } = scene(), est = engagements => E.estimateStagePoints(stage, { ...P.createPlan(), route, engagements }, route, { hitModel }, 'USPSA', 'minor');
+  const one = est({ T1: 1 }).targets.find(t => t.targetId === 'T1'), two = est({ T1: 2 }).targets.find(t => t.targetId === 'T1');
+  near(one.expectedPoints, 5 - 10); near(two.expectedPoints, 10); assert.match(one.notes.join(' '), /1 round planned for 2 required hits/);
+  const plannedOne = E.estimateStagePoints(stage, P.setExpectation({ ...P.createPlan(), route, engagements: { T1: 1 } }, 'T1', { outcome: 'AA' }), route, { hitModel }, 'USPSA', 'minor');
+  near(plannedOne.targets.find(t => t.targetId === 'T1').expectedPoints, -5);
+  near(E.plannedPair('AC', 0.1, E.zoneValues('USPSA', 'minor'), 1).points, 0.9 * 5 - 1 - 10);
+  const pcsl = n => E.estimateStagePoints(stage, { ...P.createPlan(), route, engagements: { T2: n } }, route, { hitModel }, 'PCSL', 'minor').targets.find(t => t.targetId === 'T2');
+  near(pcsl(4).expectedPoints, pcsl(2).expectedPoints); assert.match(pcsl(4).notes.join(' '), /PCSL rules don't say which extra hits count/);
+});
+
+test('review: a planned pair takes your measured miss rate unless you set one; an all-miss distance gives no estimate', () => {
+  const { stage, route } = scene();
+  const model = { paper: [{ yards: 7, runs: 2, count: 4, a: 0.5, c: 0.25, d: 0, miss: 0.25 }] };
+  let plan = P.setExpectation({ ...P.createPlan(), route, engagements: { T1: 2 } }, 'T1', { outcome: 'CC' });
+  let t1 = E.estimateStagePoints(stage, plan, route, { hitModel: model }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  near(t1.expectedPoints, 2 * (0.75 * 3) - 20 * 0.25); near(t1.odds.CC, 0.5625); assert.match(t1.notes.join(' '), /Miss risk from your numbers: 25%/);
+  t1 = E.estimateStagePoints(stage, plan, route, null, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  near(t1.expectedPoints, 6); assert.match(t1.notes.join(' '), /Miss risk 0%: no runs at this distance/);
+  plan = P.setExpectation({ ...P.createPlan(), route, engagements: { T1: 2 } }, 'T1', { missRisk: 0.05 });
+  t1 = E.estimateStagePoints(stage, plan, route, { hitModel: { paper: [{ yards: 7, runs: 1, count: 2, a: 0, c: 0, d: 0, miss: 1 }] } }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  assert.equal(t1.expectedPoints, null); assert.match(t1.notes.join(' '), /landed no hits/);
+});
+
+test('review: total-only runs give hit measurements; PCSL T over several targets and no-shoots are handled', () => {
+  const live = { id: 's', context: 'LIVE_FIRE' };
+  const totalOnly = L.libraryObservations(live, run('ladder', [], { totalTime: 2.1, choices: { distance: '10' }, zones: { A: 2 } }));
+  assert.deepEqual(totalOnly.map(o => o.factor), ['hitZones']);
+  const steelTotal = L.libraryObservations(live, run('steel', [], { totalTime: 4.4, zones: { M: 1 } }));
+  assert.deepEqual(steelTotal.map(o => [o.factor, o.hits.miss]), [['hitZones', 1]]);
+  assert.equal(L.libraryObservations(live, run('wide', [1.4, 1.62, 2.22, 2.44], { family: 'PCSL', zones: { T: 1, A: 1, C: 2 } })).some(o => o.factor === 'hitZones'), false);
+  const hostageRun = L.libraryObservations(live, run('partial', [1.6, 2.0], { choices: { face: 'head', distance: '7' }, zones: { A: 1, NS: 1 } }));
+  assert.deepEqual(hostageRun.find(o => o.factor === 'hitZones').hits, { a: 1, c: 0, d: 0, miss: 1, noShoot: 1 });
+  const model = O.withPerformanceObservations(createLocalProfile(), hostageRun, 'LIVE_FIRE').performance.hitModel;
+  near(model.partial[0].noShoot, 0.5);
+  let { stage } = scene(); const { route } = scene();
+  const TL = require('../src/stage/targetLayers.ts');
+  const r = TL.addLayer(stage, 'T1', 'noShoot', 'NS1'); assert.ok(!r.error, r.error); stage = r.stage;
+  const t1 = E.estimateStagePoints(stage, { ...P.createPlan(), route, engagements: { T1: 2 } }, route, { hitModel: model }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  assert.equal(t1.kind, 'partial', 'the default hostage covers about a third of the face');
+  near(t1.noShootPenalty, 10 * 0.5 * 2); near(t1.expectedPoints, 5 - 10 - 10);
+  const paperOnly = E.estimateStagePoints(stage, { ...P.createPlan(), route, engagements: { T1: 2 } }, route, { hitModel }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  assert.equal(paperOnly.noShootPenalty, 0); assert.match(paperOnly.notes.join(' '), /No-shoot hits are not estimated/);
+});
+
+test('review: a cut face is reported as cut, not as 100% open', () => {
+  let { stage } = scene(); const { route } = scene();
+  stage = { ...stage, objects: stage.objects.map(o => o.id === 'T1' ? { ...o, faceCut: { ...o.faceCut, preset: 'upper' } } : o) };
+  const t1 = E.estimateStagePoints(stage, { ...P.createPlan(), route, engagements: { T1: 2 } }, route, { hitModel }, 'USPSA', 'minor').targets.find(t => t.targetId === 'T1');
+  assert.equal(t1.kind, 'partial'); assert.equal(t1.cutFace, true);
+});
+
+test('review: runs saved by an older version get their hit measurements when the app starts', async () => {
+  const db = new DatabaseSync(':memory:');
+  const adapter = { execAsync: async sql => db.exec(sql), runAsync: async (sql, ...a) => db.prepare(sql).run(...a),
+    getAllAsync: async (sql, ...a) => db.prepare(sql).all(...a), getFirstAsync: async (sql, ...a) => db.prepare(sql).get(...a) ?? null };
+  await new Repository(adapter, randomUUID).initialize();
+  const record = { id: 'old', userId: 'local', drillId: null, drillName: 'Old', occurredAt: at(0), startingType: 'competitionHolster', totalTime: null, notes: '', segments: [],
+    context: 'LIVE_FIRE', libraryRuns: [run('ladder', [1.6, 1.9], { choices: { distance: '15' }, zones: { A: 1, C: 1 } })] };
+  db.prepare('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?)').run('old', 'local', at(0), JSON.stringify(record));
+  db.prepare('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?)').run('broken', 'local', at(0), '{not json');
+  const repo = new Repository(adapter, randomUUID); await repo.initialize();
+  const profile = await repo.loadProfile();
+  assert.deepEqual(profile.performance.hitModel.paper.map(p => [p.yards, p.a, p.c]), [[15, 0.5, 0.5]]);
+  assert.ok(profile.performanceObservations.some(o => o.factor === 'averageSplitTime' && o.trainingSessionId === 'old'));
+});

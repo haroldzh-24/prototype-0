@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import EditorSheet from '../editor/EditorSheet';
+import { inchesToYards } from '../stage/measurements';
 import { Action, Copy, DataRow, Panel, Segmented, ui } from '../ui/kit';
 import { colors } from '../ui/tokens';
 import { useThemeMode } from '../ui/theme';
@@ -24,14 +25,14 @@ const runs = (n: number) => n + (n === 1 ? ' run' : ' runs');
 export function statText(stat: Stat, unit: (v: number) => string = s2, best = true) {
   return unit(stat.mean) + (stat.sd !== null ? ' ± ' + unit(stat.sd).replace(/ s$/, '') : '') + ' · ' + runs(stat.n) + (best && stat.n > 1 ? ' · best ' + unit(stat.best) : '');
 }
-const ydPerSecond = (fit: MoveFit) => (fit.inchesPerSecond / 36).toFixed(1) + ' yd/s';
+const ydPerSecond = (fit: MoveFit) => inchesToYards(fit.inchesPerSecond).toFixed(1) + ' yd/s';
 export function fitText(fit: MoveFit) {
-  const span = `${Math.round(fit.minInches / 36)}–${Math.round(fit.maxInches / 36)} yd`;
+  const span = `${Math.round(inchesToYards(fit.minInches))}–${Math.round(inchesToYards(fit.maxInches))} yd`;
   if (fit.method === 'AVERAGE_SPEED') return `${ydPerSecond(fit)} average (${runs(fit.sampleCount)}; ` + (fit.maxInches - fit.minInches < 6
     ? 'all at one distance: log another distance to separate start-and-stop time)' : 'longer moves are not yet clearly slower, so start-and-stop time can’t be separated: log more runs)');
   return `${s2(fit.overheadSeconds)} to start and stop + ${ydPerSecond(fit)}${fit.method === 'SHARED_OVERHEAD' ? ' (start-and-stop shared with other directions)' : ''} · ${runs(fit.sampleCount)}, ${span}`;
 }
-const factorUnit = (factor: TimingFactor, value: number) => factor === 'movementSpeed' ? (value / 36).toFixed(1) + ' yd/s' : s2(value);
+const factorUnit = (factor: TimingFactor, value: number) => factor === 'movementSpeed' ? inchesToYards(value).toFixed(1) + ' yd/s' : s2(value);
 
 /** Everything the drill library has measured, and what the planner is using. */
 export default function YourNumbers({ visible, records, profile, onClose }: {

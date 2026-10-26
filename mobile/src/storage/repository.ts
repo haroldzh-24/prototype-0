@@ -65,6 +65,7 @@ export function savedDocumentProblem(d: StageDocument): string | null {
   return null;
 }
 
+const canonicalById = (list: readonly PerformanceObservation[]) => JSON.stringify([...list].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 const validPar = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 600;
 function validDrillPars(input: unknown): Record<string, number> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
@@ -125,7 +126,25 @@ export class Repository {
     const profile = createLocalProfile();
     await this.db.runAsync('INSERT OR IGNORE INTO profiles (id, payload) VALUES (?, ?)', profile.id, JSON.stringify(profile));
     });
+    // Runs saved by an older version get the measurements this version derives (e.g. hit shares). Never blocks start-up.
+    try { await this.syncLibraryObservations(); } catch { /* the next save of each session derives them */ }
     });
+  }
+  /** Re-derives every session's library measurements; writes the profile only when they differ from the stored ones. */
+  private async syncLibraryObservations() {
+    const rows = await this.db.getAllAsync<{ id: string; payload: string }>('SELECT id, payload FROM training WHERE userId = ?', 'local');
+    const derived: PerformanceObservation[] = [], unreadable = new Set<string>();
+    for (const row of rows) {
+      try { derived.push(...sessionLibraryObservations(this.normalizeTraining(JSON.parse(row.payload)))); }
+      catch { unreadable.add(row.id); }
+    }
+    const profile = await this.loadProfile();
+    const stored = profile.performanceObservations ?? [];
+    // Sessions that can't be read keep whatever they contributed before.
+    const replaceable = stored.filter(o => o.id.startsWith('lib:') && !(o.trainingSessionId && unreadable.has(o.trainingSessionId)));
+    if (canonicalById(replaceable) === canonicalById(derived)) return;
+    const next = [...stored.filter(o => !replaceable.includes(o)), ...derived];
+    await this.persistProfile(withPerformanceObservations(profile, next, profile.calibrationContext ?? 'LIVE_FIRE', false));
   }
   listMatches() {
     return this.db.getAllAsync<MatchSummary>('SELECT m.*, COUNT(s.id) AS stageCount FROM matches m LEFT JOIN stages s ON s.matchId = m.id GROUP BY m.id ORDER BY m.updatedAt DESC, m.id');
@@ -376,8 +395,7 @@ export class Repository {
         const library = sessionLibraryObservations(record);
         const next = [...withVideo.filter(o => !isLibraryObservation(o, record.id)), ...library];
         // Stored observations come back sorted by id; compare in the same order so an unchanged session writes nothing.
-        const byId = (list: PerformanceObservation[]) => JSON.stringify([...list].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-        const libraryChanged = byId((profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id))) !== byId(library);
+        const libraryChanged = canonicalById((profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id))) !== canonicalById(library);
         if (selected || libraryChanged || next.length !== (profile.performanceObservations ?? []).length) {
           const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
           await this.persistProfile(updated);

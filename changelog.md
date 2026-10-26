@@ -1,6 +1,17 @@
+# RC2 batch 18b: fixes from the independent review of batch 18 - 2026-10-26
+
+12 confirmed defects, each with a regression test (`tests/expectedPoints.test.cjs`, `tests/ui-reorganization.test.cjs`); the review also brute-force checked the best-two and planned-pair maths (correct):
+- One planned round on a paper target was scored as two shots, so planning fewer rounds raised the hit factor. Points now follow the planned rounds (a hit not fired costs 10), and the hit factor is marked provisional.
+- A planned AA/AC/CC with miss risk on MY NUMBERS assumed 0% misses; it now uses your measured miss rate at that distance (0% only without runs, and says so).
+- Runs entered with a total only, and runs saved before batch 18, never reached your hit shares. Both do now (older runs are re-derived when the app starts).
+- Hostage targets: your partial-target runs' no-shoot hits now cost 10 each; without them the target says no-shoots aren't estimated. PCSL whole-run counts with T hits on several targets stay out of the hit shares.
+- Rules: PCSL extra rounds are not credited (the rules don't say which extra hits count); steel citations corrected (USPSA B2/B3, "must fall" is USPSA); best two hits cited as USPSA 9.5.1.
+- ANALYZE: the hit factor names the real missing piece (unrouted, unplanned) first; it is marked provisional with reasons (route warnings, fewer than 2 rounds, generic timing values); the limits are listed in the app; a cut face is labelled "cut face", not "100% open"; a miss risk on an all-miss distance gives no estimate instead of a "planned" one. Unit conversions go through the measurement helpers.
+- Validation: 984/984 tests (6 new), TypeScript passed. Web build rechecked (points flow). No device testing.
+
 # RC2 batch 18: milestone C3 — expected hits, points and hit factor per stage - 2026-10-26
 
-- **Your hit shares by distance.** Library runs with counted hits (not dry fire) now feed the profile: shares of A, C, D and missing hits by distance for full paper, partly covered paper and steel (makeups). Removing runs removes them.
+- **Your hit shares by distance.** Library runs with counted hits now feed the profile (runs in its calibration context, live fire unless changed; dry fire records no hits): shares of A, C, D and missing hits by distance for full paper, partly covered paper and steel (makeups). Removing runs removes them.
 - **ANALYZE → POINTS AND HIT FACTOR.** For each target at the distance the route shoots it from: the chance of AA, AC and CC and the expected points, with where the numbers came from (your runs at which distances, or planned). Extra planned rounds count best-two. Partly covered targets use your partial-target runs (or full-target ones, flagged as likely optimistic). Steel shows 5 points and the expected makeup shots. Then expected points of the maximum and the **estimated hit factor** (expected points ÷ estimated time) — only when every target is routed, has planned rounds and an estimate.
 - **EXPECTED HITS** in a target's PLANNING: plan for AA, AC or CC and a miss risk, or use your numbers. Saved with the stage, cleaned on load, removed with the target. USPSA minor/major from the profile; PCSL A 5 / C 3 / D 1.
 - Details: `docs/expected-points.md`.

@@ -1,3 +1,7 @@
+# Fixed 2026-10-26 (batch 18b)
+
+- From the independent review of batch 18 (12 confirmed; see changelog): one planned round scored as two, planned pairs assuming 0% misses, total-only and older runs missing from hit shares, no-shoot penalties ignored on hostages, PCSL T runs inflating A shares, rule citations (PCSL extra hits, steel), misleading hit-factor messages, cut faces shown as 100% open.
+
 # Fixed 2026-10-26 (batch 17)
 
 - From the independent review of batch 17 (13 confirmed, fixed in batch 17b; see changelog): stale split curve after removing runs, stored comparisons reading as damaged, LOG ONLY runs in Your numbers, El Presidente compared with itself, PCSL T in accuracy, dry-fire steel miss rate, damaged move fit crashing Training, hits beyond shots accepted, no extrapolation warning in ANALYZE, needless profile rewrites, negative makeups while typing, par cleared by an untouched field, power-factor save failure shown as a load failure.
