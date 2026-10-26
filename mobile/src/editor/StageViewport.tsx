@@ -39,6 +39,8 @@ type Props = {
   draft?: { start: StagePosition; end: StagePosition } | null;
   onRoutePoint?: (point: StagePosition) => void;
   onPlace?: (point: StagePosition) => void;
+  /** Press and hold on the bay (selection tool): opens the radial add menu at that point. `at` is in canvas pixels. */
+  onLongPress?: (point: StagePosition, at: { x: number; y: number }) => void;
   onDraw?: (phase: 'start' | 'preview' | 'commit' | 'cancel', point: StagePosition) => void;
   focusPosition?: StagePosition | null;
   autoPositions?: readonly DiscoveredPosition[];
@@ -78,6 +80,10 @@ export default function StageViewport(props: Props) {
   const moving = useRef(false);
   const intent = useRef(startTap(0, 0));
   const hadAnchor = useRef(false);
+  const LONG_PRESS_MS = 450;
+  const longPress = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
+  const cancelLongPress = () => { if (longPress.current.timer) clearTimeout(longPress.current.timer); longPress.current.timer = null; };
+  useEffect(() => () => cancelLongPress(), []);
   const drawing = () => { const p = latest.current.props; return !p.readOnly && !p.routeEditing && (p.tool === 'wall' || p.tool === 'faultLine'); };
   const pointAt = (event: GestureResponderEvent) => {
     const touch = event.nativeEvent.changedTouches?.[0] ?? event.nativeEvent;
@@ -111,6 +117,15 @@ export default function StageViewport(props: Props) {
       hadAnchor.current = !!latest.current.props.draft;
       if (drawing() && !intent.current.multiple) latest.current.props.onDraw?.('start', pointAt(e));
       const p = latest.current.props;
+      cancelLongPress(); longPress.current.fired = false;
+      if (p.onLongPress && !p.readOnly && !p.routeEditing && !p.manualEngage && !p.manualReview && (!p.tool || p.tool === 'select') && !intent.current.multiple) {
+        const point = pointAt(e), at = localCursor(e);
+        longPress.current.timer = setTimeout(() => {
+          longPress.current.timer = null;
+          if (intent.current.moved || intent.current.multiple) return;
+          longPress.current.fired = true; latest.current.props.onLongPress?.(point, at);
+        }, LONG_PRESS_MS);
+      }
       if (p.manualEngage && !p.readOnly && p.routePlanning && !intent.current.multiple) {
         engagement.current = beginEngagementGesture(p.stage, p.routePlanning.route, currentTransform(), localCursor(e));
         setEngagementDraft(engagement.current);
@@ -128,6 +143,7 @@ export default function StageViewport(props: Props) {
       const next = read(e);
       if (Math.hypot(gesture.dx, gesture.dy) > 3 || next.count > 1) moving.current = true;
       intent.current = trackTap(intent.current, next.count, gesture.dx, gesture.dy);
+      if (intent.current.moved || intent.current.multiple) cancelLongPress();
       if (engagement.current && !engagement.current.cancelled) {
         if (next.count !== 1) cancelEngagement();
         else {
@@ -146,6 +162,9 @@ export default function StageViewport(props: Props) {
     },
     onPanResponderEnd: e => { previous.current = read(e); },
     onPanResponderRelease: e => {
+      cancelLongPress();
+      // A long press already opened the add menu: the release does nothing else (no deselect, no pan).
+      if (longPress.current.fired) { longPress.current.fired = false; finish(); return; }
       const p = latest.current.props, point = pointAt(e);
       const touch = e.nativeEvent.changedTouches?.[0] ?? e.nativeEvent;
       const x = touch.pageX-origin.current.x, y = touch.pageY-origin.current.y;
@@ -175,7 +194,7 @@ export default function StageViewport(props: Props) {
       finish();
     },
     onPanResponderTerminationRequest: () => false,
-    onPanResponderTerminate: e => { cancelEngagement(); if (drawing()) latest.current.props.onDraw?.('cancel',pointAt(e)); finish(); },
+    onPanResponderTerminate: e => { cancelLongPress(); cancelEngagement(); if (drawing()) latest.current.props.onDraw?.('cancel',pointAt(e)); finish(); },
   }));
   const transform = size.width > 0 && size.height > 0
     ? createViewportTransform(props.stage.stage, size, props.viewport) : null;

@@ -196,7 +196,8 @@ test('BUILD/ROUTE switches preserve route and explicit save boundary', () => {
   h.press('BUILD'); h.press('ROUTE'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r); assert.equal(h.saved.length, 0);
 });
 test('BUILD has SELECT/ADD/DRAW and target placement repeats until Done', () => {
-  const h = initial(); h.press('ADD'); const add = h.child('AddMenu'); add.choose('uspsa-metric-chl-v1', false); add.close(); h.render();
+  const h = initial(); h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'target', presetId: 'uspsa-metric-chl-v1', noShoot: false }); h.render();
+  assert.ok(!h.nodes().some(n => n.type === 'RadialAddMenu'), 'the menu closes after a choice');
   assert.equal(h.child('StageViewport').tool, 'target');
   const count = h.child('StageViewport').stage.objects.length;
   for (let i = 0; i < 2; i++) { h.child('StageViewport').onPlace({ space: 'stage', x: 100 + i * 50, y: 150, z: 0 }); h.render(); }
@@ -685,4 +686,24 @@ test('3D and eye-level views share the document: select, move, raise and rotate 
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'Edit manually returns to the plan');
   h.press('DONE'); h.press('3D view'); h.press('EDIT'); h.render();
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'the route bar EDIT returns to the plan');
+});
+
+test('press and hold on the bay opens the radial menu there; a choice places it at that spot', () => {
+  const h = initial();
+  const before = h.child('StageViewport').stage.objects.length;
+  h.child('StageViewport').onLongPress({ space: 'stage', x: 200, y: 160, z: 0 }, { x: 120, y: 90 }); h.render();
+  const menu = h.child('RadialAddMenu');
+  assert.deepEqual(menu.at, { x: 120, y: 90 }); assert.equal(menu.targetFamily, 'USPSA');
+  menu.onChoose({ kind: 'target', presetId: 'uspsa-popper-42-ss-v1', noShoot: false }); h.render();
+  const stage = h.child('StageViewport').stage, placed = stage.objects[stage.objects.length - 1 - stage.objects.filter(o => o.type === 'wall' || o.type === 'faultLine').length];
+  assert.equal(stage.objects.length, before + 1);
+  assert.equal(placed.type, 'steelPopper'); assert.equal(placed.position.x, 200); assert.equal(placed.position.y, 160);
+  assert.equal(h.child('StageViewport').selectedId, placed.id, 'the new target is selected, ready to drag or rotate');
+  assert.equal(h.child('StageViewport').tool, 'select');
+  // A wall from a long press starts at the finger; a no-shoot keeps its role; the route has no add menu.
+  h.child('StageViewport').onLongPress({ space: 'stage', x: 60, y: 60, z: 0 }, { x: 40, y: 40 }); h.render();
+  h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render();
+  assert.equal(h.child('StageViewport').tool, 'wall'); assert.ok(h.child('StageViewport').draft, 'segment started');
+  h.press('ROUTE');
+  assert.equal(h.child('StageViewport').onLongPress, undefined);
 });

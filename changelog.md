@@ -1,3 +1,11 @@
+# RC2 batch 12: radial add menu and target pictures - 2026-10-25
+
+- **Radial add menu.** Press and hold on the bay (or tap ADD) and the choices fan out around your finger: PAPER, NO-SHOOT, POPPERS, PLATES, WALL, FAULT LINE, START. A category opens a second ring with that family's targets, each drawn at its real proportions. A press-and-hold places the target exactly there and selects it; a wall or fault line starts at that point. ADD keeps tap-to-place for laying out several. USPSA / PCSL / IDPA chips switch families. Replaces the old Add list.
+- **Target card.** Long-press any target in the ring: a dimensioned front view (inches and cm), a small 3D view, the rulebook colour rule, the size's source and how far it is verified. PLACE IT from there.
+- **Target pictures** come from one generator (`src/stage/targetArt.ts`) using the preset data: outlines only (scoring zones are not drawn until their sizes are verified), colours by rule (USPSA white no-shoots and white steel, PCSL brown paper, red no-shoots with a black X and blue handgun steel, IDPA non-threats with open hands).
+- **3D:** steel has a 3/8 in thickness, poppers stand on a base plate, plates on one post; the black X now appears only on PCSL no-shoots.
+- Validation: 911/911 tests (4 new in `tests/targetArt.test.cjs`, 1 new and 1 updated editor test), TypeScript passed, checked in the web build for USPSA and PCSL matches. No device testing.
+
 # RC2 batch 11: fixes from the independent review of the 3D views - 2026-10-25
 
 - Eye view: a planned target on the move now reads ON THE MOVE for its whole stretch of legal walking (it read DONE about an inch into the stretch), and DONE only after the stretch closes.

@@ -21,7 +21,8 @@ import type { ToolIconName } from '../ui/ToolIcon';
 import { borders, colors, touch, typography, themed } from '../ui/tokens';
 import { ErrorState, ui } from '@/ui/kit';
 import { checkStage } from '@/rules/stageCheck';
-import AddMenu from './AddMenu';
+import RadialAddMenu from './RadialAddMenu';
+import type { RadialChoice } from './RadialAddMenu';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import PlanningPanel from '@/planning/PlanningPanel';
@@ -156,7 +157,10 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const snapshot = JSON.stringify({ name, stage, plan });
   const [savedSnapshot, setSavedSnapshot] = useState(initial ? snapshot : '');
   const [saving, setSaving] = useState(false), [saveMessage, setSaveMessage] = useState('');
-  const [showAdd, setShowAdd] = useState(false), [pendingExit, setPendingExit] = useState<NavigationAction | null>(null), [allowExit, setAllowExit] = useState(false);
+  // The radial add menu: where it opened on the canvas, and the stage point when opened by a long press.
+  const [radial, setRadial] = useState<{ at: { x: number; y: number }; point: StagePosition | null } | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [pendingExit, setPendingExit] = useState<NavigationAction | null>(null), [allowExit, setAllowExit] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const dirty = snapshot !== savedSnapshot;
   usePreventRemove((dirty || saving) && !allowExit, ({ data }) => setPendingExit(data.action));
@@ -195,7 +199,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const [chain, setChain] = useState<string[]>([]);
   const updateDraft = (value: typeof draft) => { draftRef.current = value; setDraft(value); };
   const switchTool = (next: DesignerTool) => { updateDraft(null); setChain([]); setTool(next); setSelectedId(null); setEditError(''); };
-  useEffect(() => { if (routeMode || previewing || viewMode !== 'topDown' || panel || showAdd) { setTool('select'); updateDraft(null); setChain([]); } }, [routeMode, previewing, viewMode, panel, showAdd]);
+  useEffect(() => { if (routeMode || previewing || viewMode !== 'topDown' || panel) { setTool('select'); updateDraft(null); setChain([]); setRadial(null); } }, [routeMode, previewing, viewMode, panel]);
   const onDragging = (value: boolean) => { if (value) documentHistory.begin(); else documentHistory.end(); setDragging(value); };
   const draw = (phase: 'start' | 'preview' | 'commit' | 'cancel', point: StagePosition) => {
     if (phase === 'cancel') { updateDraft(null); return; }
@@ -206,6 +210,22 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     const id = uuid.v4(), result = addSegment(stage, tool === 'wall' ? 'wall' : 'faultLine', id, current.start, snapped.point);
     setEditError(result.error ?? '');
     if (!result.error) { setStage(result.stage); setChain(ids => [...ids,id]); updateDraft({ start: snapped.point, end: snapped.point }); }
+  };
+  /** From the radial menu: a long press places right there; ADD (no point) enters tap-to-place, as before. */
+  const chooseFromRadial = (choice: RadialChoice) => {
+    const point = radial?.point ?? null;
+    setRadial(null);
+    if (choice.kind === 'start') { switchTool('select'); setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null); return; }
+    if (choice.kind === 'tool') {
+      switchTool(choice.tool);
+      // A segment drawn from a long press starts where the finger was; the next tap ends it.
+      if (point) updateDraft({ start: snapEndpoint(stage, point, null, snapping).point, end: snapEndpoint(stage, point, null, snapping).point });
+      return;
+    }
+    if (!point) { setPlacement({ id: choice.presetId, noShoot: choice.noShoot }); switchTool('target'); return; }
+    const id = uuid.v4(), result = placeTarget(stage, choice.presetId, id, point, choice.noShoot);
+    setEditError(result.error ?? '');
+    if (!result.error) { switchTool('select'); setStage(result.stage); setSelectedId(id); }
   };
   const undoSegment = () => {
     const id = chain.at(-1), object = stage.objects.find(o => o.id === id); if (!object || !isSegment(object)) return;
@@ -263,7 +283,6 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const stageFindings = checkStage(stage, plan.route?.engagementRules, targetFamily);
   const stageFindingCount = stageFindings.filter(f => f.severity !== 'info').length, stageSafety = stageFindings.some(f => f.severity === 'safety');
   return <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.screen}>
-    <AddMenu visible={showAdd} targetFamily={targetFamily} close={() => setShowAdd(false)} choose={(id, noShoot) => { setPlacement({ id, noShoot }); switchTool('target'); }} selectStart={() => { switchTool('select'); setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null); }} />
     <EditorSheet title="Close stage" visible={pendingExit !== null && !allowExit} close={() => setPendingExit(null)}>
       <View style={ui.panel}>
         <Text style={styles.title}>{saving ? 'SAVE IN PROGRESS' : dirty ? 'UNSAVED CHANGES' : 'STAGE SAVED'}</Text>
@@ -291,7 +310,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     {routeMode && !previewing && <View style={styles.controls}><Button title="PATH" active={routeEditing} disabled={dragging} onPress={() => { setViewMode('topDown'); setReviewMode(false); setEngageMode(false); setRouteEditing(true); setPanel(null); }} /><Button title="ENGAGE" active={engageMode} disabled={dragging} onPress={() => { setViewMode('topDown'); setReviewMode(false); setEngageMode(true); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /><Button title="REVIEW" active={reviewMode} disabled={dragging} onPress={() => { setViewMode('topDown'); setReviewMode(true); setEngageMode(false); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /></View>}
     {routeMode && !reviewMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>NO ROUTE YET</Text><Button title="PLAN ROUTE" onPress={() => { setPlannerOrigin('planV2'); setPanel('planV2'); }} /><Button title="OPTIMIZE MOVEMENT" onPress={() => { setPlannerOrigin('aiPlan'); setPanel('aiPlan'); }} /><Button title="Edit manually" onPress={() => setRouteEditing(true)} /></View>}
     {routeMode && !reviewMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} waypoints {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
-    <View style={styles.canvas}>
+    <View style={styles.canvas} onLayout={({ nativeEvent }) => setCanvasSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
         viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={targetFamily} onExit={() => setViewMode('topDown')} /> :
         viewMode === '3d' ? <Stage3DView stage={stage} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
@@ -321,13 +340,14 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
             if (!assignmentMode || !positionId) return;
             setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
           }, layers: routeEditing || engageMode || reviewMode ? { ...layers, path: true, waypoints: true, nodes: false, windows: false, arrows: 'OFF' as const } : layers, selectedNodeId: nodeId, editing: routeEditing && !engageMode, onNodeSelect: (id, node) => { setPositionId(id); setNodeId(node); setPanel('engagement'); }, route: plan.route, selectedId: positionId, onSelect: id => { setPositionId(id); setNodeId(null); }, onChange: changeRoute, onDragging } : undefined}
+          onLongPress={!routeMode && !previewing ? (point, at) => setRadial({ at, point }) : undefined}
           onSelect={setSelectedId} onDragging={onDragging} setStage={setStage} />}
     {!previewing && !routeMode && viewMode === 'topDown' && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && <View style={styles.modeOverlay}>
       <View style={styles.readout}><Text numberOfLines={2} style={[styles.title, { flex: 1 }]}>{tool === 'target' ? (placement?.noShoot ? 'NO-SHOOT / ' : '') + (targetPreset(placement?.id ?? '')?.name ?? '') : tool === 'wall' ? 'WALL' : 'FAULT LINE'}</Text><Button title="DONE" compact disabled={dragging} onPress={() => switchTool('select')} /></View>
       {tool === 'target' ? <Text>Tap to place</Text> : <><Text>{draft ? formatYards(segmentMetrics(draft.start, draft.end).length) + ' \u2022 ' + segmentMetrics(draft.start, draft.end).angle.toFixed(1) + '\u00b0' : 'Tap start, then drag or tap endpoint'}</Text><View style={styles.controls}><Button title={snapping.enabled ? 'SNAP ON' : 'SNAP OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} /><Button title="UNDO SEGMENT" disabled={dragging || !chain.length} onPress={undoSegment} />{draft && <Button title="Cancel Draft" disabled={dragging} onPress={() => updateDraft(null)} />}</View></>}
     </View>}
-    {viewMode === 'topDown' && <View style={{ position: 'absolute', top: 8, right: 8 }}><Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} /></View>}
-    {!previewing && !routeEditing && !engageMode && !reviewMode && !addingPoint && !assignmentMode && viewMode !== '25d' && viewMode !== 'eye' && !(tool === 'target' || tool === 'wall' || tool === 'faultLine') &&
+    {viewMode === 'topDown' && !radial && <View style={{ position: 'absolute', top: 8, right: 8 }}><Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} /></View>}
+    {!previewing && !radial && !routeEditing && !engageMode && !reviewMode && !addingPoint && !assignmentMode && viewMode !== '25d' && viewMode !== 'eye' && !(tool === 'target' || tool === 'wall' || tool === 'faultLine') &&
       <View style={styles.viewSwitch} accessibilityRole="radiogroup" accessibilityLabel="View">
         {([['topDown', '2D', 'Plan view'], ['3d', '3D', '3D view'], ['eye', 'EYE', 'Eye-level view']] as const).map(([mode, title, label]) =>
           <Button key={mode} title={title} label={label} compact active={viewMode === mode} disabled={dragging} onPress={() => { setViewMode(mode); setPanel(null); }} />)}
@@ -369,6 +389,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="DELETE" danger disabled={dragging || selected.type === 'start'} onPress={() => setPanel('delete')} />
       </View>
     </View>}
+    {radial && viewMode === 'topDown' && !routeMode && !previewing && <RadialAddMenu at={radial.at} bounds={canvasSize} targetFamily={targetFamily}
+      onChoose={chooseFromRadial} onClose={() => setRadial(null)} />}
     </View>
 
     {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
@@ -400,7 +422,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="&#8226;&#8226;&#8226;" label="Route tools" compact onPress={() => setPanel('more')} />
       </> : <>
         <Button title="SELECT" active={tool === 'select'} disabled={dragging} onPress={() => switchTool('select')} />
-        <Button title="ADD" disabled={dragging || viewMode !== 'topDown'} onPress={() => setShowAdd(true)} />
+        <Button title="ADD" disabled={dragging || viewMode !== 'topDown'} onPress={() => setRadial({ at: { x: canvasSize.width / 2, y: canvasSize.height / 2 }, point: null })} />
         <Button title="DRAW" disabled={dragging || viewMode !== 'topDown'} onPress={() => setPanel('draw')} />
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" compact disabled={dragging} onPress={() => setPanel('more')} />
       </>}

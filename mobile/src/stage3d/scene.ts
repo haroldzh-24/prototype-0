@@ -148,7 +148,8 @@ function objectChunk(object: StageObject, palette: Palette, label: string, selec
   const base = object.type === 'cardboardTarget' ? palette.cardboard : object.type === 'noShootTarget'
     ? (object.targetFamily === 'PCSL' ? palette.noShootRed : palette.noShoot) : palette.steel;
   const color = tinted(rgb(base)), outline = selected ? accent : edge, r = object.rotation * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r);
-  const along = (u: number, z: number) => toWorld({ x: object.position.x + u * cos, y: object.position.y + u * sin, z });
+  const along = (u: number, z: number, v = 0) => toWorld({ x: object.position.x + u * cos - v * sin, y: object.position.y + u * sin + v * cos, z });
+  const steel = object.type === 'steelPlate' || object.type === 'steelPopper', w = object.geometry.faceWidth;
   for (const s of objectSurfaces(object)) {
     const points = s.points.map(toWorld);
     b.polygon(points, color, object.id, true);
@@ -156,12 +157,27 @@ function objectChunk(object: StageObject, palette: Palette, label: string, selec
     let bottom = Infinity, high = -Infinity;
     for (const p of s.points) { bottom = Math.min(bottom, p.z); high = Math.max(high, p.z); }
     b.raise(high);
-    // Two stand posts down to the ground when the face is raised.
-    if (bottom > 0.5) for (const u of [-0.3, 0.3]) b.line(along(u * object.geometry.faceWidth, 0), along(u * object.geometry.faceWidth, bottom), rgb(palette.subdued));
-    if (object.type === 'noShootTarget') {
-      // The X printed on a no-shoot, across the middle of the face.
-      const w = object.geometry.faceWidth * 0.2, mid = (bottom + high) / 2, h = (high - bottom) * 0.2;
-      b.line(along(-w, mid - h), along(w, mid + h), ink); b.line(along(w, mid - h), along(-w, mid + h), ink);
+    if (steel) {
+      // Steel has a thickness (3/8 in, typical AR500 plate): a back face and the edge between them.
+      const T = 0.375, behind = s.points.map(p => toWorld({ x: p.x - T * sin, y: p.y + T * cos, z: p.z }));
+      b.polygon(behind, color, object.id, true);
+      for (let i = 0; i < points.length; i++) { const j = (i + 1) % points.length; b.polygon([points[i], points[j], behind[j], behind[i]], color, object.id, true); }
+    }
+    // Paper stands on two posts, a plate on one; a popper stands on a base plate (shapes illustrative, not to a rule).
+    const post = rgb(palette.subdued);
+    if (bottom > 0.5) for (const u of object.type === 'steelPlate' ? [0] : [-0.3, 0.3]) b.line(along(u * w, 0), along(u * w, bottom), post);
+    if (object.type === 'steelPopper') {
+      const bx = w * 0.6, by = w * 0.5, bz = 1;
+      const corners = (z: number) => [along(-bx, z, -by), along(bx, z, -by), along(bx, z, by), along(-bx, z, by)];
+      const top = corners(bz), floor = corners(0.05);
+      b.polygon(top, rgb(palette.wall3d), object.id, true);
+      for (let i = 0; i < 4; i++) b.polygon([floor[i], floor[(i + 1) % 4], top[(i + 1) % 4], top[i]], rgb(palette.wall3d), object.id, true);
+      b.loop(top, outline);
+    }
+    if (object.type === 'noShootTarget' && object.targetFamily === 'PCSL') {
+      // PCSL paper no-shoots are solid red with a black X (10.3.1); USPSA and IDPA ones are told apart by colour and marking.
+      const xw = w * 0.2, mid = (bottom + high) / 2, h = (high - bottom) * 0.2;
+      b.line(along(-xw, mid - h, -0.05), along(xw, mid + h, -0.05), ink); b.line(along(xw, mid - h, -0.05), along(-xw, mid + h, -0.05), ink);
     }
     b.labels.push({ id: object.id, text: label, at: toWorld({ x: object.position.x, y: object.position.y, z: high + 8 }), kind: object.type === 'noShootTarget' ? 'noShoot' : 'target' });
   }

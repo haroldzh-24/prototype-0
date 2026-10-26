@@ -42,3 +42,8 @@ export const targetPresets: readonly TargetPreset[] = Object.freeze(entries);
 export const targetPreset = (id: string): TargetPreset | undefined => targetPresets.find(p => p.id === id);
 export const presetsForFamily = (family: TargetFamily) => targetPresets.filter(p => p.family === family);
 export const defaultTargetPreset = (family: TargetFamily): TargetPreset => presetsForFamily(family)[0];
+/** A short menu label: the name without the family or the vendor ("USPSA Metric (CHL)" → "Metric"). */
+export function shortPresetName(preset: Pick<TargetPreset, 'name' | 'family'>): string {
+  const plain = preset.name.replace(/\s*\([^)]*\)\s*$/, '').replace(new RegExp('^' + preset.family + '\\s+'), '').replace(/\s+plate$/i, '').trim();
+  return plain.replace(/-inch/g, ' in').replace(/^Mini Pepper Popper$/i, 'Mini popper') || preset.name;
+}
