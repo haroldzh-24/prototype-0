@@ -1,3 +1,13 @@
+# RC2 batch 11: fixes from the independent review of the 3D views - 2026-10-25
+
+- Eye view: a planned target on the move now reads ON THE MOVE for its whole stretch of legal walking (it read DONE about an inch into the stretch), and DONE only after the stretch closes.
+- Eye view: a first position on the start box (common in Route Planner V2 plans) is its own stop: P1 can be chosen, shows FROM HERE, and P1's targets read DONE at later stops. The view faces the next planned engagement in route order (it could face a later moving target before a nearer standing stop).
+- Eye view: without route settings, visibility follows the match's ruleset (IDPA walls and non-threats); off the stops, a target legal standing there says when it cannot be taken on the move (moving off, stationary-only, reload leg).
+- 3D: route editing, the route bar's EDIT, Edit manually, planner previews and waypoint tools switch back to the 2D plan (they could stay in 3D where taps only orbit).
+- 3D: ground, grid, markings and the route are drawn back to front without depth tests between them, and the eye view's near plane is 6 in, so phones with a 16-bit depth buffer do not flicker. Web: drags in 3D and EYE no longer scroll or zoom the page. The 3D route reuses the editor's engagement analysis instead of recomputing it on every drag.
+- Route assistant: the solver's duration is measured with the same clock as the assistant's (it used whole-millisecond `Date.now()`), which made an existing test fail about 1 run in 3.
+- Validation: 906/906 tests (3 new or extended), TypeScript passed, web build rechecked. No device testing.
+
 # RC2 batch 10: 3D stage view and eye-level walk-through - 2026-10-25
 
 - **2D · 3D · EYE** at the top left of the stage canvas. Details: `docs/stage-3d.md`.

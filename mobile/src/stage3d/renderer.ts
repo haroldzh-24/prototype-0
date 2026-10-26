@@ -48,41 +48,57 @@ export function createRenderer(gl: GLContext): Renderer {
     viewProj: gl.getUniformLocation(program, 'uViewProj'), light: gl.getUniformLocation(program, 'uLight') };
   // expo-gl checks arguments only lightly (a bad one can crash natively), so refuse to start instead of guessing.
   if (loc.pos < 0 || loc.normal < 0 || loc.color < 0 || !loc.viewProj || !loc.light) throw new Error('GL program is missing an input.');
-  const buffers = Array.from({ length: 5 }, () => gl.createBuffer());
-  if (buffers.some(b => !b)) throw new Error('Could not create GL buffers.');
-  const [triPos, triNormal, triColor, linePos, lineColor] = buffers;
-  let triangles = 0, lines = 0;
+  // Five buffers per layer (triangle positions, normals, colours; line positions, colours), made as layers appear.
+  const layers: { buffers: (WebGLBuffer | null)[]; triangles: number; lines: number; ground: boolean }[] = [];
   const upload = (buffer: WebGLBuffer | null, data: Float32Array) => { if (!data.length) return; gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); };
   const attribute = (index: number, buffer: WebGLBuffer | null) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.enableVertexAttribArray(index); gl.vertexAttribPointer(index, 3, gl.FLOAT, false, 0, 0);
   };
   return {
     setScene(scene) {
-      upload(triPos, scene.triangles.positions); upload(triNormal, scene.triangles.normals); upload(triColor, scene.triangles.colors);
-      upload(linePos, scene.lines.positions); upload(lineColor, scene.lines.colors);
-      triangles = scene.triangles.count; lines = scene.lines.count;
+      scene.layers.forEach((layer, i) => {
+        if (!layers[i]) {
+          const buffers = Array.from({ length: 5 }, () => gl.createBuffer());
+          if (buffers.some(b => !b)) throw new Error('Could not create GL buffers.');
+          layers[i] = { buffers, triangles: 0, lines: 0, ground: false };
+        }
+        const [triPos, triNormal, triColor, linePos, lineColor] = layers[i].buffers;
+        upload(triPos, layer.triangles.positions); upload(triNormal, layer.triangles.normals); upload(triColor, layer.triangles.colors);
+        upload(linePos, layer.lines.positions); upload(lineColor, layer.lines.colors);
+        layers[i].triangles = layer.triangles.count; layers[i].lines = layer.lines.count; layers[i].ground = layer.ground;
+      });
+      for (let i = scene.layers.length; i < layers.length; i++) { layers[i].triangles = 0; layers[i].lines = 0; }
     },
     draw(viewProj, clear) {
       gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
       gl.clearColor(clear[0], clear[1], clear[2], 1);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+      gl.enable(gl.DEPTH_TEST);
       gl.useProgram(program);
       gl.uniformMatrix4fv(loc.viewProj, false, viewProj);
       gl.uniform3fv(loc.light, LIGHT);
-      // Faces are pushed back a little so outlines drawn on them win the depth test.
-      gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 2);
-      attribute(loc.pos, triPos); attribute(loc.normal, triNormal); attribute(loc.color, triColor);
-      if (triangles) gl.drawArrays(gl.TRIANGLES, 0, triangles);
-      gl.disable(gl.POLYGON_OFFSET_FILL);
-      gl.disableVertexAttribArray(loc.normal); gl.vertexAttrib3f(loc.normal, 0, 0, 0);
-      attribute(loc.pos, linePos); attribute(loc.color, lineColor);
-      if (lines) gl.drawArrays(gl.LINES, 0, lines);
+      for (const layer of layers) {
+        const [triPos, triNormal, triColor, linePos, lineColor] = layer.buffers;
+        // Ground layers paint back to front (still writing depth, so walls behind them stay hidden); objects test depth.
+        gl.depthFunc(layer.ground ? gl.ALWAYS : gl.LEQUAL);
+        if (layer.triangles) {
+          // Faces are pushed back a little so outlines drawn on them win the depth test.
+          if (!layer.ground) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1, 2); }
+          attribute(loc.pos, triPos); attribute(loc.normal, triNormal); attribute(loc.color, triColor);
+          gl.drawArrays(gl.TRIANGLES, 0, layer.triangles);
+          gl.disable(gl.POLYGON_OFFSET_FILL);
+        }
+        if (layer.lines) {
+          gl.disableVertexAttribArray(loc.normal); gl.vertexAttrib3f(loc.normal, 0, 0, 0);
+          attribute(loc.pos, linePos); attribute(loc.color, lineColor);
+          gl.drawArrays(gl.LINES, 0, layer.lines);
+        }
+      }
       gl.flush();
       gl.endFrameEXP?.();
     },
     dispose() {
-      buffers.forEach(b => gl.deleteBuffer(b));
+      layers.forEach(l => l.buffers.forEach(b => gl.deleteBuffer(b)));
       gl.deleteProgram(program); gl.deleteShader(vs); gl.deleteShader(fs);
     },
   };

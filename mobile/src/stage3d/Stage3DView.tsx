@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, Text, View } from 'react-native';
-import type { GestureResponderEvent } from 'react-native';
+import { PanResponder, Platform, Pressable, Text, View } from 'react-native';
+import type { GestureResponderEvent, ViewStyle } from 'react-native';
 import type { StageDocument } from '../stage/model';
 import type { StagePosition } from '../stage/coordinates';
 import { stageDownrange } from '../stage/orientation';
@@ -117,7 +117,7 @@ export default function Stage3DView(props: {
         backgroundColor: l.id === props.selectedId ? colors.accent : l.kind === 'stop' ? colors.panel : 'transparent' }}>{l.text}</Text>)}
     </View>
     <View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="3D stage. Drag to orbit, pinch to zoom, tap to select."
-      style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} />
+      style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, Platform.OS === 'web' && ({ touchAction: 'none' } as ViewStyle)]} />
     {!props.selectedId && <Text pointerEvents="none" style={{ position: 'absolute', left: 8, right: 8, bottom: 8, textAlign: 'center', ...typography.category, color: colors.muted }}>
       {props.editable ? 'DRAG TO ORBIT · PINCH TO ZOOM · TAP TO SELECT' : 'DRAG TO ORBIT · PINCH TO ZOOM'}</Text>}
     <View style={{ position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6 }}>

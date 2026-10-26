@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { PanResponder, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from '../planning/model';
 import { formatYardsFixed } from '../stage/measurements';
@@ -11,6 +12,10 @@ import { projectToScreen } from './math';
 import GLStage, { glUnavailable } from './GLStage';
 import { buildWalk, sightStage, suggestedHeading, targetStatuses, walkPoint } from './walk';
 import type { TargetState } from './walk';
+import type { Ruleset } from '../planning/v2/types';
+
+/** Web: stop the browser from panning or zooming the page under a drag (the 2D canvas does the same). */
+const NO_BROWSER_GESTURES = (Platform.OS === 'web' ? { touchAction: 'none' } : {}) as ViewStyle;
 
 const EYE_KEY = 'psp.eyeHeight', DEFAULT_EYE = 63, EYE_LIMITS = [36, 84] as const;
 const feet = (inches: number) => `${Math.floor(inches / 12)} ft ${Math.round(inches % 12)} in`;
@@ -20,19 +25,21 @@ const STATE_TEXT: Record<TargetState, string> = { moving: 'ON THE MOVE', here: '
  * Eye-level walk-through of the planned route: stand at the start or any stop, or scrub along the path, and see what
  * the plan engages there (on the move or standing) and what else is legal, visible or hidden from that spot.
  */
-export default function EyeLevelView({ stage, plan, onExit }: { stage: StageDocument; plan: StagePlan; onExit: () => void }) {
+export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: StageDocument; plan: StagePlan; ruleset?: Ruleset; onExit: () => void }) {
   const scheme = palette();
   const walk = useMemo(() => buildWalk(stage, plan.route), [stage, plan.route]);
-  const sight = useMemo(() => sightStage(stage, plan), [stage, plan]);
+  const sight = useMemo(() => sightStage(stage, plan, ruleset), [stage, plan, ruleset]);
   const [distance, setDistance] = useState(0);
+  // Which stop the shooter chose when several share a point (a first position on the start box).
+  const [stopId, setStopId] = useState<string | null>(null);
   const [look, setLook] = useState({ heading: 0, pitch: -4 });
   const [eyeHeight, setEyeHeightState] = useState(() => { const v = Number(readPref(EYE_KEY)); return v >= EYE_LIMITS[0] && v <= EYE_LIMITS[1] ? v : DEFAULT_EYE; });
   const setEyeHeight = (v: number) => { const next = Math.min(EYE_LIMITS[1], Math.max(EYE_LIMITS[0], v)); setEyeHeightState(next); writePref(EYE_KEY, String(next)); };
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState(glUnavailable());
 
-  const at = walkPoint(walk, distance);
-  const statuses = useMemo(() => targetStatuses(stage, plan, walk, at, sight ?? null), [stage, plan, walk, at.distance, sight]);
+  const at = walkPoint(walk, distance, stopId);
+  const statuses = useMemo(() => targetStatuses(stage, plan, walk, at, sight ?? null), [stage, plan, walk, at.distance, at.stop?.id, sight]);
   const heading = suggestedHeading(stage, walk, at, statuses) + look.heading;
   const tints = useMemo(() => {
     const tone: Partial<Record<TargetState, string>> = { moving: scheme.movement, here: scheme.accent, legal: scheme.caution, done: scheme.subdued };
@@ -54,14 +61,15 @@ export default function EyeLevelView({ stage, plan, onExit }: { stage: StageDocu
       setLook(l => { const c = eyeLook({ kind: 'eye', position: [0, 0, 0], heading: l.heading, pitch: l.pitch }, dx, dy); return { heading: c.heading > 180 ? c.heading - 360 : c.heading, pitch: c.pitch }; });
     },
   }));
-  const track = useRef({ width: 0, x: 0 }), trackView = useRef<View>(null);
-  const scrubTo = (pageX: number) => { const t = track.current; if (t.width > 0) setDistance(Math.max(0, Math.min(1, (pageX - t.x) / t.width)) * walk.length); };
+  const track = useRef({ width: 0, x: 0, length: 0 }), trackView = useRef<View>(null);
+  track.current.length = walk.length;
+  const scrubTo = (pageX: number) => { const t = track.current; if (t.width > 0) { setStopId(null); setDistance(Math.max(0, Math.min(1, (pageX - t.x) / t.width)) * t.length); } };
   const [scrubber] = useState(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true, onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: e => scrubTo(e.nativeEvent.pageX), onPanResponderMove: e => scrubTo(e.nativeEvent.pageX),
   }));
-  const step = (inches: number) => setDistance(d => Math.max(0, Math.min(walk.length, d + inches)));
-  const jump = (d: number) => { setDistance(d); setLook({ heading: 0, pitch: -4 }); };
+  const step = (inches: number) => { setStopId(null); setDistance(d => Math.max(0, Math.min(walk.length, d + inches))); };
+  const jump = (id: string, d: number) => { setStopId(id); setDistance(d); setLook({ heading: 0, pitch: -4 }); };
 
   const nextStop = walk.stops.find(s => s.distance > at.distance + 0.5);
   const title = at.stop ? `VIEW FROM ${at.stop.label}` : nextStop ? `WALKING TO ${nextStop.label} · ${formatYardsFixed(nextStop.distance - at.distance, 1)}` : 'VIEW';
@@ -94,7 +102,7 @@ export default function EyeLevelView({ stage, plan, onExit }: { stage: StageDocu
           ...typography.category, fontSize: 12, lineHeight: 15, color: state === 'moving' || state === 'here' ? colors.onAccent : colors.text,
           backgroundColor: state === 'moving' ? colors.movement : state === 'here' ? colors.accent : colors.panel }}>{l.text}</Text>; })}
       </View>
-      <View {...looker.panHandlers} accessible accessibilityLabel="Eye-level view. Drag to look around." style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} />
+      <View {...looker.panHandlers} accessible accessibilityLabel="Eye-level view. Drag to look around." style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, NO_BROWSER_GESTURES]} />
       <View style={{ position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6 }}>
         {(look.heading !== 0 || look.pitch !== -4) && button('Look at the planned targets again', 'RE-AIM', () => setLook({ heading: 0, pitch: -4 }))}
         {button('Back to the plan', '2D', onExit)}
@@ -105,7 +113,7 @@ export default function EyeLevelView({ stage, plan, onExit }: { stage: StageDocu
         accessibilityValue={{ text: formatYardsFixed(at.distance, 1) + ' of ' + formatYardsFixed(walk.length, 1) }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={e => step(e.nativeEvent.actionName === 'increment' ? 36 : -36)}
         onLayout={({ nativeEvent }) => { track.current.width = nativeEvent.layout.width; trackView.current?.measureInWindow(x => { track.current.x = x; }); }}
-        style={{ height: 36, justifyContent: 'center' }}>
+        style={[{ height: 36, justifyContent: 'center' }, NO_BROWSER_GESTURES]}>
         <View style={{ height: 6, backgroundColor: colors.gridMinor }} />
         {walk.windows.map(w => <View key={w.targetId} pointerEvents="none" style={{ position: 'absolute', top: 12, height: 12, left: `${w.from / walk.length * 100}%`, width: `${Math.max(0.5, (w.to - w.from) / walk.length * 100)}%`, backgroundColor: colors.movement, opacity: 0.85 }} />)}
         {walk.stops.map(s => <View key={s.id} pointerEvents="none" style={{ position: 'absolute', top: 6, height: 24, width: 3, marginLeft: -1.5, left: `${s.distance / walk.length * 100}%`, backgroundColor: colors.ink }} />)}
@@ -113,7 +121,7 @@ export default function EyeLevelView({ stage, plan, onExit }: { stage: StageDocu
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
         {button('Step back one yard', '◀', () => step(-36), at.distance <= 0)}
-        {walk.stops.map(s => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={'View from ' + s.label} accessibilityState={{ selected: at.stop?.id === s.id }} onPress={() => jump(s.distance)}
+        {walk.stops.map(s => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={'View from ' + s.label} accessibilityState={{ selected: at.stop?.id === s.id }} onPress={() => jump(s.id, s.distance)}
           style={({ pressed }) => ({ minHeight: touch.min, minWidth: touch.min, paddingHorizontal: 12, justifyContent: 'center', borderWidth: borders.regular, borderColor: colors.border, backgroundColor: at.stop?.id === s.id ? colors.text : colors.panel, opacity: pressed ? 0.65 : 1 })}>
           <Text style={{ ...typography.label, color: at.stop?.id === s.id ? colors.background : colors.text }}>{s.label}</Text></Pressable>)}
         {button('Step forward one yard', '▶', () => step(36), at.distance >= walk.length)}

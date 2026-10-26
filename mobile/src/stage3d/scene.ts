@@ -24,9 +24,18 @@ export type SceneOptions = {
 };
 export type SceneLabel = { id: string; text: string; at: Vec3; kind: 'target' | 'noShoot' | 'start' | 'stop' };
 export type PickTriangle = { objectId: string; a: Vec3; b: Vec3; c: Vec3 };
-export type Scene = {
+/**
+ * Drawn in order. Ground layers (the ground and grid, markings such as the start box and fault lines, the route) lie
+ * within an inch of z = 0, so they are drawn back to front without a depth test against each other: a 16-bit depth
+ * buffer (some Android phones) cannot separate them at range. Walls and targets are drawn last with depth testing.
+ */
+export type SceneLayer = {
+  ground: boolean;
   triangles: { positions: Float32Array; normals: Float32Array; colors: Float32Array; count: number };
   lines: { positions: Float32Array; colors: Float32Array; count: number };
+};
+export type Scene = {
+  layers: SceneLayer[];
   pick: PickTriangle[];
   labels: SceneLabel[];
   bounds: { min: Vec3; max: Vec3; center: Vec3; radius: number };
@@ -50,6 +59,8 @@ const LIFT = { grid: 0.05, outline: 0.1, start: 0.2, fault: 0.3, path: 0.4, wind
 
 /** Geometry for one part of the scene, in typed arrays so assembling the scene is plain copies. */
 type Chunk = { tri: Float32Array; nor: Float32Array; col: Float32Array; lin: Float32Array; lcol: Float32Array; pick: PickTriangle[]; labels: SceneLabel[]; top: number };
+/** Layer order: ground and grid, ground markings, route, then walls and targets. */
+const LAYERS = { ground: 0, markings: 1, route: 2, objects: 3 } as const;
 
 /** Collects triangles and lines for one chunk. */
 function builder() {
@@ -188,7 +199,7 @@ export function buildScene(stage: StageDocument, palette: Palette, options: Scen
   const groundKey = `${stage.stage.width}x${stage.stage.depth}|${pid}|${grid}`;
   let ground = groundCache.get(groundKey);
   if (!ground) { if (groundCache.size > 8) groundCache.clear(); ground = groundChunk(stage, palette, grid); groundCache.set(groundKey, ground); }
-  const chunks: Chunk[] = [ground];
+  const layered: Chunk[][] = [[ground], [], [], []];
   for (const object of stage.objects) {
     const label = isTarget(object) ? shortTargetLabel(stage, object) : '', selected = options.selectedId === object.id, tint = options.tints?.[object.id];
     const key = `${pid}|${selected ? 1 : 0}|${tint ?? ''}|${label}`;
@@ -196,30 +207,38 @@ export function buildScene(stage: StageDocument, palette: Palette, options: Scen
     if (!byKey) { byKey = new Map(); objectCache.set(object, byKey); }
     let chunk = byKey.get(key);
     if (!chunk) { if (byKey.size > 6) byKey.clear(); chunk = objectChunk(object, palette, label, selected, tint); byKey.set(key, chunk); }
-    chunks.push(chunk);
+    layered[object.type === 'start' || object.type === 'faultLine' ? LAYERS.markings : LAYERS.objects].push(chunk);
   }
-  if (options.route) chunks.push(routeChunk(options.route, palette));
+  if (options.route) layered[LAYERS.route].push(routeChunk(options.route, palette));
 
-  const total = (k: 'tri' | 'lin') => chunks.reduce((n, c) => n + c[k].length, 0);
-  const triLength = total('tri'), linLength = total('lin');
-  const positions = new Float32Array(triLength), normals = new Float32Array(triLength), colors = new Float32Array(triLength);
-  const linePositions = new Float32Array(linLength), lineColors = new Float32Array(linLength);
-  let t = 0, l = 0, top = 0;
+  let top = 0;
   const pick: PickTriangle[] = [], labels: SceneLabel[] = [];
-  for (const c of chunks) {
-    positions.set(c.tri, t); normals.set(c.nor, t); colors.set(c.col, t); t += c.tri.length;
-    linePositions.set(c.lin, l); lineColors.set(c.lcol, l); l += c.lin.length;
-    for (const p of c.pick) pick.push(p);
-    for (const label of c.labels) labels.push(label);
-    top = Math.max(top, c.top);
-  }
+  const layers = layered.map((chunks, index): SceneLayer => {
+    const triLength = chunks.reduce((n, c) => n + c.tri.length, 0), linLength = chunks.reduce((n, c) => n + c.lin.length, 0);
+    const positions = new Float32Array(triLength), normals = new Float32Array(triLength), colors = new Float32Array(triLength);
+    const linePositions = new Float32Array(linLength), lineColors = new Float32Array(linLength);
+    let t = 0, l = 0;
+    for (const c of chunks) {
+      positions.set(c.tri, t); normals.set(c.nor, t); colors.set(c.col, t); t += c.tri.length;
+      linePositions.set(c.lin, l); lineColors.set(c.lcol, l); l += c.lin.length;
+      for (const p of c.pick) pick.push(p);
+      for (const label of c.labels) labels.push(label);
+      top = Math.max(top, c.top);
+    }
+    return { ground: index !== LAYERS.objects, triangles: { positions, normals, colors, count: triLength / 3 }, lines: { positions: linePositions, colors: lineColors, count: linLength / 3 } };
+  });
   const W = stage.stage.width, D = stage.stage.depth;
   const min: Vec3 = [0, -D, 0], max: Vec3 = [W, 0, Math.max(top, 1)];
   const center: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, 0];
+  return { layers, pick, labels, bounds: { min, max, center, radius: Math.hypot(W, D, max[2]) / 2 } };
+}
+
+/** Vertex totals across layers (tests and diagnostics). */
+export function sceneTotals(scene: Scene) {
+  const join = (pick: (l: SceneLayer) => Float32Array) => { const parts = scene.layers.map(pick), out = new Float32Array(parts.reduce((n, p) => n + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; };
   return {
-    triangles: { positions, normals, colors, count: triLength / 3 },
-    lines: { positions: linePositions, colors: lineColors, count: linLength / 3 },
-    pick, labels, bounds: { min, max, center, radius: Math.hypot(W, D, max[2]) / 2 },
+    triangles: { positions: join(l => l.triangles.positions), normals: join(l => l.triangles.normals), colors: join(l => l.triangles.colors), count: scene.layers.reduce((n, l) => n + l.triangles.count, 0) },
+    lines: { positions: join(l => l.lines.positions), colors: join(l => l.lines.colors), count: scene.layers.reduce((n, l) => n + l.lines.count, 0) },
   };
 }
 

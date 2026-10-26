@@ -1,5 +1,7 @@
 # 3D view and eye-level walk - 2026-10-25
 
+- Fixed (batch 11, from an independent review): ON THE MOVE lasting about an inch; a first position on the start box not selectable; route tools staying in 3D; ground layers flickering on 16-bit depth buffers; USPSA rules used for IDPA visibility without route settings; a flaky route-assistant timing test (two clocks).
+
 - To check on a device after the next build (3D needs `expo-gl`, a native module): orbit and pinch feel, dragging a selected object, frame rate on a large stage, the eye view's scrubber, day/night colours outdoors.
 - Known limits: sight lines in the eye view are plan-view lines with wall heights (same assumption as the planner); targets do not cast shadows or show scoring zones in 3D; route editing stays in 2D.
 

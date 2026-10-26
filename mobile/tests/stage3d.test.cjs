@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), ts = require('typescript');
 require.extensions['.ts'] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, f);
 const M = require('../src/stage3d/math.ts');
-const { buildScene, pickObject, shortTargetLabel } = require('../src/stage3d/scene.ts');
+const { buildScene: build, pickObject, shortTargetLabel, sceneTotals } = require('../src/stage3d/scene.ts');
+// Most checks look at all layers together.
+const buildScene = (...args) => { const scene = build(...args); return { ...scene, ...sceneTotals(scene) }; };
 const C = require('../src/stage3d/camera.ts');
 const W = require('../src/stage3d/walk.ts');
 const { dayPalette, nightPalette } = require('../src/ui/tokens.ts');
@@ -149,11 +151,15 @@ test('walk: follows the route, and says what to engage on the move, at the stop,
   const sight = W.sightStage(stage, plan);
   for (const w of walk.windows) {
     assert.ok(w.from <= w.at && w.at <= w.to && w.to <= walk.length + 1e-6);
-    const during = W.targetStatuses(stage, plan, walk, W.walkPoint(walk, (w.from + w.at) / 2), sight).find(s => s.targetId === w.targetId);
-    assert.equal(during.state, 'moving', JSON.stringify(during));
-    assert.match(during.detail, /yd of window left/);
-    const after = W.targetStatuses(stage, plan, walk, W.walkPoint(walk, Math.min(walk.length - 1, w.at + 2)), sight).find(s => s.targetId === w.targetId);
-    assert.equal(after.state, 'done');
+    // ON THE MOVE for the whole stretch of legal walking (the plan may take it anywhere in it), DONE after it.
+    for (const d of [w.from + 1, (w.from + w.to) / 2, w.to - 1]) {
+      const during = W.targetStatuses(stage, plan, walk, W.walkPoint(walk, d), sight).find(s => s.targetId === w.targetId);
+      assert.equal(during.state, 'moving', d + ' ' + JSON.stringify(during));
+      assert.match(during.detail, /yd of window left/);
+    }
+    if (w.to + 2 < walk.length) assert.equal(W.targetStatuses(stage, plan, walk, W.walkPoint(walk, w.to + 2), sight).find(s => s.targetId === w.targetId).state, 'done');
+    // Stepping a yard at a time along the stretch lands on ON THE MOVE.
+    assert.ok(Array.from({ length: Math.floor(walk.length / 36) + 1 }, (_, i) => i * 36).some(d => d >= w.from && d <= w.to));
   }
   const end = W.walkPoint(walk, walk.length);
   assert.equal(end.stop.label, 'P1');
@@ -203,4 +209,49 @@ test('scene cache: unchanged objects are reused, edits and selection never show 
   assert.ok(after.pick.filter(t => t.objectId === 'T').every((t, i) => t === first.pick.filter(p => p.objectId === 'T')[i]), 'the untouched target is reused');
   assert.ok(same(buildScene(moved, dayPalette, { selectedId: 'T' }), buildScene(JSON.parse(JSON.stringify(moved)), dayPalette, { selectedId: 'T' })), 'selection change');
   assert.ok(same(buildScene(moved, nightPalette, {}), buildScene(JSON.parse(JSON.stringify(moved)), nightPalette, {})), 'theme change');
+});
+
+test('walk: a first position on the start box, route order for facing, ruleset and standing-only notes', () => {
+  // An open bay: P1 is on the start point (a 0 in leg, so START and P1 share a point), P2 further right.
+  const stage = createDefaultStage(undefined, { size: { width: 600, depth: 480 } });
+  stage.objects = [createObject('start', 'start', 300, 440), createObject('cardboardTarget', 'T', 300, 60), createObject('cardboardTarget', 'U', 500, 60)];
+  const stacked = createPlan(); stacked.route = createRoute('r');
+  stacked.route.engagementRules = { ...defaultEngagementRules(stage), firingAreas: [box('A', 20, 300, 560, 160)] };
+  stacked.route.positions = [
+    { id: 'P1', label: 'P1', position: at(300, 440), visibleTargetIds: ['T'], engagedTargetIds: ['T'] },
+    { id: 'P2', label: 'P2', position: at(500, 440), visibleTargetIds: ['U'], engagedTargetIds: ['U'] }];
+  const route = stacked.route;
+  const walk = W.buildWalk(stage, route), sight = W.sightStage(stage, stacked);
+  assert.equal(walk.stops[1].distance, 0);
+  assert.deepEqual(walk.standing, { P1: ['T'], P2: ['U'] }, JSON.stringify(walk.analysis.warnings));
+  const atP1 = W.walkPoint(walk, 0);
+  assert.equal(atP1.stop.label, 'P1', 'the later of two stops at one point by default');
+  const here = W.targetStatuses(stage, stacked, walk, atP1, sight);
+  assert.equal(here.find(s => s.targetId === 'T').state, 'here');
+  assert.notEqual(here.find(s => s.targetId === 'U').state, 'done');
+  const atStart = W.walkPoint(walk, 0, 'start');
+  assert.equal(atStart.stop.label, 'START', 'chosen explicitly');
+  const startStatuses = W.targetStatuses(stage, stacked, walk, atStart, sight);
+  assert.ok(startStatuses.every(s => s.state !== 'here' && s.state !== 'done'));
+  // Facing from START: P1's target (next in route order), not P2's.
+  near(W.suggestedHeading(stage, walk, atStart, startStatuses), -90, 1e-6);
+  // At P2, P1's target is done, by order as well as distance.
+  assert.equal(W.targetStatuses(stage, stacked, walk, W.walkPoint(walk, walk.length), sight).find(s => s.targetId === 'T').state, 'done');
+
+  // Route order beats distance: a standing stop before a later moving stretch is faced first.
+  const synthetic = { legs: [], stops: [{ id: 's', label: 'START', distance: 0, point: p(100, 440) }], length: 100, path: [], analysis: null, standing: {},
+    windows: [{ targetId: 'U', waypointId: 'P2', from: 50, to: 90, at: 50, path: [] }], order: [{ targetId: 'T', kind: 'standing', stopIndex: 1 }, { targetId: 'U', kind: 'moving', stopIndex: 2 }] };
+  const legal = ['T', 'U'].map(id => ({ targetId: id, state: 'legal' }));
+  near(W.suggestedHeading(stage, synthetic, { point: p(100, 440), distance: 0, heading: null, leg: null, stop: synthetic.stops[0] }, legal), Math.atan2(60 - 440, 300 - 100) * 180 / Math.PI, 1e-6);
+
+  // Without route settings, the match's ruleset decides walls and non-threats.
+  assert.equal(W.sightStage(stage, createPlan(), 'IDPA').stage.ruleset, 'IDPA');
+  assert.equal(W.sightStage(stage, createPlan()).stage.ruleset, 'USPSA');
+
+  // Moving engagement off: mid-leg, a legal target is legal standing there but not on the move.
+  const { stage: s2, plan: p2 } = gallery();
+  p2.route.engagementRules = { ...p2.route.engagementRules, allowMoving: false };
+  const w2 = W.buildWalk(s2, p2.route), mid = W.walkPoint(w2, w2.length / 2);
+  const legalMid = W.targetStatuses(s2, p2, w2, mid).filter(s => s.state === 'legal');
+  assert.ok(legalMid.every(s => /not on the move \(moving engagement is off/.test(s.detail)), JSON.stringify(legalMid));
 });

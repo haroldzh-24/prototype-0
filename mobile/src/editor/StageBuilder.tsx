@@ -251,9 +251,13 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const feetText = (inches: number) => inches >= 12 ? `${Math.floor(inches / 12)} ft${Math.round(inches % 12) ? ' ' + Math.round(inches % 12) + ' in' : ''}` : `${Math.round(inches)} in`;
   const route3d = useMemo(() => {
     if (viewMode !== '3d' || !(routeMode || routeVisible) || !plan.route?.positions.length) return undefined;
-    const walk = buildWalk(stage, plan.route);
+    // Reuse the route evaluation's engagement analysis rather than running it a second time on every drag.
+    const walk = buildWalk(stage, plan.route, routeEvaluation?.engagementAnalysis);
     return { path: walk.path, windows: walk.windows.map(w => w.path), stops: walk.stops.slice(1) };
-  }, [viewMode, routeMode, routeVisible, stage, plan.route]);
+  }, [viewMode, routeMode, routeVisible, stage, plan.route, routeEvaluation]);
+  // Route editing, previews and waypoint tools work on the 2D plan only, however they were opened.
+  useEffect(() => { if (routeEditing || engageMode || reviewMode || addingPoint || assignmentMode || preview || discoveryPreview) setViewMode(v => v === 'topDown' ? v : 'topDown'); },
+    [routeEditing, engageMode, reviewMode, addingPoint, assignmentMode, preview, discoveryPreview]);
   const zoom = (factor: number) => setViewport((current) => zoomViewport(current, current.zoom * factor, { x: 0, y: 0 }, { width: 0, height: 0 }));
 
   const stageFindings = checkStage(stage, plan.route?.engagementRules, targetFamily);
@@ -289,7 +293,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     {routeMode && !reviewMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} waypoints {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
     <View style={styles.canvas}>
       {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
-        viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} onExit={() => setViewMode('topDown')} /> :
+        viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={targetFamily} onExit={() => setViewMode('topDown')} /> :
         viewMode === '3d' ? <Stage3DView stage={stage} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
           onSelect={id => { if (!routeMode) setSelectedId(id); }} onExit={() => setViewMode('topDown')}
           onMoveStart={() => onDragging(true)} onMoveEnd={() => onDragging(false)}

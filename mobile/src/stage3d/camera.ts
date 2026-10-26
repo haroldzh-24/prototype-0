@@ -57,7 +57,8 @@ export function cameraMatrices(camera: Camera, aspect: number, sceneRadius: numb
   } else {
     const p = rad(camera.pitch), d = headingVector(camera.heading);
     target = [eye[0] + d[0] * Math.cos(p), eye[1] + d[1] * Math.cos(p), eye[2] + Math.sin(p)];
-    fov = EYE_FOV; near = 2; far = sceneRadius * 8 + 4000;
+    // A 6 in near plane keeps depth precision on phones with a 16-bit depth buffer.
+    fov = EYE_FOV; near = 6; far = sceneRadius * 8 + 4000;
   }
   const view = lookAt(eye, target, [0, 0, 1]), projection = perspective(fov, aspect, near, far);
   const viewProj = multiply(projection, view);

@@ -21,7 +21,7 @@ Undo, Save and the unsaved-changes guard are shared, because all three views edi
 - Eye height defaults to 5 ft 3 in and is adjusted with − / + (36–84 in), remembered on the device.
 - The scrubber under the view is the planned walk: stops are marks, green stretches are where the plan engages a target on the move. Drag along it, step a yard with ◀ ▶, or jump to START, P1, P2… The view turns toward what the plan engages at that point (drag to look around; RE-AIM to turn back).
 - For every scoring target the list says, for that exact spot:
-  - **ON THE MOVE** — the plan engages it on this stretch, with the yards of legal walking left;
+  - **ON THE MOVE** — the plan engages it on this stretch (anywhere along it), with the yards of legal walking left;
   - **FROM HERE** — engaged standing at this stop;
   - **LEGAL** — not planned here but legal (firing area, safe angle, steel distance, line of sight), with the visible share of the face;
   - **VISIBLE** — can be seen but not legally engaged here, with the reason (outside its firing area, outside the safe angle, steel too close);
@@ -33,6 +33,7 @@ Undo, Save and the unsaved-changes guard are shared, because all three views edi
 
 - `src/stage3d/math.ts` (matrices, rays, triangulation), `scene.ts` (vertex arrays, pick triangles, labels), `camera.ts` (orbit and eye cameras, fit), `walk.ts` (route walk and per-target status) are pure TypeScript and unit-tested (`tests/stage3d.test.cjs`).
 - `scene.ts` caches each object's geometry by the object (the editor replaces objects on every edit, never mutates them), so a drag rebuilds one object, not the stage.
+- Ground, grid, markings and the route are drawn back to front without depth tests between them (they lie within an inch of the ground, too close for a 16-bit depth buffer at range); walls and targets are drawn after them with depth testing.
 - `renderer.ts` is a small WebGL 1 renderer (two-sided lit triangles and lines), drawn on demand rather than every frame. No three.js: from reading both sources, three.js 0.186 would refuse expo-gl's WebGL 2 context (expo-gl 56.0.5+ makes it an instance of `WebGLRenderingContext`, which three takes for WebGL 1), and the stage needs only coloured polygons.
 - `GLStage.tsx` loads `expo-gl` lazily. If its native module is missing or the GL context fails, the view shows a message and the older 2.5D preview instead of crashing.
 - World space is right-handed with Z up: world = (stage x, −stage y, stage z), so the plan seen from above matches the 2D editor.

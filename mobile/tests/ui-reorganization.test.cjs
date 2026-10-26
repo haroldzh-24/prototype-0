@@ -673,11 +673,16 @@ test('3D and eye-level views share the document: select, move, raise and rotate 
   h.child('Stage3DView').onSelect(target.id); h.render(); h.press('Raise the target');
   assert.equal(h.child('Stage3DView').stage.objects.find(o => o.id === target.id).position.z, target.position.z + 3);
   h.press('Eye-level view');
-  assert.ok(h.nodes().some(n => n.type === 'EyeLevelView'));
+  assert.equal(h.child('EyeLevelView').ruleset, 'USPSA', 'visibility follows the match ruleset');
   assert.ok(!h.nodes().some(n => n.props?.title === 'SELECT'), 'the bottom bar steps aside for the walk-through');
   h.child('EyeLevelView').onExit(); h.render();
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
-  // Route editing tools are plan-only.
+  // Route editing tools are plan-only, however they are opened (PATH, the route bar's EDIT, Edit manually).
   h.press('3D view'); h.press('ROUTE'); h.press('PATH');
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
+  h.press('DONE'); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
+  h.press('Edit manually'); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'Edit manually returns to the plan');
+  h.press('DONE'); h.press('3D view'); h.press('EDIT'); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'StageViewport'), 'the route bar EDIT returns to the plan');
 });

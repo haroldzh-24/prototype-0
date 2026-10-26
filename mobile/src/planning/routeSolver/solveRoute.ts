@@ -24,9 +24,10 @@ export function settleInsideAreas(c: RouteCandidate, g: Geometry): RouteCandidat
   return {...c,waypoints:points,totalDistanceInches:distance,score:distance};
 }
 export function solveRoute(input: RouteSolverInput): RouteSolverResult {
-  const started=Date.now();
+  // Same clock as the route assistant that reports this duration (Date.now() rounds to whole milliseconds).
+  const started=performance.now();
   const diagnostics:Diagnostics={solverVersion:SOLVER_VERSION,rawFaultSegmentCount:0,interpretedFaultRegionCount:0,endpointMerges:0,inferredGapClosures:0,graphNodeCount:0,graphEdgeCount:0,searchIterations:0,routesEvaluated:0,prunedCandidates:0,waypointReductions:0,finalDistance:null,solveDurationMs:0,warnings:[],unresolvedRequiredAreas:[]};
-  const finish=(status:RouteSolverResult['status'],bestRoute:RouteSolverResult['bestRoute']=null,alternatives:RouteSolverResult['alternatives']=[]):RouteSolverResult=>{diagnostics.solveDurationMs=Date.now()-started;diagnostics.finalDistance=bestRoute?.totalDistanceInches??null;return {status,bestRoute,alternatives,diagnostics};};
+  const finish=(status:RouteSolverResult['status'],bestRoute:RouteSolverResult['bestRoute']=null,alternatives:RouteSolverResult['alternatives']=[]):RouteSolverResult=>{diagnostics.solveDurationMs=performance.now()-started;diagnostics.finalDistance=bestRoute?.totalDistanceInches??null;return {status,bestRoute,alternatives,diagnostics};};
   const finite=(p:{x:number;y:number})=>!!p&&Number.isFinite(p.x)&&Number.isFinite(p.y);
   const options=input.options??{};
   if(input.stage.objects.some(o=>!finite(o.position)||!Number.isFinite(o.rotation)||((o.type==='wall'||o.type==='faultLine')&&(!Number.isFinite(o.geometry.length)||o.geometry.length<=0||(o.endpoints&&(!finite(o.endpoints.start)||!finite(o.endpoints.end)))||(o.type==='wall'&&(!Number.isFinite(o.geometry.thickness)||o.geometry.thickness<0)))))||(input.allowedTravelRegions&&input.allowedTravelRegions.some(r=>r.length<3||!r.every(finite)))){diagnostics.warnings.push('Invalid stage or allowed-travel geometry.');return finish('invalid-input');}
