@@ -9,8 +9,10 @@
 export type CurvePoint = { yards: number; seconds: number; runs: number };
 export type TransitionFit = {
   baseSeconds: number; secondsPerDegree: number; runs: number; minDegrees: number; maxDegrees: number;
-  /** FIT: 2+ swings far enough apart. AVERAGE: one swing size, so the mean (no per-degree cost). */
+  /** FIT: 2+ swings far enough apart. AVERAGE: the mean, no per-degree cost (see `reason`). */
   method: 'FIT' | 'AVERAGE';
+  /** Why AVERAGE: every run at about one swing size, or wider swings were not slower in your runs. */
+  reason?: 'ONE_SIZE' | 'NO_TREND';
 };
 export type EngagementModel = { transitions?: TransitionFit; partialSplits?: CurvePoint[]; steelPlates?: CurvePoint[] };
 
@@ -34,7 +36,7 @@ export function fitTransitions(samples: readonly { degrees: number; seconds: num
     const sxx = xs.reduce((s, x) => s + (x - mx) ** 2, 0), slope = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / sxx;
     if (slope > 0 && my - slope * mx >= 0) return { baseSeconds: my - slope * mx, secondsPerDegree: slope, method: 'FIT', ...range };
   }
-  return { baseSeconds: my, secondsPerDegree: 0, method: 'AVERAGE', ...range };
+  return { baseSeconds: my, secondsPerDegree: 0, method: 'AVERAGE', reason: range.maxDegrees - range.minDegrees >= SAME_SWING ? 'NO_TREND' : 'ONE_SIZE', ...range };
 }
 
 /** Mean seconds per distance (pooled within half a yard). */
@@ -48,9 +50,13 @@ export function buildCurve(samples: readonly { yards: number; seconds: number }[
 }
 
 export type CurveAt = { seconds: number; runs: number; source: 'MEASURED' | 'BETWEEN'; fromYards: number[] };
+/** Within half a yard of your closest or farthest logged distance counts as that distance. */
+export const SNAP_YARDS = 0.5;
 /** Within your logged distances only (no extrapolation): measured, or blended between the two nearest. */
-export function curveAt(points: readonly CurvePoint[] | undefined, yards: number): CurveAt | null {
-  if (!points?.length || !Number.isFinite(yards)) return null;
+export function curveAt(input: readonly CurvePoint[] | undefined, at: number): CurveAt | null {
+  if (!input?.length || !Number.isFinite(at)) return null;
+  const points = [...input].sort((a, b) => a.yards - b.yards), first = points[0].yards, last = points[points.length - 1].yards;
+  const yards = Math.abs(at - first) <= SNAP_YARDS ? first : Math.abs(at - last) <= SNAP_YARDS ? last : at;
   const exact = points.find(p => Math.abs(p.yards - yards) < 0.25);
   if (exact) return { seconds: exact.seconds, runs: exact.runs, source: 'MEASURED', fromYards: [exact.yards] };
   const above = points.findIndex(p => p.yards > yards);
@@ -59,10 +65,12 @@ export function curveAt(points: readonly CurvePoint[] | undefined, yards: number
   return { seconds: lo.seconds + (hi.seconds - lo.seconds) * t, runs: lo.runs + hi.runs, source: 'BETWEEN', fromYards: [lo.yards, hi.yards] };
 }
 
-export type TransitionAt = { seconds: number; fit: TransitionFit; beyondData: boolean };
+/** `outside`: the swing is wider or narrower (by more than 5°) than any you logged; the time extends your runs. */
+export type TransitionAt = { seconds: number; fit: TransitionFit; outside: 'WIDER' | 'NARROWER' | null };
 export function transitionAt(fit: TransitionFit | undefined, degrees: number): TransitionAt | null {
   if (!fit || !Number.isFinite(degrees) || degrees < 0) return null;
-  return { seconds: fit.baseSeconds + fit.secondsPerDegree * degrees, fit, beyondData: fit.method === 'FIT' && degrees > fit.maxDegrees + SAME_SWING };
+  const outside = degrees > fit.maxDegrees + SAME_SWING ? 'WIDER' : degrees < fit.minDegrees - SAME_SWING ? 'NARROWER' : null;
+  return { seconds: fit.baseSeconds + fit.secondsPerDegree * degrees, fit, outside };
 }
 
 const validCurve = (c: unknown): c is CurvePoint[] => Array.isArray(c) && c.length > 0 && c.length <= 200
@@ -71,7 +79,8 @@ const validFit = (f: unknown): f is TransitionFit => {
   const x = f as TransitionFit;
   return !!x && typeof x === 'object' && Number.isFinite(x.baseSeconds) && x.baseSeconds >= 0 && x.baseSeconds < 10
     && Number.isFinite(x.secondsPerDegree) && x.secondsPerDegree >= 0 && x.secondsPerDegree < 1 && Number.isSafeInteger(x.runs) && x.runs > 0
-    && Number.isFinite(x.minDegrees) && Number.isFinite(x.maxDegrees) && x.maxDegrees >= x.minDegrees && ['FIT', 'AVERAGE'].includes(x.method);
+    && Number.isFinite(x.minDegrees) && Number.isFinite(x.maxDegrees) && x.maxDegrees >= x.minDegrees && ['FIT', 'AVERAGE'].includes(x.method)
+    && (x.reason === undefined || ['ONE_SIZE', 'NO_TREND'].includes(x.reason));
 };
 /** Keeps well-formed parts only (saved profiles are untrusted). */
 export function validEngagementModel(input: unknown): EngagementModel | undefined {

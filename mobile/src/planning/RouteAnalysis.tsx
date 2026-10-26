@@ -41,10 +41,10 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
   /** Lets ANALYZE apply planned reloads to the route. */
   onRouteChange?: (route: StageRoute) => void;
 }) {
-  const [details, setDetails] = useState(false), [reloadNote, setReloadNote] = useState('');
+  const [details, setDetails] = useState(false), [reloadNote, setReloadNote] = useState<{ text: string; ok: boolean; reloads: string } | null>(null);
   const result = evaluateRoute(stage, plan, route, profile), analysis = result.engagementAnalysis;
   const points = estimateStagePoints(stage, plan, route, profile, ruleset, powerFactor);
-  const time = estimateStageTime(stage, plan, route, profile), [timeDetails, setTimeDetails] = useState(false);
+  const time = estimateStageTime(stage, plan, route, profile, result), [timeDetails, setTimeDetails] = useState(false);
   const sec = (v: number) => v.toFixed(2) + ' s';
   // A hit factor needs the whole stage: every target routed, with planned rounds, estimated and timed.
   const scoring = stage.objects.filter(isEngageable);
@@ -84,9 +84,12 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
     {route.reloads.map(r => { const at = route.positions.findIndex(p => p.id === r.positionId);
       return at >= 0 && <Copy key={r.positionId}>{`Reload ${(r.mode ?? 'moving') === 'moving' ? 'on the move into' : 'standing at'} ${at + 1}. ${route.positions[at].label}`}</Copy>; })}
     {onRouteChange && result.ammo.some(a => !a.sufficient) && <Action title="PLAN RELOADS" accessibilityLabel="Plan reloads around magazine capacity" onPress={() => {
-      const planned = planReloads(stage, plan, route, profile); setReloadNote(planned.note); if (planned.added) onRouteChange(planned.route);
+      // Only a plan that carries every position is applied; otherwise the note says what is missing.
+      const planned = planReloads(stage, plan, route, profile, result);
+      setReloadNote({ text: planned.note, ok: planned.complete, reloads: JSON.stringify(planned.complete ? planned.route.reloads : route.reloads) });
+      if (planned.complete && planned.added) onRouteChange(planned.route);
     }} />}
-    {!!reloadNote && <Notice tone={result.ammo.every(a => a.sufficient) ? 'success' : 'warning'}>{reloadNote}</Notice>}
+    {reloadNote && reloadNote.reloads === JSON.stringify(route.reloads) && <Notice tone={reloadNote.ok ? 'success' : 'warning'}>{reloadNote.text}</Notice>}
     <Copy>TIMING</Copy>
     {time.available ? <><DataRow label={result.warnings.length ? 'Provisional total' : 'Estimated total'} value={sec(time.total)} />
       <DataRow label="Movement" value={sec(time.movement)} />
@@ -97,11 +100,12 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
       <DataRow label="Reloads" value={sec(time.reloads)} />
       {time.sources.map((line, i) => <Copy key={i}>{line}</Copy>)}
       <Action title={timeDetails ? 'Hide time by position' : 'Time by position'} onPress={() => setTimeDetails(!timeDetails)} />
+      {timeDetails && time.draw > 0 && <DataRow label="Draw (start)" value={sec(time.draw)} />}
       {timeDetails && time.positions.map((p, i) => <View key={p.positionId} style={{ gap: 2 }}>
         <DataRow label={`${i + 1}. ${p.label}`} value={sec(p.seconds)} />
         <Copy>{[p.arrival > 0 ? `move ${sec(p.arrival)}` : '', p.reload > 0 ? `reload ${sec(p.reload)}` : '',
           ...p.targets.map(t => `${t.label} ${formatYardsFixed(yardsToInches(t.yards), 1)}: ` + [t.transition ? `transition ${sec(t.transition.seconds)} (${Math.round(t.transition.degrees)}°)` : '',
-            t.splits ? `${t.splits} × ${sec(t.secondsPerSplit)} split${t.splitSource === 'AVERAGE' ? ' (single value)' : ''}` : '',
+            t.splits ? `${t.splits} × ${sec(t.secondsPerSplit)} split${t.splitSource === 'SINGLE' ? ' (single value)' : ''}` : '',
             t.makeups > 0 ? `${t.makeups.toFixed(2)} makeups` : ''].filter(Boolean).join(', ')).filter(Boolean)].filter(Boolean).join(' · ')}</Copy>
       </View>)}</> : <Copy>{time.reason}</Copy>}
     {analysis?.nodes.some(n => n.kind === 'moving') && <><Copy>MOVING-FIRE TIMING</Copy><Copy>Unavailable</Copy><Action title={details ? 'Hide Details' : 'Details'} onPress={() => setDetails(!details)} />{details && <Copy>The current performance model does not estimate firing while moving. Route geometry and target coverage remain available.</Copy>}</>}

@@ -1,3 +1,12 @@
+# RC2 batch 19b: fixes from the independent review of batch 19 - 2026-10-26
+
+11 confirmed defects, each with a regression test (`tests/stageTime.test.cjs`, `tests/ui-reorganization.test.cjs`); the reviewer also confirmed the swing angle, fits, interpolation and makeup maths, and that the estimate matched the evaluator in 400 random cases without models (except the double-count below):
+- **PLAN RELOADS** could miss plans that work, blame the wrong thing, replace your own reloads and apply half a plan. It is now an exact search over the whole route (checked against brute force on 236 random routes: no misses, no invalid plans), keeps your reloads and their modes, never reloads on a leg shot on the move, applies only complete plans and says what is missing. It no longer re-runs the full analysis dozens of times (a large ruled stage took seconds), and ANALYZE evaluates the route once.
+- A target engaged at two positions was timed twice; it now counts once, as in the evaluator.
+- The TIMING source lines say how a single value is backed (measured, typed in or the generic default), don't claim a split curve you don't have, flag swings wider or narrower than any you logged (also for a one-size average), say when a steel miss rate comes from your nearest logged distance, and say when moves use your average speed only. Steel per plate and partial-target splits snap to a logged distance within ½ yd, like the split curve. Time by position shows the draw.
+- Your numbers: the transition note says why it is one average (one swing size, or wider swings not slower), and the note about which runs are kept separately is corrected.
+- Validation: 994/994 tests (2 new, several extended), TypeScript passed. Web build rechecked. No device testing.
+
 # RC2 batch 19: milestone C4 — stage time from your numbers, reloads around magazine capacity - 2026-10-26
 
 - **ANALYZE → TIMING now uses your numbers:** splits at each target's distance (your split curve; partly covered targets use your partial-target curve), transitions by how far the gun swings between targets (your swing fit from Blake / Wide transitions / El Presidente), steel at your time per plate plus expected makeup shots, moves from your move fit. Parts without data use your single values, and ANALYZE says which ("your split curve for 3 targets", "1 transition uses your single transition value"). TIME BY POSITION breaks it down. The estimated hit factor divides by this time.

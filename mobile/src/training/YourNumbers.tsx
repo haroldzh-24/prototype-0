@@ -66,11 +66,12 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
       {moveFitAll && <DataRow label="Move time (used for legs)" value={fitText(moveFitAll)} />}
       {engagement?.transitions && <DataRow label="Transitions by swing" value={engagement.transitions.method === 'FIT'
         ? `${s2(engagement.transitions.baseSeconds)} + ${(engagement.transitions.secondsPerDegree * 10).toFixed(2)} s per 10° · ${runs(engagement.transitions.runs)}, ${Math.round(engagement.transitions.minDegrees)}–${Math.round(engagement.transitions.maxDegrees)}°`
-        : `${s2(engagement.transitions.baseSeconds)} at any swing (${runs(engagement.transitions.runs)} at one swing size; log a wider array)`} />}
+        : `${s2(engagement.transitions.baseSeconds)} at any swing (${runs(engagement.transitions.runs)}, ` + (engagement.transitions.reason === 'NO_TREND'
+          ? `${Math.round(engagement.transitions.minDegrees)}–${Math.round(engagement.transitions.maxDegrees)}°: wider swings were not slower yet; log more runs)` : 'all at one swing size; log a wider array)')} />}
       {splitCurve.length > 0 && <DataRow label="Splits by distance" value={splitCurve.map(c => `${c.difficulty} yd ${s2(c.splitTime)}`).join(' · ')} />}
       {engagement?.partialSplits && <DataRow label="Partial-target splits" value={engagement.partialSplits.map(c => `${c.yards} yd ${s2(c.seconds)}`).join(' · ')} />}
       {engagement?.steelPlates && <DataRow label="Steel per plate" value={engagement.steelPlates.map(c => `${c.yards} yd ${s2(c.seconds)}`).join(' · ')} />}
-      <Copy>Splits, transitions and reloads above are standing square on full paper; moving, steel, partial-target and port runs are kept separately below.</Copy>
+      <Copy>Draw, split, transition and reload values are from standing square on full paper; partial-target and steel rows are their own. Moving and port/lean runs are kept separately below and don't change these.</Copy>
     </>, true)}
     {context !== planning && <Copy>The planner uses your {contextLabels[planning].toLowerCase()} numbers. These {contextLabels[context].toLowerCase()} numbers are for comparison.</Copy>}
     {!n.runs && <Copy>No drill-library runs in {contextLabels[context].toLowerCase()} yet. Open a session and choose LOG LIBRARY DRILL.</Copy>}

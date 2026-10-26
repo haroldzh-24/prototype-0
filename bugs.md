@@ -1,3 +1,7 @@
+# Fixed 2026-10-26 (batch 19b)
+
+- From the independent review of batch 19 (11 confirmed; see changelog): PLAN RELOADS missing workable plans, overwriting your reloads, breaking moving engagements and freezing large stages; a target engaged twice timed twice; misleading timing sources; steel and partial curves not snapping to nearby distances; time by position without the draw.
+
 # Fixed 2026-10-26 (batch 18b)
 
 - From the independent review of batch 18 (12 confirmed; see changelog): one planned round scored as two, planned pairs assuming 0% misses, total-only and older runs missing from hit shares, no-shoot penalties ignored on hostages, PCSL T runs inflating A shares, rule citations (PCSL extra hits, steel), misleading hit-factor messages, cut faces shown as 100% open.
