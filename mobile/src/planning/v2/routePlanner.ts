@@ -154,9 +154,10 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
     if ((legalCount.get(targetId) ?? 0) > 0) return ['UNREACHABLE'];
     const seen = failures.get(targetId)!;
     if (seen.has('IDPA_AREAS_REQUIRED')) return ['IDPA_AREAS_REQUIRED'];
-    // Report the furthest stage a candidate reached: area -> safe angle -> line of sight.
+    // Report the furthest stage a candidate reached: area -> steel distance -> safe angle -> line of sight.
     if (seen.has('OCCLUDED')) return ['OCCLUDED'];
     if (seen.has('OUTSIDE_SAFE_ANGLE')) return ['OUTSIDE_SAFE_ANGLE'];
+    if (seen.has('STEEL_TOO_CLOSE')) return ['STEEL_TOO_CLOSE'];
     return ['NO_ALLOWED_AREA'];
   };
 
@@ -194,7 +195,9 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
     version: 2 as const, start: stage.start, errors: [],
     safety: { downrangeDegrees: stage.downrangeDegrees, safeHalfAngleDegrees: half,
       checked: [`Every sampled point of each engaged target face is within ±${half}° of downrange (${Math.round(stage.downrangeDegrees)}°) from its shooting position.`,
-        'Shooting positions are strictly inside a firing area allowed for the target.', 'Line of sight reaches the target face past walls, ports' + (policy === 'occlude' ? ', other target faces and no-shoots.' : '; shots passing a non-threat are flagged.'),
+        'Shooting positions are strictly inside a firing area allowed for the target.',
+        `Steel is engaged only from at least ${Math.round(stage.steelMinInches)} in away, measured from the feet (${stage.ruleset} minimum).`,
+        'Line of sight reaches the target face past walls, ports' + (policy === 'occlude' ? ', other target faces and no-shoots.' : '; shots passing a non-threat are flagged.'),
         ...(hasProcedures ? ['Stage procedures: allowed firing areas per target and "engage after" order.'] : [])],
       notChecked: stage.ruleset === 'IDPA' ? [...NOT_CHECKED, ...IDPA_NOT_CHECKED] : NOT_CHECKED, nearSafeAngle: [] as RoutePlan['safety']['nearSafeAngle'] },
   };

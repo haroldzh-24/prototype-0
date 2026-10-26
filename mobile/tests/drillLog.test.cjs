@@ -18,20 +18,21 @@ function open() {
     getAllAsync: async (sql, ...a) => db.prepare(sql).all(...a), getFirstAsync: async (sql, ...a) => db.prepare(sql).get(...a) ?? null }, randomUUID) };
 }
 
-test('USPSA scoring uses Appendix B1 values; B scores as C; misses are counted, not penalized here', () => {
+test('USPSA scoring uses Appendix B1 values; B scores as C; each missing hit costs 10 (9.4)', () => {
   const hits = [hit(1, 0, 0, 'A'), hit(2, 1, 1, 'B'), hit(3, 2, 2, 'C'), hit(4, 3, 3, 'D'), hit(5, null, null, 'M'), hit(6, 4, 4, null)];
   const minor = D.scoreRun({ hits, family: 'USPSA' }, 'minor');
-  assert.equal(minor.points, 5 + 3 + 3 + 1); assert.equal(minor.misses, 1); assert.equal(minor.untagged, 1);
-  assert.equal(D.scoreRun({ hits, family: 'USPSA' }, 'major').points, 5 + 4 + 4 + 2);
+  assert.equal(minor.points, 5 + 3 + 3 + 1 - 10); assert.equal(minor.misses, 1); assert.equal(minor.untagged, 1);
+  assert.equal(D.scoreRun({ hits, family: 'USPSA' }, 'major').points, 5 + 4 + 4 + 2 - 10);
 });
 
-test('PCSL scoring includes T zone and -10 per miss; IDPA counts points down with -5 per miss', () => {
+test('PCSL scoring counts a T as two A hits against the required count; IDPA counts points down with -5 per miss', () => {
+  // Five shots logged, five hits required: the T covers two of them, so the tagged miss is not a missing hit (11.3.4).
   const pcsl = D.scoreRun({ family: 'PCSL', hits: [hit(1, 0, 0, 'T'), hit(2, 0, 1, 'A'), hit(3, 0, 2, 'C'), hit(4, 0, 3, 'D'), hit(5, null, null, 'M')] });
-  assert.equal(pcsl.points, 10 + 5 + 3 + 1 - 10);
+  assert.equal(pcsl.points, 10 + 5 + 3 + 1); assert.equal(pcsl.misses, 0);
   const idpa = D.scoreRun({ family: 'IDPA', hits: [hit(1, 0, 0, '-0'), hit(2, 0, 1, '-1'), hit(3, 0, 2, '-3'), hit(4, null, null, 'M')] });
   assert.equal(idpa.pointsDown, 0 + 1 + 3 + 5); assert.equal(idpa.points, null);
   assert.equal(D.scoreRun({ family: null, hits: [] }).method, 'Untagged');
-  assert.deepEqual(D.zoneChoices.USPSA, ['A', 'C', 'D', 'M']);
+  assert.deepEqual(D.zoneChoices.USPSA, ['A', 'C', 'D', 'M', 'NS']);
 });
 
 test('group statistics come from coordinates only: centre, offset, spread, mean radius, SD and MOA', () => {
@@ -55,6 +56,10 @@ test('validation rejects malformed runs and accepts real ones', () => {
   assert.equal(D.drillRunProblem(run([hit(1, 0, 0, 'A'), hit(2, null, null, 'M')])), null);
   assert.match(D.drillRunProblem(run([hit(1, null, 2)])), /both coordinates/);
   assert.match(D.drillRunProblem(run([hit(1, null, null, 'A')])), /Only misses/);
+  assert.equal(D.drillRunProblem(run([hit(1, null, null, 'NS'), hit(2, null, null, 'NT')])), null, 'penalty hits need no coordinates');
+  assert.match(D.drillRunProblem(run([], { requiredHits: -1 })), /required hits/);
+  assert.match(D.drillRunProblem(run([], { procedurals: 1.5 })), /procedurals/);
+  assert.match(D.drillRunProblem(run([], { powerFactor: 'heavy' })), /power factor/);
   assert.match(D.drillRunProblem(run([hit(1, 100, 0)])), /outside/);
   assert.match(D.drillRunProblem(run([hit(1, 0, 0), { ...hit(2, 0, 0), id: 'h1' }])), /Invalid hit/);
   assert.match(D.drillRunProblem(run([], { distanceYards: -3 })), /distance/);

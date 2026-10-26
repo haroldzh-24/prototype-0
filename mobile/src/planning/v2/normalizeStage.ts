@@ -28,6 +28,8 @@ export type NormalizedStage = {
   /** The stage's own downrange, for reporting a mismatch. */
   stageDownrangeDegrees: number;
   ruleset: Ruleset;
+  /** Minimum distance from a shooting position to an engaged steel face, inches (ruleset default or override). */
+  steelMinInches: number;
   targets: TargetFace[];
   noShoots: TargetFace[];
   walls: Wall[];
@@ -38,6 +40,11 @@ export type NormalizedStage = {
 };
 
 const finite = (...values: number[]) => values.every(Number.isFinite);
+/**
+ * Closest legal distance for firing at steel, inches, by ruleset (pistol). USPSA 10.5.16: under 23 ft is a DQ;
+ * PCSL 1.8.1: 7 yd for pistol calibers; IDPA 2.14: steel closer than 10 yd is a DQ.
+ */
+export const STEEL_MIN_INCHES: Record<Ruleset, number> = { USPSA: 276, PCSL: 252, IDPA: 360 };
 /** Wall footprints are rectangles centred on the wall position (the frame wallEffect tests against). */
 function wallBounds(w: Wall): Bounds {
   const half = rotatedHalfExtents(w);
@@ -45,7 +52,8 @@ function wallBounds(w: Wall): Bounds {
 }
 const SIGHT_FRACTIONS = [0.1, 0.3, 0.5, 0.7, 0.9];
 
-function face(object: StageObject): TargetFace | null {
+/** Plan-view face of a target or no-shoot, or null for other objects. */
+export function targetFace(object: StageObject): TargetFace | null {
   if (object.type !== 'cardboardTarget' && object.type !== 'noShootTarget' && object.type !== 'steelPlate' && object.type !== 'steelPopper') return null;
   const extent = object.type === 'cardboardTarget' || object.type === 'noShootTarget'
     ? activeFaceExtent(object)
@@ -87,8 +95,9 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
   if (!(spacing >= 1 && spacing <= 120)) errors.push('Candidate spacing must be between 1 and 120 inches.');
   if (!(half > 0 && half <= 90)) errors.push('The safe half angle must be greater than 0 and at most 90 degrees.');
   if (options.downrangeDegrees !== undefined && !Number.isFinite(options.downrangeDegrees)) errors.push('The safe direction must be a finite angle.');
+  if (options.steelMinDistanceInches !== undefined && !(options.steelMinDistanceInches >= 0 && Number.isFinite(options.steelMinDistanceInches))) errors.push('The steel minimum distance must be zero or more inches.');
   if (errors.length || !start) return { errors };
-  const faces = doc.objects.map(face).filter((f): f is TargetFace => !!f);
+  const faces = doc.objects.map(targetFace).filter((f): f is TargetFace => !!f);
   const engageable = new Set(doc.objects.filter(isEngageable).map(o => o.id));
   return {
     errors,
@@ -98,6 +107,7 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
       downrangeDegrees: options.downrangeDegrees !== undefined ? ((options.downrangeDegrees % 360) + 360) % 360 : stageDownrange(doc),
       stageDownrangeDegrees: stageDownrange(doc),
       ruleset: options.ruleset ?? snapshot.ruleset ?? 'USPSA',
+      steelMinInches: options.steelMinDistanceInches ?? STEEL_MIN_INCHES[options.ruleset ?? snapshot.ruleset ?? 'USPSA'],
       targets: faces.filter(f => engageable.has(f.id)),
       noShoots: faces.filter(f => f.kind === 'no-shoot'),
       walls: doc.objects.filter((o): o is Wall => o.type === 'wall'),

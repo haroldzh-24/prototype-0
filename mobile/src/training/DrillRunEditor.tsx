@@ -42,11 +42,15 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
   const [run, setRun] = useState<DrillRun>(() => emptyRun(initialFamily, papers(initialFamily)[0]));
   const [selected, setSelected] = useState<string | null>(null), [aiming, setAiming] = useState(false);
   const [distance, setDistance] = useState(''), [time, setTime] = useState(''), [splits, setSplits] = useState('');
+  const [required, setRequired] = useState(''), [procedurals, setProcedurals] = useState('');
   const [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const height = preset ? DIAGRAM_WIDTH * preset.height / preset.width : DIAGRAM_WIDTH;
   const [size, setSize] = useState({ width: DIAGRAM_WIDTH, height });
   const stats = groupStats({ ...run, distanceYards: parseNumber(distance) });
-  const score = scoreRun({ ...run, family });
+  const parsedRequired = parseNumber(required), parsedProcedurals = parseNumber(procedurals);
+  const score = scoreRun({ ...run, family, totalTime: parseNumber(time),
+    requiredHits: parsedRequired !== null && Number.isInteger(parsedRequired) && parsedRequired >= 0 ? parsedRequired : null,
+    procedurals: parsedProcedurals !== null && Number.isInteger(parsedProcedurals) && parsedProcedurals >= 0 ? parsedProcedurals : 0 });
   const selectedHit = run.hits.find(h => h.id === selected);
   const changePreset = (f: TargetFamily, p: TargetPreset | undefined) => {
     setFamily(f); setPresetId(p?.id ?? '');
@@ -64,11 +68,12 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
   const renumber = (hits: DrillHit[]) => hits.map((h, i) => ({ ...h, order: i + 1 }));
   async function save() {
     const next: DrillRun = { ...run, family, distanceYards: parseNumber(distance), totalTime: parseNumber(time),
-      splits: splits.trim() ? splits.split(/[,\s]+/).filter(Boolean).map(Number) : [] };
+      splits: splits.trim() ? splits.split(/[,\s]+/).filter(Boolean).map(Number) : [],
+      requiredHits: parseNumber(required), procedurals: parseNumber(procedurals) ?? 0 };
     const problem = drillRunProblem(next);
     if (problem) { setError(problem); return; }
     setSaving(true);
-    try { await onSave(next); setRun(emptyRun(family, preset)); setSelected(null); setDistance(''); setTime(''); setSplits(''); }
+    try { await onSave(next); setRun(r => ({ ...emptyRun(family, preset), powerFactor: r.powerFactor })); setSelected(null); setDistance(''); setTime(''); setSplits(''); setProcedurals(''); }
     catch (e) { setError(String(e)); } finally { setSaving(false); }
   }
   return <EditorSheet title="LOG DRILL RUN" visible={visible} close={() => { if (!saving) onClose(); }}><Panel>
@@ -88,6 +93,7 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
     </Pressable>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
       <Action title="MISS" disabled={saving} onPress={() => { const hit: DrillHit = { id: uuid.v4(), order: run.hits.length + 1, x: null, y: null, zone: 'M' }; setRun(r => ({ ...r, hits: [...r.hits, hit] })); }} />
+      <Action title={family === 'IDPA' ? 'NON-THREAT HIT' : 'NO-SHOOT HIT'} disabled={saving} onPress={() => { const hit: DrillHit = { id: uuid.v4(), order: run.hits.length + 1, x: null, y: null, zone: family === 'IDPA' ? 'NT' : 'NS' }; setRun(r => ({ ...r, hits: [...r.hits, hit] })); }} />
       <Action title="UNDO LAST" disabled={saving || !run.hits.length} onPress={() => { setRun(r => ({ ...r, hits: r.hits.slice(0, -1) })); setSelected(null); }} />
       <Action title={aiming ? 'CANCEL AIM' : 'SET AIM POINT'} disabled={saving} onPress={() => setAiming(a => !a)} />
     </View>
@@ -100,11 +106,17 @@ export default function DrillRunEditor({ visible, initialFamily, onSave, onClose
     <DataRow label="Group centre" value={offsetText(stats.offset)} />
     <DataRow label="Extreme spread" value={stats.extremeSpread === null ? '—' : stats.extremeSpread.toFixed(1) + ' in'} />
     <DataRow label="Mean radius" value={stats.meanRadius === null ? '—' : stats.meanRadius.toFixed(1) + ' in' + (stats.meanRadiusMoa !== null ? ` (${stats.meanRadiusMoa.toFixed(1)} MOA)` : '')} />
-    <DataRow label={score.method} value={score.points !== null ? String(score.points) : score.pointsDown !== null ? `-${score.pointsDown}` : '—'} />
-    {score.untagged > 0 && <Copy>{`${score.untagged} hit(s) have no zone yet. ${score.note}`}</Copy>}
+    {family === 'USPSA' && <Segmented options={['MINOR', 'MAJOR']} value={(run.powerFactor ?? 'minor').toUpperCase()} disabled={saving} onChange={v => setRun(r => ({ ...r, powerFactor: v === 'MAJOR' ? 'major' : 'minor' }))} />}
+    <DataRow label={`${score.method} · ${score.requiredHits} required`} value={score.points !== null ? `${score.points} pts` + (score.penalties ? ` (−${score.penalties})` : '') : score.pointsDown !== null ? `${score.pointsDown} down` : '—'} />
+    {score.misses > 0 && <DataRow label="Missing hits" value={String(score.misses)} />}
+    {family !== 'IDPA' && <DataRow label="Hit factor" value={score.hitFactor !== null ? score.hitFactor.toFixed(4) : 'Enter the time'} />}
+    {family === 'IDPA' && <DataRow label="Final time" value={score.finalTime !== null ? score.finalTime.toFixed(2) + ' s' : 'Enter the time'} />}
+    <Copy>{(score.untagged > 0 ? `${score.untagged} hit(s) have no zone yet. ` : '') + score.note}</Copy>
     <Input label="DISTANCE (YARDS)" value={distance} disabled={saving} onChange={setDistance} />
     <Input label="TOTAL TIME (SECONDS)" value={time} disabled={saving} onChange={setTime} />
     <Input label="SPLITS (SECONDS, COMMA SEPARATED)" value={splits} disabled={saving} onChange={setSplits} />
+    <Input label="REQUIRED HITS (BLANK = ONE PER SHOT)" value={required} disabled={saving} onChange={setRequired} />
+    <Input label={family === 'IDPA' ? 'PROCEDURAL ERRORS' : 'PROCEDURALS'} value={procedurals} disabled={saving} onChange={setProcedurals} />
     {!!error && <Notice tone="error">{error}</Notice>}
     <Action title={saving ? 'Saving...' : 'SAVE RUN'} variant="primary" disabled={saving || !run.hits.length} onPress={() => { void save(); }} />
   </Panel></EditorSheet>;

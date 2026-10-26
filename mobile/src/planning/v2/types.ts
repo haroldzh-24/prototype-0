@@ -41,13 +41,18 @@ export type PlanRouteOptions = {
   /** Search budget for each search phase (minimum cover, then the walk), nodes. Default 200000. Deterministic. */
   maxSearchNodes?: number;
   /**
+   * Minimum distance from a shooting position to any steel target it engages, inches. Default by ruleset:
+   * USPSA 276 (23 ft, rule 10.5.16), PCSL 252 (7 yd for pistol, rule 1.8.1), IDPA 360 (10 yd, rule 2.14).
+   */
+  steelMinDistanceInches?: number;
+  /**
    * Wall-clock guard for each search phase, ms. Default 3000. When reached, the best result so far is returned and
    * flagged (`diagnostics.stoppedBy = 'time'`); only then can the result depend on device speed.
    */
   maxSearchMs?: number;
 };
 
-export type ReasonCode = 'NO_ALLOWED_AREA' | 'IDPA_AREAS_REQUIRED' | 'OUTSIDE_SAFE_ANGLE' | 'OCCLUDED' | 'UNREACHABLE' | 'PROCEDURE_ORDER';
+export type ReasonCode = 'NO_ALLOWED_AREA' | 'IDPA_AREAS_REQUIRED' | 'STEEL_TOO_CLOSE' | 'OUTSIDE_SAFE_ANGLE' | 'OCCLUDED' | 'UNREACHABLE' | 'PROCEDURE_ORDER';
 
 export type PlannedEngagement = {
   targetId: string;

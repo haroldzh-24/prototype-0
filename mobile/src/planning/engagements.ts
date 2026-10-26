@@ -10,7 +10,7 @@ import { inside, strictlyInside } from './routeSolver/traversability';
 import { stageDownrange } from '../stage/orientation';
 import { normalizeStage } from './v2/normalizeStage';
 import type { NormalizedStage, TargetFace } from './v2/normalizeStage';
-import { checkEngagement, defaultNoShootPolicy } from './v2/coverage';
+import { checkEngagement, defaultNoShootPolicy, FOOT_REACH_INCHES } from './v2/coverage';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -127,6 +127,19 @@ function breaks(a: StagePosition, b: StagePosition, rules: EngagementRules, targ
       intersect(other.left, other.right); // the walk itself crossing that face line
     }
     for (const q of sightSamples) for (const corner of occluders) if (Math.abs(corner.x - q.x) + Math.abs(corner.y - q.y) > 1e-9) intersect(q, corner, true);
+    // Steel minimum distance: the boundary is a stadium around the face (circles at its ends, offset lines along it).
+    if (face?.kind === 'steel' && kernel && kernel.stage.steelMinInches > 0) {
+      const r = kernel.stage.steelMinInches + FOOT_REACH_INCHES, fx = face.right.x - face.left.x, fy = face.right.y - face.left.y, fl = Math.hypot(fx, fy);
+      for (const c of [face.left, face.right]) {
+        const ux = b.x - a.x, uy = b.y - a.y, wx = a.x - c.x, wy = a.y - c.y;
+        const A = ux * ux + uy * uy, B = 2 * (ux * wx + uy * wy), C = wx * wx + wy * wy - r * r, disc = B * B - 4 * A * C;
+        if (A > 0 && disc >= 0) for (const t of [(-B - Math.sqrt(disc)) / (2 * A), (-B + Math.sqrt(disc)) / (2 * A)]) if (t > 0 && t < 1) values.push(t * d);
+      }
+      if (fl > 1e-9) for (const side of [1, -1]) {
+        const ox = -fy / fl * r * side, oy = fx / fl * r * side;
+        intersect({ x: face.left.x + ox, y: face.left.y + oy }, { x: face.right.x + ox, y: face.right.y + oy });
+      }
+    }
   }
   return [...new Set(values)].sort((x, y) => x - y);
 }

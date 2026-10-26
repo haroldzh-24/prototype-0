@@ -1,3 +1,9 @@
+# Rulebook research findings - 2026-10-25
+
+- Fixed (batch 7): steel could be planned from closer than the rulebook minimum (a DQ); drill scoring ignored USPSA miss and no-shoot penalties and over-penalized PCSL tagged misses.
+- Open, from the research (planned in `docs/rules/gap-list.md`): IDPA tactical priority is approximated as near-to-far; walls have no soft-cover or "treat as infinite" setting; no off-limits lines; the USPSA 8-hits-per-view rule is not checked.
+- Unconfirmed: whether the app's USPSA "Metric" and "Classic" presets are the rulebook's "USPSA" and "IPSC" targets (they may not be mixed on one stage). Not enforced until confirmed.
+
 # Route Planner V2 review - 2026-10-22
 
 - Fixed (batch 5, details in changelog.md): ignored route settings and "engage after" procedures; the analysis and V2 disagreeing on legality; saved stationary orders dropping targets after an illegal one; refinement leaving stops on the legal limit; 21 s UI freeze and slow cancel on large stages; L-shaped areas unreachable with travel limited to areas; flush-mounted targets hidden; straight-line assistant explanations; starts near walls rejected.

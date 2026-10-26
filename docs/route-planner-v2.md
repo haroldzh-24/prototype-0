@@ -47,7 +47,7 @@ The app passes the route's own settings with `optionsFromPlan(plan)`: safe direc
 | `no-targets` | The stage has no scoring targets. |
 | `invalid-input` | Missing start, firing areas, or damaged geometry. |
 
-Reason codes per target: `NO_ALLOWED_AREA`, `IDPA_AREAS_REQUIRED` (IDPA target without an assigned position of cover), `OUTSIDE_SAFE_ANGLE`, `OCCLUDED`, `UNREACHABLE`, `PROCEDURE_ORDER` (its "engage after" procedure cannot be met: a cycle, a missing target, or a prerequisite that cannot be engaged).
+Reason codes per target: `NO_ALLOWED_AREA`, `IDPA_AREAS_REQUIRED` (IDPA target without an assigned position of cover), `STEEL_TOO_CLOSE` (steel only from closer than the ruleset minimum), `OUTSIDE_SAFE_ANGLE`, `OCCLUDED`, `UNREACHABLE`, `PROCEDURE_ORDER` (its "engage after" procedure cannot be met: a cycle, a missing target, or a prerequisite that cannot be engaged).
 
 ## One legality rule for the app
 
@@ -77,8 +77,9 @@ Sources reviewed 2026-10-22; see `docs/target-preset-sources.md` for target data
 | 180° (IDPA) | 180° plane through the shooter, perpendicular to the bay; stages may use muzzle safe points or exclusion zones (IDPA 2026 §2.9.1) | Same plane check. Safe points and exclusion zones are **not modelled** and are reported as not checked. |
 | 180° (PCSL) | 180 plane perpendicular to the bay; briefing may set another angle ([PCSL 15.4](https://rules.pcsleague.com/rulebook/15-match-disqualifications.html)) | Same check; the half angle is configurable for briefing-specific angles. |
 | Shooting areas | Firing while touching outside is a procedural; moving outside without firing is not penalized ([USPSA 10.2.1.1](https://rules.uspsa.org/uspsa/section/10.2)) | Stops must be inside firing areas; travel may cross fault lines unless `travel: 'within-areas'`. |
-| Hard cover | Walls are impenetrable; USPSA/PCSL barriers 69 in or taller extend to infinity, shorter ones only to their height ([USPSA 2.2.3.2](https://rules.uspsa.org/uspsa/section/2.2), [PCSL 9.1.1](https://rules.pcsleague.com/rulebook/09-stage-design.html)); IDPA simulated walls extend infinitely (§4.7.2) | Walls block line of sight. Under USPSA/PCSL a wall lower than 69 in blocks only when the target face is entirely below the wall top; seeing over it is recorded as an assumption. |
-| No-shoots / overlapping targets | USPSA scoring areas of targets and no-shoots are impenetrable (9.1.5); IDPA non-threats are not hard cover (4.9); PCSL scores visible portions of same-plane paper (11.5.3) | Default policy: USPSA/PCSL treat other target faces and no-shoots as occluders; IDPA does not occlude but flags shots that pass a non-threat. |
+| Hard cover | Walls are impenetrable. USPSA: barriers 69 in or taller extend to infinity, shorter ones only to their built height unless marked ([USPSA 2.2.3.2](https://rules.uspsa.org/uspsa/section/2.2)). PCSL: walls 69 in or taller extend to infinity ([PCSL 9.1.1](https://rules.pcsleague.com/rulebook/09-stage-design.html)); the rule text says nothing about shorter walls. IDPA simulated walls extend infinitely (§4.7.2) | Walls block line of sight. Under USPSA/PCSL a wall lower than 69 in blocks only when the target face is entirely below the wall top; seeing over it is recorded as an assumption. For PCSL that built-height reading is borrowed from USPSA. |
+| No-shoots / overlapping targets | USPSA scoring areas of targets and no-shoots are impenetrable (9.1.5); IDPA non-threats are not hard cover (4.9); PCSL scores visible portions of same-plane paper (11.5.3), and shots through paper into a different plane score normally (11.5.4) | Default policy: USPSA treats other target faces and no-shoots as occluders (the rule). PCSL uses the same policy as a conservative planning choice, not a PCSL rule. IDPA does not occlude but flags shots that pass a non-threat. |
+| Steel distance | Firing at steel from closer than 23 ft (276 in) is a DQ, measured from the face to the nearest part of the body on the ground (USPSA 10.5.16); PCSL pistol minimum 7 yd (252 in, 1.8.1); IDPA steel closer than 10 yd (360 in) is a DQ (2.14) | Steel is engaged only from stops (and moving-window points) at least that far from the face, allowing 6 in from the stop to the feet. Otherwise the target is reported with `STEEL_TOO_CLOSE`. |
 | Ports | Openings in walls | A line of sight passes a wall only through a single port's horizontal span. Port height is not checked (plan view). |
 | Stage procedures | Per-target firing areas and engagement order come from the stage brief | Allowed areas restrict stops; "engage after" is enforced across and within stops, or the target is reported with `PROCEDURE_ORDER`. |
 | IDPA positions of cover | Targets are engaged from the positions of cover the brief defines | Each IDPA target needs at least one assigned area (`IDPA_AREAS_REQUIRED` otherwise), the same rule as the manual analysis. |
@@ -87,7 +88,7 @@ Sources reviewed 2026-10-22; see `docs/target-preset-sources.md` for target data
 
 - Muzzle direction while moving, reloading or drawing (the draw/holster exceptions are shooter technique, not geometry).
 - Vertical angles, shots over berms, elevation of ports and targets relative to the shooter's eyes.
-- IDPA cover use, tactical priority and fault lines per position of cover (near-to-far ordering is only an approximation).
+- IDPA cover use, tactical priority and fault lines per position of cover. The planner's near-to-far order is only an approximation: IDPA 2026 §3.2.1.2–3.2.1.5 puts targets in the open before targets seen from cover, applies near-to-far only to targets visible at the same time (within 2 yd counts as equal), and from vertical cover engages targets as they appear around its edge.
 - Stage-specific muzzle safe points, exclusion zones, activators, swingers, movers and disappearing targets.
 - Round-count limits per position (USPSA 1.2.1 is a course-design rule).
 

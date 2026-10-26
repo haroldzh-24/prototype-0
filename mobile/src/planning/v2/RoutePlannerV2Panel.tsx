@@ -17,6 +17,7 @@ export const reasonText: Record<ReasonCode, string> = {
   NO_ALLOWED_AREA: 'No firing area the stage brief allows for this target.',
   IDPA_AREAS_REQUIRED: 'IDPA: assign this target\'s position(s) of cover in Route settings.',
   PROCEDURE_ORDER: 'Cannot satisfy its "engage after" procedure on this route.',
+  STEEL_TOO_CLOSE: 'Every legal spot is closer to this steel than the ruleset allows (a DQ if fired on).',
   OUTSIDE_SAFE_ANGLE: 'From every legal spot, part of the target is past the safe angle.',
   OCCLUDED: 'Hidden by walls, other targets or no-shoots from every legal spot.',
   UNREACHABLE: 'Visible only from spots that cannot be walked to from the start.',

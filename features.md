@@ -1,3 +1,11 @@
+# Planned: rulebook gap list, redesign and 3D - 2026-10-25
+
+The prioritized list is [docs/rules/gap-list.md](docs/rules/gap-list.md), built from the USPSA, PCSL and IDPA rulebook research in `docs/rules/`. Summary:
+
+- Awaiting approval (big): the outdoor high-contrast UI redesign (mockups in the design canvas), 3D stage view and editing alongside the 2D plan (needs `expo-gl`, so a new build), and an eye-level view from each planned position.
+- Then, rules for the planner: IDPA tactical priority and positions of cover; wall soft cover and "treat as infinite"; off-limits lines; fault lines that become firing areas; the USPSA 8-hits-per-view check; required hits per target; match level; activated and moving targets; muzzle safe points and exclusion zones.
+- Later: divisions and power factor on the profile, stage brief export, editor performance on large stages, Expo SDK 58.
+
 # RC1 feature freeze ? 2026-10-15
 
 All implemented features are frozen for 1.0.0 RC1. No OCR, recognition expansion, automatic route planning or training expansion is authorized for this release. Future ideas below are deferred backlog, not RC commitments. Older dated verification reminders are historical; track all current hardware outcomes only in the RC checklist. September statements that no items exceed one month no longer describe current status.

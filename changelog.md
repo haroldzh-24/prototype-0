@@ -1,3 +1,12 @@
+# RC2 batch 7: rulebook research, steel distance, drill penalties, stage check - 2026-10-25
+
+- Researched the current USPSA (Edition 2026-09), PCSL (2026-09-14) and IDPA (2026 v2) rulebooks for what the app needs; references with section citations in `docs/rules/`, and a prioritized gap list in `docs/rules/gap-list.md`.
+- **Steel distance.** Route Planner V2 and the engagement analysis never engage steel from closer than the ruleset minimum, measured from the feet (6 in from the stop): USPSA 23 ft (10.5.16), PCSL 7 yd for pistol (1.8.1), IDPA 10 yd (2.14). Such targets are reported as `STEEL_TOO_CLOSE`; moving windows end exactly at the limit.
+- **Drill scoring with real penalties.** Required hits per run (blank = one per shot), best hits up to that count, misses counted as missing required hits, no-shoot and non-threat hits, procedurals, USPSA Major/Minor per run, hit factor, and IDPA final time (raw + points down + 5 s per non-threat hit + 3 s per procedural error). PCSL counts a T hit as two A hits and caps a target at 5 points per required hit. Points never go below 0 (USPSA 9.5.6, PCSL 11.2.3). Before, USPSA misses were not penalized and PCSL took -10 per tagged miss. Saved runs load unchanged.
+- **Stage check** in the editor (BUILD → STAGE CHECK): minimum rounds and USPSA course type, steel too close to a firing area (safety) or within the 26 ft fault-line limit, USPSA freestyle limits on long courses, PCSL 50 yd target limit, IDPA 18-round strings, non-threat ratio, steel share and target distance. Each finding cites its rule.
+- Doc corrections from the research: IDPA preset sizes are vendor-sourced (not in the rulebook text); PCSL's other-target occlusion is a planning choice (PCSL 11.5.4 scores shots into another plane); PCSL says nothing about walls under 69 in; IDPA tactical priority is more than near-to-far.
+- Validation: 880/880 tests (8 new in `tests/rulesBatch7.test.cjs`, each failing on the previous commit; 3 drill-log expectations updated to the rulebook penalties), TypeScript passed. The stage check was checked in the web build. No device testing.
+
 # Submit configuration - 2026-10-25
 
 - `eas.json` production submit profile now names the App Store Connect app (`ascAppId` 6808355061), and an App Store Connect API key is assigned to the project on EAS, so `eas submit` no longer signs in with the Apple ID (the earlier `-20209` failure).

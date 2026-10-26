@@ -20,6 +20,7 @@ import ToolIcon from '../ui/ToolIcon';
 import type { ToolIconName } from '../ui/ToolIcon';
 import { colors, typography } from '../ui/tokens';
 import { ErrorState, ui } from '@/ui/kit';
+import { checkStage } from '@/rules/stageCheck';
 import AddMenu from './AddMenu';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
@@ -134,7 +135,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     setRouteMode(true); setRouteVisible(true); setSelectedId(null); setViewMode('topDown');
   };
   const [plannerOrigin, setPlannerOrigin] = useState<'aiPlan' | 'planV2'>('aiPlan');
-  const [panel, setPanel] = useState<'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'planV2' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
+  const [panel, setPanel] = useState<'check' | 'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'summary' | 'assign' | 'reload' | 'delete' | 'reset' | 'aiPlan' | 'planV2' | 'more' | 'draw' | 'rules' | 'waypoint' | 'order' | 'resetRoute' | 'deleteWaypoint' | 'engagement' | 'saveError' | 'manualEngagements' | 'manualTarget' | 'manualEdit' | 'manualCreate' | null>(null);
   const [focusPosition, setFocusPosition] = useState<StagePosition | null>(null);
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
@@ -239,6 +240,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   };
   const zoom = (factor: number) => setViewport((current) => zoomViewport(current, current.zoom * factor, { x: 0, y: 0 }, { width: 0, height: 0 }));
 
+  const stageFindings = checkStage(stage, plan.route?.engagementRules, targetFamily);
+  const stageFindingCount = stageFindings.filter(f => f.severity !== 'info').length, stageSafety = stageFindings.some(f => f.severity === 'safety');
   return <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.screen}>
     <AddMenu visible={showAdd} targetFamily={targetFamily} close={() => setShowAdd(false)} choose={(id, noShoot) => { setPlacement({ id, noShoot }); switchTool('target'); }} selectStart={() => { switchTool('select'); setSelectedId(stage.objects.find(object => object.type === 'start')?.id ?? null); }} />
     <EditorSheet title="Close stage" visible={pendingExit !== null && !allowExit} close={() => setPendingExit(null)}>
@@ -264,6 +267,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       <Button title="BUILD" active={!routeMode} disabled={dragging || previewing} onPress={() => { setRouteMode(false); setRouteEditing(false); setPanel(null); setViewMode('topDown'); switchTool('select'); }} />
       <Button title="ROUTE" active={routeMode} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); enterRoute(); }} />
     </View>}
+    {!routeMode && !previewing && <View style={styles.controls}><Button title={stageFindingCount ? `STAGE CHECK · ${stageFindingCount}${stageSafety ? ' SAFETY' : ''}` : 'STAGE CHECK'} danger={stageSafety} disabled={dragging} onPress={() => setPanel('check')} /></View>}
     {routeMode && !previewing && <View style={styles.controls}><Button title="PATH" active={routeEditing} disabled={dragging} onPress={() => { setReviewMode(false); setEngageMode(false); setRouteEditing(true); setPanel(null); }} /><Button title="ENGAGE" active={engageMode} disabled={dragging} onPress={() => { setReviewMode(false); setEngageMode(true); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /><Button title="REVIEW" active={reviewMode} disabled={dragging} onPress={() => { setReviewMode(true); setEngageMode(false); setRouteEditing(false); setAddingPoint(false); setAssignmentMode(null); setPanel(null); }} /></View>}
     {routeMode && !reviewMode && !previewing && !meaningfulRoute(plan.route) && <View style={{ padding: 8, gap: 4 }}><Text>NO ROUTE YET</Text><Button title="PLAN ROUTE" onPress={() => { setPlannerOrigin('planV2'); setPanel('planV2'); }} /><Button title="OPTIMIZE MOVEMENT" onPress={() => { setPlannerOrigin('aiPlan'); setPanel('aiPlan'); }} /><Button title="Edit manually" onPress={() => setRouteEditing(true)} /></View>}
     {routeMode && !reviewMode && !previewing && meaningfulRoute(plan.route) && <Text style={styles.status}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} waypoints {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
@@ -357,7 +361,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ check: 'Stage check', settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
       {panel === 'manualEdit' && selectedManualEngagement && plan.route && <>
             <Text>{selectedManualEngagement.anchor.kind === 'waypoint' ? 'Waypoint ' + (plan.route.positions.findIndex(p => p.id === (selectedManualEngagement.anchor.kind === 'waypoint' ? selectedManualEngagement.anchor.waypointId : '')) + 1) + ' / ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement'} / {targetLabel(stage, selectedManualEngagement.targetId)}</Text>
             <View style={styles.controls}>
@@ -458,6 +462,14 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         }} />} />
         {!!editError && <Text style={styles.error}>{editError}</Text>}
       </>}
+      {panel === 'check' && <View style={{ gap: 8 }}>
+        <Text>Rule limits this stage can be checked against from its geometry. The match director's reading of the rules decides.</Text>
+        {stageFindings.map((f, i) => <View key={f.code + i} style={{ borderWidth: 2, borderColor: f.severity === 'safety' ? colors.danger : colors.border, padding: 8, gap: 2 }}>
+          <Text style={{ fontWeight: '700', color: f.severity === 'safety' ? colors.danger : colors.text }}>{(f.severity === 'safety' ? 'SAFETY' : f.severity === 'rule' ? 'RULE' : 'INFO') + (f.rule ? ' · ' + f.rule : '')}</Text>
+          <Text>{f.message}</Text>
+          {f.objectIds.length > 0 && stage.objects.some(o => o.id === f.objectIds[0]) && <Button title="Show on stage" onPress={() => { setSelectedId(f.objectIds[0]); setPanel(null); }} />}
+        </View>)}
+      </View>}
       {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} edit={() => { setRouteEditing(true); setPanel(null); }} />}
       {panel === 'plan' && <>
         {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to PLAN ROUTE' : 'Back to MOVEMENT OPTIMIZER'} onPress={() => setPanel(plannerOrigin)} />}

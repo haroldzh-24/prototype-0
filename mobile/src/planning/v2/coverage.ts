@@ -73,6 +73,23 @@ export function sightLine(p: Point, q: Point, target: TargetFace, stage: Normali
   return { visible: true, throughNoShoot, overLowWall, passesAboveOrBelow };
 }
 
+/**
+ * The rules measure steel distance from the target face to the nearest part of the shooter's body touching the ground
+ * (USPSA 10.5.16). A stop is the body centre, so feet are allowed this far from it.
+ */
+export const FOOT_REACH_INCHES = 6;
+/** Distance from p to the segment a-b. */
+export function distanceToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  const ex = p.x - (a.x + dx * t), ey = p.y - (a.y + dy * t);
+  return Math.sqrt(ex * ex + ey * ey);
+}
+/** True when a shooter standing at p would be closer to this steel face than the ruleset allows. */
+export function steelTooClose(p: Point, target: TargetFace, stage: NormalizedStage): boolean {
+  return target.kind === 'steel' && stage.steelMinInches > 0 && distanceToSegment(p, target.left, target.right) - FOOT_REACH_INCHES < stage.steelMinInches;
+}
+
 export type EngagementCheck = {
   legal: boolean;
   failure?: ReasonCode;
@@ -86,7 +103,8 @@ export type EngagementCheck = {
 
 /**
  * Can a shooter standing at p legally engage the target?
- * 1. p is strictly inside a firing area the target's procedure allows.
+ * 1. p is strictly inside a firing area the target's procedure allows; for steel, at least the ruleset's steel
+ *    minimum distance away, feet included.
  * 2. Every sampled point of the face (edges included) lies inside the safe arc around downrange.
  * 3. At least one interior face sample is visible. Flags record when visibility depends on a low wall or a no-shoot.
  */
@@ -96,6 +114,7 @@ export function checkEngagement(p: Point, target: TargetFace, stage: NormalizedS
   // IDPA requires the brief's position(s) of cover per target, the same rule the manual engagement analysis applies.
   if (stage.ruleset === 'IDPA' && !allowed?.length) return { legal: false, failure: 'IDPA_AREAS_REQUIRED', ...none };
   if (!stage.areas.some(a => (!allowed || allowed.includes(a.id)) && strictlyInside(p, a.vertices))) return { legal: false, failure: 'NO_ALLOWED_AREA', ...none };
+  if (steelTooClose(p, target, stage)) return { legal: false, failure: 'STEEL_TOO_CLOSE', ...none };
   let worst = 0;
   for (const q of target.angleSamples) {
     if (Math.hypot(q.x - p.x, q.y - p.y) < 1e-6) return { legal: false, failure: 'OUTSIDE_SAFE_ANGLE', ...none };
