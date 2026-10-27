@@ -365,3 +365,58 @@ test('review: saving an unchanged session does not rewrite the profile; a damage
   await fresh.saveProfile({ ...profile, performance: { ...profile.performance, movementModel: { all: {} } } });
   assert.equal((await fresh.loadProfile()).performance.movementModel, undefined);
 });
+
+test('drill days: one record per local day and practice type, made by the app; saved runs found by drill and by id', async () => {
+  const D = require('../src/training/drillDays.ts');
+  assert.equal(D.localDay(new Date(2026, 0, 5, 23, 59)), '2026-01-05');
+  assert.equal(D.validDay('2026-10-26'), true); assert.equal(D.validDay('2026-13-01'), false); assert.equal(D.validDay('26-10-2026'), false);
+  const day = D.newDrillDay('d1', '2026-10-26', 'DRY_FIRE', at(1));
+  assert.equal(D.isDrillDay(day), true); assert.deepEqual([day.kind, day.day, day.context, day.libraryRuns], ['drillDay', '2026-10-26', 'DRY_FIRE', []]);
+  const older = record([run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55])]);
+  const today = { ...day, libraryRuns: [run('bill', [1.2, 1.45, 1.7, 1.95, 2.2, 2.45]), run('draw', [1.1])] };
+  assert.equal(D.drillDayFor([older, today], '2026-10-26', 'DRY_FIRE'), today);
+  assert.equal(D.drillDayFor([older, today], '2026-10-26', 'LIVE_FIRE'), undefined, 'live fire is a separate record');
+  assert.equal(D.drillDayFor([older, today], '2026-10-25', 'DRY_FIRE'), undefined);
+  assert.equal(D.drillDayFor([older], '2026-10-26', 'LIVE_FIRE'), undefined, 'a hand-made session is never reused');
+  const bills = D.runsOfDrill([older, today], 'bill');
+  assert.deepEqual(bills.map(e => [e.recordId, e.context]), [['d1', 'DRY_FIRE'], ['session-1', 'LIVE_FIRE']], 'newest first, across records');
+  assert.equal(D.recordOfRun([older, today], today.libraryRuns[1].id), today);
+  assert.match(D.drillCardText([older, today], L.libraryDrill('bill')), /^Close-target split.*\n2 runs · last .*2\.45 s$/);
+  assert.match(D.drillCardText([], L.libraryDrill('steel')), /\nNo runs yet$/);
+  assert.equal(D.historyDetail(today), '2 drill runs: Bill Drill, Draw to first hit');
+
+  // The repository keeps drill days and refuses damaged ones; their runs feed the profile like any other.
+  const repo = open(); await repo.initialize();
+  await repo.saveTraining(today);
+  const [loaded] = await repo.listTraining('local');
+  assert.equal(loaded.kind, 'drillDay'); assert.equal(loaded.day, '2026-10-26');
+  await assert.rejects(repo.saveTraining({ ...today, day: '26 Oct' }), /Invalid drill day/);
+  await assert.rejects(repo.saveTraining({ ...today, kind: 'other' }), /Invalid drill day/);
+  await assert.rejects(repo.saveTraining({ ...older, day: '2026-10-26' }), /Invalid drill day/);
+  const profile = await repo.loadProfile();
+  assert.ok((profile.performanceObservations ?? []).some(o => o.trainingSessionId === 'd1' && o.factor === 'drawTime' && o.context === 'DRY_FIRE'));
+});
+
+test('hits marked on the target: single plain paper targets only, inside the face, and they must match the zone counts', () => {
+  const hit = (n, zone, x = 1, y = -2) => ({ id: 'h' + n, order: n, x, y, zone });
+  const target = hits => ({ presetId: 'uspsa-metric-chl-v1', faceWidth: 18.12, faceHeight: 29.93, aim: { x: 0, y: 0 }, hits });
+  const times = [1.3, 1.55, 1.8, 2.05, 2.3, 2.55];
+  const hits = [hit(1, 'A'), hit(2, 'A'), hit(3, 'C', 4, 6), hit(4, 'A'), hit(5, 'A'), { id: 'h6', order: 6, x: null, y: null, zone: 'M' }];
+  assert.deepEqual(L.zonesFromHits(hits), { A: 4, C: 1, M: 1 });
+  assert.equal(L.zonesFromHits([hit(1, null)]), undefined);
+  const ok = run('bill', times, { zones: { A: 4, C: 1, M: 1 }, target: target(hits) });
+  assert.equal(L.libraryRunProblem(ok), null);
+  assert.deepEqual(L.hitCounts(ok), { a: 4, c: 1, d: 0, miss: 1 }, 'scored from the counts as before');
+  assert.equal(L.libraryRunProblem({ ...ok, zones: { A: 5, C: 1 } }), 'Hit counts do not match the hits marked on the target.');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, 'A', 30, 0)]), zones: { A: 5, C: 1 } }), 'Hit coordinates are outside the target area.');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), { id: 'h6', order: 6, x: null, y: null, zone: 'A' }]), zones: { A: 5, C: 1 } }), 'Only misses and no-shoot hits may omit coordinates.');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, 'T')]), zones: { A: 4, C: 1, T: 1 } }), 'Invalid hit counts.', 'T is a PCSL zone');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([hit(1, 'A'), hit(1, 'A')]), zones: { A: 2 } }), 'Invalid hit.', 'duplicate ids');
+  const blake = run('blake', times, { zones: { A: 6 }, target: target([1, 2, 3, 4, 5, 6].map(n => hit(n, 'A'))) });
+  assert.equal(L.libraryRunProblem(blake), 'Hits can\'t be marked on the target for Blake Drill.');
+  assert.deepEqual(L.libraryDrills.filter(L.canMarkHits).map(d => d.id), ['draw', 'bill', 'ladder', 'reload']);
+  // Marked hits travel with the run into the profile exactly as counted hits do.
+  const { target: _marks, ...counted } = ok;
+  assert.ok(L.libraryObservations(record([ok]), ok).some(o => o.factor === 'hitZones'));
+  assert.deepEqual(L.libraryObservations(record([ok]), ok), L.libraryObservations(record([counted]), counted));
+});

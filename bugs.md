@@ -1,3 +1,7 @@
+# Fixed 2026-10-26 (batch 20)
+
+- The drill library was hidden inside a session (TRAINING → + SESSION → open the session → past VIDEOS and DRILL RUNS → LOG LIBRARY DRILL; a session with a video opened the video instead). Reported on the first phone build with the library: "the drills aren't there". Training now opens on the drills. The tutorial's quick reference had made it sound like one tap; corrected.
+
 # Fixed 2026-10-26 (batch 19b)
 
 - From the independent review of batch 19 (11 confirmed; see changelog): PLAN RELOADS missing workable plans, overwriting your reloads, breaking moving engagements and freezing large stages; a target engaged twice timed twice; misleading timing sources; steel and partial curves not snapping to nearby distances; time by position without the draw.

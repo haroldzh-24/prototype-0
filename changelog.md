@@ -1,3 +1,12 @@
+# RC2 batch 20: Training is the drill library - 2026-10-26
+
+The owner's direction (2026-10-26): the drills are the whole Training section and the way the app collects data; no uploading a random video.
+- **The Training screen opens on the drills**, grouped (Draw, Shooting, Transitions, Reloads, Movement, Positions, Combined). Each card says what the drill measures and your latest run. Before, the drill library was only reachable inside a session, past its videos and drill runs (found on the first phone build: "the drills aren't there").
+- **A drill opens one sheet:** how to run it, what it measures and what the planner uses it for, its options, **LOG A RUN** (practice type, times, hits, par, notes, counts / log only) and **YOUR RUNS** with these options (runs, best time, par, the last 10 against par, remove with a confirm). The sheet stays open for the next rep and says what was saved.
+- **No sessions to manage:** runs are filed under one record per day and practice type (dry fire, live fire, match), made on the first run of the day (`training/drillDays.ts`). The practice type is remembered on the phone. **+ SESSION**, **ADD VIDEO FROM PHOTOS / FILES**, **LOG DRILL RUN**, **LOG LIBRARY DRILL** and **REPEAT DRILL** are gone. Older sessions, their logged runs and videos stay under **HISTORY**: videos still open in the analysis editor, runs can be removed, a session or a day deleted.
+- **Mark hits on the target** (single plain paper targets: Draw, Bill, Distance ladder, Reload): tap where each shot hit and pick its zone; misses and no-shoot hits have no spot. The marks are saved with the run (product direction: drill runs store hit coordinates) and the zone counts are their tags, validated on every save and load. Group centre and mean radius show as you mark. The target-face drawing is shared with the drill logger (`training/targetFace.ts`).
+- Validation: 997/997 tests (new: drill days, marked hits, the hit marker, the Training screen and drill sheet; the session tests replaced), TypeScript passed. Web build checked: drills list, Bill Drill with hits marked and counted, YOUR RUNS, history, reload keeps the runs. No device testing.
+
 # RC2 batch 19b: fixes from the independent review of batch 19 - 2026-10-26
 
 11 confirmed defects, each with a regression test (`tests/stageTime.test.cjs`, `tests/ui-reorganization.test.cjs`); the reviewer also confirmed the swing angle, fits, interpolation and makeup maths, and that the estimate matched the evaluator in 400 random cases without models (except the double-count below):

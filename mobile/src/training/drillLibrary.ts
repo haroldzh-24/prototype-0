@@ -12,7 +12,7 @@ import type { MoveDirection } from '../profile/movementModel';
 import type { HitCounts } from '../profile/hitModel';
 import { yardsToInches } from '../stage/measurements';
 import type { PowerFactor } from '../profile/model';
-import { scoreRun, zoneChoices } from './drillLog';
+import { MAX_HITS_PER_RUN, PENALTY_TAGS, scoreRun, zoneChoices } from './drillLog';
 import type { DrillHit } from './drillLog';
 
 export type IntervalKind = 'start' | 'split' | 'transition' | 'reload' | 'move' | 'shot';
@@ -121,9 +121,46 @@ export type LibraryRun = {
   notes: string;
   /** False keeps the run in the log only: it adds nothing to your profile. Missing: true. */
   counts?: boolean;
+  /** Where each shot hit, marked on the target (single-target paper drills). `zones` are then the counts of its tags. */
+  target?: LibraryTarget;
 };
+/**
+ * Hits marked on the face, as in the drill logger (src/training/drillLog.ts): inches from the face centre, +y up.
+ * Zones are tagged by the shooter, never read from the coordinates (no official zone geometry is published as data).
+ */
+export type LibraryTarget = { presetId: string | null; faceWidth: number; faceHeight: number; aim: { x: number; y: number }; hits: DrillHit[] };
 export const MAX_LIBRARY_RUNS = 500;
 const MAX_SHOTS = 100;
+
+/** Drills where hits can be marked on the target: one plain paper target (partial faces are covered, steel has none). */
+export const canMarkHits = (drill: LibraryDrill) => drill.targets === 1 && drill.requiredHits !== null && drill.id !== 'partial';
+/** Zone counts from the tagged hits; undefined when nothing is tagged. */
+export function zonesFromHits(hits: readonly DrillHit[]): Record<string, number> | undefined {
+  const counts: Record<string, number> = {};
+  for (const h of hits) if (h.zone) counts[h.zone] = (counts[h.zone] ?? 0) + 1;
+  return Object.keys(counts).length ? counts : undefined;
+}
+function targetProblem(target: LibraryTarget, drill: LibraryDrill, run: LibraryRun): string | null {
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  if (!canMarkHits(drill)) return `Hits can't be marked on the target for ${drill.name}.`;
+  if (!target || typeof target !== 'object' || (target.presetId !== null && typeof target.presetId !== 'string')) return 'Invalid target.';
+  if (!finite(target.faceWidth) || !finite(target.faceHeight) || target.faceWidth <= 0 || target.faceHeight <= 0 || target.faceWidth > 120 || target.faceHeight > 120) return 'Invalid target face size.';
+  if (!target.aim || !finite(target.aim.x) || !finite(target.aim.y)) return 'Invalid aim point.';
+  if (!Array.isArray(target.hits) || target.hits.length > MAX_HITS_PER_RUN) return 'Too many hits.';
+  const ids = new Set<string>(), allowed = zoneChoices[run.family];
+  for (const h of target.hits) {
+    if (!h || typeof h.id !== 'string' || !h.id || ids.has(h.id) || !Number.isInteger(h.order) || h.order < 1) return 'Invalid hit.';
+    ids.add(h.id);
+    if ((h.x === null) !== (h.y === null)) return 'A hit needs both coordinates or neither.';
+    if (h.x !== null && (!finite(h.x) || !finite(h.y) || Math.abs(h.x) > target.faceWidth || Math.abs(h.y as number) > target.faceHeight)) return 'Hit coordinates are outside the target area.';
+    if (h.zone !== null && !allowed.includes(h.zone)) return 'Invalid zone.';
+    if (h.x === null && !PENALTY_TAGS.includes(h.zone ?? '')) return 'Only misses and no-shoot hits may omit coordinates.';
+  }
+  // The counts are the marks: they can never disagree.
+  const canonical = (zones: Record<string, number> | undefined) => JSON.stringify(Object.entries(zones ?? {}).filter(([, n]) => n > 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+  if (canonical(zonesFromHits(target.hits)) !== canonical(run.zones)) return 'Hit counts do not match the hits marked on the target.';
+  return null;
+}
 
 /** Defaults filled in, unknown keys dropped. Invalid values stay so validation can name them. */
 export function choicesFor(drill: LibraryDrill, choices: Choices = {}): Record<string, string> {
@@ -196,6 +233,7 @@ export function libraryRunProblem(run: LibraryRun): string | null {
   if (run.procedurals !== undefined && !(Number.isInteger(run.procedurals) && run.procedurals >= 0 && run.procedurals <= 100)) return 'Invalid procedurals.';
   if (typeof run.notes !== 'string' || run.notes.length > 2000) return 'Invalid notes.';
   if (run.counts !== undefined && typeof run.counts !== 'boolean') return 'Invalid run setting.';
+  if (run.target !== undefined) return targetProblem(run.target, drill, run);
   return null;
 }
 

@@ -139,12 +139,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Actions for ' + name + ' renamed'); await click('Delete'); await click('Delete');
     await waitText(name);
     assert.ok(!(await evaluate('document.body.innerText')).includes(name + ' renamed'));
-    await send('Page.navigate', { url: baseUrl + '/training' }); await waitText('+ SESSION');
+    await send('Page.navigate', { url: baseUrl + '/training' }); await waitText('YOUR NUMBERS');
     await capture('training');
-    const sessions = () => evaluate('[...document.querySelectorAll("[role=button]")].filter(e => (e.getAttribute("aria-label") || "").startsWith("Open ")).length');
-    const beforeSessions = await sessions(); await click('+ SESSION'); await capture('new-session'); await click('CREATE SESSION');
-    for (let i = 0; i < 30 && await sessions() === beforeSessions; i++) await sleep(200);
-    assert.equal(await sessions(), beforeSessions + 1, 'Create Session persists one additional session');
+    // Training opens on the drill library; a drill opens its sheet (runs are filed by day, no sessions to create).
+    await click('Open Bill Drill'); await waitText('HOW TO RUN IT'); await capture('drill-sheet'); await click('Done');
     await send('Page.navigate', { url: baseUrl + '/account' }); await waitText('Local shooter');
     await capture('profile');
     await send('Page.navigate', { url: baseUrl + '/' }); await waitText('Plan your next stage. Prepare for your next session.');

@@ -74,7 +74,7 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
       <Copy>Draw, split, transition and reload values are from standing square on full paper; partial-target and steel rows are their own. Moving and port/lean runs are kept separately below and don't change these.</Copy>
     </>, true)}
     {context !== planning && <Copy>The planner uses your {contextLabels[planning].toLowerCase()} numbers. These {contextLabels[context].toLowerCase()} numbers are for comparison.</Copy>}
-    {!n.runs && <Copy>No drill-library runs in {contextLabels[context].toLowerCase()} yet. Open a session and choose LOG LIBRARY DRILL.</Copy>}
+    {!n.runs && <Copy>No drill-library runs in {contextLabels[context].toLowerCase()} yet. Pick a drill on the Training screen and log a run.</Copy>}
 
     {section('DRAW', n.draw.map(d => <DataRow key={d.start} label={startLabels[d.start]} value={statText(d.stat)} />), n.draw.length > 0)}
     {section('SPLITS BY DISTANCE', n.splits.map(s => <DataRow key={s.yards} label={s.yards + ' yd'} value={statText(s.stat) + (s.points ? ' · ' + pct(s.points.mean) + ' of points' : '')} />), n.splits.length > 0)}

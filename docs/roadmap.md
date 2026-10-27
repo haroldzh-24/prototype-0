@@ -39,6 +39,17 @@ Decision deferred: on-phone reading vs a paid cloud vision service. Test both on
 | C5 | **2–3 plans side by side** | Compared by expected time and hit factor, with the trade-off spelled out ("hard lean at P2"). |
 | C6 ★ | **Is slowing down worth it?** | Per target: time for AA vs accepting a C, against your stage hit factor ("T5: AA costs 0.35 s for +2 points; worth it while stage HF is under 5.7"). |
 
+## Milestone T: Training is the drill library (owner, 2026-10-26) — T1 done (batch 20; `docs/drill-library.md`)
+
+The drills are the whole Training section and the way the app collects data. No free video upload: a video always belongs to a drill run, so the app knows what happened in it.
+
+| # | Item | Done when |
+| --- | --- | --- |
+| T1 ★ | **Training opens on the drills** | Drill cards by group with what each measures and your latest run; one sheet per drill: how to run it, options, log a run, your runs against par. Runs filed by day and practice type, no sessions to manage. Hits can be marked on the target. Older sessions and videos kept under History. |
+| T2 ★ | **A drill run's video times itself** | Add the video of a run from the drill; the app finds the beep and the drill's shots in the audio (it knows how many and where the reload is), fills the times for you to check against the video, and saves the run with its video. |
+| T3 ★ | **Draw and reload broken into movements** | Start signal → hand moves → grip → out of the holster → hands meet → on target → first shot (and the reload's phases), from body and hand tracking on the run's video, with how sure each mark is. Needs tracking above today's 10 frames a second (a native change and a new phone build) and real draw videos to tune before the numbers are trusted. |
+| T4 ★ | **Practice drills for USPSA and other matches** | More standard drills, described in our own words, each with what it measures; par set by you. |
+
 ## Milestone D: close the loop and keep the data
 
 | # | Item | Done when |

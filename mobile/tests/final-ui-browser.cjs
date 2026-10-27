@@ -96,14 +96,8 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('WAYPOINT', true); await fill('Waypoint label','Long waypoint label for review'); await click('TARGETS'); await capture('waypoint-targets'); await click('Back to waypoint'); await click('RELOAD'); await capture('waypoint-reload'); await click('Done'); await click('DONE');
     await click('Time, ammunition and coverage'); await capture('route-analysis'); await click('Done'); await click('Save'); await pause(500); await click('Back'); await wait('STAGES');
     await click('‹ Back'); await wait('MATCHES'); await click('‹ Back'); await wait('Prepare for your next session.');
-    await click('Open TRAINING'); await wait('+ SESSION'); await capture('training'); await click('+ SESSION'); await capture('create-session');
-    const sessionName='Final video review '+Date.now(); await fill('SESSION NAME',sessionName); await click('CREATE SESSION'); await wait(sessionName); await click('Open '+sessionName); await click('ADD VIDEO');
-    // Deliberately unsupported media verifies annotation/error fallback, not AV playback.
-    await evaluate(`(() => {const e=document.querySelector('input[type=file]');const d=new DataTransfer();d.items.add(new File([new Uint8Array([0,0,0,0])],'a-very-long-original-video-filename-for-responsive-review.mp4',{type:'video/mp4'}));e.files=d.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-    await wait('Save analysis');
-    for (const section of ['TIMELINE','ANALYZE','COMPARE','RESULTS']) { await click(section); await capture('video-'+section.toLowerCase()); }
-    await click('TIMELINE'); await click('+ Add event'); await capture('event-sheet'); await fill('Marker milliseconds','invalid'); await click('Add marker at entered ms'); await wait('finite'); await capture('event-error'); await click('Cancel');
-    await click('Save analysis'); await pause(500); await click('Close analysis'); await wait('+ SESSION');
+    // Training opens on the drill library. Video comes in through a drill run (roadmap T2); there is no free upload to drive here.
+    await click('Open TRAINING'); await wait('YOUR NUMBERS'); await capture('training'); await click('Open Bill Drill'); await wait('HOW TO RUN IT'); await capture('drill-sheet'); await click('Done');
     await click('‹ Back'); await wait('Prepare for your next session.'); await click('Open PROFILE'); await wait('LOCAL PROFILE'); await capture('profile');
     console.log('PASS: final source UI browser journey and responsive captures');
   } finally {

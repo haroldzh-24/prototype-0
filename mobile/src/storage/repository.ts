@@ -7,6 +7,7 @@ import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
 import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations } from '../training/drillLibrary';
+import { validDay } from '../training/drillDays';
 import { validMovementModel } from '../profile/movementModel';
 import { validExpectations } from '../planning/expectedPoints';
 import { drillRunProblem, MAX_RUNS_PER_SESSION } from '../training/drillLog';
@@ -326,6 +327,8 @@ export class Repository {
       (record.totalTime !== null && (!Number.isFinite(record.totalTime) || record.totalTime < 0))
       || !Array.isArray(record.segments) || record.segments.length > 2000 || record.segments.some(s => !s || !Number.isFinite(s.seconds) || s.seconds < 0)) throw new Error('Invalid training record.');
     if (record.context !== undefined && !trainingContexts.includes(record.context)) throw new Error('Invalid training context.');
+    if (record.kind !== undefined && (record.kind !== 'drillDay' || !validDay(record.day))) throw new Error('Invalid drill day.');
+    if (record.kind === undefined && record.day !== undefined) throw new Error('Invalid drill day.');
     if (record.runs !== undefined) {
       if (!Array.isArray(record.runs) || record.runs.length > MAX_RUNS_PER_SESSION) throw new Error('Invalid drill runs.');
       const runIds = new Set<string>();

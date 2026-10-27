@@ -94,17 +94,34 @@ test('library card body opens and separate overflow does not open the card', () 
   h.press('Open Match'); assert.equal(opens, 1); h.press('Actions for Match'); assert.equal(menus, 1); assert.equal(opens, 1);
 });
 
-test('Training session selectors save the chosen context and start without starting a timer', async () => {
-  let record;
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { listTraining: async () => [], saveTraining: async value => { record = value; } } });
+test('Training opens on the drill library: every drill is a card, and a run is filed under today’s record for its practice type', async () => {
+  const writes = [], prefs = [];
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, '@/ui/prefsStore': { readPref: () => null, writePref: (k, v) => prefs.push([k, v]) },
+    repo: { listTraining: async () => [], saveTraining: async r => { writes.push(r); }, loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }) } });
   await h.settle();
-  assert.ok(h.nodes().some(n => n.type === 'EmptyState'));
-  h.press('+ SESSION');
-  h.child('Segmented').onChange('Live Fire'); h.render();
-  h.find(n => n.type === 'Segmented' && n.props.value === 'Competition Holster').props.onChange('Low Ready'); h.render(); h.press('CREATE SESSION'); await h.settle();
-  assert.equal(record.context, 'LIVE_FIRE');
-  assert.equal(record.startingType, 'lowReady');
-  assert.deepEqual(record.segments, []);
+  const L = require('../src/training/drillLibrary.ts'), Days = require('../src/training/drillDays.ts');
+  const cards = () => h.nodes().filter(n => n.type === 'LibraryCard');
+  assert.deepEqual(cards().map(c => c.props.name), L.drillGroups.flatMap(g => L.libraryDrills.filter(d => d.group === g).map(d => d.name)));
+  assert.ok(!h.nodes().some(n => /SESSION|VIDEO/.test(n.props?.title ?? '')), 'no sessions to create, no free video upload');
+  const bill = () => cards().find(c => c.props.name === 'Bill Drill').props;
+  assert.match(bill().detail, /No runs yet$/);
+  bill().open(); h.render();
+  const sheet = () => h.child('DrillSheet');
+  assert.equal(sheet().drillId, 'bill'); assert.equal(sheet().context, 'DRY_FIRE');
+  const run = id => ({ id, drillId: 'bill', recordedAt: new Date().toISOString(), choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55, family: 'USPSA', notes: '' });
+  await sheet().onSave(run('a'), undefined); await h.settle();
+  await sheet().onSave(run('b'), undefined); await h.settle();
+  assert.equal(writes.length, 2); assert.equal(writes[0].id, writes[1].id, 'same day, same practice type: one record');
+  assert.equal(writes[1].kind, 'drillDay'); assert.equal(writes[1].context, 'DRY_FIRE'); assert.equal(writes[1].day, Days.localDay(new Date()));
+  assert.deepEqual(writes[1].libraryRuns.map(r => r.id), ['a', 'b']);
+  sheet().onContextChange('LIVE_FIRE'); h.render();
+  assert.deepEqual(prefs.at(-1), ['psp.trainingContext', 'LIVE_FIRE']); assert.equal(sheet().context, 'LIVE_FIRE');
+  await sheet().onSave(run('c'), undefined); await h.settle();
+  assert.notEqual(writes[2].id, writes[0].id, 'live fire gets its own record'); assert.equal(writes[2].context, 'LIVE_FIRE');
+  assert.match(bill().detail, /3 runs · last .*2\.55 s/);
+  await sheet().onRemove('a'); await h.settle();
+  assert.equal(writes[3].id, writes[0].id); assert.deepEqual(writes[3].libraryRuns.map(r => r.id), ['b']);
+  sheet().onClose(); h.render(); assert.ok(!h.nodes().some(n => n.type === 'DrillSheet'));
 });
 
 function videoHarness(repo = {}, onClose = () => {}, patch = {}) {
@@ -248,8 +265,9 @@ test('selected arrow policy and empty-route adoption preserve meaningful manual 
   assert.equal(showTargetArrows({ ...defaultRouteLayers, arrows: 'ALL' }, 'b', 'a'), true);
   assert.equal(meaningfulRoute(route()), false); assert.equal(meaningfulRoute({ ...route(), reloads: [{ positionId: 'p', magazineId: 'm' }] }), true);
 });
-test('Training changes only the session action wording', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../src/app/training.tsx'), 'utf8'); assert.match(source, /title="CREATE SESSION" disabled={busy} onPress={create}/);
+test('Training has no hand-made sessions and no free video upload', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/app/training.tsx'), 'utf8');
+  assert.doesNotMatch(source, /importVideo|ADD VIDEO|CREATE SESSION|\+ SESSION/);
 });
 
 test('planner results adopt empty routes directly and confirm meaningful replacement', async () => {
@@ -338,40 +356,47 @@ test('candidate preview omits editable-route Save and Back returns to results', 
 });
 
 
-test('Training loading and failed read suppress empty state and retry recovers', async () => {
+test('Training loading and failed read show no drills to log into, and retry recovers', async () => {
   let fail = true;
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => { if (fail) throw Error('disk'); return []; } } });
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, '@/ui/prefsStore': { readPref: () => null, writePref() {} }, repo: { trainingReadWarnings: [], listTraining: async () => { if (fail) throw Error('disk'); return []; } } });
   assert.ok(h.nodes().some(n => n.type === 'Loading'));
-  assert.ok(!h.nodes().some(n => n.type === 'EmptyState'));
-  await h.settle(); assert.ok(h.nodes().some(n => n.props.children === 'Couldn’t load training sessions.'));
+  assert.ok(!h.nodes().some(n => n.type === 'LibraryCard'));
+  await h.settle(); assert.ok(h.nodes().some(n => n.props.children === 'Couldn’t load your training.'));
+  assert.ok(!h.nodes().some(n => n.type === 'LibraryCard'), 'no drill to log into while the saved runs are unknown');
   fail = false; h.press('RETRY'); await h.settle();
-  assert.equal(h.child('EmptyState').title, 'NO TRAINING SESSIONS');
-  assert.equal(h.child('EmptyState').detail, 'Create a session to begin recording practice history.');
+  assert.ok(h.nodes().some(n => n.type === 'LibraryCard' && n.props.name === 'Draw to first hit'));
 });
 
-test('Create Session validates blanks and preserves explicit pressure/start selection', async () => {
-  let saved;
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [], saveTraining: async r => { saved = r; } } });
-  await h.settle(); h.press('+ SESSION');
-  assert.equal(h.child('EditorSheet').title, 'CREATE SESSION');
-  h.find(n => n.type === 'TextInput').props.onChangeText('   '); h.render(); h.press('CREATE SESSION'); await h.settle();
-  assert.equal(saved, undefined); assert.ok(h.nodes().some(n => n.props.children === 'Enter a session name.'));
-  const name = 'Long session '.repeat(8);
-  h.find(n => n.type === 'TextInput').props.onChangeText(name); h.render();
-  h.child('Segmented').onChange('Pressure / Match'); h.render();
-  h.find(n => n.type === 'Segmented' && n.props.value === 'Competition Holster').props.onChange('Level II / III Holster'); h.render();
-  h.press('CREATE SESSION'); await h.settle();
-  assert.equal(saved.drillName, name.trim()); assert.equal(saved.context, 'PRESSURE_MATCH'); assert.equal(saved.startingType, 'retentionHolster');
-});
-
-test('Training library cards open existing video and contextual video actions', async () => {
-  const record = { id: 'r', drillName: 'Very long session '.repeat(12), context: 'LIVE_FIRE', startingType: 'competitionHolster', occurredAt: '2026-10-05T12:00:00Z', videos: [{ session: { id: 'v', analysisStatus: 'REVIEWED' } }] };
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [record] } });
-  await h.settle(); const card = h.child('LibraryCard');
-  assert.equal(card.category, 'LIVE FIRE'); assert.ok(card.detail.includes('Competition Holster')); assert.ok(card.detail.includes('1 video'));
-  card.more(); h.render(); assert.ok(h.nodes().some(n => n.props.title === 'Video 1 · Analysis saved'));
-  h.press('Video 1 · Analysis saved'); assert.ok(h.nodes().some(n => n.props.initialVideo === record.videos[0]));
-  card.open(); h.render(); assert.ok(h.nodes().some(n => n.props.initialVideo === record.videos[0]));
+test('History keeps older sessions: their videos still open, runs can be removed, a drill day can be deleted', async () => {
+  const Days = require('../src/training/drillDays.ts');
+  const libraryRun = { id: 'lr1', drillId: 'bill', recordedAt: '2026-10-05T12:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55,
+    family: 'USPSA', zones: { A: 6 }, notes: '' };
+  const old = { id: 'r', userId: 'local', drillName: 'Old session', context: 'LIVE_FIRE', startingType: 'competitionHolster', occurredAt: '2026-10-05T12:00:00Z', segments: [], notes: '', totalTime: null,
+    videos: [{ session: { id: 'v', analysisStatus: 'REVIEWED' } }], libraryRuns: [libraryRun] };
+  const day = { ...Days.newDrillDay('d', '2026-10-20', 'DRY_FIRE', '2026-10-20T15:00:00Z'), libraryRuns: [{ ...libraryRun, id: 'lr2', recordedAt: '2026-10-20T15:00:00Z', zones: undefined }] };
+  const writes = [], deleted = [];
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': { discardVideoAsset() {} }, '@/ui/prefsStore': { readPref: () => null, writePref() {} },
+    repo: { trainingReadWarnings: [], listTraining: async () => [day, old], saveTraining: async r => { writes.push(r); }, deleteTraining: async id => { deleted.push(id); },
+      loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }) } });
+  await h.settle();
+  const card = name => h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === name)?.props;
+  assert.equal(card('Old session'), undefined, 'history starts closed');
+  assert.match(card('Bill Drill').detail, /2 runs · last Oct 20/);
+  h.press('Show history');
+  assert.match(card('Old session').detail, /1 drill run: Bill Drill · 1 video$/);
+  assert.equal(card(Days.historyTitle(day)).category, 'DRY FIRE');
+  card('Old session').open(); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === '1. Bill Drill · 7 yd · 2.55 s · 100% points · HF 11.76'));
+  assert.ok(!h.nodes().some(n => /ADD VIDEO|LOG/.test(n.props?.title ?? '')), 'nothing new is added to an old session');
+  h.press('Video 1 · Analysis saved'); assert.ok(h.nodes().some(n => n.props.initialVideo === old.videos[0]));
+  card('Old session').open(); h.render();
+  h.press('Remove library run 1'); h.press('Confirm removing library run 1'); await h.settle();
+  assert.deepEqual(writes[0].libraryRuns, []); assert.equal(writes[0].id, 'r');
+  card(Days.historyTitle(day)).open(); h.render();
+  h.press('DELETE THIS DAY');
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Delete this day’s drill runs and the measurements/.test(n.props.children)));
+  h.press('Delete'); await h.settle();
+  assert.deepEqual(deleted, ['d']);
 });
 
 test('Profile renders stored zero, unavailable metrics, factual counts and local-storage limitation', async () => {
@@ -826,14 +851,13 @@ test('review 3: dragging a layer in 3D moves its target by the drag, keeping the
   assert.equal(after.position.z, parent.position.z, 'height unchanged');
 });
 
-test('Drill library editor: pick a drill and options, paste timer times, count hits, save with a par', async () => {
+const drillSheet = (drillId, patch = {}) => harness('training/DrillSheet.tsx', { visible: true, drillId, records: [], context: 'LIVE_FIRE', onContextChange() {}, powerFactor: 'minor',
+  pars: {}, onClose() {}, onSave() {}, onRemove() {}, ...patch });
+test('Drill sheet: how to run it, options, paste timer times, count hits, save with a par', async () => {
   let saved, savedPar;
-  const props = { visible: true, context: 'LIVE_FIRE', powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onClose() {}, onSave: async (r, par) => { saved = r; savedPar = par; } };
-  const h = harness('training/LibraryRunEditor.tsx', props);
-  assert.equal(h.child('EditorSheet').title, 'DRILL LIBRARY');
-  for (const name of ['Bill Drill', 'Distance ladder', 'Sprint', 'Shuffle', 'El Presidente']) assert.ok(h.nodes().some(n => n.props.title === name), name);
-  h.press('Sprint');
+  const h = drillSheet('sprint', { powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onSave: async (r, par) => { saved = r; savedPar = par; } });
   assert.equal(h.child('EditorSheet').title, 'Sprint');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Two shooting spots 5, 10 or 15 yd apart/.test(n.props.children)), 'setup shown');
   h.find(n => n.type === 'Segmented' && n.props.options.includes('SIDEWAYS')).props.onChange('BACK'); h.render();
   const par = () => h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'PAR TIME (SECONDS, BLANK = NONE)');
   assert.equal(par().props.value, '3.5', 'the saved par for this variant');
@@ -852,12 +876,13 @@ test('Drill library editor: pick a drill and options, paste timer times, count h
   assert.deepEqual(saved.shotTimes, [1.42, 1.68, 3.4, 3.62]); assert.equal(saved.totalTime, 3.62);
   assert.deepEqual(saved.zones, { A: 3, C: 1 }); assert.equal(saved.powerFactor, 'major'); assert.equal(savedPar, 3.4);
   assert.equal(require('../src/training/drillLibrary.ts').libraryRunProblem(saved), null);
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Saved: 3\.62 s/.test(n.props.children)));
+  assert.equal(h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.value, '', 'ready for the next run');
 });
 
-test('Drill library editor: wrong shot count is explained; dry fire counts no hits; total-only runs', async () => {
+test('Drill sheet: wrong shot count is explained; dry fire counts no hits; total-only runs', async () => {
   let saved;
-  const h = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'DRY_FIRE', powerFactor: 'minor', pars: {}, onClose() {}, onSave: async r => { saved = r; } });
-  h.press('Bill Drill');
+  const h = drillSheet('bill', { context: 'DRY_FIRE', onSave: async r => { saved = r; } });
   assert.ok(h.nodes().some(n => n.props.children === 'Dry fire: hits are not counted. Times count toward your dry-fire numbers only.'));
   assert.ok(!h.nodes().some(n => n.type?.name === 'Counter'));
   h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.5 1.7'); h.render();
@@ -871,28 +896,42 @@ test('Drill library editor: wrong shot count is explained; dry fire counts no hi
   assert.deepEqual([saved.shotTimes, saved.totalTime, saved.zones, saved.counts], [[], 2.9, undefined, false]);
 });
 
-test('Training sessions list library runs, log new ones with the par, and remove one after a confirm', async () => {
+test('Drill sheet: hits marked on the target become the zone counts; every marked hit needs its zone', async () => {
+  let saved;
+  const h = drillSheet('bill', { onSave: async r => { saved = r; } });
+  assert.ok(!h.nodes().some(n => n.type === 'HitMarker'), 'counting by zone is the default');
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('MARK ON TARGET')).props.onChange('MARK ON TARGET'); h.render();
+  const marker = () => h.child('HitMarker');
+  assert.equal(marker().target.presetId, 'uspsa-metric-chl-v1'); assert.equal(marker().distanceYards, 7);
+  const hit = (n, zone, x = 0.5 * n, y = -n) => ({ id: 'h' + n, order: n, x, y, zone });
+  marker().onChange({ ...marker().target, hits: [hit(1, 'A'), hit(2, 'A'), hit(3, 'A'), hit(4, 'C'), hit(5, 'A'), hit(6, null)] }); h.render();
+  h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.55 1.8 2.05 2.3 2.55'); h.render();
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saved, undefined); assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Pick the zone of every marked hit/.test(n.props.children)));
+  marker().onChange({ ...marker().target, hits: marker().target.hits.map(x => x.id === 'h6' ? { ...x, zone: 'A' } : x) }); h.render();
+  assert.equal(h.nodes().find(n => n.type === 'DataRow' && n.props.label === 'USPSA minor points').props.value, '28 of 30 (93%)');
+  h.press('SAVE RUN'); await h.settle();
+  assert.deepEqual(saved.zones, { A: 5, C: 1 }); assert.equal(saved.target.hits.length, 6); assert.equal(saved.target.hits[3].zone, 'C');
   const L = require('../src/training/drillLibrary.ts');
-  const libraryRun = { id: 'lr1', drillId: 'bill', recordedAt: '2026-10-05T12:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55,
-    family: 'USPSA', zones: { A: 6 }, notes: '' };
-  const record = { id: 'r', userId: 'local', drillName: 'Library', context: 'LIVE_FIRE', startingType: 'competitionHolster', occurredAt: '2026-10-05T12:00:00Z', segments: [], notes: '', totalTime: null, videos: [], libraryRuns: [libraryRun] };
-  const writes = [], pars = [];
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [record],
-    loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }), saveTraining: async r => { writes.push(r); }, setDrillPar: async (k, v) => { pars.push([k, v]); } } });
-  await h.settle();
-  assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Your numbers: what your drills have measured'));
-  h.child('LibraryCard').more(); h.render();
-  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === '1. Bill Drill · 7 yd · 2.55 s · 100% points · HF 11.76'));
-  h.press('LOG LIBRARY DRILL');
-  const editor = h.find(n => n.type === 'LibraryRunEditor');
-  assert.equal(editor.props.visible, true); assert.equal(editor.props.context, 'LIVE_FIRE');
-  const second = { ...libraryRun, id: 'lr2' };
-  await editor.props.onSave(second, 2.4); await h.settle();
-  assert.deepEqual(writes[0].libraryRuns.map(r => r.id), ['lr1', 'lr2']);
-  assert.deepEqual(pars, [[L.variantKey(second), 2.4]]);
-  editor.props.onClose(); h.render();
-  h.press('Remove library run 1'); h.press('Confirm removing library run 1'); await h.settle();
-  assert.deepEqual(writes[1].libraryRuns.map(r => r.id), ['lr2']);
+  assert.equal(L.libraryRunProblem(saved), null);
+  assert.equal(L.libraryRunProblem({ ...saved, zones: { A: 6 } }), 'Hit counts do not match the hits marked on the target.');
+  assert.equal(marker().target.hits.length, 0, 'the target is cleared for the next run');
+  const blake = drillSheet('blake');
+  assert.ok(!blake.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('MARK ON TARGET')), 'three targets: counts only');
+});
+
+test('Drill sheet: your runs of these options, best time and par, and remove after a confirm', async () => {
+  const Days = require('../src/training/drillDays.ts');
+  const mk = (id, at, total, choices = { distance: '7' }) => ({ id, drillId: 'bill', recordedAt: at, choices, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, total], totalTime: total, family: 'USPSA', notes: '' });
+  const records = [{ ...Days.newDrillDay('d1', '2026-10-20', 'LIVE_FIRE', '2026-10-20T15:00:00Z'), libraryRuns: [mk('a', '2026-10-20T15:00:00Z', 2.6), mk('b', '2026-10-20T15:05:00Z', 2.45), mk('c', '2026-10-20T15:09:00Z', 3.1, { distance: '10' })] }];
+  const removed = [];
+  const h = drillSheet('bill', { records, pars: { 'bill|distance=7': 2.5 }, onRemove: id => { removed.push(id); } });
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.equal(row('Runs'), '2'); assert.equal(row('Best time'), '2.45 s'); assert.equal(row('Par'), '2.50 s');
+  const lines = h.nodes().filter(n => n.type === 'Copy' && /^Oct 20 · Live Fire · /.test(n.props.children)).map(n => n.props.children);
+  assert.deepEqual(lines, ['Oct 20 · Live Fire · 2.45 s · under par', 'Oct 20 · Live Fire · 2.60 s · over par'], 'newest first, this variant only');
+  h.press('Remove run 1'); h.press('Confirm removing run 1');
+  assert.deepEqual(removed, ['b']);
 });
 
 test('Your numbers shows measured values with run counts, the planner values, and a trend against par', async () => {
@@ -933,8 +972,7 @@ test('review: Your numbers survives a damaged saved move fit and opens on the pl
   assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === 'Draw'), 'planner values shown for the planner context');
 
   let savedPar = 'not called';
-  const e = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'LIVE_FIRE', powerFactor: 'minor', pars: { 'bill|distance=7': 2.4 }, onClose() {}, onSave: async (_r, par) => { savedPar = par; } });
-  e.press('Bill Drill');
+  const e = drillSheet('bill', { pars: { 'bill|distance=7': 2.4 }, onSave: async (_r, par) => { savedPar = par; } });
   const parInput = () => e.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'PAR TIME (SECONDS, BLANK = NONE)');
   assert.equal(parInput().props.value, '2.4');
   e.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.3 1.55 1.8 2.05 2.3 2.55'); e.render();
@@ -947,8 +985,7 @@ test('review: Your numbers survives a damaged saved move fit and opens on the pl
 });
 
 test('review: a PCSL score from whole-run counts over several targets is marked as an estimate', () => {
-  const e = harness('training/LibraryRunEditor.tsx', { visible: true, context: 'LIVE_FIRE', powerFactor: 'minor', pars: {}, onClose() {}, onSave() {} });
-  e.press('Blake Drill');
+  const e = drillSheet('blake');
   e.find(n => n.type === 'Segmented' && n.props.options.includes('PCSL')).props.onChange('PCSL'); e.render();
   e.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText('1.4 1.62 1.92 2.14 2.44 2.66'); e.render();
   const counter = zone => e.find(n => n.type?.name === 'Counter' && n.props.label === zone);

@@ -1,17 +1,23 @@
 # Drill library (roadmap C1, C2) — 2026-10-26
 
-Short drills, one shot-timer run each, that measure the numbers the planner needs. Code: `mobile/src/training/drillLibrary.ts` (drills, runs, scoring, measurements), `libraryStats.ts` (Your numbers), `mobile/src/profile/movementModel.ts` (move timing), screens `LibraryRunEditor.tsx` and `YourNumbers.tsx`.
+Short drills, one shot-timer run each, that measure the numbers the planner needs. Code: `mobile/src/training/drillLibrary.ts` (drills, runs, scoring, measurements), `libraryStats.ts` (Your numbers), `mobile/src/profile/movementModel.ts` (move timing), `drillDays.ts` (filing runs by day), screens `mobile/src/app/training.tsx` (the Training screen), `DrillSheet.tsx`, `HitMarker.tsx` and `YourNumbers.tsx`.
+
+## Training is the drill library (2026-10-26, batch 20)
+
+The Training screen opens on the drills, grouped (Draw, Shooting, Transitions, Reloads, Movement, Positions, Combined). Each card says what the drill measures and your latest run. There are no sessions to create and no free video upload: the drills are how the app collects your data. Older hand-made sessions, their logged runs and their videos stay under **HISTORY** (open, review, remove runs, delete), but nothing new is added to them.
+
+Runs are filed for you: the first run of the day in a practice type (dry fire, live fire, match) makes a record for that day (`kind: 'drillDay'`, `day: YYYY-MM-DD`, local time); later runs that day join it. HISTORY lists these as "Drills · Mon, Oct 26". Their runs feed the profile exactly like runs in older sessions.
 
 ## Logging a run
 
-Training → open a session → **LOG LIBRARY DRILL** → pick a drill → set its options → enter the times → count hits → **SAVE RUN**.
+Training → tap a drill → **HOW TO RUN IT** and **WHAT IT MEASURES** → set its options → **LOG A RUN**: practice type, times, hits → **SAVE RUN**. The sheet stays open for the next rep and says what was saved; **YOUR RUNS** below lists runs with the same options (newest first, against par) with **REMOVE**.
 
+- **Practice type** (Dry Fire / Live Fire / Pressure / Match) is remembered on the phone. It decides which of your numbers the run builds.
 - **Times.** SHOT TIMES: the times your timer lists, from the buzzer (`1.42 1.68 3.40 3.62`). SPLITS: the timer's splits, the first being buzzer to first shot. TOTAL ONLY: a total gives the hit factor and the trend, but no draw, split or move times. The run must have exactly the drill's number of shots (steel: five or more; extra shots are makeups).
 - **What each time measured** is shown as you type (`Shot 3 · Move 1.72 s`).
-- **Hits** are counted by zone with − / + (USPSA: A, C, D, M, NS; PCSL adds T) and scored with the drill logger's rules: best hits up to the required count, −10 per missing hit, no-shoot hit and procedural; USPSA minor A 5 / C 3 / D 1, major A 5 / C 4 / D 2 (Appendix B1); PCSL T counts as two A hits (11.3.2.1). Counts are for the whole run, so scoring assumes the drill's shots per target were fired; on a PCSL drill with several targets, T hits make the score an estimate (PCSL caps points per target), shown as ≈. More hits and misses than shots is refused. Leave all at zero to log times only. Dry-fire sessions don't count hits.
-- **Par time** per drill variant (same drill and options), optional; shown against the run and on the trend. The field shows the saved par; it changes only when you type in it.
-- **PROFILE: COUNTS / LOG ONLY.** LOG ONLY keeps the run out of your profile and Your numbers (a warm-up, a bad setup); it still shows in the session and its trend.
-- Runs are listed in the session; **REMOVE** (with a confirm) deletes one and withdraws its measurements.
+- **Hits: COUNT BY ZONE** with − / + (USPSA: A, C, D, M, NS; PCSL adds T), or **MARK ON TARGET** on single plain paper targets (Draw, Bill, Distance ladder, Reload): tap where each shot hit and pick its zone (orange marks have no zone yet, and the run can't be saved until each has one); MISS and NO-SHOOT HIT have no spot. Zones are always picked by you, never read from the spot (no official zone geometry is published as data). Marked hits are saved with the run (`target`: face size, aim point, each hit's inches from the face centre) and the zone counts are their tags, checked on every save and load. Group centre and mean radius are shown as you mark. Scoring uses the drill logger's rules: best hits up to the required count, −10 per missing hit, no-shoot hit and procedural; USPSA minor A 5 / C 3 / D 1, major A 5 / C 4 / D 2 (Appendix B1); PCSL T counts as two A hits (11.3.2.1). Counts are for the whole run, so scoring assumes the drill's shots per target were fired; on a PCSL drill with several targets, T hits make the score an estimate (PCSL caps points per target), shown as ≈. More hits and misses than shots is refused. Leave them empty to log times only. Dry fire doesn't count hits.
+- **Par time** per drill variant (same drill and options), optional; shown against the run, in YOUR RUNS and on the trend. The field shows the saved par; it changes only when you type in it.
+- **YOUR NUMBERS: COUNTS / LOG ONLY.** LOG ONLY keeps the run out of your profile and Your numbers (a warm-up, a bad setup); it still shows in YOUR RUNS and the trend.
 
 ## The drills
 
@@ -36,7 +42,7 @@ Setups and distances are the drills' usual forms (docs/roadmap.md); they are tra
 ## From runs to the profile
 
 - Each counted run gives **one measurement per factor** (the run's mean), so sample counts are runs, not shots. Ids are `lib:<session>:<run>:<n>`.
-- The session's library runs are the source of truth: every save **re-derives** them in the same database transaction as the session (editing, LOG ONLY, removing a run and deleting the session all update the profile). Video measurements of the same session are untouched.
+- A record's library runs (a drill day or an older session) are the source of truth: every save **re-derives** them in the same database transaction as the session (editing, LOG ONLY, removing a run and deleting the session all update the profile). Video measurements of the same session are untouched.
 - Measurements carry the session's context (dry fire, live fire, match). The planner uses the profile's calibration context (live fire unless changed).
 - **General numbers vs conditions.** The profile's draw, split (and the split-by-distance curve), transition and reload use only: draws from the holster with hands relaxed; splits and transitions standing square on full paper; standing reloads. Moving, steel, partial-target, port/lean, surrender/ready-start and stepping-reload measurements are stored and shown in Your numbers, but never pull the general values (`generalSample`, `mobile/src/training/observations.ts`).
 - Draw comes only from the Draw and Bill drills (other drills' first shot includes things that aren't a draw at 7 yd).

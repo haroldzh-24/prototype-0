@@ -24,6 +24,13 @@ export type TrainingRecord = {
   runs?: DrillRun[];
   /** Drill-library runs (timer times and zone counts); they feed the profile, see `libraryObservations`. */
   libraryRuns?: LibraryRun[];
+  /**
+   * 'drillDay': the record the app keeps for one day's drill runs in one context (see `drillDays.ts`); the shooter
+   * never creates or names it. Missing: a session created by hand in an earlier version.
+   */
+  kind?: 'drillDay';
+  /** Local calendar day of a drill day, YYYY-MM-DD. */
+  day?: string;
 };
 /** Stable drill identity: the shared drillId, or one derived from the first session of a drill. */
 export const drillKey = (record: Pick<TrainingRecord, 'id' | 'drillId'>) => record.drillId ?? `drill-${record.id}`;
