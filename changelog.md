@@ -1,12 +1,3 @@
-# RC2 batch 23: practice timer with a buzz start, and the buzz test (T5) - 2026-10-27
-
-A start signal you can feel, for dry fire (quiet, eyes on the target) and the range (hearing protection). Design and test protocol: `docs/haptic-timer.md`.
-- **Practice timer** (Training → TIMER & BUZZ TEST, and PRACTICE TIMER · BUZZ START inside each drill, using the drill's par): START gives a light knock, the start buzz comes 1–4 s later (USPSA 8.3.3, PCSL 5.1), the par is the start pattern twice, and the box flashes orange then yellow (SCREEN FLASH OFF keeps it dark). BURST = five heavy knocks in 0.2 s, TAP = one. Without a par it counts as a stopwatch until STOP (2 min limit). STOP, Done and another drill cancel every pending buzz; the screen stays awake only while it runs.
-- **Buzz test**: reaction time to BUZZ ONLY / SCREEN ONLY / BUZZ + SCREEN (10 trials a block; under 100 ms or before the signal is early and redone, over 1.5 s is missed; taps read from the raw touch, not a button press, so a scrolling sheet can't hold them back), and a pocket test (4–8 buzzes at random over a minute after a 5 s lead, ended by a long triple buzz; you enter how many you felt before the count is shown). Results kept on the phone and shared as text with the model and iOS version.
-- New native module `expo-haptics` ~57.0.3 (needs the next phone build); `expo-keep-awake` (already linked through `expo`) declared. No permissions.
-- Tests: `tests/practiceTimer.test.cjs` (12) and 6 screen tests with a fake clock in `tests/ui-reorganization.test.cjs`. Web build checked at 390×844 (timer, a screen-only reaction block, the drill's timer).
-- Validation: 1038/1038 tests, TypeScript passed. No device testing.
-
 # RC2 batch 22b: fixes from the independent review of batches 21 and 22 - 2026-10-26
 
 6 confirmed defects, each with a regression test (`tests/videoTiming.test.cjs`, `tests/movementPhases.test.cjs`, `tests/drillLibrary.test.cjs`, `tests/ui-reorganization.test.cjs`); the reviewer also confirmed the save queue, adding and removing run videos, rounding, the video races and the Swift change:

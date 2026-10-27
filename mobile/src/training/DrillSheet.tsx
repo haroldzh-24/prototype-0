@@ -17,7 +17,6 @@ import { runsOfDrill, runText } from './drillDays';
 import HitMarker from './HitMarker';
 import DrillVideo, { ClipPlayer } from './DrillVideo';
 import PhaseBreakdown from './PhaseBreakdown';
-import PracticeTimer from './PracticeTimer';
 import { phaseSeconds } from './movementPhases';
 import type { Side } from './movementPhases';
 import type { Mark } from './videoTiming';
@@ -77,7 +76,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const [parEdit, setParEdit] = useState<string | null>(null);
   const [error, setError] = useState(''), [saving, setSaving] = useState(false), [saved, setSaved] = useState('');
   const [removing, setRemoving] = useState<string | null>(null), [watching, setWatching] = useState<string | null>(null);
-  const [phaseMarks, setPhaseMarks] = useState<Mark[]>([]), [timerOpen, setTimerOpen] = useState(false);
+  const [phaseMarks, setPhaseMarks] = useState<Mark[]>([]);
   // The video of the run being logged: kept only if the run is saved, otherwise its copy is removed.
   const [video, setVideo] = useState<RunVideo | null>(null), videoRef = useRef(video); videoRef.current = video;
   const dropVideo = () => { if (videoRef.current) { try { discardVideoAsset(videoRef.current.asset); } catch { /* already gone */ } } setVideo(null); };
@@ -90,7 +89,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
     if (!drill) return;
     // Your target family and power factor carry over; how times are entered starts as shot times again.
     setChoices(choicesFor(drill)); clearRun(); setMode('SHOT TIMES'); setTarget(null); setHitMode('COUNT BY ZONE'); setParEdit(null); setError(''); setSaved(''); setRemoving(null);
-    setWatching(null); setPhaseMarks([]); setTimerOpen(false); dropVideo();
+    setWatching(null); setPhaseMarks([]); dropVideo();
   }, [drillId]);
 
   if (!drill) return <EditorSheet title="DRILL" visible={visible && !!drillId} close={onClose}><Panel><Copy>Unknown drill.</Copy></Panel></EditorSheet>;
@@ -110,7 +109,6 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const analysis = analyzeLibraryRun(run, powerFactor);
   const key = variantKey(run);
   const par = parEdit ?? String(pars[key] ?? ''), parValue = parseNumber(par);
-  const timerPar = parValue !== null && Number.isFinite(parValue) && parValue > 0 && parValue <= 600 ? parValue : null;
   const mine = runsOfDrill(records, drill.id).filter(e => variantKey(e.run) === key);
   const timed = mine.filter(e => e.run.totalTime !== null);
   const best = timed.length ? Math.min(...timed.map(e => e.run.totalTime!)) : null;
@@ -171,14 +169,6 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
         <Segmented options={c.options.map(o => o.label)} value={c.options.find(o => o.value === run.choices[c.key])?.label ?? ''} disabled={saving}
           onChange={label => choose(c.key, c.options.find(o => o.label === label)!.value)} />
       </View>)}
-    </Panel>
-
-    <Panel>
-      {timerOpen ? <>
-        <PracticeTimer key={drill.id} par={timerPar} />
-        <Action title="HIDE TIMER" variant="quiet" accessibilityLabel="Hide the practice timer" onPress={() => setTimerOpen(false)} />
-      </> : <Action title={'PRACTICE TIMER · BUZZ START' + (timerPar !== null ? ` · PAR ${timerPar.toFixed(2)} S` : '')}
-        accessibilityLabel="Open the practice timer: the phone buzzes the start signal and your par" onPress={() => setTimerOpen(true)} />}
     </Panel>
 
     <Panel>

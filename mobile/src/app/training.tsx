@@ -10,9 +10,6 @@ import type { TrainingRecord } from '@/training/model';
 import { drillKey } from '@/training/model';
 import DrillSheet from '@/training/DrillSheet';
 import YourNumbers from '@/training/YourNumbers';
-import PracticeTimer from '@/training/PracticeTimer';
-import BuzzTest from '@/training/BuzzTest';
-import { parseParSeconds } from '@/training/practiceTimer';
 import type { LibraryRun } from '@/training/drillLibrary';
 import { drillGroups, libraryDrill, libraryDrills, variantKey, variantLabel } from '@/training/drillLibrary';
 import { addRun, drillCardText, drillDayFor, historyDetail, historyTitle, isDrillDay, localDay, newDrillDay, recordOfRun, removeRun, runText, runVideoIds } from '@/training/drillDays';
@@ -28,7 +25,7 @@ import EditorSheet from '@/editor/EditorSheet';
 import { readPref, writePref } from '@/ui/prefsStore';
 import { useThemeMode } from '@/ui/theme';
 import { Loading } from '@/ui/kit';
-import { Screen, ScreenHeader, Notice, Copy, Panel, Action, Input, ui } from '@/ui/kit';
+import { Screen, ScreenHeader, Notice, Copy, Panel, Action, ui } from '@/ui/kit';
 
 const CONTEXT_KEY = 'psp.trainingContext', HAND_KEY = 'psp.shootingHand';
 const savedContext = (): TrainingContext => { const v = readPref(CONTEXT_KEY); return trainingContexts.includes(v as TrainingContext) ? v as TrainingContext : 'DRY_FIRE'; };
@@ -49,7 +46,6 @@ export default function Training() {
   const [hand, setHandState] = useState<Side>(() => readPref(HAND_KEY) === 'left' ? 'left' : 'right');
   const setHand = (next: Side) => { setHandState(next); writePref(HAND_KEY, next); };
   const [historyOpen, setHistoryOpen] = useState(false), [numbersOpen, setNumbersOpen] = useState(false);
-  const [timerOpen, setTimerOpen] = useState(false), [timerPar, setTimerPar] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false), [removingRun, setRemovingRun] = useState<string | null>(null);
   const recordsRef = useRef(records); recordsRef.current = records;
   const refresh = async (token: number) => { const rows = await repo.listTraining('local');
@@ -139,7 +135,6 @@ export default function Training() {
     {ready && <>
       <Copy>Pick a drill, run it on your timer, log it. Every run updates YOUR NUMBERS, which the stage planner uses.</Copy>
       <Action title="YOUR NUMBERS" accessibilityLabel="Your numbers: what your drills have measured" onPress={() => setNumbersOpen(true)} />
-      <Action title="TIMER & BUZZ TEST" accessibilityLabel="Practice timer with a buzz start signal, and the buzz test" onPress={() => setTimerOpen(true)} />
       {drillGroups.map(group => <View key={group} style={{ gap: 8 }}>
         <Text style={ui.eyebrow}>{group.toUpperCase()}</Text>
         {libraryDrills.filter(d => d.group === group).map(d => <LibraryCard key={d.id} name={d.name} detail={drillCardText(records, d, pf)}
@@ -193,14 +188,6 @@ export default function Training() {
     <DrillSheet visible={!!drillId} drillId={drillId} records={records} context={context} onContextChange={setContext} powerFactor={pf}
       pars={profile?.drillPars ?? {}} onSave={saveLibraryRun} onRemove={removeLibraryRun} onUpdate={updateLibraryRun} hand={hand} onHandChange={setHand}
       onClose={() => setDrillId(null)} />
-    <EditorSheet title="TIMER & BUZZ TEST" visible={timerOpen} close={() => setTimerOpen(false)}>
-      <Panel>
-        <Input autoFocus={false} label="PAR TIME (SECONDS, BLANK = NONE)" value={timerPar} onChange={setTimerPar} />
-        {!!timerPar.trim() && parseParSeconds(timerPar) === null && <Notice tone="warning">Par must be a time in seconds, up to 600, or blank.</Notice>}
-        <PracticeTimer par={parseParSeconds(timerPar)} />
-      </Panel>
-      <Panel><BuzzTest /></Panel>
-    </EditorSheet>
     <YourNumbers visible={numbersOpen} records={records} profile={profile} onClose={() => setNumbersOpen(false)} />
     {selectedRecord && selectedVideo && <VideoAnalysisEditor key={selectedVideo.session.id} record={selectedRecord} initialVideo={selectedVideo}
       onSaved={updated => setRecords(current => current.map(r => r.id === updated.id ? updated : r))} onClose={() => setSelected(null)} />}
