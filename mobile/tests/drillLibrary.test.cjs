@@ -369,7 +369,7 @@ test('review: saving an unchanged session does not rewrite the profile; a damage
 test('drill days: one record per local day and practice type, made by the app; saved runs found by drill and by id', async () => {
   const D = require('../src/training/drillDays.ts');
   assert.equal(D.localDay(new Date(2026, 0, 5, 23, 59)), '2026-01-05');
-  assert.equal(D.validDay('2026-10-26'), true); assert.equal(D.validDay('2026-13-01'), false); assert.equal(D.validDay('26-10-2026'), false);
+  assert.equal(D.validDay('2026-10-26'), true); assert.equal(D.validDay('2026-13-01'), false); assert.equal(D.validDay('26-10-2026'), false); assert.equal(D.validDay('2026-02-31'), false);
   const day = D.newDrillDay('d1', '2026-10-26', 'DRY_FIRE', at(1));
   assert.equal(D.isDrillDay(day), true); assert.deepEqual([day.kind, day.day, day.context, day.libraryRuns], ['drillDay', '2026-10-26', 'DRY_FIRE', []]);
   const older = record([run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55])]);
@@ -412,6 +412,9 @@ test('hits marked on the target: single plain paper targets only, inside the fac
   assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), { id: 'h6', order: 6, x: null, y: null, zone: 'A' }]), zones: { A: 5, C: 1 } }), 'Only misses and no-shoot hits may omit coordinates.');
   assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, 'T')]), zones: { A: 4, C: 1, T: 1 } }), 'Invalid hit counts.', 'T is a PCSL zone');
   assert.equal(L.libraryRunProblem({ ...ok, target: target([hit(1, 'A'), hit(1, 'A')]), zones: { A: 2 } }), 'Invalid hit.', 'duplicate ids');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, null)]), zones: { A: 4, C: 1 } }), 'A marked hit has no zone.');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, 'A', 9.2, 0)]), zones: { A: 5, C: 1 } }), 'Hit coordinates are outside the target area.', 'past the face edge (half the width)');
+  assert.equal(L.libraryRunProblem({ ...ok, target: target([...hits.slice(0, 5), hit(6, 'A', 9.06, -14.96)]), zones: { A: 5, C: 1 } }), null, 'on the edge');
   const blake = run('blake', times, { zones: { A: 6 }, target: target([1, 2, 3, 4, 5, 6].map(n => hit(n, 'A'))) });
   assert.equal(L.libraryRunProblem(blake), 'Hits can\'t be marked on the target for Blake Drill.');
   assert.deepEqual(L.libraryDrills.filter(L.canMarkHits).map(d => d.id), ['draw', 'bill', 'ladder', 'reload']);

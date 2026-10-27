@@ -12,12 +12,24 @@ Runs are filed for you: the first run of the day in a practice type (dry fire, l
 
 Training → tap a drill → **HOW TO RUN IT** and **WHAT IT MEASURES** → set its options → **LOG A RUN**: practice type, times, hits → **SAVE RUN**. The sheet stays open for the next rep and says what was saved; **YOUR RUNS** below lists runs with the same options (newest first, against par) with **REMOVE**.
 
-- **Practice type** (Dry Fire / Live Fire / Pressure / Match) is remembered on the phone. It decides which of your numbers the run builds.
+- **Practice type** (Dry Fire, Live Fire, or Pressure / Match) is remembered on the phone. It decides which of your numbers the run builds.
 - **Times.** SHOT TIMES: the times your timer lists, from the buzzer (`1.42 1.68 3.40 3.62`). SPLITS: the timer's splits, the first being buzzer to first shot. TOTAL ONLY: a total gives the hit factor and the trend, but no draw, split or move times. The run must have exactly the drill's number of shots (steel: five or more; extra shots are makeups).
 - **What each time measured** is shown as you type (`Shot 3 · Move 1.72 s`).
 - **Hits: COUNT BY ZONE** with − / + (USPSA: A, C, D, M, NS; PCSL adds T), or **MARK ON TARGET** on single plain paper targets (Draw, Bill, Distance ladder, Reload): tap where each shot hit and pick its zone (orange marks have no zone yet, and the run can't be saved until each has one); MISS and NO-SHOOT HIT have no spot. Zones are always picked by you, never read from the spot (no official zone geometry is published as data). Marked hits are saved with the run (`target`: face size, aim point, each hit's inches from the face centre) and the zone counts are their tags, checked on every save and load. Group centre and mean radius are shown as you mark. Scoring uses the drill logger's rules: best hits up to the required count, −10 per missing hit, no-shoot hit and procedural; USPSA minor A 5 / C 3 / D 1, major A 5 / C 4 / D 2 (Appendix B1); PCSL T counts as two A hits (11.3.2.1). Counts are for the whole run, so scoring assumes the drill's shots per target were fired; on a PCSL drill with several targets, T hits make the score an estimate (PCSL caps points per target), shown as ≈. More hits and misses than shots is refused. Leave them empty to log times only. Dry fire doesn't count hits.
 - **Par time** per drill variant (same drill and options), optional; shown against the run, in YOUR RUNS and on the trend. The field shows the saved par; it changes only when you type in it.
 - **YOUR NUMBERS: COUNTS / LOG ONLY.** LOG ONLY keeps the run out of your profile and Your numbers (a warm-up, a bad setup); it still shows in YOUR RUNS and the trend.
+
+## Timing a run from its video (2026-10-26, batch 21; roadmap T2)
+
+In LOG A RUN, **TIME IT FROM A VIDEO** picks the video of this run (iPhone: from Photos; the browser: a file). The app reads the video's sound on the phone (the TrainingAudio module already in the app; nothing is uploaded), finds the timer's beep and the shots, and lists them: the beep's place in the video and each shot with what it measured (`Shot 1 · Start to first shot 1.42 s`). Buttons play the video from just before the beep and each shot so you can check them. **USE THESE TIMES** puts them in SHOT TIMES, where you can still change them. The video is saved with the run (in the same day record, `LibraryRun.videoId`); a video you don't save the run with is deleted when you close the drill or pick another one.
+
+How the shots are picked (`training/videoTiming.ts`):
+- Every beep starts a run; the shot-like sounds until the next beep are its candidates. A video with several reps lists them as RUN 1, RUN 2…; log them one at a time.
+- Your own shots are usually the loudest sounds on the phone's microphone. A sound's loudness is its highest peak in the 40 ms after it starts (a compressed recording can make a shot start softly). Sounds quieter than 35% of your shots' typical loudness are ignored, and when more loud sounds remain than the drill has shots, the loudest are kept (steel keeps up to 10 more as makeups). Ignored sounds (echoes, the next bay) are counted for you to check.
+- If fewer shots are found than the drill has, it says so ("Found 4 of the 6 shots…"); with no beep, or a beep and no shots (dry fire), it says to type the times. Sound can't tell whose shot it is, so the times are always yours to check.
+- Checked on synthetic recordings encoded as phone video (AAC): a beep and six shots, and two reps with an echo after every shot and quieter shots from another bay. Every shot was found within 5 ms and the echoes were ignored. **Not yet checked on real range video or on a phone.**
+
+The saved video's timeline is the run's saved times placed from the beep (so it matches what you logged, even after you changed a time). Watch it from YOUR RUNS (**WATCH**, with a button for the beep and each shot). It is not opened in the older video editor from History, whose "Add to profile" would count the run a second time.
 
 ## The drills
 
@@ -42,7 +54,7 @@ Setups and distances are the drills' usual forms (docs/roadmap.md); they are tra
 ## From runs to the profile
 
 - Each counted run gives **one measurement per factor** (the run's mean), so sample counts are runs, not shots. Ids are `lib:<session>:<run>:<n>`.
-- A record's library runs (a drill day or an older session) are the source of truth: every save **re-derives** them in the same database transaction as the session (editing, LOG ONLY, removing a run and deleting the session all update the profile). Video measurements of the same session are untouched.
+- A record's library runs (a drill day or an older session) are the source of truth: every save **re-derives** them in the same database transaction as the record (LOG ONLY, removing a run and deleting a day or session all update the profile). Video measurements of the same session are untouched.
 - Measurements carry the session's context (dry fire, live fire, match). The planner uses the profile's calibration context (live fire unless changed).
 - **General numbers vs conditions.** The profile's draw, split (and the split-by-distance curve), transition and reload use only: draws from the holster with hands relaxed; splits and transitions standing square on full paper; standing reloads. Moving, steel, partial-target, port/lean, surrender/ready-start and stepping-reload measurements are stored and shown in Your numbers, but never pull the general values (`generalSample`, `mobile/src/training/observations.ts`).
 - Draw comes only from the Draw and Bill drills (other drills' first shot includes things that aren't a draw at 7 yd).

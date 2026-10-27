@@ -39,7 +39,7 @@ Decision deferred: on-phone reading vs a paid cloud vision service. Test both on
 | C5 | **2–3 plans side by side** | Compared by expected time and hit factor, with the trade-off spelled out ("hard lean at P2"). |
 | C6 ★ | **Is slowing down worth it?** | Per target: time for AA vs accepting a C, against your stage hit factor ("T5: AA costs 0.35 s for +2 points; worth it while stage HF is under 5.7"). |
 
-## Milestone T: Training is the drill library (owner, 2026-10-26) — T1 done (batch 20; `docs/drill-library.md`)
+## Milestone T: Training is the drill library (owner, 2026-10-26) — T1 done (batch 20), T2 done (batch 21; `docs/drill-library.md`), both need a phone check
 
 The drills are the whole Training section and the way the app collects data. No free video upload: a video always belongs to a drill run, so the app knows what happened in it.
 

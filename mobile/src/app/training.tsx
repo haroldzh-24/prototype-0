@@ -12,7 +12,8 @@ import DrillSheet from '@/training/DrillSheet';
 import YourNumbers from '@/training/YourNumbers';
 import type { LibraryRun } from '@/training/drillLibrary';
 import { drillGroups, libraryDrill, libraryDrills, variantKey, variantLabel } from '@/training/drillLibrary';
-import { drillCardText, drillDayFor, historyDetail, historyTitle, isDrillDay, localDay, newDrillDay, recordOfRun, runText } from '@/training/drillDays';
+import { addRun, drillCardText, drillDayFor, historyDetail, historyTitle, isDrillDay, localDay, newDrillDay, recordOfRun, removeRun, runText, runVideoIds } from '@/training/drillDays';
+import type { PickedVideo } from '@/training/drillDays';
 import type { UserProfile } from '@/profile/model';
 import { drillTrend, groupStats, offsetText } from '@/training/drillLog';
 import { trainingContexts } from '@/training/observations';
@@ -63,26 +64,40 @@ export default function Training() {
   };
   const pf = profile?.powerFactor ?? 'minor';
 
-  // A run goes into today's record for its practice type, made on the first run of the day. The repository re-derives
-  // the record's profile measurements from its runs in the same save.
-  const saveLibraryRun = async (libraryRun: LibraryRun, par: number | null | undefined) => {
-    const current = recordsRef.current, existing = drillDayFor(current, localDay(new Date(libraryRun.recordedAt)), context);
-    const record = existing ?? newDrillDay(uuid.v4(), localDay(new Date(libraryRun.recordedAt)), context, libraryRun.recordedAt);
-    const updated = { ...record, libraryRuns: [...(record.libraryRuns ?? []), libraryRun] };
-    await repo.saveTraining(updated);
-    setRecords(list => existing ? list.map(r => r.id === updated.id ? updated : r) : [updated, ...list]);
-    const key = variantKey(libraryRun);
-    if (par !== undefined && (profile?.drillPars?.[key] ?? null) !== par) await repo.setDrillPar(key, par);
-    await loadProfile();
+  // Saves and removals run one at a time, each built from the records as the previous one left them (a removal racing
+  // a save could otherwise write back the run it removed).
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const queued = <T,>(work: () => Promise<T>): Promise<T> => { const next = writes.current.then(work, work); writes.current = next.catch(() => {}); return next; };
+  const commit = (updated: TrainingRecord) => {
+    const list = recordsRef.current.some(r => r.id === updated.id) ? recordsRef.current.map(r => r.id === updated.id ? updated : r) : [updated, ...recordsRef.current];
+    recordsRef.current = list; setRecords(list);
   };
-  const removeLibraryRun = async (runId: string) => {
+  // A run goes into today's record for its practice type, made on the first run of the day. The repository re-derives
+  // the record's profile measurements from its runs in the same save. A par that fails to save doesn't undo the run:
+  // the warning comes back with the success, so the run isn't saved twice.
+  const saveLibraryRun = (libraryRun: LibraryRun, par: number | null | undefined, video?: PickedVideo) => queued(async () => {
+    const day = localDay(new Date(libraryRun.recordedAt)), existing = drillDayFor(recordsRef.current, day, context);
+    const updated = addRun(existing ?? newDrillDay(uuid.v4(), day, context, libraryRun.recordedAt), libraryRun, video);
+    await repo.saveTraining(updated);
+    commit(updated);
+    let warning: string | undefined;
+    const key = variantKey(libraryRun);
+    if (par !== undefined && (profile?.drillPars?.[key] ?? null) !== par) {
+      try { await repo.setDrillPar(key, par); } catch (e) { warning = `The par couldn’t be saved (${e instanceof Error ? e.message : String(e)}).`; }
+    }
+    await loadProfile();
+    return warning;
+  });
+  const removeLibraryRun = (runId: string) => queued(async () => {
     const record = recordOfRun(recordsRef.current, runId);
     if (!record) return;
-    const updated = { ...record, libraryRuns: (record.libraryRuns ?? []).filter(r => r.id !== runId) };
+    const { record: updated, discard } = removeRun(record, runId);
     await repo.saveTraining(updated);
-    setRecords(list => list.map(r => r.id === record.id ? updated : r)); setRemovingRun(null);
+    // The run is gone; remove its app-owned video copy (best effort, after the database commit).
+    for (const asset of discard) { try { discardVideoAsset(asset); } catch { /* already removed */ } }
+    commit(updated); setRemovingRun(null);
     await loadProfile();
-  };
+  });
   const libraryRunText = (libraryRun: LibraryRun) => {
     const drill = libraryDrill(libraryRun.drillId);
     return drill ? variantLabel(drill, libraryRun.choices) + ' · ' + runText(libraryRun, pf) : 'Unknown drill';
@@ -126,7 +141,9 @@ export default function Training() {
         <Copy>{contextLabels[activeSession.context ?? 'DRY_FIRE']}</Copy>
         {!!activeSession.videos?.length && <>
           <Copy>VIDEOS · {activeSession.videos.length}</Copy>
-          {activeSession.videos.map((video, index) => <Action key={video.session.id}
+          {activeSession.videos.map((video, index) => runVideoIds(activeSession).has(video.session.id)
+            ? <Copy key={video.session.id}>{`Video ${index + 1} · ` + (() => { const r = activeSession.libraryRuns?.find(x => x.videoId === video.session.id); const d = r && libraryDrill(r.drillId); return d ? `${d.name} run, watch it from the drill` : 'a drill run'; })()}</Copy>
+            : <Action key={video.session.id}
             title={'Video ' + (index + 1) + ' · ' + (video.session.analysisStatus === 'REVIEWED' ? 'Analysis saved' : 'Needs review')}
             disabled={busy} onPress={() => { setSessionId(null); setSelected({ recordId: activeSession.id, videoId: video.session.id }); }} />)}
         </>}

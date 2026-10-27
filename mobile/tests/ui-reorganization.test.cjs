@@ -851,8 +851,9 @@ test('review 3: dragging a layer in 3D moves its target by the drag, keeping the
   assert.equal(after.position.z, parent.position.z, 'height unchanged');
 });
 
+const discardedVideos = [];
 const drillSheet = (drillId, patch = {}) => harness('training/DrillSheet.tsx', { visible: true, drillId, records: [], context: 'LIVE_FIRE', onContextChange() {}, powerFactor: 'minor',
-  pars: {}, onClose() {}, onSave() {}, onRemove() {}, ...patch });
+  pars: {}, onClose() {}, onSave() {}, onRemove() {}, ...patch }, { './videoAssets': { discardVideoAsset: a => discardedVideos.push(a.uri), playbackUri: a => 'file:///' + a.uri } });
 test('Drill sheet: how to run it, options, paste timer times, count hits, save with a par', async () => {
   let saved, savedPar;
   const h = drillSheet('sprint', { powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onSave: async (r, par) => { saved = r; savedPar = par; } });
@@ -932,6 +933,129 @@ test('Drill sheet: your runs of these options, best time and par, and remove aft
   assert.deepEqual(lines, ['Oct 20 · Live Fire · 2.45 s · under par', 'Oct 20 · Live Fire · 2.60 s · over par'], 'newest first, this variant only');
   h.press('Remove run 1'); h.press('Confirm removing run 1');
   assert.deepEqual(removed, ['b']);
+});
+
+test('Drill sheet: a run’s video fills the times, is saved with the run, and is removed if the run is not saved', async () => {
+  let saved, savedVideo, closes = 0;
+  const h = drillSheet('bill', { onSave: async (r, _par, v) => { saved = r; savedVideo = v; }, onClose: () => { closes++; } });
+  const video = { id: 'v1', asset: { uri: 'training-videos/v1.mov', name: 'IMG_1.MOV', storage: 'DOCUMENTS' }, durationMs: 9000, timing: { beepMs: 1000 } };
+  h.child('DrillVideo').onChange(video); h.render();
+  h.child('DrillVideo').onUseTimes([1.42, 1.68, 1.93, 2.17, 2.42, 2.66]); h.render();
+  assert.equal(h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.value, '1.42 1.68 1.93 2.17 2.42 2.66');
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saved.videoId, 'v1'); assert.equal(savedVideo, video); assert.deepEqual(saved.shotTimes, [1.42, 1.68, 1.93, 2.17, 2.42, 2.66]);
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /, with its video\.$/.test(n.props.children)));
+  assert.equal(h.child('DrillVideo').video, null, 'the next run starts without a video');
+  const before = discardedVideos.length;
+  h.child('DrillVideo').onChange({ ...video, id: 'v2', asset: { ...video.asset, uri: 'training-videos/v2.mov' } }); h.render();
+  h.child('EditorSheet').close();
+  assert.deepEqual(discardedVideos.slice(before), ['training-videos/v2.mov'], 'an unsaved run’s video copy is removed'); assert.equal(closes, 1);
+  // A saved run with a video can be watched from YOUR RUNS, with a mark at the beep and each shot.
+  const Days = require('../src/training/drillDays.ts');
+  const run = { ...saved, id: 'r9', recordedAt: '2026-10-20T15:00:00Z' };
+  const record = Days.addRun(Days.newDrillDay('d', '2026-10-20', 'LIVE_FIRE', run.recordedAt), { ...run, videoId: undefined }, video);
+  const w = drillSheet('bill', { records: [record] });
+  assert.ok(w.nodes().some(n => n.type === 'Copy' && /^Oct 20 · Live Fire · 2\.66 s · video$/.test(n.props.children)));
+  w.press('Watch run 1');
+  const player = w.find(n => Array.isArray(n.props?.marks) && n.props.uri).props;
+  assert.equal(player.uri, 'file:///training-videos/v1.mov');
+  assert.deepEqual(player.marks.map(m => [m.label, Math.round(m.ms)]), [['BEEP', 1000], ['SHOT 1', 2420], ['SHOT 2', 2680], ['SHOT 3', 2930], ['SHOT 4', 3170], ['SHOT 5', 3420], ['SHOT 6', 3660]]);
+});
+
+test('Drill video: pick a video, the beep and shots are found in its sound, and you use the times; failures say what to do', async () => {
+  const events = { changes: [], used: [], discarded: [] };
+  const a = { samples: new Float32Array(6000 * 16), sampleRate: 16000, durationMs: 6000, offsetMs: 0, warnings: [] };
+  for (let i = 1000 * 16; i < 1200 * 16; i++) a.samples[i] = 0.4 * Math.sin(2 * Math.PI * 2300 * i / 16000);
+  for (const ms of [2420, 2680, 2930, 3170, 3420, 3660]) a.samples[ms * 16] = 0.9;
+  let extract = async () => a, picks = 0;
+  const props = { drill: require('../src/training/drillLibrary.ts').libraryDrill('bill'), context: 'LIVE_FIRE', video: null, disabled: false,
+    onChange: v => { events.changes.push(v); props.video = v; }, onUseTimes: t => events.used.push(t) };
+  const h = harness('training/DrillVideo.tsx', props, {
+    'expo-video': { useVideoPlayer: () => ({ addListener: () => ({ remove() {} }), duration: 6 }), VideoView: 'VideoView' },
+    './videoAssets': { importVideoAsset: async (id, from) => { picks++; assert.equal(from, 'photos'); return { uri: `training-videos/${id}.mov`, name: 'IMG_2.MOV', storage: 'DOCUMENTS' }; },
+      discardVideoAsset: x => events.discarded.push(x.uri), playbackUri: x => 'file:///' + x.uri },
+    './extractAnalysisAudio': { extractAnalysisAudio: (...args) => extract(...args) } });
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Pick the video of this run/.test(n.props.children)));
+  h.press('TIME IT FROM A VIDEO');
+  const until = async ok => { for (let i = 0; i < 300 && !ok(); i++) { await new Promise(r => setTimeout(r, 10)); h.render(); } };
+  await until(() => h.nodes().some(n => n.props?.title === 'USE THESE TIMES'));
+  assert.equal(picks, 1); assert.equal(props.video.asset.name, 'IMG_2.MOV');
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.equal(row('Beep'), '1.00 s into the video'); assert.equal(row('Shot 1 · Start to first shot'), '1.42 s'); assert.equal(row('Shot 6 · Split'), '2.66 s');
+  h.press('USE THESE TIMES');
+  assert.deepEqual(events.used.at(-1).map(t => Math.round(t * 100) / 100), [1.42, 1.68, 1.93, 2.17, 2.42, 2.66]);
+  assert.equal(props.video.timing.beepMs, 1000); h.render(); assert.ok(h.nodes().some(n => n.props?.title === 'TIMES IN USE'));
+  // The sound can't be read (an older app build, the web): it says so and the times are typed.
+  extract = async () => { throw new Error('Local audio extraction unavailable. Install a rebuilt iOS development/device app with TrainingAudio. Manual editing remains available.'); };
+  h.press('REMOVE VIDEO'); assert.deepEqual(events.discarded, [events.changes[0].asset.uri]); assert.equal(props.video, null); h.render();
+  h.press('TIME IT FROM A VIDEO');
+  await until(() => h.nodes().some(n => n.props?.title === 'TIME IT AGAIN'));
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /^This build of the app can’t read a video’s sound yet/.test(n.props.children)));
+  assert.ok(h.nodes().some(n => n.props?.title === 'TIME IT AGAIN'));
+});
+
+test('review: saves and removals are written one at a time from the latest records, so a removed run never comes back', async () => {
+  const writes = [], held = [];
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, '@/ui/prefsStore': { readPref: () => null, writePref() {} },
+    repo: { listTraining: async () => [], saveTraining: r => new Promise(resolve => held.push(() => { writes.push(r); resolve(); })),
+      loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }), setDrillPar: async () => { throw new Error('disk full'); } } });
+  await h.settle();
+  h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === 'Bill Drill').props.open(); h.render();
+  const sheet = () => h.child('DrillSheet');
+  const run = id => ({ id, drillId: 'bill', recordedAt: new Date().toISOString(), choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55, family: 'USPSA', notes: '' });
+  const release = async () => { for (let i = 0; i < 40; i++) { if (held.length) held.shift()(); await new Promise(r => setTimeout(r, 0)); } await h.settle(); };
+  // Two saves in flight on a new day: one record, both runs.
+  const a = sheet().onSave(run('a'), undefined), b = sheet().onSave(run('b'), undefined);
+  await release(); await a; await b;
+  assert.equal(writes[1].id, writes[0].id); assert.deepEqual(writes[1].libraryRuns.map(r => r.id), ['a', 'b']);
+  // Remove a, then save c before the removal is written: a stays removed.
+  const removal = sheet().onRemove('a'), c = sheet().onSave(run('c'), undefined);
+  await release(); await removal; await c;
+  assert.deepEqual(writes.at(-1).libraryRuns.map(r => r.id), ['b', 'c']);
+  // A par that can't be saved doesn't undo the run, and says so instead of failing (so the run isn't saved twice).
+  const d = sheet().onSave(run('d'), 2.4);
+  await release();
+  assert.equal(await d, 'The par couldn’t be saved (disk full).');
+  assert.deepEqual(writes.at(-1).libraryRuns.map(r => r.id), ['b', 'c', 'd']);
+});
+
+test('review: a new drill starts counting again with shot times; LOG ONLY is for one run; your target family carries over', async () => {
+  const saved = [];
+  const props = { visible: true, drillId: 'bill', records: [], context: 'LIVE_FIRE', onContextChange() {}, powerFactor: 'minor', pars: {}, onClose() {},
+    onSave: async r => { saved.push(r); return undefined; }, onRemove() {} };
+  const h = harness('training/DrillSheet.tsx', props, { './videoAssets': { discardVideoAsset() {}, playbackUri: a => a.uri } });
+  const seg = opt => h.find(n => n.type === 'Segmented' && n.props.options.includes(opt)).props;
+  seg('LOG ONLY').onChange('LOG ONLY'); seg('PCSL').onChange('PCSL'); seg('TOTAL ONLY').onChange('TOTAL ONLY'); h.render();
+  h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'TOTAL TIME (SECONDS)').props.onChangeText('3.1'); h.render();
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saved[0].counts, false);
+  assert.equal(seg('LOG ONLY').value, 'COUNTS', 'the next rep counts');
+  seg('LOG ONLY').onChange('LOG ONLY'); h.render();
+  props.drillId = 'draw'; h.render();
+  assert.equal(seg('LOG ONLY').value, 'COUNTS'); assert.equal(seg('TOTAL ONLY').value, 'SHOT TIMES'); assert.equal(seg('PCSL').value, 'PCSL');
+});
+
+test('review: the home screen shows the newest drill-library run', () => {
+  const Days = require('../src/training/drillDays.ts');
+  const mk = (id, at, drillId = 'bill', shotTimes = [1.3, 1.55, 1.8, 2.05, 2.3, 2.55]) => ({ id, drillId, recordedAt: at, choices: { distance: '7' }, shotTimes, totalTime: shotTimes.at(-1), family: 'USPSA', notes: '', zones: { A: 6 } });
+  const last = Days.lastLibraryRun([{ libraryRuns: [mk('a', '2026-10-20T12:00:00Z')] }, { libraryRuns: [mk('b', '2026-10-26T09:00:00Z')] }, { runs: [] }]);
+  assert.equal(last.run.id, 'b'); assert.equal(last.label, 'Bill Drill · 7 yd');
+  assert.equal(Days.lastLibraryRun([{ runs: [{}] }]), null);
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/app/index.tsx'), 'utf8');
+  assert.match(source, /lastLibraryRun\(sessions\)/); assert.doesNotMatch(source, /s\.runs/);
+});
+
+test('History: a drill run’s video is watched from the drill, not opened in the old editor (it would count the run twice)', async () => {
+  const Days = require('../src/training/drillDays.ts');
+  const run = { id: 'r1', drillId: 'bill', recordedAt: '2026-10-20T15:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55, family: 'USPSA', notes: '' };
+  const day = Days.addRun(Days.newDrillDay('d', '2026-10-20', 'LIVE_FIRE', run.recordedAt), run,
+    { id: 'v1', asset: { uri: 'training-videos/v1.mov', name: 'IMG.MOV', storage: 'DOCUMENTS' }, durationMs: null, timing: { beepMs: 900 } });
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, '@/ui/prefsStore': { readPref: () => null, writePref() {} },
+    repo: { trainingReadWarnings: [], listTraining: async () => [day] } });
+  await h.settle(); h.press('Show history');
+  h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === Days.historyTitle(day)).props.open(); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Video 1 · Bill Drill run, watch it from the drill'));
+  assert.ok(!h.nodes().some(n => /^Video 1 ·/.test(n.props?.title ?? '')), 'no editor button for it');
 });
 
 test('Your numbers shows measured values with run counts, the planner values, and a trend against par', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { uuid } from 'expo-modules-core';
 import EditorSheet from '../editor/EditorSheet';
@@ -15,6 +15,11 @@ import { analyzeLibraryRun, canMarkHits, choicesFor, intervalLabels, libraryDril
 import type { LibraryFamily, LibraryRun, LibraryTarget } from './drillLibrary';
 import { runsOfDrill, runText } from './drillDays';
 import HitMarker from './HitMarker';
+import DrillVideo, { ClipPlayer } from './DrillVideo';
+import { marksOf } from './videoTiming';
+import type { RunVideo } from './DrillVideo';
+import { discardVideoAsset, playbackUri } from './videoAssets';
+import { isTrustedEvent } from './videoModel';
 
 const MODES = ['SHOT TIMES', 'SPLITS', 'TOTAL ONLY'] as const;
 type Mode = typeof MODES[number];
@@ -45,8 +50,8 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   /** Dry fire, live fire or match: which of your numbers the run builds. */
   context: TrainingContext; onContextChange: (context: TrainingContext) => void;
   powerFactor: PowerFactor; pars: Record<string, number>;
-  /** `par`: undefined = unchanged, null = cleared, a number = set for this drill variant. */
-  onSave: (run: LibraryRun, par: number | null | undefined) => Promise<void> | void;
+  /** `par`: undefined = unchanged, null = cleared, a number = set for this drill variant. `video`: the run's video, saved with it. */
+  onSave: (run: LibraryRun, par: number | null | undefined, video?: RunVideo) => Promise<string | void> | string | void;
   onRemove: (runId: string) => Promise<void> | void; onClose: () => void;
 }) {
   const drill = drillId ? libraryDrill(drillId) : undefined;
@@ -61,14 +66,20 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   // Null until you type: the field shows the saved par (which may arrive after the sheet opens) and saving leaves it alone.
   const [parEdit, setParEdit] = useState<string | null>(null);
   const [error, setError] = useState(''), [saving, setSaving] = useState(false), [saved, setSaved] = useState('');
-  const [removing, setRemoving] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null), [watching, setWatching] = useState<string | null>(null);
+  // The video of the run being logged: kept only if the run is saved, otherwise its copy is removed.
+  const [video, setVideo] = useState<RunVideo | null>(null), videoRef = useRef(video); videoRef.current = video;
+  const dropVideo = () => { if (videoRef.current) { try { discardVideoAsset(videoRef.current.asset); } catch { /* already gone */ } } setVideo(null); };
   const dry = context === 'DRY_FIRE';
 
-  const clearRun = () => { setTimes(''); setTotal(''); setZones({}); setProcedurals(''); setNotes(''); setTarget(t => t ? { ...t, hits: [] } : t); };
+  // LOG ONLY is for one run (a warm-up, a bad setup): the next run counts again.
+  const clearRun = () => { setTimes(''); setTotal(''); setZones({}); setProcedurals(''); setNotes(''); setCounts(true); setTarget(t => t ? { ...t, hits: [] } : t); };
   // A different drill starts clean.
   useEffect(() => {
     if (!drill) return;
-    setChoices(choicesFor(drill)); clearRun(); setTarget(null); setHitMode('COUNT BY ZONE'); setParEdit(null); setError(''); setSaved(''); setRemoving(null);
+    // Your target family and power factor carry over; how times are entered starts as shot times again.
+    setChoices(choicesFor(drill)); clearRun(); setMode('SHOT TIMES'); setTarget(null); setHitMode('COUNT BY ZONE'); setParEdit(null); setError(''); setSaved(''); setRemoving(null);
+    setWatching(null); dropVideo();
   }, [drillId]);
 
   if (!drill) return <EditorSheet title="DRILL" visible={visible && !!drillId} close={onClose}><Panel><Copy>Unknown drill.</Copy></Panel></EditorSheet>;
@@ -83,7 +94,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
     totalTime: totalTime !== null && Number.isFinite(totalTime) ? totalTime : null, family, notes: notes.trim(),
     ...(family === 'USPSA' ? { powerFactor: pf } : {}),
     ...(!dry && (steel ? mode === 'TOTAL ONLY' : Object.keys(counted).length) ? { zones: steel ? { M: zones.M ?? 0 } : counted } : {}),
-    ...(marking && target!.hits.length ? { target: target! } : {}),
+    ...(marking && target!.hits.length ? { target: target! } : {}), ...(video ? { videoId: video.id } : {}),
     ...(parseNumber(procedurals) ? { procedurals: parseNumber(procedurals)! } : {}), ...(counts ? {} : { counts: false }) };
   const analysis = analyzeLibraryRun(run, powerFactor);
   const key = variantKey(run);
@@ -92,6 +103,21 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const timed = mine.filter(e => e.run.totalTime !== null);
   const best = timed.length ? Math.min(...timed.map(e => e.run.totalTime!)) : null;
   const preset = target ? papers(family).find(p => p.id === target.presetId) : undefined;
+
+  /** A saved run's video and its marks (the beep from the video, the run's shot times). */
+  function runClip(recordId: string, saved: LibraryRun): { uri: string | null; error: string; marks: ReturnType<typeof marksOf> } | null {
+    const clip = saved.videoId ? records.find(r => r.id === recordId)?.videos?.find(v => v.session.id === saved.videoId) : undefined;
+    if (!clip) return null;
+    const beep = clip.analysis.events.find(ev => ev.type === 'STIMULUS' && isTrustedEvent(ev));
+    try { return { uri: playbackUri(clip.session.asset), error: '', marks: beep ? marksOf(beep.timestampMs, saved.shotTimes) : [] }; }
+    catch (err) { return { uri: null, error: String(err instanceof Error ? err.message : err), marks: [] }; }
+  }
+
+  // Nothing else can be saved or removed while a removal is written.
+  async function remove(runId: string) {
+    setRemoving(null); setSaving(true); setError('');
+    try { await onRemove(runId); } catch (err) { setError(String(err)); } finally { setSaving(false); }
+  }
 
   async function save() {
     if ('problem' in parsed) { setError(parsed.problem); return; }
@@ -102,11 +128,15 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
     const problem = libraryRunProblem(next);
     if (problem) { setError(problem); return; }
     setSaving(true); setError('');
-    try { await onSave(next, parEdit === null ? undefined : parValue); clearRun(); setParEdit(null); setSaved(`Saved: ${runText(next, powerFactor)}.`); }
+    try {
+      const warning = await onSave(next, parEdit === null ? undefined : parValue, video ?? undefined);
+      clearRun(); setParEdit(null); setVideo(null);
+      setSaved(`Saved: ${runText(next, powerFactor)}` + (video ? ', with its video.' : '.') + (warning ? ' ' + warning : ''));
+    }
     catch (e) { setError(String(e)); } finally { setSaving(false); }
   }
 
-  return <EditorSheet title={drill.name} scrollKey={drill.id} visible={visible} close={() => { if (!saving) onClose(); }}>
+  return <EditorSheet title={drill.name} scrollKey={drill.id} visible={visible} close={() => { if (!saving) { dropVideo(); onClose(); } }}>
     <Panel>
       <Text style={ui.eyebrow}>HOW TO RUN IT</Text>
       <Copy>{drill.setup}</Copy>
@@ -128,10 +158,12 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
       <Text style={ui.eyebrow}>TIMES</Text>
       <Segmented options={MODES} value={mode} disabled={saving} onChange={m => { setMode(m as Mode); setError(''); }} />
       {mode === 'TOTAL ONLY'
-        ? <Input autoFocus={false} label="TOTAL TIME (SECONDS)" value={total} disabled={saving} onChange={setTotal} />
+        ? <Input autoFocus={false} label="TOTAL TIME (SECONDS)" value={total} disabled={saving} onChange={value => { setTotal(value); setSaved(''); }} />
         : <Input autoFocus={false} label={mode === 'SPLITS' ? `SPLITS, FIRST = START TO FIRST SHOT (${drill.intervals.length}${drill.makeups ? '+' : ''})` : `SHOT TIMES FROM THE TIMER (${drill.intervals.length}${drill.makeups ? '+' : ''})`}
           value={times} disabled={saving} onChange={value => { setTimes(value); setError(''); setSaved(''); }} />}
       {mode === 'TOTAL ONLY' && <Copy>A total gives your hit factor and trend, but no draw, split or move times.</Copy>}
+      <DrillVideo drill={drill} context={context} video={video} onChange={setVideo} disabled={saving}
+        onUseTimes={found => { setMode('SHOT TIMES'); setTimes(found.map(t => t.toFixed(2)).join(' ')); setError(''); setSaved(''); }} />
       {'problem' in parsed && !!times.trim() && <Notice tone="warning">{parsed.problem}</Notice>}
       {analysis && analysis.intervals.length > 0 && <View style={{ gap: 2 }}>
         {analysis.intervals.map(i => <DataRow key={i.shot} label={`Shot ${i.shot} · ${intervalLabels[i.kind]}`} value={seconds(i.seconds)} />)}
@@ -166,7 +198,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
       <Input autoFocus={false} label="PAR TIME (SECONDS, BLANK = NONE)" value={par} disabled={saving} onChange={setParEdit} />
       {parValue !== null && Number.isFinite(parValue) && parValue > 0 && run.totalTime !== null &&
         <DataRow label="Against par" value={run.totalTime <= parValue ? `${seconds(parValue - run.totalTime)} under` : `${seconds(run.totalTime - parValue)} over`} />}
-      <Input autoFocus={false} label="NOTES" value={notes} disabled={saving} onChange={setNotes} />
+      <Input autoFocus={false} label="NOTES" value={notes} disabled={saving} onChange={value => { setNotes(value); setSaved(''); }} />
       <Text style={ui.eyebrow}>YOUR NUMBERS</Text>
       <Segmented options={['COUNTS', 'LOG ONLY']} value={counts ? 'COUNTS' : 'LOG ONLY'} disabled={saving} onChange={v => setCounts(v === 'COUNTS')} />
       <Copy>{counts ? 'This run’s times update your numbers and the planner.' : 'Kept in the log only (a warm-up, a bad setup).'}</Copy>
@@ -182,15 +214,18 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
         <DataRow label="Runs" value={String(mine.length)} />
         {best !== null && <DataRow label="Best time" value={seconds(best)} />}
         {pars[key] !== undefined && <DataRow label="Par" value={seconds(pars[key])} />}
-        {mine.slice(0, 10).map((e, i) => <View key={e.run.id} style={{ gap: 4 }}>
+        {mine.slice(0, 10).map((e, i) => { const clip = runClip(e.recordId, e.run); return <View key={e.run.id} style={{ gap: 4 }}>
           <Copy>{`${new Date(e.run.recordedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${contextLabels[e.context]} · ${runText(e.run, powerFactor)}`
-            + (pars[key] !== undefined && e.run.totalTime !== null ? (e.run.totalTime <= pars[key] ? ' · under par' : ' · over par') : '')}</Copy>
+            + (pars[key] !== undefined && e.run.totalTime !== null ? (e.run.totalTime <= pars[key] ? ' · under par' : ' · over par') : '') + (clip ? ' · video' : '')}</Copy>
+          {clip && <Action title={watching === e.run.id ? 'HIDE VIDEO' : 'WATCH'} accessibilityLabel={(watching === e.run.id ? 'Hide the video of run ' : 'Watch run ') + (i + 1)}
+            onPress={() => setWatching(watching === e.run.id ? null : e.run.id)} />}
+          {clip && watching === e.run.id && (clip.uri ? <ClipPlayer uri={clip.uri} marks={clip.marks} /> : <Notice tone="warning">{clip.error}</Notice>)}
           {removing === e.run.id ? <View style={{ flexDirection: 'row', gap: 8 }}>
             <Action title="KEEP" accessibilityLabel={`Keep run ${i + 1}`} disabled={saving} onPress={() => setRemoving(null)} />
             <Action title="REMOVE RUN" variant="destructive" accessibilityLabel={`Confirm removing run ${i + 1}`} disabled={saving}
-              onPress={() => { setRemoving(null); void Promise.resolve(onRemove(e.run.id)).catch(err => setError(String(err))); }} />
+              onPress={() => { void remove(e.run.id); }} />
           </View> : <Action title="REMOVE" variant="quiet" accessibilityLabel={`Remove run ${i + 1}`} disabled={saving} onPress={() => setRemoving(e.run.id)} />}
-        </View>)}
+        </View>; })}
         {mine.length > 10 && <Copy>{`${mine.length - 10} older run${mine.length - 10 === 1 ? '' : 's'} in History and YOUR NUMBERS.`}</Copy>}
       </> : <Copy>No runs with these options yet.</Copy>}
     </Panel>

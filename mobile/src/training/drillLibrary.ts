@@ -123,6 +123,8 @@ export type LibraryRun = {
   counts?: boolean;
   /** Where each shot hit, marked on the target (single-target paper drills). `zones` are then the counts of its tags. */
   target?: LibraryTarget;
+  /** The run's video, kept in the same record's `videos` (roadmap T2). */
+  videoId?: string;
 };
 /**
  * Hits marked on the face, as in the drill logger (src/training/drillLog.ts): inches from the face centre, +y up.
@@ -152,8 +154,10 @@ function targetProblem(target: LibraryTarget, drill: LibraryDrill, run: LibraryR
     if (!h || typeof h.id !== 'string' || !h.id || ids.has(h.id) || !Number.isInteger(h.order) || h.order < 1) return 'Invalid hit.';
     ids.add(h.id);
     if ((h.x === null) !== (h.y === null)) return 'A hit needs both coordinates or neither.';
-    if (h.x !== null && (!finite(h.x) || !finite(h.y) || Math.abs(h.x) > target.faceWidth || Math.abs(h.y as number) > target.faceHeight)) return 'Hit coordinates are outside the target area.';
-    if (h.zone !== null && !allowed.includes(h.zone)) return 'Invalid zone.';
+    // The diagram is the face's bounding box: a tap is at most half the width or height from the centre.
+    if (h.x !== null && (!finite(h.x) || !finite(h.y) || Math.abs(h.x) > target.faceWidth / 2 + 0.01 || Math.abs(h.y as number) > target.faceHeight / 2 + 0.01)) return 'Hit coordinates are outside the target area.';
+    // Every marked hit has its zone (the counts are the tags).
+    if (typeof h.zone !== 'string' || !allowed.includes(h.zone)) return h.zone === null ? 'A marked hit has no zone.' : 'Invalid zone.';
     if (h.x === null && !PENALTY_TAGS.includes(h.zone ?? '')) return 'Only misses and no-shoot hits may omit coordinates.';
   }
   // The counts are the marks: they can never disagree.
@@ -233,6 +237,7 @@ export function libraryRunProblem(run: LibraryRun): string | null {
   if (run.procedurals !== undefined && !(Number.isInteger(run.procedurals) && run.procedurals >= 0 && run.procedurals <= 100)) return 'Invalid procedurals.';
   if (typeof run.notes !== 'string' || run.notes.length > 2000) return 'Invalid notes.';
   if (run.counts !== undefined && typeof run.counts !== 'boolean') return 'Invalid run setting.';
+  if (run.videoId !== undefined && (typeof run.videoId !== 'string' || !/^[a-z0-9-]{1,64}$/i.test(run.videoId))) return 'Invalid video link.';
   if (run.target !== undefined) return targetProblem(run.target, drill, run);
   return null;
 }

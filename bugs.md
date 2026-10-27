@@ -1,3 +1,9 @@
+# Fixed 2026-10-26 (batch 21)
+
+- From the independent review of batch 20: a removal racing a save wrote the removed run back; settings (LOG ONLY, TOTAL ONLY) carried into the next drill; the home LAST DRILL tile could no longer update; a failed par save invited a duplicate run; loose marked-hit and day validation.
+- Video timing: shots with a soft start in a compressed recording were dropped as "quiet" (loudness read from the onset frame only).
+- Open: web videos are kept only for the browser session (existing limitation). Video timing is unchecked on real range video and on a phone.
+
 # Fixed 2026-10-26 (batch 20)
 
 - The drill library was hidden inside a session (TRAINING → + SESSION → open the session → past VIDEOS and DRILL RUNS → LOG LIBRARY DRILL; a session with a video opened the video instead). Reported on the first phone build with the library: "the drills aren't there". Training now opens on the drills. The tutorial's quick reference had made it sound like one tap; corrected.

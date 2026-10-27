@@ -1,3 +1,14 @@
+# RC2 batch 21: a drill run's video times itself (T2), and fixes from the review of batch 20 - 2026-10-26
+
+- **TIME IT FROM A VIDEO** in a drill's LOG A RUN: pick the run's video; the app finds the timer's beep and the drill's shots in its sound, lists them with what each measured, plays the video from each one so you can check, and **USE THESE TIMES** fills SHOT TIMES. Several reps in one video show as RUN 1, RUN 2…; echoes and quieter sounds are ignored and counted for you to check; fewer shots than the drill has, no beep, or dry fire say to type the times. The video is saved with the run and watched from YOUR RUNS; unsaved videos are deleted. Uses the audio module already in the app (no new native code), so it needs the next phone build but no native change. See `docs/drill-library.md`.
+- A shot's loudness is now its highest peak in the 40 ms after it starts. Found by running a real AAC-encoded test video through the detector: two shots whose onset frame caught only the start of the sound were dropped as "quiet". Regression test added.
+- From the independent review of batch 20 (3 confirmed):
+  - A removal racing a save could write the removed run back (and two quick saves could make two day records). Saves and removals now run one at a time, each built from the latest records, and nothing else can be saved or removed while a removal is written.
+  - The drill sheet kept LOG ONLY and TOTAL ONLY when you opened another drill (a Draw run saved as log-only with no draw time). A new drill starts counting with shot times; LOG ONLY is for one run. Your target family and power factor carry over on purpose.
+  - The home screen's LAST DRILL read only the old drill-logger runs, which can no longer be added. It now shows your newest drill run (time, hit factor, points).
+  - Also: a par that fails to save no longer makes the sheet look unsaved (which led to saving the run twice); the "Saved" note clears when you start the next run; marked hits must all have a zone and lie within the face; a day like 2026-02-31 is refused; two doc slips fixed.
+- Validation: 1009/1009 tests, TypeScript passed. Web build checked: picking a video, playback, the browser's "works in the iPhone app" message, saving with the video, WATCH, the home tile. No device testing.
+
 # RC2 batch 20: Training is the drill library - 2026-10-26
 
 The owner's direction (2026-10-26): the drills are the whole Training section and the way the app collects data; no uploading a random video.
