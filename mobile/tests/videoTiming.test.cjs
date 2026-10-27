@@ -22,7 +22,7 @@ test('the beep starts the run; the drill’s shots are the loudest sounds after 
   const run = r.runs[0];
   assert.deepEqual(run.shotTimes, [1.42, 1.68, 1.93, 2.17, 2.42, 2.66]); assert.equal(run.complete, true);
   assert.deepEqual(run.ignoredMs, [2560, 4500]);
-  assert.deepEqual(T.timingNotes(run, bill), ['2 other sounds were ignored (quieter, or more than the drill\'s shots). Play the video to check.']);
+  assert.deepEqual(T.timingNotes(run, bill), ['2 other sounds were ignored (too quiet, an echo, or more than the drill\'s shots). Play the video to check.']);
   assert.deepEqual(r.warnings, ['Audio cannot identify the shooter. Review nearby shooters, echoes and impacts before confirming.'], 'the beep question is answered here');
   // Saved as a run, the proposal passes the run's own checks.
   assert.equal(L.libraryRunProblem({ id: 'x', drillId: 'bill', recordedAt: '2026-10-26T12:00:00Z', choices: { distance: '7' }, shotTimes: run.shotTimes, totalTime: 2.66, family: 'USPSA', notes: '' }), null);
@@ -102,4 +102,33 @@ test('a shot’s loudness is measured over its first 40 ms, so a soft onset (a c
   assert.equal(r.runs[0].shotMs.length, 6, JSON.stringify(r.runs[0]));
   r.runs[0].shotTimes.forEach((t, i) => assert.ok(Math.abs(t - (shots[i] - 1000) / 1000) <= 0.012, `shot ${i + 1}: ${t}`));
   assert.ok(r.warnings.includes('Sound can’t tell whose shot it is: check the times against the video.'));
+});
+
+test('review: a dry-fire click is not a shot; dry fire uses the beep only; a long beep is flagged; steel echoes are not makeups', () => {
+  const draw = L.libraryDrill('draw'), steel = L.libraryDrill('steel');
+  // Live fire, one-shot drill, only a quiet click after the beep: nothing is proposed as the shot.
+  const click = T.timeDrillFromAudio(audio([sound('STIMULUS', 1000), sound('SHOT', 2150, 0.12)]), draw).runs[0];
+  assert.deepEqual([click.shotMs, click.ignoredMs, click.complete], [[], [2150], false]);
+  assert.match(T.timingNotes(click, draw)[0], /^Found 0 of the 1 shots Draw to first hit has/);
+  // Dry fire: the beep places the typed times in the video; clicks are never shots.
+  const dry = T.timeDrillFromAudio(audio([sound('STIMULUS', 1000), sound('SHOT', 2150, 0.6)]), draw, undefined, { dryFire: true });
+  assert.equal(dry.problem, null); assert.deepEqual([dry.runs[0].beepMs, dry.runs[0].shotMs, dry.runs[0].dryFire], [1000, [], true]);
+  assert.match(T.timingNotes(dry.runs[0], draw)[0], /^Dry fire makes no shot sound, so only the beep is used/);
+  // A 1 s beep can hide a fast first shot: said so.
+  const long = T.timeDrillFromAudio(audio([sound('STIMULUS', 1000, 0.4, 1000), sound('SHOT', 2650, 0.8)]), draw).runs[0];
+  assert.ok(T.timingNotes(long, draw).some(n => /^The beep lasted 1\.0 s, and a shot during it can’t be heard/.test(n)));
+  // Steel: five plates, each with an echo 150 ms later at 45%: five shots, the echoes ignored.
+  const plates = [1800, 2300, 2800, 3300, 3800];
+  const s5 = T.timeDrillFromAudio(audio([sound('STIMULUS', 500), ...plates.flatMap(ms => [sound('SHOT', ms, 0.8), sound('SHOT', ms + 150, 0.36)])]), steel).runs[0];
+  assert.deepEqual(s5.shotMs, plates); assert.equal(s5.ignoredMs.length, 5);
+  assert.deepEqual(T.timingNotes(s5, steel), ['5 other sounds were ignored (too quiet, an echo, or more than the drill\'s shots). Play the video to check.']);
+  // A real makeup (not right after a louder sound) still counts.
+  const makeup = T.timeDrillFromAudio(audio([sound('STIMULUS', 500), ...plates.map(ms => sound('SHOT', ms, 0.8)), sound('SHOT', 4300, 0.75)]), steel).runs[0];
+  assert.equal(makeup.shotMs.length, 6);
+});
+
+test('review: a day record full of videos makes way for a new one for the next video run', () => {
+  const day = { ...Days.newDrillDay('d1', '2026-10-26', 'LIVE_FIRE', '2026-10-26T12:00:00Z'), videos: Array.from({ length: 100 }, () => ({})) };
+  assert.equal(Days.drillDayFor([day], '2026-10-26', 'LIVE_FIRE'), day, 'runs without a video still go in');
+  assert.equal(Days.drillDayFor([day], '2026-10-26', 'LIVE_FIRE', true), undefined);
 });

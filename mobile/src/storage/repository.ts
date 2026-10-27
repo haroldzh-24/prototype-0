@@ -6,7 +6,7 @@ import type { StagePlan } from '../planning/model';
 import { isStageRoute } from '../planning/route';
 import type { TrainingRecord } from '../training/model';
 import { startingTypes } from '../training/model';
-import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations } from '../training/drillLibrary';
+import { isLibraryObservation, libraryRunProblem, MAX_LIBRARY_RUNS, sessionLibraryObservations, withReadablePhases } from '../training/drillLibrary';
 import { validDay } from '../training/drillDays';
 import { validMovementModel } from '../profile/movementModel';
 import { validExpectations } from '../planning/expectedPoints';
@@ -340,8 +340,11 @@ export class Repository {
     }
     if (record.libraryRuns !== undefined) {
       if (!Array.isArray(record.libraryRuns) || record.libraryRuns.length > MAX_LIBRARY_RUNS) throw new Error('Invalid drill library runs.');
+      // A breakdown this version can't read is dropped, not the whole record (see withReadablePhases).
+      const runs = record.libraryRuns.map(r => r && typeof r === 'object' ? withReadablePhases(r) : r);
+      record = { ...record, libraryRuns: runs };
       const runIds = new Set<string>();
-      for (const run of record.libraryRuns) {
+      for (const run of runs) {
         const problem = libraryRunProblem(run);
         if (problem || runIds.has(run.id)) throw new Error(problem ?? 'Duplicate drill library run.');
         runIds.add(run.id);

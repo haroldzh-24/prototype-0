@@ -79,7 +79,7 @@ export default function Training() {
   // the record's profile measurements from its runs in the same save. A par that fails to save doesn't undo the run:
   // the warning comes back with the success, so the run isn't saved twice.
   const saveLibraryRun = (libraryRun: LibraryRun, par: number | null | undefined, video?: PickedVideo) => queued(async () => {
-    const day = localDay(new Date(libraryRun.recordedAt)), existing = drillDayFor(recordsRef.current, day, context);
+    const day = localDay(new Date(libraryRun.recordedAt)), existing = drillDayFor(recordsRef.current, day, context, !!video);
     const updated = addRun(existing ?? newDrillDay(uuid.v4(), day, context, libraryRun.recordedAt), libraryRun, video);
     await repo.saveTraining(updated);
     commit(updated);

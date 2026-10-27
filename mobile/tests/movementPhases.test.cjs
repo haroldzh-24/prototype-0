@@ -88,3 +88,30 @@ test('a kept breakdown is saved as its marks and checked on load', () => {
   assert.equal(P.savedPhasesProblem({ ...saved, marks: saved.marks.slice(1) }), 'Invalid movement breakdown.');
   assert.equal(P.savedPhasesProblem({ ...saved, version: 9 }), 'Invalid movement breakdown.');
 });
+
+test('review: the support hand moving first doesn’t make the resting shooting hand look like the grip', () => {
+  for (const leadMs of [50, 67, 100]) {
+    const lead = leadMs / 1000;
+    const support = [[0, -0.05, 0.25], [0.2 - lead, -0.05, 0.25], [0.55, 0.17, -0.62], [0.8, 0.85, -0.83], [1.2, 0.85, -0.83]];
+    const b = P.breakDownDraw(samples({ strong: DRAW.strong, support }), BEEP, SHOT, 'right');
+    const m = Object.fromEntries(b.marks.map(x => [x.key, x]));
+    near(m.move.ms, 0.2 - lead); near(m.grip.ms, 0.35);
+    near(m.clear.ms, firstTime(0.38, t => 0.05 - at(DRAW.strong, t).y >= 0.25));
+  }
+});
+
+test('review: a tracking gap before the run does not lose you; frames only after the shot are too few', () => {
+  const { selectPoseSubject } = require('../src/training/poseDetection.ts');
+  const frames = samples({ ...DRAW, fromMs: 0 }).map(s => ({ timestampMs: s.timestampMs, width: 1080, height: 1920, mirrored: false, crowded: false,
+    people: s.timestampMs >= 600 && s.timestampMs <= 900 ? [] : [s.body] }));
+  const extraction = { frames, durationMs: 3500, warnings: [], nativeRevision: 2 };
+  const lost = P.breakDownDraw(selectPoseSubject(extraction).samples, BEEP, SHOT, 'right');
+  assert.ok(lost.problems.includes('Too few tracked frames between the beep and the shot.'), 'without the window, continuity is lost for good');
+  const found = P.breakDownDraw(selectPoseSubject(P.runWindow(extraction, BEEP)).samples, BEEP, SHOT, 'right');
+  assert.deepEqual(found.problems, []); assert.ok(found.marks.every(m => m.ms !== null));
+  const late = P.breakDownDraw(samples({ ...DRAW, fromMs: SHOT + 20 }), BEEP, SHOT, 'right');
+  assert.ok(late.problems.includes('Too few tracked frames between the beep and the shot.'));
+  // A mirrored video is flagged.
+  const mirrored = samples(DRAW).map(x => ({ ...x, mirrored: true }));
+  assert.ok(P.breakDownDraw(mirrored, BEEP, SHOT, 'right').problems.some(p => /^This video is mirrored/.test(p)));
+});

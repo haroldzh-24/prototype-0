@@ -423,3 +423,16 @@ test('hits marked on the target: single plain paper targets only, inside the fac
   assert.ok(L.libraryObservations(record([ok]), ok).some(o => o.factor === 'hitZones'));
   assert.deepEqual(L.libraryObservations(record([ok]), ok), L.libraryObservations(record([counted]), counted));
 });
+
+test('review: a saved breakdown this version can’t read is dropped on load, not the whole day', async () => {
+  const D = require('../src/training/drillDays.ts');
+  const draw = run('draw', [1.1], { choices: { start: 'competitionHolster', distance: '7' } });
+  const phases = { kind: 'draw', version: 9, side: 'right', marks: [] };
+  const day = { ...D.newDrillDay('d9', '2026-10-26', 'LIVE_FIRE', at(1)), libraryRuns: [{ ...draw, phases }] };
+  assert.equal(L.libraryRunProblem(day.libraryRuns[0]), 'Invalid movement breakdown.');
+  assert.equal(L.withReadablePhases(day.libraryRuns[0]).phases, undefined);
+  const repo = open(); await repo.initialize();
+  await repo.saveTraining(day);
+  const [loaded] = await repo.listTraining('local');
+  assert.equal(loaded.libraryRuns.length, 1); assert.equal(loaded.libraryRuns[0].phases, undefined);
+});

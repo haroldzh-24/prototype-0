@@ -1089,6 +1089,11 @@ test('Movement breakdown: tracks the run’s video, times each movement, adds pl
   h.press('KEEP ON THIS RUN'); await h.settle();
   assert.equal(kept.length, 1); assert.equal(kept[0].kind, 'draw'); assert.equal(kept[0].side, 'right');
   assert.equal(require('../src/training/movementPhases.ts').savedPhasesProblem(kept[0]), null);
+  // Switching the shooting hand after tracking clears the result (it can't be kept for the other hand).
+  h.press('BREAK DOWN THE DRAW');
+  for (let i = 0; i < 50 && !h.nodes().some(n => n.props?.title === 'KEEP ON THIS RUN'); i++) await h.settle();
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('LEFT')).props.onChange('LEFT'); h.render();
+  assert.ok(!h.nodes().some(n => n.props?.title === 'KEEP ON THIS RUN')); assert.deepEqual(marks.at(-1), []);
   // The installed build can't track at 60 frames a second yet: it says so plainly.
   extract = async () => { throw new Error('Unsupported local pose request.'); };
   h.press('BREAK DOWN THE DRAW');

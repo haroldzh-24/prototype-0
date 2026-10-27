@@ -73,7 +73,8 @@ function prepare(samples: readonly PoseSample[], fromMs: number, toMs: number, s
   if (inWindow && frames.length < inWindow * 0.8) problems.push('Your hips and shoulders weren’t seen in every frame: film your whole body, from the side if you can.');
   const missingWrists = frames.filter(f => !f.strong || !f.support).length;
   if (frames.length && missingWrists > frames.length * 0.25) problems.push('Your hands were hidden in many frames (filmed from the front or behind?): a side view shows the draw best.');
-  if (samples.some(s => s.ambiguous)) problems.push('More than one person was in the video; only you should be in frame.');
+  if (samples.some(s => s.ambiguous && s.timestampMs >= fromMs && s.timestampMs <= toMs)) problems.push('More than one person was in the video; only you should be in frame.');
+  if (samples.some(s => s.mirrored && s.timestampMs >= fromMs && s.timestampMs <= toMs)) problems.push('This video is mirrored (the front camera?): your left and right hands may be swapped. Film with the back camera.');
   const fps = frameRate(frames);
   if (fps !== null && fps < C.minFps) problems.push(`Only ${Math.round(fps)} frames a second were tracked: start the recording just before the beep so the run is near the start of the video.`);
   return { frames, fps, problems };
@@ -92,7 +93,7 @@ export function breakDownDraw(samples: readonly PoseSample[], beepMs: number, sh
     intervals: intervalsOf(marks, ['Reaction', 'To the grip', 'Out of the holster', 'Hands together', 'Press out', 'Sight to shot']) });
   if (!finite(beepMs) || !finite(shotMs) || shotMs <= beepMs) return done(['The run needs its beep and first shot in the video.'], null);
   const { frames, fps, problems } = prepare(samples, beepMs - C.baselineMs, shotMs + 100, side);
-  const last = frames.findIndex(f => f.ms > shotMs) - 1, end = last < 0 ? frames.length - 1 : last;
+  const past = frames.findIndex(f => f.ms > shotMs), end = past < 0 ? frames.length - 1 : past - 1;
   const after = frames.findIndex(f => f.ms >= beepMs);
   if (after < 0 || end - after < 4) return done([...problems, 'Too few tracked frames between the beep and the shot.'], fps);
   const strong = speeds(frames, f => f.strong), support = speeds(frames, f => f.support);
@@ -101,9 +102,12 @@ export function breakDownDraw(samples: readonly PoseSample[], beepMs: number, sh
   const move = firstHeld(frames, after, end, i => (strong[i] ?? 0) > C.moveSpeed || (support[i] ?? 0) > C.moveSpeed);
   if (move < 0) return done([...problems, 'No movement found after the beep.'], fps);
   set('move', move, true);
-  // The grip: the strong hand's slowest moment near the holster after it starts, before it rises.
+  // The grip: the strong hand's slowest moment near the holster after it has started moving (the support hand can move
+  // first, while the strong hand is still at rest by the holster), before it rises.
+  const strongMove = firstHeld(frames, move, end, i => (strong[i] ?? 0) > C.moveSpeed);
+  if (strongMove < 0) return done([...problems, 'Your shooting hand wasn’t seen moving to the holster.'], fps);
   let grip = -1;
-  for (let i = move + 1; i < end; i++) {
+  for (let i = strongMove + 1; i < end; i++) {
     const f = frames[i], v = strong[i];
     if (!f.strong || v === null) continue;
     const near = dist(f.strong, f.strongHip) <= C.holsterReach;
@@ -114,7 +118,7 @@ export function breakDownDraw(samples: readonly PoseSample[], beepMs: number, sh
   if (grip < 0) {
     // No clear stop: the slowest strong-hand moment near the holster before it rises.
     let best = Infinity;
-    for (let i = move + 1; i < end; i++) {
+    for (let i = strongMove + 1; i < end; i++) {
       const f = frames[i], v = strong[i];
       if (!f.strong || v === null) continue;
       if (f.strong.y < f.strongHip.y - C.clearRise * 2) break;
@@ -152,7 +156,7 @@ export function breakDownReload(samples: readonly PoseSample[], shotMs: number, 
     intervals: intervalsOf(marks, ['Hand off the gun', 'To the pouch', 'Back to the gun', 'Press out', 'Sight to shot']) });
   if (!finite(shotMs) || !finite(nextShotMs) || nextShotMs <= shotMs) return done(['The run needs both shots of the reload in the video.'], null);
   const { frames, fps, problems } = prepare(samples, shotMs - 100, nextShotMs + 100, side);
-  const last = frames.findIndex(f => f.ms > nextShotMs) - 1, end = last < 0 ? frames.length - 1 : last;
+  const past = frames.findIndex(f => f.ms > nextShotMs), end = past < 0 ? frames.length - 1 : past - 1;
   const after = frames.findIndex(f => f.ms >= shotMs);
   if (after < 0 || end - after < 4) return done([...problems, 'Too few tracked frames between the two shots.'], fps);
   const strong = speeds(frames, f => f.strong), support = speeds(frames, f => f.support);
@@ -202,4 +206,11 @@ export function phaseSeconds(p: SavedPhases): { label: string; seconds: number |
   const labels = p.kind === 'draw' ? ['Reaction', 'To the grip', 'Out of the holster', 'Hands together', 'Press out', 'Sight to shot']
     : ['Hand off the gun', 'To the pouch', 'Back to the gun', 'Press out', 'Sight to shot'];
   return labels.map((label, i) => { const a = p.marks[i].ms, b = p.marks[i + 1].ms; return { label, seconds: a !== null && b !== null && b >= a ? Math.round(b - a) / 1000 : null }; });
+}
+
+/** Tracking from just before the run: a gap earlier in the video (setting the timer, stepping into frame) must not end
+ * the subject's continuity for the run itself (selectPoseSubject never reacquires after a long loss). */
+export const LEAD_MS = 1000;
+export function runWindow<T extends { frames: { timestampMs: number }[] }>(extraction: T, fromMs: number): T {
+  return { ...extraction, frames: extraction.frames.filter(f => f.timestampMs >= fromMs - LEAD_MS) };
 }

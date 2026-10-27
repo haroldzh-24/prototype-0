@@ -4,7 +4,7 @@ import { uuid } from 'expo-modules-core';
 import { Action, Copy, DataRow, Notice, Segmented, ui } from '../ui/kit';
 import { extractPoseUntil } from './extractPose';
 import { selectPoseSubject } from './poseDetection';
-import { breakDownDraw, breakDownReload, phaseSeconds, savedPhases } from './movementPhases';
+import { breakDownDraw, breakDownReload, phaseSeconds, runWindow, savedPhases } from './movementPhases';
 import type { Breakdown, PhaseKind, SavedPhases, Side } from './movementPhases';
 import type { VideoSession } from './videoModel';
 import type { Mark } from './videoTiming';
@@ -27,6 +27,8 @@ export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side,
 }) {
   const [status, setStatus] = useState<'IDLE' | 'TRACKING' | 'DONE' | 'FAILED'>('IDLE');
   const [progress, setProgress] = useState(0), [error, setError] = useState(''), [result, setResult] = useState<Breakdown | null>(null);
+  // The hand the result was tracked for: KEEP saves this one, whatever the switch shows now.
+  const [trackedSide, setTrackedSide] = useState<Side>(side);
   const job = useRef<AbortController | null>(null);
   useEffect(() => () => job.current?.abort(), []);
   // The run's own moments: the beep and first shot for a draw, the shots around the reload for a reload.
@@ -36,13 +38,13 @@ export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side,
   const track = async () => {
     job.current?.abort();
     const controller = new AbortController(); job.current = controller;
-    setStatus('TRACKING'); setProgress(0); setError(''); setResult(null); onMarks([]);
+    setStatus('TRACKING'); setProgress(0); setError(''); setResult(null); onMarks([]); setTrackedSide(side);
     try {
       const extraction = await extractPoseUntil(session, toMs + 300, uuid.v4(), controller.signal, setProgress);
-      const { samples, warnings } = selectPoseSubject(extraction);
+      const { samples, warnings } = selectPoseSubject(runWindow(extraction, fromMs));
       const b = kind === 'draw' ? breakDownDraw(samples, fromMs, toMs, side) : breakDownReload(samples, fromMs, toMs, side);
       if (controller.signal.aborted) return;
-      const extra = warnings.filter(w => /Multiple people|continuity lost/i.test(w));
+      const extra = warnings.filter(w => /continuity lost/i.test(w));
       setResult({ ...b, problems: [...b.problems, ...extra] }); setStatus('DONE');
       onMarks(b.marks.filter(m => m.ms !== null && !['beep', 'shot', 'nextShot'].includes(m.key)).map(m => ({ label: m.label.toUpperCase(), ms: m.ms! })));
     } catch (e) {
@@ -59,7 +61,8 @@ export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side,
     </>}
     {status !== 'TRACKING' && <>
       <Text style={ui.eyebrow}>SHOOTING HAND</Text>
-      <Segmented options={['RIGHT', 'LEFT']} value={side === 'right' ? 'RIGHT' : 'LEFT'} disabled={disabled} onChange={v => onSideChange(v === 'LEFT' ? 'left' : 'right')} />
+      <Segmented options={['RIGHT', 'LEFT']} value={side === 'right' ? 'RIGHT' : 'LEFT'} disabled={disabled}
+        onChange={v => { onSideChange(v === 'LEFT' ? 'left' : 'right'); setResult(null); setStatus('IDLE'); onMarks([]); }} />
       <Action title={`BREAK DOWN THE ${noun}`} disabled={disabled} onPress={() => { void track(); }} />
       <Copy>Tracks your body in the video, on this phone. Film your whole body from the side, start recording just before the beep, and keep others out of frame.</Copy>
     </>}
@@ -76,7 +79,7 @@ export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side,
       {result.problems.map(p => <Notice key={p} tone="warning">{p}</Notice>)}
       <Copy>First version: the marks come from reasoned rules not yet tuned on real range video. Play the video at each mark (the buttons above it) before you keep them.</Copy>
       <Action title="KEEP ON THIS RUN" variant="primary" disabled={disabled || result.marks.some(m => m.ms === null)}
-        onPress={() => { void Promise.resolve(onKeep(savedPhases(result, side))).then(() => setStatus('IDLE')).catch(e => { setError(String(e)); setStatus('FAILED'); }); }} />
+        onPress={() => { void Promise.resolve(onKeep(savedPhases(result, trackedSide))).then(() => setStatus('IDLE')).catch(e => { setError(String(e)); setStatus('FAILED'); }); }} />
     </>}
   </View>;
 }

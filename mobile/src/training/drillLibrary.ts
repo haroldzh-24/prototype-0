@@ -130,6 +130,12 @@ export type LibraryRun = {
   /** The draw or reload broken into movements from the video, kept by you (roadmap T3). */
   phases?: SavedPhases;
 };
+/** A saved run with a breakdown this version can't read (a later version's, or damaged) keeps the run and drops it. */
+export function withReadablePhases(run: LibraryRun): LibraryRun {
+  if (run.phases === undefined || !savedPhasesProblem(run.phases) && run.phases.kind === phaseKindOf(run)) return run;
+  const { phases: _dropped, ...rest } = run;
+  return rest;
+}
 /** Which movement breakdown a run can have: hands-at-sides draws, and standing reloads. */
 export function phaseKindOf(run: Pick<LibraryRun, 'drillId' | 'choices'>): PhaseKind | null {
   const drill = libraryDrill(run.drillId);

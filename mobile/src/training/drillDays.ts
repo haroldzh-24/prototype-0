@@ -22,8 +22,10 @@ export const validDay = (day: unknown): day is string => typeof day === 'string'
   && new Date(day + 'T12:00:00Z').toISOString().slice(0, 10) === day;
 export const isDrillDay = (record: Pick<TrainingRecord, 'kind'>) => record.kind === 'drillDay';
 
-export function drillDayFor(records: readonly TrainingRecord[], day: string, context: TrainingContext): TrainingRecord | undefined {
-  return records.find(r => isDrillDay(r) && r.day === day && (r.context ?? 'DRY_FIRE') === context && (r.libraryRuns?.length ?? 0) < 500);
+/** A record holds at most 500 runs and 100 videos (the repository's limits); a full one makes way for a new one. */
+export function drillDayFor(records: readonly TrainingRecord[], day: string, context: TrainingContext, withVideo = false): TrainingRecord | undefined {
+  return records.find(r => isDrillDay(r) && r.day === day && (r.context ?? 'DRY_FIRE') === context && (r.libraryRuns?.length ?? 0) < 500
+    && (!withVideo || (r.videos?.length ?? 0) < 100));
 }
 export function newDrillDay(id: string, day: string, context: TrainingContext, occurredAt: string): TrainingRecord {
   return { id, userId: 'local', kind: 'drillDay', day, context, drillId: null, drillName: 'Drills', occurredAt, startingType: 'competitionHolster',

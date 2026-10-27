@@ -64,7 +64,8 @@ export default function DrillVideo({ drill, context, video, onChange, onUseTimes
   const current = useRef(video); current.current = video;
   useEffect(() => () => job.current?.abort(), []);
   // A new video (or none) starts over.
-  useEffect(() => { if (!video) { setStatus('IDLE'); setResult(null); setError(''); setChosen(0); } }, [video?.id]);
+  // No video (saved with its run, or removed): stop reading its sound, so the next one isn't blocked.
+  useEffect(() => { if (!video) { job.current?.abort(); setStatus('IDLE'); setResult(null); setError(''); setChosen(0); } }, [video?.id]);
 
   const time = async (picked: RunVideo) => {
     job.current?.abort();
@@ -75,7 +76,7 @@ export default function DrillVideo({ drill, context, video, onChange, onUseTimes
       createdAt: new Date().toISOString(), importedAt: new Date().toISOString(), context, analysisStatus: 'ANNOTATING', analysisVersion: 1 };
     try {
       const audio = await extractAnalysisAudio(session, uuid.v4(), controller.signal, setProgress);
-      const timed = await timeDrillFromSound(audio, drill, controller.signal);
+      const timed = await timeDrillFromSound(audio, drill, controller.signal, { dryFire: context === 'DRY_FIRE' });
       if (controller.signal.aborted || current.current?.id !== picked.id) return;
       setResult(timed); setStatus('DONE');
     } catch (e) {
@@ -128,8 +129,10 @@ export default function DrillVideo({ drill, context, video, onChange, onUseTimes
       {timing.shotTimes.map((t, i) => <DataRow key={i} label={`Shot ${i + 1} · ` + (i < drill.intervals.length ? intervalLabels[i === 0 ? 'start' : drill.intervals[i]] : 'Makeup')} value={t.toFixed(2) + ' s'} />)}
       {timingNotes(timing, drill).map(n => <Notice key={n} tone="warning">{n}</Notice>)}
       {result!.warnings.map(w => <Copy key={w}>{w}</Copy>)}
-      <Action title={video.timing === timing ? 'TIMES IN USE' : 'USE THESE TIMES'} variant="primary" disabled={disabled || !timing.shotTimes.length}
-        onPress={() => { onChange({ ...video, timing }); onUseTimes(timing.shotTimes); }} />
+      {timing.dryFire
+        ? <Action title={video.timing === timing ? 'BEEP IN USE' : 'USE THE BEEP'} variant="primary" disabled={disabled} onPress={() => onChange({ ...video, timing })} />
+        : <Action title={video.timing === timing ? 'TIMES IN USE' : 'USE THESE TIMES'} variant="primary" disabled={disabled || !timing.shotTimes.length}
+          onPress={() => { onChange({ ...video, timing }); onUseTimes(timing.shotTimes); }} />}
     </>}
     <Action title="REMOVE VIDEO" variant="quiet" disabled={disabled} onPress={remove} />
   </View>;

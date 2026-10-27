@@ -1,3 +1,8 @@
+# Fixed 2026-10-26 (batch 22b)
+
+- From the independent review of batches 21–22: the 101st video run of a day failed to save; the grip found too early when the support hand moved first; a tracking gap before the run lost the shooter; KEEP could save the wrong hand; a dry-fire click taken as a shot; steel echoes counted as makeups.
+- Open: an unsaved video copy is left in app storage if the app is killed with the drill open (no orphan cleanup yet); mirrored (front-camera) video is only flagged, not corrected; tracking at 60 frames a second is unmeasured for speed on a phone.
+
 # Fixed 2026-10-26 (batch 21)
 
 - From the independent review of batch 20: a removal racing a save wrote the removed run back; settings (LOG ONLY, TOTAL ONLY) carried into the next drill; the home LAST DRILL tile could no longer update; a failed par save invited a duplicate run; loose marked-hit and day validation.

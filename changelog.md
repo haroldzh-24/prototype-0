@@ -1,3 +1,15 @@
+# RC2 batch 22b: fixes from the independent review of batches 21 and 22 - 2026-10-26
+
+6 confirmed defects, each with a regression test (`tests/videoTiming.test.cjs`, `tests/movementPhases.test.cjs`, `tests/drillLibrary.test.cjs`, `tests/ui-reorganization.test.cjs`); the reviewer also confirmed the save queue, adding and removing run videos, rounding, the video races and the Swift change:
+- The 101st video run of a day couldn't be saved (a record holds 100 videos). A full day record now makes way for a new one.
+- When the support hand moved first, the resting shooting hand was taken as the grip (and "out of the holster" moved with it). The grip is now looked for only after the shooting hand itself starts moving.
+- Being out of frame anywhere earlier in the video (setting the timer) lost you for the rest of it. Tracking is read from a second before the run.
+- KEEP could save a breakdown under the other shooting hand. Changing the hand clears the result, and KEEP saves the hand it was tracked for.
+- A one-shot drill took any sound as the shot (a dry-fire click became a 1.15 s draw). Sounds under a quarter of full scale are not shots; dry fire uses the beep only (**USE THE BEEP**, then type the times; the beep still places them in the video for the breakdown); a beep of 0.4 s or longer is flagged because a shot during it can't be heard.
+- Steel counted echoes as makeups. A sound within 180 ms after a louder one is not a makeup.
+- Also: frames only after the shot no longer pass as a breakdown window; reading a video's sound stops when the video is saved or removed; a mirrored video is flagged; the "more than one person" note shows once and only for the run; a breakdown this version can't read (a later version's) is dropped on load instead of making the day unreadable.
+- Validation: 1020/1020 tests, TypeScript passed. No device testing.
+
 # RC2 batch 22: the draw and the reload broken into movements (T3, first version) - 2026-10-26
 
 - In YOUR RUNS, a timed video of a Draw (hands at sides), Bill Drill or standing Reload run can be broken into movements: reaction, to the grip, out of the holster, hands together, press out, sight to shot (reload: hand off the gun, to the pouch, back to the gun, press out, sight to shot). Body tracking runs on the phone; every mark gets a play button in the video and says when it wasn't clearly seen; KEEP saves it on the run and the drill shows your averages. Your shooting hand is remembered. Rules and thresholds in `docs/drill-library.md` (`training/movementPhases.ts`).
