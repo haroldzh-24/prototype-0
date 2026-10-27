@@ -1283,3 +1283,140 @@ test('ANALYZE times the stage from your numbers, shows where each part came from
   props.route = { ...changed, reloads: [] }; h.render();
   assert.ok(!h.nodes().some(n => n.type === 'Notice' && /^1 reload added/.test(n.props.children)), 'a later change hides the old note');
 });
+
+// Practice timer and buzz test, driven with a fake clock: every timeout, buzz and keep-awake goes through './buzz'.
+function fakeBuzz() {
+  let t = 10_000, awake = 0; const queue = [], played = [];
+  const mod = {
+    now: () => t,
+    after: (ms, fn) => { const item = { at: t + Math.max(0, ms), fn, live: true }; queue.push(item); return () => { item.live = false; }; },
+    playPattern: pattern => { played.push({ at: t, pulses: pattern.length, style: pattern[0]?.style }); return { sentAt: t, cancel() {} }; },
+    keepAwake: () => { awake++; let on = true; return () => { if (on) { on = false; awake--; } }; },
+    deviceInfo: () => ({ model: 'iPhone 15 Pro', os: 'iOS 26.0' }),
+  };
+  return { mod, played, get awake() { return awake; }, get pending() { return queue.filter(q => q.live).length; },
+    advance(ms) { const end = t + ms; for (;;) { const next = queue.filter(q => q.live && q.at <= end).sort((a, b) => a.at - b.at)[0]; if (!next) break; next.live = false; t = next.at; next.fn(); } t = end; } };
+}
+
+test('Practice timer: START arms, buzzes the start 1–4 s later and twice at par, then finishes and lets the screen lock', () => {
+  const buzz = fakeBuzz(), random = Math.random; Math.random = () => 0.5;
+  try {
+    const h = harness('training/PracticeTimer.tsx', { par: 2 }, { './buzz': buzz.mod });
+    const big = () => h.nodes().filter(n => n.type === 'Text').map(n => n.props.children).find(c => ['READY', 'STANDBY', 'GO', 'PAR'].includes(c));
+    assert.equal(big(), 'READY');
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && /twice at your par \(2\.00 s\)/.test(n.props.children)));
+    h.press('Start the practice timer');
+    assert.equal(big(), 'STANDBY'); assert.equal(buzz.awake, 1, 'screen kept awake'); assert.deepEqual(buzz.played.map(p => p.style), ['light'], 'armed knock');
+    assert.ok(h.nodes().find(n => n.type === 'Segmented' && n.props.options.includes('BURST')).props.disabled, 'settings locked while running');
+    buzz.advance(2499); h.render(); assert.equal(big(), 'STANDBY');
+    const fill = () => h.find(n => n.type === 'View' && n.props.accessibilityLiveRegion === 'assertive').props.style.backgroundColor, idle = fill();
+    buzz.advance(1); h.render(); assert.equal(big(), 'GO'); assert.equal(buzz.played[1].pulses, 5, 'burst start signal at 2.5 s');
+    assert.notEqual(fill(), idle, 'the screen flashes on the signal');
+    buzz.advance(1000); h.render(); assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === '1.00 s'), 'elapsed since the signal');
+    buzz.advance(1000); h.render(); assert.equal(big(), 'PAR'); assert.equal(buzz.played[2].pulses, 10, 'par is the start pattern twice');
+    buzz.advance(1500); h.render(); assert.equal(big(), 'READY'); assert.equal(buzz.awake, 0); assert.equal(buzz.pending, 0);
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Start signal 2.50 s after START, par 2.00 s.'));
+  } finally { Math.random = random; }
+});
+
+test('Practice timer: TAP and no flash; STOP cancels every pending buzz; no par runs as a stopwatch', () => {
+  const buzz = fakeBuzz(), random = Math.random; Math.random = () => 0;
+  try {
+    const h = harness('training/PracticeTimer.tsx', { par: null }, { './buzz': buzz.mod });
+    h.find(n => n.type === 'Segmented' && n.props.options.includes('TAP')).props.onChange('TAP'); h.render();
+    h.find(n => n.type === 'Segmented' && n.props.options.includes('OFF')).props.onChange('OFF'); h.render();
+    const box = () => h.find(n => n.type === 'View' && n.props.accessibilityLiveRegion === 'assertive');
+    const idleFill = box().props.style.backgroundColor;
+    h.press('Start the practice timer'); buzz.advance(1000); h.render();
+    assert.equal(buzz.played.at(-1).pulses, 1, 'one knock');
+    assert.match(box().props.accessibilityLabel, /^GO, /); assert.equal(box().props.style.backgroundColor, idleFill, 'flash off: no colour change');
+    buzz.advance(3210); h.render(); h.press('Stop the practice timer');
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Stopped at 3.21 s (your tap, not a shot time).'));
+    assert.equal(buzz.pending, 0); assert.equal(buzz.awake, 0);
+    h.press('Start the practice timer'); h.press('Stop the practice timer');
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Stopped before the start signal.'));
+    buzz.advance(10_000); assert.equal(buzz.played.filter(p => p.pulses === 1 && p.style === 'heavy').length, 1, 'no start signal after STOP');
+  } finally { Math.random = random; }
+});
+
+test('Buzz test: a reaction block times taps from the signal, redoes early taps, counts misses and saves the block', () => {
+  const buzz = fakeBuzz(), prefs = new Map(), random = Math.random; Math.random = () => 0;
+  try {
+    const h = harness('training/BuzzTest.tsx', {}, { './buzz': buzz.mod, '../ui/prefsStore': { readPref: k => prefs.get(k) ?? null, writePref: (k, v) => prefs.set(k, v) },
+      'react-native': { View: 'View', Text: 'Text', Share: { share: async () => ({}) } } });
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'No results yet.'));
+    h.press('Start a reaction test block'); assert.equal(buzz.awake, 1);
+    const pad = () => h.find(n => n.props.accessibilityLabel === 'Reaction pad: tap when you get the signal');
+    const tapPad = () => { assert.equal(pad().props.onStartShouldSetResponder(), true); pad().props.onResponderGrant({ nativeEvent: {} }); h.render(); };
+    tapPad(); // before the signal: early, redone
+    assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === 'EARLY'));
+    assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === 'Trial 1 of 10'), 'an early tap redoes the same trial');
+    buzz.advance(1000); h.render(); // pause, then the next trial waits 1.5 s
+    buzz.advance(1500); h.render(); assert.equal(buzz.played.at(-1).pulses, 5, 'buzz-only burst');
+    assert.equal(h.nodes().find(n => n.type === 'Text' && ['TAP', 'WAIT…'].includes(n.props.children)).props.children, 'WAIT…', 'buzz only: the pad does not light');
+    buzz.advance(243); tapPad();
+    assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === '243 ms'));
+    assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === 'Trial 1 of 10'), 'the finished trial while paused');
+    for (let i = 0; i < 8; i++) { buzz.advance(1000 + 1500 + 250); tapPad(); }
+    buzz.advance(1000 + 1500 + 1550); h.render(); // the tenth: no tap, missed
+    const saved = JSON.parse(prefs.get('psp.buzzTest'));
+    assert.equal(saved.reaction.length, 11); assert.equal(saved.reaction.filter(t => t.outcome === 'EARLY').length, 1); assert.equal(saved.reaction.filter(t => t.outcome === 'MISSED').length, 1);
+    assert.deepEqual([...new Set(saved.reaction.filter(t => t.reactionMs !== null).map(t => t.reactionMs))].sort(), [243, 250]);
+    assert.equal(buzz.awake, 0); assert.equal(buzz.pending, 0);
+    assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Block saved\. Buzz only \(burst\): median 250 ms/.test(n.props.children)));
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Buzz only \(burst\): median 250 ms.* · 9 reacted, 1 early, 1 missed$/.test(n.props.children)));
+  } finally { Math.random = random; }
+});
+
+test('Buzz test: screen-only lights the pad; a stopped block saves nothing; results reload, share and clear', async () => {
+  const buzz = fakeBuzz(), prefs = new Map(), shared = [], random = Math.random; Math.random = () => 0;
+  const rn = { View: 'View', Text: 'Text', Share: { share: async m => { shared.push(m.message); return {}; } } };
+  prefs.set('psp.buzzTest', JSON.stringify({ version: 1, reaction: [{ cue: 'BOTH', strength: 'TAP', outcome: 'REACTED', reactionMs: 222, at: '' }], pocket: [] }));
+  try {
+    const h = harness('training/BuzzTest.tsx', {}, { './buzz': buzz.mod, '../ui/prefsStore': { readPref: k => prefs.get(k) ?? null, writePref: (k, v) => prefs.set(k, v) }, 'react-native': rn });
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Buzz \+ screen \(tap\): median 222 ms/.test(n.props.children)), 'saved results shown');
+    h.find(n => n.type === 'Segmented' && n.props.options.includes('SCREEN ONLY')).props.onChange('SCREEN ONLY'); h.render();
+    h.press('Start a reaction test block'); buzz.advance(1500); h.render();
+    assert.equal(buzz.played.length, 0, 'no buzz for screen only');
+    assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === 'TAP'), 'the pad lights');
+    h.press('Stop the reaction test');
+    assert.equal(JSON.parse(prefs.get('psp.buzzTest')).reaction.length, 1, 'an unfinished block is not saved'); assert.equal(buzz.awake, 0);
+    h.press('Share the buzz test results as text'); await h.settle();
+    assert.match(shared[0], /^PSP buzz test · \d{4}-\d\d-\d\d · iPhone 15 Pro · iOS 26\.0/);
+    h.press('Clear the buzz test results'); h.press('CLEAR RESULTS');
+    assert.deepEqual(JSON.parse(prefs.get('psp.buzzTest')), { version: 1, reaction: [], pocket: [] });
+  } finally { Math.random = random; }
+});
+
+test('Buzz test: the pocket test buzzes 4–8 times over a minute after a 5 s lead, ends with the long buzz, then asks how many were felt', () => {
+  const buzz = fakeBuzz(), prefs = new Map(), random = Math.random; Math.random = () => 0;
+  try {
+    const h = harness('training/BuzzTest.tsx', {}, { './buzz': buzz.mod, '../ui/prefsStore': { readPref: k => prefs.get(k) ?? null, writePref: (k, v) => prefs.set(k, v) },
+      'react-native': { View: 'View', Text: 'Text', Share: { share: async () => ({}) } } });
+    h.find(n => n.type === 'Segmented' && n.props.options.includes('BACK POCKET')).props.onChange('BACK POCKET'); h.render();
+    h.press('Start the pocket test');
+    assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Put the phone away: starting in 5 s'));
+    buzz.advance(30_000); h.render();
+    assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Counting… 35 s left$/.test(n.props.children)));
+    buzz.advance(35_000); h.render();
+    const buzzes = buzz.played.filter(p => p.pulses === 5), end = buzz.played.at(-1);
+    assert.equal(buzzes.length, 4, 'Math.random 0: four buzzes'); assert.equal(end.pulses, 15, 'the long end buzz');
+    assert.ok(buzzes.every(p => p.at >= 10_000 + 5000 && p.at <= 10_000 + 65_000));
+    assert.equal(buzz.awake, 0, 'the screen may lock again');
+    assert.ok(!h.nodes().some(n => n.type === 'Text' && /sent/.test(String(n.props.children))), 'the count is not shown before you answer');
+    for (let i = 0; i < 3; i++) h.press('More buzzes felt');
+    h.press('Save how many buzzes you felt');
+    assert.deepEqual(JSON.parse(prefs.get('psp.buzzTest')).pocket.map(({ at, ...p }) => p), [{ strength: 'BURST', place: 'BACK_POCKET', sent: 4, felt: 3 }]);
+    assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'The phone sent 4 buzzes; you felt 3.'));
+    assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Back pocket, burst: felt 3 of 4 (75%) over 1 test'));
+  } finally { Math.random = random; }
+});
+
+test('Drill sheet and Training: the practice timer opens with the drill’s par; Training has the timer and buzz test', () => {
+  const h = drillSheet('bill', { pars: { bill: 2.25 } });
+  h.press('Open the practice timer: the phone buzzes the start signal and your par');
+  assert.ok(h.nodes().some(n => n.type === 'PracticeTimer'), 'timer shown');
+  h.press('Hide the practice timer'); assert.ok(!h.nodes().some(n => n.type === 'PracticeTimer'));
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/app/training.tsx'), 'utf8');
+  assert.match(source, /title="TIMER & BUZZ TEST"/); assert.match(source, /<PracticeTimer par=\{parseParSeconds\(timerPar\)\} \/>/); assert.match(source, /<BuzzTest \/>/);
+});

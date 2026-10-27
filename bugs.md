@@ -1,3 +1,8 @@
+# Open 2026-10-27 (batch 23)
+
+- Practice timer and buzz test are untested on a phone (needs the next build): buzz strength through clothing, the timing of 40 ms knock bursts from JavaScript timers, and whether the touch event's timestamp shares the signal's clock on iOS (the code falls back to the handling time if not).
+- iOS gives no buzz in Low Power Mode, with System Haptics off or while the camera is open, and doesn't tell the app; the screens explain it but can't detect it.
+
 # Fixed 2026-10-26 (batch 22b)
 
 - From the independent review of batches 21–22: the 101st video run of a day failed to save; the grip found too early when the support hand moved first; a tracking gap before the run lost the shooter; KEEP could save the wrong hand; a dry-fire click taken as a shot; steel echoes counted as makeups.
