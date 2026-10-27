@@ -31,6 +31,30 @@ How the shots are picked (`training/videoTiming.ts`):
 
 The saved video's timeline is the run's saved times placed from the beep (so it matches what you logged, even after you changed a time). Watch it from YOUR RUNS (**WATCH**, with a button for the beep and each shot). It is not opened in the older video editor from History, whose "Add to profile" would count the run a second time.
 
+## The draw and the reload, broken into movements (2026-10-26, batch 22; roadmap T3) — first version
+
+In YOUR RUNS, **WATCH** a Draw (hands at sides) or Bill Drill run, or a standing Reload run, that was timed from its video, then **BREAK DOWN THE DRAW** (or **THE RELOAD**). The app tracks your body in the video on the phone (Apple's body-pose tracking, the TrainingPose module; nothing is uploaded), from the start of the video to just after the shot, at up to 60 frames a second (as many as a 600-frame cap allows: a run in the first 10 seconds of the video gets 60). Everything is measured relative to your own body, in torso lengths (hips to shoulders), so the camera's distance doesn't matter.
+
+| Draw | When |
+| --- | --- |
+| Reaction | Beep → first move: either hand moving faster than 0.8 torso lengths a second, two frames running |
+| To the grip | → the strong hand's slowest moment near its hip (the holster) |
+| Out of the holster | → the strong hand has risen a quarter torso length above the grip |
+| Hands together | → both hands close (within 0.3) and both at the chest (at least 0.45 above the hips) |
+| Press out | → the strong hand stops (under 0.6 a second) with the arms at least 70% extended |
+| Sight to shot | → the shot (from the run's times) |
+
+| Reload | When |
+| --- | --- |
+| Hand off the gun | Shot → the hands more than 0.4 apart |
+| To the pouch | → the support hand's slowest moment near its hip |
+| Back to the gun | → the hands close again (the magazine in) |
+| Press out, Sight to shot | as for the draw |
+
+Each mark plays in the video (its own button next to BEEP and SHOT n), and any mark not clearly seen says "(unsure)" or "not seen". It says what got in the way: your hips or hands hidden (film your whole body, from the side), several people in frame, or too few frames a second (start the recording just before the beep). **KEEP ON THIS RUN** saves the marks with the run (`LibraryRun.phases`); the drill then shows your average of each movement over the runs you kept. Your shooting hand is set once (RIGHT / LEFT) and remembered on the phone.
+
+**Limits of this first version:** the thresholds above are reasoned, not tuned: they have been checked only on scripted motion (every mark within two frames), never on real range video. It needs the next iPhone build (the tracker was capped at 10 frames a second; batch 22 raises it to 60). Turn draws, other start positions and reloads on the move are not broken down yet. The breakdown is not used by the stage planner.
+
 ## The drills
 
 | Drill | Shots: what each time is | Options | Measures |

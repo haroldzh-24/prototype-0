@@ -14,6 +14,8 @@ import { yardsToInches } from '../stage/measurements';
 import type { PowerFactor } from '../profile/model';
 import { MAX_HITS_PER_RUN, PENALTY_TAGS, scoreRun, zoneChoices } from './drillLog';
 import type { DrillHit } from './drillLog';
+import { savedPhasesProblem } from './movementPhases';
+import type { PhaseKind, SavedPhases } from './movementPhases';
 
 export type IntervalKind = 'start' | 'split' | 'transition' | 'reload' | 'move' | 'shot';
 export const intervalLabels: Record<IntervalKind, string> = {
@@ -125,7 +127,18 @@ export type LibraryRun = {
   target?: LibraryTarget;
   /** The run's video, kept in the same record's `videos` (roadmap T2). */
   videoId?: string;
+  /** The draw or reload broken into movements from the video, kept by you (roadmap T3). */
+  phases?: SavedPhases;
 };
+/** Which movement breakdown a run can have: hands-at-sides draws, and standing reloads. */
+export function phaseKindOf(run: Pick<LibraryRun, 'drillId' | 'choices'>): PhaseKind | null {
+  const drill = libraryDrill(run.drillId);
+  if (!drill) return null;
+  const choices = choicesFor(drill, run.choices);
+  if (drill.id === 'bill' || drill.id === 'draw' && choices.start === 'competitionHolster') return 'draw';
+  if (drill.id === 'reload' && choices.mode === 'standing') return 'reload';
+  return null;
+}
 /**
  * Hits marked on the face, as in the drill logger (src/training/drillLog.ts): inches from the face centre, +y up.
  * Zones are tagged by the shooter, never read from the coordinates (no official zone geometry is published as data).
@@ -238,6 +251,11 @@ export function libraryRunProblem(run: LibraryRun): string | null {
   if (typeof run.notes !== 'string' || run.notes.length > 2000) return 'Invalid notes.';
   if (run.counts !== undefined && typeof run.counts !== 'boolean') return 'Invalid run setting.';
   if (run.videoId !== undefined && (typeof run.videoId !== 'string' || !/^[a-z0-9-]{1,64}$/i.test(run.videoId))) return 'Invalid video link.';
+  if (run.phases !== undefined) {
+    const problem = savedPhasesProblem(run.phases);
+    if (problem) return problem;
+    if (run.phases.kind !== phaseKindOf(run)) return 'This drill has no such movement breakdown.';
+  }
   if (run.target !== undefined) return targetProblem(run.target, drill, run);
   return null;
 }

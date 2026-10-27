@@ -18,6 +18,7 @@ import type { UserProfile } from '@/profile/model';
 import { drillTrend, groupStats, offsetText } from '@/training/drillLog';
 import { trainingContexts } from '@/training/observations';
 import type { TrainingContext } from '@/training/observations';
+import type { Side } from '@/training/movementPhases';
 import { discardVideoAsset } from '@/training/videoAssets';
 import { VideoAnalysisEditor } from '@/training/VideoAnalysisEditor';
 import EditorSheet from '@/editor/EditorSheet';
@@ -26,7 +27,7 @@ import { useThemeMode } from '@/ui/theme';
 import { Loading } from '@/ui/kit';
 import { Screen, ScreenHeader, Notice, Copy, Panel, Action, ui } from '@/ui/kit';
 
-const CONTEXT_KEY = 'psp.trainingContext';
+const CONTEXT_KEY = 'psp.trainingContext', HAND_KEY = 'psp.shootingHand';
 const savedContext = (): TrainingContext => { const v = readPref(CONTEXT_KEY); return trainingContexts.includes(v as TrainingContext) ? v as TrainingContext : 'DRY_FIRE'; };
 
 /**
@@ -42,6 +43,8 @@ export default function Training() {
   const [sessionId, setSessionId] = useState<string | null>(null), [drillId, setDrillId] = useState<string | null>(null);
   const [context, setContextState] = useState<TrainingContext>(savedContext);
   const setContext = (next: TrainingContext) => { setContextState(next); writePref(CONTEXT_KEY, next); };
+  const [hand, setHandState] = useState<Side>(() => readPref(HAND_KEY) === 'left' ? 'left' : 'right');
+  const setHand = (next: Side) => { setHandState(next); writePref(HAND_KEY, next); };
   const [historyOpen, setHistoryOpen] = useState(false), [numbersOpen, setNumbersOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false), [removingRun, setRemovingRun] = useState<string | null>(null);
   const recordsRef = useRef(records); recordsRef.current = records;
@@ -97,6 +100,14 @@ export default function Training() {
     for (const asset of discard) { try { discardVideoAsset(asset); } catch { /* already removed */ } }
     commit(updated); setRemovingRun(null);
     await loadProfile();
+  });
+  // A changed run (a kept movement breakdown) replaces the saved one in its record.
+  const updateLibraryRun = (changed: LibraryRun) => queued(async () => {
+    const record = recordOfRun(recordsRef.current, changed.id);
+    if (!record) throw new Error('This run is no longer saved.');
+    const updated = { ...record, libraryRuns: (record.libraryRuns ?? []).map(r => r.id === changed.id ? changed : r) };
+    await repo.saveTraining(updated);
+    commit(updated);
   });
   const libraryRunText = (libraryRun: LibraryRun) => {
     const drill = libraryDrill(libraryRun.drillId);
@@ -175,7 +186,8 @@ export default function Training() {
     </EditorSheet>
     {!!message && <Notice tone="warning">{message}</Notice>}
     <DrillSheet visible={!!drillId} drillId={drillId} records={records} context={context} onContextChange={setContext} powerFactor={pf}
-      pars={profile?.drillPars ?? {}} onSave={saveLibraryRun} onRemove={removeLibraryRun} onClose={() => setDrillId(null)} />
+      pars={profile?.drillPars ?? {}} onSave={saveLibraryRun} onRemove={removeLibraryRun} onUpdate={updateLibraryRun} hand={hand} onHandChange={setHand}
+      onClose={() => setDrillId(null)} />
     <YourNumbers visible={numbersOpen} records={records} profile={profile} onClose={() => setNumbersOpen(false)} />
     {selectedRecord && selectedVideo && <VideoAnalysisEditor key={selectedVideo.session.id} record={selectedRecord} initialVideo={selectedVideo}
       onSaved={updated => setRecords(current => current.map(r => r.id === updated.id ? updated : r))} onClose={() => setSelected(null)} />}

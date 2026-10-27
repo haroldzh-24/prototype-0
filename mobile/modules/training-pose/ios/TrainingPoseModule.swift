@@ -88,8 +88,9 @@ public final class TrainingPoseModule: Module {
   }
   private func extract(_ uri: String, job: String, fps: Double, limitMs: Double,
                        maxSamples: Int, imageSize: Int, minConfidence: Double) throws -> [String: Any] {
-    // Native ceilings defend the bridge; the TS config owns requested settings.
-    guard fps.isFinite, fps > 0, fps <= 10, limitMs.isFinite, limitMs > 0, limitMs <= 60000,
+    // Native ceilings defend the bridge; the TS config owns requested settings. Up to 60 frames a second for the
+    // movement breakdown of a short run (the sample cap keeps the work bounded).
+    guard fps.isFinite, fps > 0, fps <= 60, limitMs.isFinite, limitMs > 0, limitMs <= 60000,
       maxSamples > 0, maxSamples <= 600, imageSize > 0, imageSize <= 640,
       minConfidence.isFinite, minConfidence >= 0, minConfidence <= 1,
       let url = URL(string: uri), url.isFileURL else { throw failure("Unsupported local pose request.") }
@@ -159,6 +160,6 @@ public final class TrainingPoseModule: Module {
       lock.unlock()
     }
     try check(job)
-    return ["frames": frames, "durationMs": duration, "warnings": warnings, "nativeRevision": 1]
+    return ["frames": frames, "durationMs": duration, "warnings": warnings, "nativeRevision": 2]
   }
 }

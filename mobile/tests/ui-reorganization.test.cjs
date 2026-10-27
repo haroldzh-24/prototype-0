@@ -853,7 +853,7 @@ test('review 3: dragging a layer in 3D moves its target by the drag, keeping the
 
 const discardedVideos = [];
 const drillSheet = (drillId, patch = {}) => harness('training/DrillSheet.tsx', { visible: true, drillId, records: [], context: 'LIVE_FIRE', onContextChange() {}, powerFactor: 'minor',
-  pars: {}, onClose() {}, onSave() {}, onRemove() {}, ...patch }, { './videoAssets': { discardVideoAsset: a => discardedVideos.push(a.uri), playbackUri: a => 'file:///' + a.uri } });
+  pars: {}, onClose() {}, onSave() {}, onRemove() {}, onUpdate() {}, hand: 'right', onHandChange() {}, ...patch }, { './videoAssets': { discardVideoAsset: a => discardedVideos.push(a.uri), playbackUri: a => 'file:///' + a.uri } });
 test('Drill sheet: how to run it, options, paste timer times, count hits, save with a par', async () => {
   let saved, savedPar;
   const h = drillSheet('sprint', { powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onSave: async (r, par) => { saved = r; savedPar = par; } });
@@ -1056,6 +1056,72 @@ test('History: a drill run’s video is watched from the drill, not opened in th
   h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === Days.historyTitle(day)).props.open(); h.render();
   assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Video 1 · Bill Drill run, watch it from the drill'));
   assert.ok(!h.nodes().some(n => /^Video 1 ·/.test(n.props?.title ?? '')), 'no editor button for it');
+});
+
+// A scripted hands-at-sides draw (as in movementPhases.test.cjs), as the native tracker returns it: 60 frames a second.
+function drawExtraction(beep = 1000, fps = 60, endMs = 2400) {
+  const path = { strong: [[0, 0.05, 0.25], [0.2, 0.05, 0.25], [0.32, 0, 0.05], [0.38, 0, 0.05], [0.55, 0.15, -0.65], [0.8, 0.85, -0.85], [1.4, 0.85, -0.85]],
+    support: [[0, -0.05, 0.25], [0.22, -0.05, 0.25], [0.55, 0.17, -0.62], [0.8, 0.85, -0.83], [1.4, 0.85, -0.83]] };
+  const at = (p, t) => { if (t <= p[0][0]) return { x: p[0][1], y: p[0][2] }; for (let i = 1; i < p.length; i++) if (t <= p[i][0]) { const [t0, x0, y0] = p[i - 1], [t1, x1, y1] = p[i], k = (t - t0) / (t1 - t0); return { x: x0 + k * (x1 - x0), y: y0 + k * (y1 - y0) }; } const l = p.at(-1); return { x: l[1], y: l[2] }; };
+  const img = q => ({ x: 0.5 + q.x * 0.25, y: 0.55 + q.y * 0.25, confidence: 0.9 }), frames = [];
+  for (let ms = 0; ms <= endMs; ms += 1000 / fps) {
+    const t = (ms - beep) / 1000;
+    frames.push({ timestampMs: ms, width: 1080, height: 1920, mirrored: false, crowded: false, people: [{ confidence: 0.9, joints: {
+      leftHip: img({ x: -0.05, y: 0 }), rightHip: img({ x: 0.05, y: 0 }), leftShoulder: img({ x: -0.05, y: -1 }), rightShoulder: img({ x: 0.05, y: -1 }),
+      rightWrist: img(at(path.strong, t)), leftWrist: img(at(path.support, t)) } }] });
+  }
+  return { frames, durationMs: endMs, warnings: [], nativeRevision: 2 };
+}
+
+test('Movement breakdown: tracks the run’s video, times each movement, adds play buttons, and keeps it on the run', async () => {
+  let extract = async (_s, endMs) => { assert.equal(endMs, 1000 + 1050 + 300, 'tracked up to just after the first shot'); return drawExtraction(); };
+  const kept = [], marks = [];
+  const props = { kind: 'draw', session: { asset: { uri: 'training-videos/v.mov' } }, beepMs: 1000, shotTimes: [1.05, 1.3], side: 'right', onSideChange() {},
+    saved: undefined, onMarks: m => marks.push(m), onKeep: p => { kept.push(p); }, disabled: false };
+  const h = harness('training/PhaseBreakdown.tsx', props, { './extractPose': { extractPoseUntil: (...args) => extract(...args) } });
+  h.press('BREAK DOWN THE DRAW');
+  for (let i = 0; i < 50 && !h.nodes().some(n => n.props?.title === 'KEEP ON THIS RUN'); i++) await h.settle();
+  const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  for (const label of ['Reaction', 'To the grip', 'Out of the holster', 'Hands together', 'Press out', 'Sight to shot']) assert.match(row(label), /^\d\.\d\d s$/, label);
+  assert.match(row('Reaction'), /^0\.(18|2[0-2]) s$/);
+  assert.deepEqual(marks.at(-1).map(m => m.label), ['FIRST MOVE', 'GRIP', 'OUT OF THE HOLSTER', 'HANDS TOGETHER', 'ON TARGET']);
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^First version: the marks come from reasoned rules/.test(n.props.children)));
+  h.press('KEEP ON THIS RUN'); await h.settle();
+  assert.equal(kept.length, 1); assert.equal(kept[0].kind, 'draw'); assert.equal(kept[0].side, 'right');
+  assert.equal(require('../src/training/movementPhases.ts').savedPhasesProblem(kept[0]), null);
+  // The installed build can't track at 60 frames a second yet: it says so plainly.
+  extract = async () => { throw new Error('Unsupported local pose request.'); };
+  h.press('BREAK DOWN THE DRAW');
+  for (let i = 0; i < 10 && !h.nodes().some(n => n.type === 'Notice'); i++) await h.settle();
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Breaking down movements needs the next iPhone build of the app.'));
+});
+
+test('Drill sheet: a watched draw run offers the breakdown; kept breakdowns are saved on the run and averaged', async () => {
+  const Days = require('../src/training/drillDays.ts'), P = require('../src/training/movementPhases.ts');
+  const run = { id: 'r1', drillId: 'draw', recordedAt: '2026-10-20T15:00:00Z', choices: { start: 'competitionHolster', distance: '7' }, shotTimes: [1.05], totalTime: 1.05, family: 'USPSA', notes: '' };
+  const phases = { kind: 'draw', version: 1, side: 'right', marks: [['beep', 1000], ['move', 1200], ['grip', 1350], ['clear', 1440], ['meet', 1530], ['onTarget', 1800], ['shot', 2050]].map(([key, ms]) => ({ key, ms, sure: true })) };
+  const record = Days.addRun(Days.newDrillDay('d', '2026-10-20', 'LIVE_FIRE', run.recordedAt), run,
+    { id: 'v1', asset: { uri: 'training-videos/v1.mov', name: 'IMG.MOV', storage: 'DOCUMENTS' }, durationMs: null, timing: { beepMs: 1000 } });
+  const updates = [];
+  const h = drillSheet('draw', { records: [record], hand: 'right', onHandChange() {}, onUpdate: r => { updates.push(r); } });
+  h.press('Watch run 1');
+  const panel = h.child('PhaseBreakdown');
+  assert.deepEqual([panel.kind, panel.beepMs, panel.shotTimes, panel.side], ['draw', 1000, [1.05], 'right']);
+  await panel.onKeep(phases); await h.settle();
+  assert.equal(updates[0].id, 'r1'); assert.deepEqual(updates[0].phases, phases);
+  assert.equal(require('../src/training/drillLibrary.ts').libraryRunProblem(updates[0]), null);
+  // With the breakdown saved, the drill shows your averages.
+  const saved = { ...record, libraryRuns: [{ ...record.libraryRuns[0], phases }] };
+  const w = drillSheet('draw', { records: [saved], hand: 'right', onHandChange() {}, onUpdate() {} });
+  const row = label => w.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.ok(w.nodes().some(n => n.props?.children === 'YOUR DRAW, BROKEN DOWN · 1 RUN'));
+  assert.equal(row('Reaction'), '0.20 s'); assert.equal(row('To the grip'), '0.15 s'); assert.equal(row('Sight to shot'), '0.25 s');
+  assert.ok(w.nodes().some(n => n.type === 'Copy' && / · draw broken down$/.test(n.props.children)));
+  // A Bill Drill can have a draw breakdown; a sprint can't have any.
+  const L = require('../src/training/drillLibrary.ts');
+  assert.equal(L.phaseKindOf({ drillId: 'bill', choices: {} }), 'draw'); assert.equal(L.phaseKindOf({ drillId: 'draw', choices: { start: 'surrender' } }), null);
+  assert.equal(L.phaseKindOf({ drillId: 'reload', choices: { mode: 'standing' } }), 'reload'); assert.equal(L.phaseKindOf({ drillId: 'sprint', choices: {} }), null);
+  assert.equal(L.libraryRunProblem({ ...run, drillId: 'sprint', choices: { move: '10', direction: 'lateral' }, shotTimes: [1, 1.2, 2.5, 2.7], totalTime: 2.7, phases }), 'This drill has no such movement breakdown.');
 });
 
 test('Your numbers shows measured values with run counts, the planner values, and a trend against par', async () => {

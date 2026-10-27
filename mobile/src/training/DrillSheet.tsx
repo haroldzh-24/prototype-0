@@ -10,12 +10,17 @@ import { trainingContexts } from './observations';
 import type { TrainingContext } from './observations';
 import { contextLabels } from './presentation';
 import { zoneChoices } from './drillLog';
-import { analyzeLibraryRun, canMarkHits, choicesFor, intervalLabels, libraryDrill, libraryFamilies, libraryRunProblem, parseShotTimes, targetYards,
+import { analyzeLibraryRun, canMarkHits, choicesFor, phaseKindOf, intervalLabels, libraryDrill, libraryFamilies, libraryRunProblem, parseShotTimes, targetYards,
   variantKey, variantLabel, zonesFromHits } from './drillLibrary';
 import type { LibraryFamily, LibraryRun, LibraryTarget } from './drillLibrary';
 import { runsOfDrill, runText } from './drillDays';
 import HitMarker from './HitMarker';
 import DrillVideo, { ClipPlayer } from './DrillVideo';
+import PhaseBreakdown from './PhaseBreakdown';
+import { phaseSeconds } from './movementPhases';
+import type { Side } from './movementPhases';
+import type { Mark } from './videoTiming';
+import type { VideoSession } from './videoModel';
 import { marksOf } from './videoTiming';
 import type { RunVideo } from './DrillVideo';
 import { discardVideoAsset, playbackUri } from './videoAssets';
@@ -45,7 +50,7 @@ function Counter({ label, value, onChange, disabled }: { label: string; value: n
  * One drill: how to run it, what it measures, logging a run (timer times, hits by zone or marked on the target, par),
  * and your runs of it. Runs are filed by day and practice type by the caller; there are no sessions to manage.
  */
-export default function DrillSheet({ visible, drillId, records, context, onContextChange, powerFactor, pars, onSave, onRemove, onClose }: {
+export default function DrillSheet({ visible, drillId, records, context, onContextChange, powerFactor, pars, onSave, onRemove, onUpdate, hand, onHandChange, onClose }: {
   visible: boolean; drillId: string | null; records: readonly TrainingRecord[];
   /** Dry fire, live fire or match: which of your numbers the run builds. */
   context: TrainingContext; onContextChange: (context: TrainingContext) => void;
@@ -53,6 +58,10 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   /** `par`: undefined = unchanged, null = cleared, a number = set for this drill variant. `video`: the run's video, saved with it. */
   onSave: (run: LibraryRun, par: number | null | undefined, video?: RunVideo) => Promise<string | void> | string | void;
   onRemove: (runId: string) => Promise<void> | void; onClose: () => void;
+  /** Save a changed run (a kept movement breakdown). */
+  onUpdate: (run: LibraryRun) => Promise<void> | void;
+  /** Your shooting hand, for the movement breakdown. */
+  hand: Side; onHandChange: (hand: Side) => void;
 }) {
   const drill = drillId ? libraryDrill(drillId) : undefined;
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -67,6 +76,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const [parEdit, setParEdit] = useState<string | null>(null);
   const [error, setError] = useState(''), [saving, setSaving] = useState(false), [saved, setSaved] = useState('');
   const [removing, setRemoving] = useState<string | null>(null), [watching, setWatching] = useState<string | null>(null);
+  const [phaseMarks, setPhaseMarks] = useState<Mark[]>([]);
   // The video of the run being logged: kept only if the run is saved, otherwise its copy is removed.
   const [video, setVideo] = useState<RunVideo | null>(null), videoRef = useRef(video); videoRef.current = video;
   const dropVideo = () => { if (videoRef.current) { try { discardVideoAsset(videoRef.current.asset); } catch { /* already gone */ } } setVideo(null); };
@@ -79,7 +89,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
     if (!drill) return;
     // Your target family and power factor carry over; how times are entered starts as shot times again.
     setChoices(choicesFor(drill)); clearRun(); setMode('SHOT TIMES'); setTarget(null); setHitMode('COUNT BY ZONE'); setParEdit(null); setError(''); setSaved(''); setRemoving(null);
-    setWatching(null); dropVideo();
+    setWatching(null); setPhaseMarks([]); dropVideo();
   }, [drillId]);
 
   if (!drill) return <EditorSheet title="DRILL" visible={visible && !!drillId} close={onClose}><Panel><Copy>Unknown drill.</Copy></Panel></EditorSheet>;
@@ -105,13 +115,24 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const preset = target ? papers(family).find(p => p.id === target.presetId) : undefined;
 
   /** A saved run's video and its marks (the beep from the video, the run's shot times). */
-  function runClip(recordId: string, saved: LibraryRun): { uri: string | null; error: string; marks: ReturnType<typeof marksOf> } | null {
+  function runClip(recordId: string, saved: LibraryRun): { uri: string | null; error: string; marks: Mark[]; session: VideoSession; beepMs: number | null } | null {
     const clip = saved.videoId ? records.find(r => r.id === recordId)?.videos?.find(v => v.session.id === saved.videoId) : undefined;
     if (!clip) return null;
     const beep = clip.analysis.events.find(ev => ev.type === 'STIMULUS' && isTrustedEvent(ev));
-    try { return { uri: playbackUri(clip.session.asset), error: '', marks: beep ? marksOf(beep.timestampMs, saved.shotTimes) : [] }; }
-    catch (err) { return { uri: null, error: String(err instanceof Error ? err.message : err), marks: [] }; }
+    const base = { session: clip.session, beepMs: beep?.timestampMs ?? null, marks: beep ? marksOf(beep.timestampMs, saved.shotTimes) : [] };
+    try { return { ...base, uri: playbackUri(clip.session.asset), error: '' }; }
+    catch (err) { return { ...base, uri: null, error: String(err instanceof Error ? err.message : err) }; }
   }
+  // Your movement breakdowns of these options, averaged per movement.
+  const broken = mine.flatMap(e => e.run.phases ? [phaseSeconds(e.run.phases)] : []);
+  const phaseAverages = broken.length ? broken[0].map((p, i) => {
+    const values = broken.map(b => b[i].seconds).filter((v): v is number => v !== null);
+    return { label: p.label, seconds: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null, n: values.length };
+  }) : [];
+  const keepPhases = async (saved: LibraryRun) => {
+    setSaving(true); setError('');
+    try { await onUpdate(saved); setPhaseMarks([]); } catch (err) { setError(String(err)); throw err; } finally { setSaving(false); }
+  };
 
   // Nothing else can be saved or removed while a removal is written.
   async function remove(runId: string) {
@@ -214,12 +235,20 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
         <DataRow label="Runs" value={String(mine.length)} />
         {best !== null && <DataRow label="Best time" value={seconds(best)} />}
         {pars[key] !== undefined && <DataRow label="Par" value={seconds(pars[key])} />}
-        {mine.slice(0, 10).map((e, i) => { const clip = runClip(e.recordId, e.run); return <View key={e.run.id} style={{ gap: 4 }}>
+        {phaseAverages.length > 0 && <>
+          <Text style={ui.eyebrow}>{`YOUR ${phaseKindOf(run) === 'reload' ? 'RELOAD' : 'DRAW'}, BROKEN DOWN · ${broken.length} RUN${broken.length === 1 ? '' : 'S'}`}</Text>
+          {phaseAverages.map(p => <DataRow key={p.label} label={p.label} value={p.seconds === null ? '—' : seconds(p.seconds)} />)}
+        </>}
+        {mine.slice(0, 10).map((e, i) => { const clip = runClip(e.recordId, e.run), kind = phaseKindOf(e.run); return <View key={e.run.id} style={{ gap: 4 }}>
           <Copy>{`${new Date(e.run.recordedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${contextLabels[e.context]} · ${runText(e.run, powerFactor)}`
-            + (pars[key] !== undefined && e.run.totalTime !== null ? (e.run.totalTime <= pars[key] ? ' · under par' : ' · over par') : '') + (clip ? ' · video' : '')}</Copy>
+            + (pars[key] !== undefined && e.run.totalTime !== null ? (e.run.totalTime <= pars[key] ? ' · under par' : ' · over par') : '') + (clip ? ' · video' : '')
+            + (e.run.phases ? ` · ${e.run.phases.kind} broken down` : '')}</Copy>
           {clip && <Action title={watching === e.run.id ? 'HIDE VIDEO' : 'WATCH'} accessibilityLabel={(watching === e.run.id ? 'Hide the video of run ' : 'Watch run ') + (i + 1)}
-            onPress={() => setWatching(watching === e.run.id ? null : e.run.id)} />}
-          {clip && watching === e.run.id && (clip.uri ? <ClipPlayer uri={clip.uri} marks={clip.marks} /> : <Notice tone="warning">{clip.error}</Notice>)}
+            onPress={() => { setWatching(watching === e.run.id ? null : e.run.id); setPhaseMarks([]); }} />}
+          {clip && watching === e.run.id && (clip.uri ? <ClipPlayer uri={clip.uri} marks={[...clip.marks, ...phaseMarks]} /> : <Notice tone="warning">{clip.error}</Notice>)}
+          {clip && watching === e.run.id && kind && clip.beepMs !== null && e.run.shotTimes.length >= (kind === 'draw' ? 1 : 2) &&
+            <PhaseBreakdown kind={kind} session={clip.session} beepMs={clip.beepMs} shotTimes={e.run.shotTimes} side={hand} onSideChange={onHandChange}
+              saved={e.run.phases} onMarks={setPhaseMarks} onKeep={phases => keepPhases({ ...e.run, phases })} disabled={saving} />}
           {removing === e.run.id ? <View style={{ flexDirection: 'row', gap: 8 }}>
             <Action title="KEEP" accessibilityLabel={`Keep run ${i + 1}`} disabled={saving} onPress={() => setRemoving(null)} />
             <Action title="REMOVE RUN" variant="destructive" accessibilityLabel={`Confirm removing run ${i + 1}`} disabled={saving}
