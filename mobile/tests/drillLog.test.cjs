@@ -91,55 +91,12 @@ test('runs persist with their hit coordinates; invalid runs are refused; session
   assert.deepEqual((await repo.listTraining('local'))[0].runs, [saved], 'refused writes leave the saved copy intact');
 });
 
-test('the drill editor maps taps to face inches (+y up), tags zones, records misses and saves a valid run', async () => {
-  const path = require('node:path');
-  const { tapToFace } = render(path, { visible: false, initialFamily: 'USPSA', onSave() {}, onClose() {} }).exports;
+test('the target face maps taps to face inches (+y up), used by MARK ON TARGET', () => {
+  // The drill logger's own editor (DrillRunEditor) was never shown and is removed; its runs still load (above).
+  const { tapToFace } = require('../src/training/targetFace.ts');
   const p = tapToFace(140, 0, 280, 462.5, 18.12, 29.93);
   near(p.x, 0); near(p.y, 29.93 / 2);
   const q = tapToFace(0, 462.5, 280, 462.5, 18.12, 29.93);
   near(q.x, -18.12 / 2); near(q.y, -29.93 / 2);
-
-  // Drive the component with the same lightweight harness approach as the UI tests.
-  let savedRun = null;
-  const h = render(path, { visible: true, initialFamily: 'USPSA', onSave: r => { savedRun = r; }, onClose() {} });
-  const diagram = h.find(n => n.props.accessibilityLabel === 'Drill target diagram');
-  diagram.props.onPress({ nativeEvent: { locationX: 140, locationY: 231.25 } }); h.render();
-  h.press('A'); // zone for the selected hit
-  h.press('MISS');
-  h.find(n => n.props.accessibilityLabel === 'Drill target diagram').props.onPress({ nativeEvent: { locationX: 200, locationY: 100 } }); h.render();
-  h.press('SAVE RUN'); await new Promise(r => setImmediate(r)); h.render();
-  assert.ok(savedRun, 'onSave was called');
-  assert.equal(savedRun.hits.length, 3);
-  assert.deepEqual(savedRun.hits.map(x => x.zone), ['A', 'M', null]);
-  near(savedRun.hits[0].x, 0, 1e-3); near(savedRun.hits[0].y, 0, 1e-3); // tapped at the diagram centre
-  assert.equal(savedRun.hits[1].x, null);
-  assert.equal(D.drillRunProblem(savedRun), null);
+  assert.ok(!fs.existsSync(require('node:path').resolve(__dirname, '../src/training/DrillRunEditor.tsx')), 'the unused editor is gone');
 });
-
-// Minimal harness: compile the TSX component with host components and a tiny hooks implementation.
-function render(path, props) {
-  const slots = []; let cursor = 0, changed = false, tree;
-  const react = { useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
-    return [slots[i], next => { const v = typeof next === 'function' ? next(slots[i]) : next; if (!Object.is(v, slots[i])) { slots[i] = v; changed = true; } }]; } };
-  const jsx = (type, p, key) => ({ type, props: p ?? {}, key });
-  const file = path.resolve(__dirname, '../src/training/DrillRunEditor.tsx');
-  const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  let serial = 0;
-  const kit = { Action: 'Action', Copy: 'Copy', DataRow: 'DataRow', Input: 'Input', Notice: 'Notice', Panel: 'Panel', Segmented: 'Segmented' };
-  const req = id => id === 'react' ? react : id === 'react/jsx-runtime' ? { jsx, jsxs: jsx, Fragment: 'Fragment' }
-    : id === 'react-native' ? { Pressable: 'Pressable', View: 'View' } : id === 'expo-image' ? { Image: 'Image' }
-    : id === 'expo-modules-core' ? { uuid: { v4: () => 'id-' + (++serial) } } : id === '../editor/EditorSheet' ? { __esModule: true, default: 'EditorSheet' }
-    : id === '../ui/kit' ? kit : require(path.resolve(path.dirname(file), id + '.ts'));
-  const module = { exports: {} };
-  new Function('require', 'module', 'exports', source)(req, module, module.exports);
-  const component = module.exports.default;
-  const nodes = n => !n || typeof n !== 'object' ? [] : Array.isArray(n) ? n.flatMap(nodes) : [n, ...nodes(n.props?.children)];
-  const doRender = () => { for (let pass = 0; pass < 10; pass++) { cursor = 0; changed = false; tree = component(props); if (!changed) break; } return tree; };
-  doRender();
-  return { exports: module.exports, render: doRender, find: pred => { const r = nodes(tree).find(pred); assert.ok(r, 'Missing UI node'); return r; },
-    press(title) {
-      const seg = nodes(tree).find(n => n.type === 'Segmented' && n.props.options?.includes(title));
-      if (seg) { seg.props.onChange(title); doRender(); return; }
-      const node = nodes(tree).find(n => n.props?.title === title); assert.ok(node, 'Missing ' + title); assert.ok(!node.props.disabled, title + ' disabled'); node.props.onPress(); doRender();
-    } };
-}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { uuid } from 'expo-modules-core';
-import { Action, Copy, DataRow, Notice, Segmented, ui } from '../ui/kit';
+import { Action, Copy, DataRow, Notice, ui } from '../ui/kit';
 import { extractPoseUntil } from './extractPose';
 import { selectPoseSubject } from './poseDetection';
 import { breakDownDraw, breakDownReload, phaseSeconds, runWindow, savedPhases } from './movementPhases';
@@ -21,16 +21,20 @@ const seconds = (v: number | null) => v === null ? 'not seen' : v.toFixed(2) + '
  * The draw or reload of a saved run broken into movements, from body tracking on its video (movementPhases.ts). The
  * marks join the video's play buttons so you can check each one; KEEP saves them on the run.
  */
-export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side, onSideChange, saved, onMarks, onKeep, disabled }: {
-  kind: PhaseKind; session: VideoSession; beepMs: number; shotTimes: readonly number[]; side: Side; onSideChange: (side: Side) => void;
+export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side, saved, onMarks, onKeep, disabled }: {
+  kind: PhaseKind; session: VideoSession; beepMs: number; shotTimes: readonly number[];
+  /** Your shooting hand, set in Profile. */
+  side: Side;
   saved: SavedPhases | undefined; onMarks: (marks: Mark[]) => void; onKeep: (phases: SavedPhases) => Promise<void> | void; disabled: boolean;
 }) {
   const [status, setStatus] = useState<'IDLE' | 'TRACKING' | 'DONE' | 'FAILED'>('IDLE');
   const [progress, setProgress] = useState(0), [error, setError] = useState(''), [result, setResult] = useState<Breakdown | null>(null);
-  // The hand the result was tracked for: KEEP saves this one, whatever the switch shows now.
+  // The hand the result was tracked for: KEEP saves this one.
   const [trackedSide, setTrackedSide] = useState<Side>(side);
   const job = useRef<AbortController | null>(null);
   useEffect(() => () => job.current?.abort(), []);
+  // A result tracked for the other hand can't be kept: a changed hand clears it.
+  useEffect(() => { if (side !== trackedSide && status !== 'TRACKING') { setResult(null); setStatus('IDLE'); onMarks([]); setTrackedSide(side); } }, [side]);
   // The run's own moments: the beep and first shot for a draw, the shots around the reload for a reload.
   const [fromMs, toMs] = kind === 'draw' ? [beepMs, beepMs + shotTimes[0] * 1000] : [beepMs + shotTimes[0] * 1000, beepMs + shotTimes[1] * 1000];
   const noun = kind === 'draw' ? 'DRAW' : 'RELOAD';
@@ -60,9 +64,8 @@ export default function PhaseBreakdown({ kind, session, beepMs, shotTimes, side,
       <Copy>Kept on this run. Track it again to check it against the video.</Copy>
     </>}
     {status !== 'TRACKING' && <>
-      <Text style={ui.eyebrow}>SHOOTING HAND</Text>
-      <Segmented options={['RIGHT', 'LEFT']} value={side === 'right' ? 'RIGHT' : 'LEFT'} disabled={disabled}
-        onChange={v => { onSideChange(v === 'LEFT' ? 'left' : 'right'); setResult(null); setStatus('IDLE'); onMarks([]); }} />
+      <DataRow label="Shooting hand" value={side === 'right' ? 'Right' : 'Left'} />
+      <Copy>Set your shooting hand in Profile.</Copy>
       <Action title={`BREAK DOWN THE ${noun}`} disabled={disabled} onPress={() => { void track(); }} />
       <Copy>Tracks your body in the video, on this phone. Film your whole body from the side, start recording just before the beep, and keep others out of frame.</Copy>
     </>}

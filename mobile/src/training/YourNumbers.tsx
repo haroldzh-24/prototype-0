@@ -14,7 +14,7 @@ import type { MoveFit } from '../profile/movementModel';
 import type { TrainingRecord } from './model';
 import { trainingContexts } from './observations';
 import type { TrainingContext } from './observations';
-import { contextLabels, startLabels } from './presentation';
+import { contextLabels, PLAN_PRACTICE_DEFAULT, practiceAdjectives, practiceButtons, practiceOfButton, startLabels } from './presentation';
 import { libraryDrill, variantKey, variantLabel } from './drillLibrary';
 import { libraryNumbers, libraryTrend } from './libraryStats';
 import type { Stat } from './libraryStats';
@@ -40,7 +40,8 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
   visible: boolean; records: readonly TrainingRecord[]; profile: UserProfile | null; onClose: () => void;
 }) {
   useThemeMode();
-  const planning = profile?.calibrationContext ?? 'LIVE_FIRE';
+  // Profile · Practice type for plans.
+  const planning = profile?.calibrationContext ?? PLAN_PRACTICE_DEFAULT;
   const [context, setContext] = useState<TrainingContext>(planning), [trendKey, setTrendKey] = useState<string | null>(null);
   // Open on the context the planner uses (the profile may load after the screen does).
   useEffect(() => { if (visible) { setContext(planning); setTrendKey(null); } }, [visible, planning]);
@@ -58,8 +59,9 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
   const section = (title: string, rows: ReactNode, show: boolean) => show ? <View style={{ gap: 4 }}><Text style={ui.eyebrow}>{title}</Text>{rows}</View> : null;
 
   return <EditorSheet title="YOUR NUMBERS" visible={visible} close={onClose}><Panel>
-    <Segmented options={trainingContexts.map(c => contextLabels[c])} value={contextLabels[context]}
-      onChange={label => { setContext(trainingContexts.find(c => contextLabels[c] === label)!); setTrendKey(null); }} />
+    <Segmented options={practiceButtons(trainingContexts)} value={contextLabels[context].toUpperCase()}
+      onChange={label => { const next = practiceOfButton(trainingContexts, label); if (next) setContext(next); setTrendKey(null); }} />
+    {context === planning && <Copy>{`Your plans use these ${practiceAdjectives[planning]} numbers. Change it in Profile · Practice type for plans.`}</Copy>}
     {context === planning && performance && section('WHAT THE PLANNER USES', <>
       {timingFactors.map(f => { const e = evidence[f]; return <DataRow key={f} label={f === 'movementSpeed' ? 'Average speed' : factorLabels[f]}
         value={factorUnit(f, performance[f]) + ' · ' + (e?.source === 'MEASURED' ? `measured, ${e.sampleCount ?? 0} sample${e.sampleCount === 1 ? '' : 's'}` : e?.source === 'MANUAL' ? 'typed in' : 'generic default')} />; })}
@@ -73,7 +75,7 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
       {engagement?.steelPlates && <DataRow label="Steel per plate" value={engagement.steelPlates.map(c => `${c.yards} yd ${s2(c.seconds)}`).join(' · ')} />}
       <Copy>Draw, split, transition and reload values are from standing square on full paper; partial-target and steel rows are their own. Moving and port/lean runs are kept separately below and don't change these.</Copy>
     </>, true)}
-    {context !== planning && <Copy>The planner uses your {contextLabels[planning].toLowerCase()} numbers. These {contextLabels[context].toLowerCase()} numbers are for comparison.</Copy>}
+    {context !== planning && <Copy>{`Your plans use your ${practiceAdjectives[planning]} numbers (Profile · Practice type for plans). These ${practiceAdjectives[context]} numbers are for comparison.`}</Copy>}
     {!n.runs && <Copy>No drill-library runs in {contextLabels[context].toLowerCase()} yet. Pick a drill on the Training screen and log a run.</Copy>}
 
     {section('DRAW', n.draw.map(d => <DataRow key={d.start} label={startLabels[d.start]} value={statText(d.stat)} />), n.draw.length > 0)}

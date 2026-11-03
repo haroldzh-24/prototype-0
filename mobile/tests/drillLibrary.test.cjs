@@ -232,6 +232,30 @@ test('power factor and par times live in the profile; malformed values read as u
   assert.equal(profile.powerFactor, undefined); assert.deepEqual(profile.drillPars, { ok: 3 });
 });
 
+test('practice type for plans: live fire by default, set in Profile, rebuilds the planner values; adding a video never switches it', async () => {
+  const repo = open(); await repo.initialize();
+  await repo.saveTraining(record([run('reload', [1.4, 3.0])], { id: 'live', context: 'LIVE_FIRE' }));
+  await repo.saveTraining(record([run('reload', [1.4, 2.6])], { id: 'dry', context: 'DRY_FIRE' }));
+  let profile = await repo.loadProfile();
+  assert.equal(profile.calibrationContext ?? 'LIVE_FIRE', 'LIVE_FIRE');
+  near(profile.performance.reloadTime, 1.6, 1e-9);
+  await repo.setPracticeType('DRY_FIRE');
+  profile = await repo.loadProfile();
+  assert.equal(profile.calibrationContext, 'DRY_FIRE'); near(profile.performance.reloadTime, 1.2, 1e-9);
+  assert.equal(profile.performanceObservations.length, 2, 'measurements of every practice type are kept');
+  await assert.rejects(repo.setPracticeType('CALIBRATED'), /Invalid practice type/);
+  // The older video editor's "Add to profile" used to switch the practice type to the video's own; now it never does.
+  const A = require('../src/training/videoAnalysis.ts');
+  const ev = (type, ms) => ({ id: type + ms, type, timestampMs: ms, source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true });
+  const session = { id: 'clip', trainingSessionId: 'match-day', drillId: null, asset: { uri: 'training-videos/clip.mp4', name: 'clip.mp4', storage: 'DOCUMENTS' },
+    durationMs: 10000, fps: null, createdAt: at(3), importedAt: at(3), context: 'PRESSURE_MATCH', analysisStatus: 'ANNOTATING', analysisVersion: 1 };
+  const clip = { session, analysis: A.analyzeVideo(session, [ev('STIMULUS', 100), ev('FIRST_SHOT', 1300)]) };
+  await repo.contributeTrainingVideo(record([], { id: 'match-day', context: 'PRESSURE_MATCH', videos: [clip] }), 'clip');
+  profile = await repo.loadProfile();
+  assert.equal(profile.calibrationContext, 'DRY_FIRE', 'still the practice type set in Profile');
+  assert.ok(profile.performanceObservations.some(o => o.source === 'VIDEO_ANALYSIS' && o.context === 'PRESSURE_MATCH'), 'the measurements are still added, under their own practice type');
+});
+
 test('Your numbers: values with run counts, by distance, spread, direction and condition, one context at a time', () => {
   const runs = [
     run('bill', [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], { zones: { A: 5, C: 1 } }),
