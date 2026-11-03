@@ -24,7 +24,7 @@ export function decodeRgba(base64:string,width:number,height:number):Uint8Clampe
 export async function readRaster(page:PageImage,signal:AbortSignal):Promise<Raster> {
   if(signal.aborted)throw new Error('Recognition cancelled.');
   const native=requireOptionalNativeModule<{pixels(uri:string):Promise<{width:number;height:number;rgba:string}>}>('DiagramImport');
-  if(!native?.pixels)throw new Error('Automatic detection needs a rebuilt iPhone client with raster decoding. Manual reconstruction is still available.');
+  if(!native?.pixels)throw new Error('Detecting shapes needs the next version of the app on your iPhone. You can still add elements by hand.');
   const result=await native.pixels(await assetUri(page.asset));
   if(signal.aborted)throw new Error('Recognition cancelled.');
   return {width:result.width,height:result.height,rgba:decodeRgba(result.rgba,result.width,result.height)};

@@ -11,7 +11,7 @@ interface NativeDiagramImport {
 }
 function native() {
   const module = requireOptionalNativeModule<NativeDiagramImport>('DiagramImport');
-  if (!module) throw new Error('PDF rendering and image alignment need a rebuilt iPhone development client. The original can still be saved for reference.');
+  if (!module) throw new Error('This needs the next version of the app on your iPhone to show PDF pages and straighten pictures. The original is kept for reference.');
   return module;
 }
 function validateResult(result: Result) {
