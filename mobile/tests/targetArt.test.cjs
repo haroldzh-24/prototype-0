@@ -9,7 +9,7 @@ const P = require('../src/stage/targetPresets.ts');
 const radialSource = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/editor/RadialAddMenu.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText;
 const R = { exports: {} };
 new Function('require', 'module', 'exports', radialSource)(id => id === 'react' ? { useState() {}, useEffect() {}, useMemo() {} } : id === 'react/jsx-runtime' ? { jsx() {}, jsxs() {} }
-  : id === 'react-native' ? {} : id === 'expo-image' ? {} : id === '../ui/kit' ? { Segmented: 'Segmented' } : require(path.resolve(__dirname, '../src/editor', id) + '.ts'), R, R.exports);
+  : id === 'react-native' ? {} : id === 'expo-image' ? {} : id === '../ui/kit' ? { Segmented: 'Segmented' } : id === '../ui/TargetFamilyPicker' ? { default: 'TargetFamilyPicker' } : require(path.resolve(__dirname, '../src/editor', id) + '.ts'), R, R.exports);
 const near = (a, b, e = 1e-9) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
 
 test('every preset has a picture: outline at its real size, valid SVG, as icon, dimensioned drawing and 3D view', () => {

@@ -8,6 +8,7 @@ import { analyzeEngagements } from '../planning/engagements';
 import { defaultRouteLayers, showTargetArrows } from './routePresentation';
 import type { RouteLayers } from './routePresentation';
 import { colors } from '../ui/tokens';
+import { positionName, positionTitle, SEP, words } from '../ui/words';
 
 export default function EngagementOverlay({ stage, route, transform, layers = defaultRouteLayers, selectedId = null, selectedNodeId = null, onSelect }: { stage: StageDocument; route: StageRoute; transform: ViewportTransform; layers?: RouteLayers; selectedId?: string | null; selectedNodeId?: string | null; onSelect?: (id: string, nodeId: string) => void }) {
   const analysis = useMemo(() => analyzeEngagements(stage, route), [stage, route]);
@@ -32,13 +33,16 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
         return <Pressable accessibilityRole="button" accessibilityLabel="Moving window targets and order" onPress={() => onSelect(n.waypointId, n.id)}
           style={{ position: 'absolute', left: (a.x + b.x) / 2 - width / 2, top: (a.y + b.y) / 2 - 22, width, height: 44, transform: [{ rotate: `${Math.atan2(b.y - a.y, b.x - a.x)}rad` }] }} />;
       })()}</View>))}
-    {layers.nodes && analysis.nodes.map((node, i) => {
+    {layers.nodes && analysis.nodes.map(node => {
       const p = stageToViewport(node.position, transform), moving = node.kind === 'moving', color = moving ? colors.movement : colors.accent;
+      // Named by the position (P2), as everywhere: the position's own marker labels a standing engagement; a moving one
+      // is shot on the way to it (→P2).
+      const at = route.positions.findIndex(w => w.id === node.waypointId), name = at >= 0 ? positionName(at) : '';
       return <View key={node.id} pointerEvents="box-none">
         {(layers.arrows === 'ALL' || layers.arrows === 'SELECTED' && (selectedNodeId ? selectedNodeId === node.id : node.waypointId === selectedId)) && node.targets.map(t => { const target = stage.objects.find(o => o.id === t.targetId); return target ? <View key={t.targetId}>{line(node.position, target.position, color, 2, t.orderLabel)}</View> : null; })}
-        <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />
-        <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{selectedNodeId === node.id ? (moving ? 'MOVING ' : 'ENGAGEMENT ') + (i + 1) : (moving ? 'M' : 'E') + (i + 1)}</Text>
-        {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={(moving ? "Moving window " : "Standing engagement ") + (i + 1)} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
+        <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: selectedNodeId === node.id ? 3 : 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />
+        {moving && !!name && <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{'→' + name}</Text>}
+        {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={moving ? `On the way to ${name ? positionTitle(at) : 'the next position'}: targets and order` : `${name ? positionTitle(at) : words.position}${SEP}standing: targets and order`} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
       </View>;
     })}
   </View>;

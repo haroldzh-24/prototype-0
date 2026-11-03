@@ -88,10 +88,15 @@ function ProposalOverlay({ proposal: p, number, selected }: { proposal: Proposal
   </View>;
 }
 
-export default function DiagramImportScreen({ visible, stageId, stage, family, close, apply, onBackdrop }: {
+/** The drawing the editor shows under the stage: which saved drawing (`id`), its picture and placement in stage inches. */
+export type EditorBackdrop = { id: string; uri: string; left: number; top: number; width: number; height: number; opacity: number };
+
+export default function DiagramImportScreen({ visible, stageId, stage, family, close, apply, onBackdrop, reopenId = null }: {
   visible: boolean; stageId: string; stage: StageDocument; family: TargetFamily; close: () => void; apply: (stage: StageDocument) => void;
   /** The latest calibrated top-down drawing, for the editor to show under the plan (null when there is none). */
-  onBackdrop?: (backdrop: { uri: string; left: number; top: number; width: number; height: number } | null) => void;
+  onBackdrop?: (backdrop: EditorBackdrop | null) => void;
+  /** Opens on this saved drawing (its SCALE step once it is straightened): the editor's REALIGN. */
+  reopenId?: string | null;
 }) {
   useThemeMode();
   const repo = useRepository(), gate = useRef(new OperationGate());
@@ -101,7 +106,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     let active = true;
     repo.loadDiagramImports(stageId).then(async drafts => {
       const latest = latestBackdrop(drafts);
-      const next = latest ? { uri: await assetUri(latest.backdrop.asset), left: latest.backdrop.left, top: latest.backdrop.top, width: latest.backdrop.width, height: latest.backdrop.height } : null;
+      const next = latest ? { id: latest.id, uri: await assetUri(latest.backdrop.asset), left: latest.backdrop.left, top: latest.backdrop.top, width: latest.backdrop.width, height: latest.backdrop.height, opacity: latest.backdrop.opacity } : null;
       if (active) onBackdrop(next);
     }).catch(() => { if (active) onBackdrop(null); });
     return () => { active = false; };
@@ -122,7 +127,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
   const [numbers, setNumbers] = useState(false), [several, setSeveral] = useState(false), [toast, setToast] = useState(false);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(false), 5000); return () => clearTimeout(timer); }, [toast]);
   const draftPaths = (d: Reconstruction) => [d.source, d.page?.asset, d.rectified?.asset, d.aligned?.asset].flatMap(a => a?.path ? [a.path] : []);
-  const refresh = async (current: (callback: () => void) => void) => { const report = await repo.loadDiagramImportsReport(stageId); current(() => { setReferences(report.drafts); setDamagedIds(report.damagedIds); }); };
+  const refresh = async (current: (callback: () => void) => void) => { const report = await repo.loadDiagramImportsReport(stageId); current(() => { setReferences(report.drafts); setDamagedIds(report.damagedIds); }); return report.drafts; };
   const deleteReference = (value: Reconstruction) => void run(async current => {
     await repo.deleteDiagramImport(stageId, value.id);
     // Shared originals (duplicated stages) are kept while any other draft still references them.
@@ -151,7 +156,12 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
       return;
     }
     gate.current.activate(); setRecognizing(false); setBusy(false); setConfirmClose(false); setError(''); setCameraDenied(false); setConfirmDeleteId(null); setToast(false);
-    void run(refresh);
+    void run(async current => {
+      const drafts = await refresh(current);
+      // REALIGN from the editor: open that drawing where its scale points and origin are set.
+      const reopen = reopenId ? drafts.find(d => d.id === reopenId) : undefined;
+      if (reopen) current(() => load(reopen));
+    });
     return () => { recognitionAbort.current?.abort(); gate.current.dispose(); };
   }, [visible, stageId, repo]);
   const exit = () => { setDraft(null); setSavedJson(null); setSelectedId(null); setStep('photo'); setCropping(false); setSeveral(false); setConfirmClose(false); close(); };

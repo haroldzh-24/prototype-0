@@ -167,6 +167,22 @@ test('closing: unchanged closes, a confirmed top-down scale saves the drawing (s
   h.press('CLOSE WITHOUT SAVING'); assert.equal(closed, 7);
 });
 
+test('REALIGN from the editor opens the import on that drawing, on its SCALE step; the editor gets the drawing\'s id and opacity', async () => {
+  const backdrops = [], props = { visible: false, stageId: 's', stage: stage(), family: 'USPSA', reopenId: 'second', close() { props.visible = false; }, apply() {}, onBackdrop: b => backdrops.push(b) };
+  const drafts = [drawing('first'), drawing('second', { opacity: 0.85, origin: { x: -3.6, y: 7.2 } })];
+  const h = screen(props, { './assets': { assetUri: async () => 'file:///drawing.png' },
+    repo: { loadDiagramImports: async () => drafts, loadDiagramImportsReport: async () => ({ drafts, damagedIds: [] }), diagramAssetPathsInUse: async () => new Set(), saveDiagramImport: async () => {} } });
+  await h.settle();
+  assert.deepEqual(backdrops.at(-1), { id: 'second', uri: 'file:///drawing.png', left: -3.6, top: 7.2, width: 256, height: 256, opacity: 0.85 }, 'the latest drawing, its saved opacity and nudged place');
+  props.visible = true; h.render(); await h.settle();
+  assert.ok(h.nodes().some(n => n.props.title === 'Scale'), 'the SCALE step: scale points and the position on the stage');
+  assert.ok(h.nodes().some(n => n.props.title === 'Position on the stage'));
+  assert.equal(field(h, 'Origin X (yd)').value, -0.1, 'a nudged drawing shows where it now sits');
+  h.press('Close import'); await h.settle(); assert.equal(props.visible, false, 'unchanged: closes at once');
+  props.reopenId = null; props.visible = true; h.render(); await h.settle();
+  assert.ok(!h.nodes().some(n => n.props.title === 'Scale'), 'IMPORT without REALIGN opens on PHOTO as before');
+});
+
 test('elements: detection, words for review states and scale evidence, batch accept/reject and calibrated additive commit', async () => {
   const { render } = require('./fixtures/diagram-recognition/render.cjs'), raster = render(require('./fixtures/diagram-recognition/clean-basic.json'));
   const draft = drawing('Synthetic', { calibration: undefined, rectified: undefined, origin: { x: 20, y: 20 } }), saved = [], applied = [];

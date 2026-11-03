@@ -14,7 +14,8 @@ test('IDPA rules are on hold: new matches are USPSA or PCSL, IDPA maps to USPSA 
   assert.ok(P.presetsForFamily('IDPA').length >= 5, 'IDPA targets are still offered in the stage builder');
   // The family picker and the drill library offer the active families; an existing IDPA match still shows its family.
   const picker = fs.readFileSync(path.join(__dirname, '../src/ui/TargetFamilyPicker.tsx'), 'utf8');
-  assert.match(picker, /matchFamilies\.includes\(value\) \? matchFamilies : \[\.\.\.matchFamilies, value\]/);
+  assert.match(picker, /families = matchFamilies/, 'the match families unless a caller asks for others (the ADD ring)');
+  assert.match(picker, /families\.includes\(value\) \? families : \[\.\.\.families, value\]/);
   // Library drills are scored as USPSA or PCSL only.
   assert.deepEqual([...require('../src/training/drillLibrary.ts').libraryFamilies], [...R.matchFamilies]);
 });

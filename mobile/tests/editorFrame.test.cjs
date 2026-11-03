@@ -205,9 +205,9 @@ test('mode chip: every mode that changes what a tap does says so on the canvas, 
   h.press('NEW AREA'); assert.equal(chip().title, 'TAP THE NEXT CORNER'); assert.equal(chip().action.props.disabled, true, 'finish or cancel the new area first');
   h.press('Cancel the new area'); chip().action.props.onPress(); h.render();
   assert.equal(h.child('StageViewport').onAreaPoint, undefined, 'DONE left AREAS');
-  for (const [tool, title] of [['PATH', 'TAP A POSITION TO SELECT IT'], ['ENGAGE', 'DRAG FROM A POSITION TO A TARGET'], ['REVIEW', 'TAP A TARGET TO REVIEW IT']]) {
+  for (const [tool, title] of [['DRAW BY HAND', 'TAP A POSITION TO SELECT IT'], ['ENGAGE', 'DRAG FROM A POSITION TO A TARGET']]) {
     h.press('ROUTE'); h.press(tool); assert.equal(chip().title, title, tool);
-    if (tool === 'PATH') { h.press('ADD POSITION'); assert.equal(chip().title, 'TAP TO ADD A POSITION'); chip().action.props.onPress(); h.render(); assert.equal(chip().title, 'TAP A POSITION TO SELECT IT', 'DONE leaves adding, then PATH'); }
+    if (tool === 'DRAW BY HAND') { h.press('ADD POSITION'); assert.equal(chip().title, 'TAP TO ADD A POSITION'); chip().action.props.onPress(); h.render(); assert.equal(chip().title, 'TAP A POSITION TO SELECT IT', 'DONE leaves adding, then PATH'); }
     chip().action.props.onPress(); h.render();
     assert.equal(h.nodes().find(n => n.type === 'ModeChip'), undefined, tool + ' ended');
   }
@@ -250,7 +250,8 @@ test('one selection bar for 2D and 3D: EDIT, ROTATE ↺ ↻, LAYERS, DUPLICATE, 
 });
 
 test('••• holds only the step\'s settings; an item opens with ‹ BACK to •••; undo, zoom and views are in no •••', () => {
-  const h = editor();
+  const records = [{ id: 'd', origin: { x: 0, y: 0 } }], written = [];
+  const h = editor(undefined, { repo: { loadDiagramImports: async () => records, saveDiagramImport: async (_, d) => written.push(d) } });
   h.press('Build settings');
   assert.equal(sheet(h).props.title, 'Build settings');
   assert.deepEqual(sheetTitles(h), ['STAGE SIZE', 'GRID AND SNAP', 'RESET STAGE'], 'stage size and downrange, grid and snap, reset (drawing opacity once a drawing is imported)');
@@ -259,15 +260,15 @@ test('••• holds only the step\'s settings; an item opens with ‹ BACK to 
   sheet(h).props.back.onPress(); h.render();
   assert.equal(sheet(h).props.title, 'Build settings', 'Back returns to •••');
   h.press('Stage size'); assert.ok(sheet(h).props.back); closeSheet(h);
-  // A drawing under the plan adds DRAWING OPACITY.
-  h.press('IMPORT'); h.child('DiagramImportScreen').onBackdrop({ uri: 'data:', left: 0, top: 0, width: 100, height: 100 }); h.child('DiagramImportScreen').close(); h.render();
-  h.press('Build settings'); assert.deepEqual(sheetTitles(h), ['STAGE SIZE', 'GRID AND SNAP', 'DRAWING OPACITY', 'RESET STAGE']);
-  h.press('Drawing opacity'); const seg = tree(sheet(h).props.children).find(n => n.type === 'Segmented');
+  // A drawing under the plan adds DRAWING (opacity, nudge, realign).
+  h.press('IMPORT'); h.child('DiagramImportScreen').onBackdrop({ id: 'd', uri: 'data:', left: 0, top: 0, width: 100, height: 100, opacity: 0.5 }); h.child('DiagramImportScreen').close(); h.render();
+  h.press('Build settings'); assert.deepEqual(sheetTitles(h), ['STAGE SIZE', 'GRID AND SNAP', 'DRAWING', 'RESET STAGE']);
+  h.press('DRAWING'); const seg = tree(sheet(h).props.children).find(n => n.type === 'Segmented');
   seg.props.onChange('STRONG'); h.render(); assert.equal(h.child('StageViewport').backdrop.opacity, 0.85);
   closeSheet(h);
-  // PLAN keeps today's items (Phase 3 reorganises them), minus BUILD's and minus zoom.
+  // PLAN's •••: route settings, loadout, target rounds, layers, the drawing, then the alternatives to AUTO-PLAN; no zoom.
   h.press('PLAN'); h.press('Plan settings');
-  assert.deepEqual(sheetTitles(h), ['ASK ROUTE AI', 'ROUTE SETTINGS', 'LOADOUT', 'TARGET ROUNDS', 'ROUTE LAYERS', 'MOVEMENT-ONLY OPTIMIZER (OLDER)', 'RESET ROUTE']);
+  assert.deepEqual(sheetTitles(h), ['ROUTE SETTINGS', 'LOADOUT', 'TARGET ROUNDS', 'ROUTE LAYERS', 'DRAWING', 'ASK', 'OLDER OPTIMIZER', 'RESET ROUTE']);
   h.press('Loadout'); assert.equal(sheet(h).props.back.label, 'Back to plan settings');
   assert.ok(!sheetTitles(h).includes('BACK TO PLAN ROUTE'), 'no "Back to plan route" when opened from •••');
   sheet(h).props.back.onPress(); h.render(); h.press('Route settings');
@@ -290,9 +291,9 @@ test('the kit\'s buttons replace the editor\'s private Button; one family picker
   const h = editor();
   const bars = ['EditorHeader', 'StepBar', 'ToolBar'].flatMap(t => tree(h.find(n => n.type === t)));
   assert.ok(bars.filter(n => n.props?.onPress).every(n => n.type === 'ToolButton' || n.type === 'Pressable'), 'bars use ToolButton (the name is a Pressable)');
-  // The ring picks a family with the kit's one picker (Segmented over every family, so IDPA targets stay available).
-  assert.match(src('editor/RadialAddMenu.tsx'), /<Segmented options=\{targetFamilies\}/);
-  assert.doesNotMatch(src('editor/RadialAddMenu.tsx'), /accessibilityRole="radio"/);
+  // The ring picks a family with the one family picker, offered every family so IDPA targets stay available.
+  assert.match(src('editor/RadialAddMenu.tsx'), /<TargetFamilyPicker families=\{targetFamilies\}/);
+  assert.doesNotMatch(src('editor/RadialAddMenu.tsx'), /accessibilityRole="radio"|<Segmented/, 'no picker of its own');
   // The kit's ToolButton keeps its plain look for existing callers (diagram import) unless a bar asks for more.
   const kit = harness('ui/kit.tsx', { title: 'HALF-SIZE USPSA TARGET (CHL)', onPress() {} }, {}, 'ToolButton').render();
   const style = kit.props.style({ pressed: false });

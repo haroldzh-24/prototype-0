@@ -109,7 +109,7 @@ test('plans are normalised on load: reconcilePlan migrates arrows; the editor op
   const { stage, route } = fixture();
   route.manualEngagements = [arrow('e', 't1', at('w2')), arrow('m', 't2', along('w2', 'w3'))];
   const plan = { ...createPlan(), route };
-  const loaded = reconcilePlan(plan, stage, { stage, route });
+  const loaded = reconcilePlan(plan, stage);
   assert.equal(loaded.route.manualEngagements, undefined);
   assert.deepEqual(loaded.route.positions.map(p => [p.id, p.engagedTargetIds]), [['w1', []], ['w2', ['t1']], ['position-m', ['t2']], ['w3', []]]);
   assert.equal(reconcilePlan(loaded, stage), loaded, 'normalising again changes nothing');

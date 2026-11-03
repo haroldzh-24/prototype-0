@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { borders, colors, spacing, touch, typography } from '../ui/tokens';
-import { Segmented } from '../ui/kit';
+import TargetFamilyPicker from '../ui/TargetFamilyPicker';
 import { targetFamilies } from '../stage/targetFamily';
 import type { TargetFamily } from '../stage/targetFamily';
 import { presetsForFamily, shortPresetName } from '../stage/targetPresets';
@@ -105,8 +105,8 @@ export default function RadialAddMenu({ at, bounds, targetFamily, onChoose, onCl
     {/* Family: only the match's. OTHER FAMILIES reveals the switcher; "<family> ONLY" hides it and goes back to the match's family. */}
     <View style={{ position: 'absolute', top: 6, left: 6, right: 6, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
       {otherFamilies ? <>
-        <View accessibilityLabel="Target family" style={{ flexGrow: 1, flexShrink: 1, backgroundColor: colors.panel }}>
-          <Segmented options={targetFamilies} value={family} onChange={f => { setFamily(f as TargetFamily); setInfo(null); }} />
+        <View style={{ flexGrow: 1, flexShrink: 1 }}>
+          <TargetFamilyPicker families={targetFamilies} value={family} onChange={f => { setFamily(f); setInfo(null); }} />
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel={'Only ' + targetFamily + ' targets'} onPress={() => { setOtherFamilies(false); setFamily(targetFamily); setInfo(null); }}
           style={{ minHeight: touch.min, minWidth: 44, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.panel, borderWidth: borders.strong, borderColor: colors.border }}>

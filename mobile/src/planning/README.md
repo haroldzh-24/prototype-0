@@ -2,9 +2,10 @@
 
 - `v2/` — **Route Planner V2** (`planRoute`, `planRouteAsync`): fewest legal shooting positions, then the shortest walk, with per-target reasons and an explicit safety report. Design and rule sources: `docs/route-planner-v2.md`. UI: PLAN in ROUTE mode.
 - `routeSolver/` — the **movement optimizer** (OPTIMIZE): shortest movement through firing areas or waypoints; it does not check targets or safety. Kept until V2 is verified on devices.
-- `engagements.ts`, `manualEngagements.ts`, `manualRouteReview.ts` — legality analysis and the manual PATH/ENGAGE/REVIEW tools. The analysis follows drawn bends.
-- `assignments.ts` — the one engagement model (UI cohesion phase 3): `position.engagedTargetIds` is the only assignment; `assignTarget` / `unassignTarget` change it, and `migrateManualEngagements` (run by `reconcilePlan`) folds saved ENGAGE arrows into it. `manualEngagements.ts` and `manualRouteReview.ts` stay only until the editor's ENGAGE and REVIEW are rewired.
-- `planDefaults.ts`, `planStatus.ts`, `routeLifecycle.ts`, `planWords.ts` — PLAN's defaults (rule rounds, profile loadout, AUTO-PLAN standing only), REVIEW's marks / ANALYZE's answer / the checklist state, the draft route and Reset route keeping shooting areas, and PLAN's new labels. `TargetPlanSheet.tsx` and `PlanChecklist.tsx` are their panels.
+- `engagements.ts` — legality analysis (shooting areas, safe angle, line of sight); it follows drawn bends.
+- `assignments.ts` — the one engagement model (UI cohesion phase 3): `position.engagedTargetIds` is the only assignment. `assignTarget` / `unassignTarget` change it (the target sheet's "Engaged from", the drag in ENGAGE from a position to a target); `assignFromPath` is the drag that starts on the path: a new position there, engaging the target. `migrateManualEngagements` (run by `reconcilePlan`) folds saved ENGAGE arrows into it with the same rule for a position made on a stretch.
+- `manualEngagements.ts` — the saved ENGAGE arrow type and its validation (old saved plans still load), and the stretch helpers (`routeSections`, `projectToSection`, `resolveAnchor`) that the drag (`editor/assignGesture.ts`) and the migration use. Nothing creates arrows any more; REVIEW is gone (its ✓ / ! marks are in ANALYZE's TARGETS).
+- `planDefaults.ts`, `planStatus.ts`, `routeLifecycle.ts`, `planWords.ts` — PLAN's defaults (rule rounds, profile loadout, AUTO-PLAN standing only), REVIEW's marks / ANALYZE's answer / the checklist state, the draft route and Reset route keeping shooting areas, and PLAN's new labels. `TargetPlanSheet.tsx` and `PlanChecklist.tsx` are their panels; the editor (`StageBuilder`) shows the checklist above the PLAN canvas, opens the target sheet when a target is tapped in PLAN (2D and 3D), shows the route from `routeForPlan` and writes it with `commitRoute`, so opening PLAN leaves the stage saved.
 - `kernel.ts` — the single import point for shared geometry rules (inside, line of sight, path legs, headings).
 - `planner.ts`, `candidateGeneration.ts`, `ranking.ts`, `personalizedRoute.ts`, `positionDiscovery.ts`, `positionSources.ts` — the earlier automatic planner; not reachable from the UI and kept as reference until V2 replaces it on devices.
 
@@ -59,8 +60,9 @@ movement, obstacles and acceleration are not modeled. Invalid
 profile timing values disable timing while retaining distance and ammo results.
 
 Route markers appear only in Top Down route mode. Stage editing and 2.5D continue
-to use the same physical document. Reset clears the route and engagement counts,
-retaining the loadout. Automatic generation and visibility solving are deferred.
+to use the same physical document. RESET STAGE clears the route and engagement counts,
+retaining the loadout; PLAN's Reset route keeps the shooting areas and route rules
+(`resetRouteKeepingAreas`), and both are undone with UNDO. Automatic generation and visibility solving are deferred.
 
 ## Automatic ranking (Phase 3)
 

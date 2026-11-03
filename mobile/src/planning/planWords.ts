@@ -13,4 +13,10 @@ export const planWords = {
   checklist: { areas: 'Shooting areas', route: 'Route', targets: 'Targets and reloads' },
   /** "Engaged from" in the target sheet. */
   engagedFrom: 'Engaged from', notEngaged: 'Not engaged',
+  /** Above Ask and the older optimizer in PLAN's •••. */
+  alternatives: 'Alternatives to AUTO-PLAN',
+  /** ROUTE's way to draw the route yourself (the PATH tool). */
+  drawByHand: 'DRAW BY HAND',
+  /** The undo bar after Reset route ("Route reset · UNDO"). */
+  routeReset: 'Route reset',
 } as const;

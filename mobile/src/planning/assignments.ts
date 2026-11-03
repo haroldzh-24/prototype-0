@@ -51,17 +51,66 @@ export function unassignTarget(route: StageRoute, targetId: string, positionId?:
 }
 
 const between = (a: StagePosition, b: StagePosition, t: number): StagePosition => ({ space: 'stage', x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: 0 });
-/** Splits a drawn connection's bends at the middle of its walk: the bends before go to the first half, the rest after. */
-function splitConnection(connection: RouteConnection | undefined, from: StagePosition, to: StagePosition) {
-  const points = [from, ...(connection?.bends.map(b => b.position) ?? []), to], half = pathLength(points) / 2;
+/** Where a stretch's walk is at `fraction` (0 to 1) of its drawn length: start, bends, end. */
+function pointOnStretch(connection: RouteConnection | undefined, from: StagePosition, to: StagePosition, fraction: number): StagePosition {
+  const points = [from, ...(connection?.bends.map(b => b.position) ?? []), to], wanted = pathLength(points) * fraction;
   let walked = 0;
   for (let i = 1; i < points.length; i++) {
     const length = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    if (walked + length >= half) return { middle: length ? between(points[i - 1], points[i], (half - walked) / length) : points[i],
-      before: connection?.bends.slice(0, i - 1) ?? [], after: connection?.bends.slice(i - 1) ?? [] };
+    if (walked + length >= wanted) return length ? between(points[i - 1], points[i], (wanted - walked) / length) : points[i];
     walked += length;
   }
-  return { middle: between(from, to, 0.5), before: [], after: connection?.bends ?? [] };
+  return between(from, to, 0.5);
+}
+/** Splits a drawn connection's bends at `point` on its walk: the bends before it go to the first half, the rest after. */
+function splitBends(connection: RouteConnection | undefined, from: StagePosition, to: StagePosition, point: StagePosition) {
+  const points = [from, ...(connection?.bends.map(b => b.position) ?? []), to];
+  let best = { segment: 1, distance: Infinity };
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i], dx = b.x - a.x, dy = b.y - a.y, length = dx * dx + dy * dy;
+    const t = length ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length)) : 0;
+    const d = Math.hypot(point.x - (a.x + dx * t), point.y - (a.y + dy * t));
+    if (d < best.distance - 1e-9) best = { segment: i, distance: d };
+  }
+  return { before: connection?.bends.slice(0, best.segment - 1) ?? [], after: connection?.bends.slice(best.segment - 1) ?? [] };
+}
+/** The first position label not taken: P1, P2… */
+function freeLabel(labels: Set<string>): string {
+  let number = 1;
+  while (labels.has('P' + number)) number++;
+  labels.add('P' + number);
+  return 'P' + number;
+}
+/**
+ * Puts a new position on the stretch that ends at `toId` (from the start or the position before it), at `point` on
+ * that stretch, engaging `targets` in order. The drawn path is split there, its bends kept on their side. The one rule
+ * for a position made on the path: the drag from the path to a target (`assignFromPath`) and the migration of old
+ * arrows on a stretch (`migrateManualEngagements`) both use it.
+ */
+function insertOnStretch(stage: Pick<StageDocument, 'objects'>, route: StageRoute, toId: string, point: StagePosition, targets: string[], id: string, label: string): StageRoute {
+  const index = route.positions.findIndex(p => p.id === toId), start = stage.objects.find(o => o.type === 'start');
+  const from = index > 0 ? route.positions[index - 1] : start;
+  if (index < 0 || !from) return route;
+  const drawn = route.connections?.find(c => c.fromId === from.id && c.toId === toId);
+  const split = splitBends(drawn, from.position, route.positions[index].position, point);
+  const connections = drawn ? [...route.connections!.filter(c => c !== drawn),
+    ...(split.before.length ? [{ ...drawn, toId: id, bends: split.before }] : []), ...(split.after.length ? [{ ...drawn, fromId: id, bends: split.after }] : [])] : route.connections;
+  const inserted: ShootingPosition = { id, label, position: { space: 'stage', x: point.x, y: point.y, z: 0 }, visibleTargetIds: [...targets], engagedTargetIds: [...targets] };
+  return { ...route, positions: [...route.positions.slice(0, index), inserted, ...route.positions.slice(index)], ...(connections !== undefined ? { connections } : {}) };
+}
+
+/**
+ * The drag from the path to a target: a new position where the drag started on the path between two positions (or
+ * between the start and P1), engaging that target there (it leaves any other position, as with `assignTarget`).
+ * `sectionId` is the stretch (routeSectionId(fromId, toId)); `point` is on it. Unchanged when the stretch or the target
+ * is gone.
+ */
+export function assignFromPath(stage: StageDocument, route: StageRoute, sectionId: string, point: StagePosition, targetId: string, id: string): StageRoute {
+  const section = routeSections(stage, route).find(s => s.id === sectionId);
+  if (!section || route.positions.some(p => p.id === id) || !stage.objects.some(o => o.id === targetId && isEngageable(o))) return route;
+  const label = freeLabel(new Set(route.positions.map(p => p.label)));
+  const inserted = insertOnStretch(stage, route, section.toId, point, [], id, label);
+  return inserted === route ? route : assignTarget(inserted, stage, id, targetId);
 }
 
 /**
@@ -89,25 +138,19 @@ export function migrateManualEngagements(stage: StageDocument, route: StageRoute
   }
   const ids = new Set(route.positions.map(p => p.id)), labels = new Set(route.positions.map(p => p.label));
   const start = stage.objects.find(o => o.type === 'start');
-  let connections = route.connections;
-  const positions = route.positions.flatMap((p, i) => {
+  let next: StageRoute = { ...rest, positions: route.positions.map(p => {
     const engage = atPosition.get(p.id) ?? [];
-    const here = engage.length ? { ...p, engagedTargetIds: [...p.engagedTargetIds, ...engage], visibleTargetIds: [...new Set([...p.visibleTargetIds, ...engage])] } : p;
+    return engage.length ? { ...p, engagedTargetIds: [...p.engagedTargetIds, ...engage], visibleTargetIds: [...new Set([...p.visibleTargetIds, ...engage])] } : p;
+  }) };
+  route.positions.forEach((p, i) => {
     const section = sections.find(s => s.toId === p.id), added = section && onSection.get(section.id);
     const from = i ? route.positions[i - 1].position : start?.position;
-    if (!section || !added || !from) return [here];
+    if (!section || !added || !from) return;
     let id = 'position-' + added.firstId, n = 2;
     while (ids.has(id)) id = `position-${added.firstId}-${n++}`;
     ids.add(id);
-    let number = 1;
-    while (labels.has('P' + number)) number++;
-    labels.add('P' + number);
-    const drawn = connections?.find(c => c.fromId === section.fromId && c.toId === section.toId);
-    const split = splitConnection(drawn, from, p.position);
-    if (drawn) connections = [...connections!.filter(c => c !== drawn),
-      ...(split.before.length ? [{ ...drawn, toId: id, bends: split.before }] : []), ...(split.after.length ? [{ ...drawn, fromId: id, bends: split.after }] : [])];
-    const inserted: ShootingPosition = { id, label: 'P' + number, position: split.middle, visibleTargetIds: [...added.targets], engagedTargetIds: [...added.targets] };
-    return [inserted, here];
+    const drawn = route.connections?.find(c => c.fromId === section.fromId && c.toId === section.toId);
+    next = insertOnStretch(stage, next, p.id, pointOnStretch(drawn, from, p.position, 0.5), added.targets, id, freeLabel(labels));
   });
-  return { ...rest, positions, ...(connections !== undefined ? { connections } : {}) };
+  return next;
 }

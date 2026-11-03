@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { borders, spacing, themed, typography } from '../ui/tokens';
 
 /**
- * On the canvas whenever a mode changes what a tap does (placing, drawing, shooting areas, PATH, ENGAGE, REVIEW,
+ * On the canvas whenever a mode changes what a tap does (placing, drawing, shooting areas, PATH, ENGAGE,
  * choosing targets): what a tap does now (`title`), which mode it is (`detail`), and DONE (`action`).
  */
 export default function ModeChip({ title, detail, action }: { title: string; detail?: string; action: ReactNode }) {

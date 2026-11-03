@@ -101,10 +101,11 @@ test('outside travel off with no firing areas explains the real problem', () => 
   assert.match(r2.diagnostics.warnings[0], /Start is outside every shooting area/);
 });
 
-test('coverage counts ENGAGE arrows as planned but never as checked', () => {
+test('coverage counts position engagements (the one engagement model) as planned, never as checked; deleted targets do not count', () => {
   const route = createRoute('r');
-  route.positions = [{ id: 'w', label: 'w', position: physical(1, 1), visibleTargetIds: [], engagedTargetIds: ['A'] }];
-  route.manualEngagements = [{ id: 'e', targetId: 'B', anchor: { kind: 'waypoint', waypointId: 'w' }, direction: 0 }, { id: 'x', targetId: 'GONE', anchor: { kind: 'waypoint', waypointId: 'w' }, direction: 0 }];
+  route.positions = [{ id: 'w', label: 'w', position: physical(1, 1), visibleTargetIds: [], engagedTargetIds: ['A', 'B', 'GONE'] }];
+  // Saved ENGAGE arrows are folded into positions when a plan loads (UI cohesion phase 3); they are not counted on their own.
+  route.manualEngagements = [{ id: 'e', targetId: 'C', anchor: { kind: 'waypoint', waypointId: 'w' }, direction: 0 }];
   const unchecked = routeTargetCoverage(['A', 'B', 'C'], route, undefined);
   assert.deepEqual(unchecked, { total: 3, planned: 2, checked: null });
   assert.equal(coverageText(unchecked), '2/3 targets planned (not checked)');

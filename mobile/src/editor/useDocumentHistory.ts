@@ -1,4 +1,3 @@
-import { reconcileManualEngagements } from '../planning/manualEngagements';
 import { useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
 import type { StageDocument, StageObject } from '../stage/model';
@@ -10,7 +9,7 @@ import { applyRoutePreview } from '../planning/routeAssistant/preview';
 import type { RouteChangePreview } from '../planning/routeAssistant/types';
 import type { AssistantHistory } from '../planning/routeAssistant/history';
 export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
-  const [h, render] = useState(() => { const synced = syncLayers(stage); return history({ stage: synced, plan: reconcilePlan(plan, synced, { stage: synced, route: plan.route }) }); });
+  const [h, render] = useState(() => { const synced = syncLayers(stage); return history({ stage: synced, plan: reconcilePlan(plan, synced) }); });
   const current = useRef(h);
   // Counts every change to the history (edits, undo, redo), so a note about one edit ("Deleted T3 · UNDO") can tell
   // whether the document is still exactly as that edit left it.
@@ -20,11 +19,10 @@ export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
   const setStage = (next: SetStateAction<StageDocument>) => set(h => {
     // Layered targets (hostages, doubles) follow their parent through every edit; a removed parent takes its layers.
     const stage = syncLayers(typeof next === 'function' ? next(h.present.stage) : next);
-    return record(h, { stage, plan: reconcilePlan(h.present.plan, stage, { stage: h.present.stage, route: h.present.plan.route }) });
+    return record(h, { stage, plan: reconcilePlan(h.present.plan, stage) });
   });
   const setPlan = (next: SetStateAction<StagePlan>) => set(h => {
-    let plan = typeof next === 'function' ? next(h.present.plan) : next;
-    if (plan.route) plan = { ...plan, route: reconcileManualEngagements(h.present.stage, plan.route, h.present.plan.route) };
+    const plan = typeof next === 'function' ? next(h.present.plan) : next;
     return record(h, { ...h.present, plan });
   });
   // Reconstruction is strictly additive, including when old plans contain stale references.

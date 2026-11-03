@@ -1,7 +1,6 @@
 import { targetPreset } from '../stage/targetPresets';
 import { typography, themed } from '../ui/tokens';
 import WallPortsInspector from './WallPortsInspector';
-import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Text from '@/editor/FieldText';
@@ -13,10 +12,10 @@ import { inspectorValues, inspectorFields, parseInspectorEdit } from './inspecto
 
 /**
  * EDIT: position, size and rotation (and a wall's ports). Which part of a target's face is shootable (paint, face cuts,
- * no-shoots and targets on top) is in LAYERS.
+ * no-shoots and targets on top) is in LAYERS; its rounds and expected hits are in PLAN's target sheet.
  */
-export default function ObjectInspector({ item, disabled, onApply, advancedContent, onRemoved }: {
-  item: StageObject; disabled: boolean; onApply: (edit: ObjectEdit) => string | null; advancedContent?: ReactNode;
+export default function ObjectInspector({ item, disabled, onApply, onRemoved }: {
+  item: StageObject; disabled: boolean; onApply: (edit: ObjectEdit) => string | null;
   /** A port was removed: the editor offers UNDO. */ onRemoved?: (text: string) => void;
 }) {
   const [draft, setDraft] = useState(() => inspectorValues(item));
@@ -48,7 +47,6 @@ export default function ObjectInspector({ item, disabled, onApply, advancedConte
       </View>;
     })}</View>
     <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>APPLY</Text></Pressable>
-    {target && advancedContent && <><Text style={styles.title}>PLANNING</Text>{advancedContent}</>}
     {target && <><Text style={styles.title}>TARGET</Text><Text>{item.type === 'noShootTarget' ? 'No-shoot' : 'Scoring target'}</Text></>}
     {target && <><Text style={styles.title}>PRESET INFO</Text><Text>Family: {'targetFamily' in item ? item.targetFamily : 'Custom'}</Text><Text>Preset: {preset?.name ?? 'Custom'}</Text><Text>{preset?.verification ?? 'Unverified'}{preset ? ' · ' + preset.reference + '\n' + preset.source : ''}</Text><Text>Editing dimensions creates a custom-sized instance.</Text></>}
     {item.type === 'wall' && <><Text style={styles.title}>PORTS</Text><Text>{item.ports.length} openings</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: portsOpen }} onPress={() => setPortsOpen(!portsOpen)} style={styles.button}><Text style={styles.buttonText}>{portsOpen ? 'DONE' : 'EDIT PORTS >'}</Text></Pressable>{portsOpen && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} onRemoved={onRemoved} />}</>}

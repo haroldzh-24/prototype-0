@@ -59,7 +59,6 @@ export const modeChip = {
   pathSelect: 'TAP A POSITION TO SELECT IT',
   pathAdd: 'TAP TO ADD A POSITION',
   engage: 'DRAG FROM A POSITION TO A TARGET',
-  review: 'TAP A TARGET TO REVIEW IT',
   assign: 'TAP TARGETS TO TOGGLE THEM',
 } as const;
 

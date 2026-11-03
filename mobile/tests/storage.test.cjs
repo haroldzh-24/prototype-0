@@ -302,19 +302,15 @@ test('manual bend geometry survives SQLite close/reopen independently of stage o
  }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
 });
 
-test('manual engagements retain IDs, waypoint order, section fractions, targets and directions after SQLite reopen',async()=>{
- const {addManualEngagement,routeSectionId}=require('../src/planning/manualEngagements.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'engage-')),file=path.join(dir,'stage.db');let c=open(file);
+test('saved ENGAGE arrows keep IDs, section fractions, targets and directions after SQLite reopen, and fold into positions when opened',async()=>{
+ const {routeSectionId}=require('../src/planning/manualEngagements.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'engage-')),file=path.join(dir,'stage.db');let c=open(file);
  try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();document.objects=[createObject('start','start',10,300),createObject('cardboardTarget','target',150,80)];plan.route=createRoute('r');plan.route.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:250,z:0},visibleTargetIds:[],engagedTargetIds:[]}));plan.route.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:180,z:0}}]}];
- for(const [id,anchor]of [['one',{kind:'waypoint',waypointId:'a'}],['two',{kind:'waypoint',waypointId:'a'}],['travel',{kind:'section',sectionId:routeSectionId('a','b'),fraction:.37}]])plan.route=addManualEngagement(document,plan.route,{id,anchor,targetId:'target',direction:-1.23});
+ for(const [id,anchor]of [['one',{kind:'waypoint',waypointId:'a'}],['two',{kind:'waypoint',waypointId:'a'}],['travel',{kind:'section',sectionId:routeSectionId('a','b'),fraction:.37}]])plan.route={...plan.route,manualEngagements:[...(plan.route.manualEngagements??[]),{id,anchor,targetId:'target',direction:-1.23}]};
  const match=await c.repo.createMatch('Engage','USPSA'),id=await c.repo.createStage('Manual',document,createPlan(),match);await c.repo.saveStage(id,'Manual',document,plan);c.db.close();c=open(file);await c.repo.initialize();const loaded=await c.repo.loadStage(id);assert.deepEqual(loaded.plan,plan);assert.deepEqual(loaded.document,document);
- const {reviewManualRoute}=require('../src/planning/manualRouteReview.ts');const {manualEngagementLabel,resolveAnchor}=require('../src/planning/manualEngagements.ts');assert.deepEqual(reviewManualRoute(loaded.document,loaded.plan.route),reviewManualRoute(document,plan.route));assert.deepEqual(loaded.plan.route.manualEngagements.map(e=>manualEngagementLabel(loaded.plan.route,e)),['1','2','']);for(const e of loaded.plan.route.manualEngagements)assert.deepEqual(resolveAnchor(loaded.document,loaded.plan.route,e.anchor),resolveAnchor(document,plan.route,e.anchor));
+ const {resolveAnchor}=require('../src/planning/manualEngagements.ts');for(const e of loaded.plan.route.manualEngagements)assert.deepEqual(resolveAnchor(loaded.document,loaded.plan.route,e.anchor),resolveAnchor(document,plan.route,e.anchor));
+ // The editor folds them into position engagements when the stage opens (UI cohesion phase 3).
+ const opened=require('../src/planning/model.ts').reconcilePlan(loaded.plan,loaded.document).route;assert.equal(opened.manualEngagements,undefined);assert.deepEqual(opened.positions[0].engagedTargetIds,['target']);
  const invalid={...plan,route:{...plan.route,manualEngagements:[{...plan.route.manualEngagements[0],anchor:{kind:'section',sectionId:'malformed',fraction:2}}]}};await assert.rejects(c.repo.saveStage(id,'Bad',document,invalid));assert.deepEqual((await c.repo.loadStage(id)).plan,plan);
- }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
-});
-
-test('REVIEW can reopen and explicitly remove well-formed stale target and anchor references',async()=>{
- const {reviewManualRoute}=require('../src/planning/manualRouteReview.ts');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'review-')),file=path.join(dir,'stage.db');let c=open(file);
- try{await c.repo.initialize();const document=createDefaultStage(),plan=createPlan();plan.route=createRoute('r');plan.route.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];plan.route.manualEngagements=[{id:'bad',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'deleted-waypoint'},direction:0}];const match=await c.repo.createMatch('Review','USPSA'),id=await c.repo.createStage('Stale',document,plan,match);c.db.close();c=open(file);await c.repo.initialize();const loaded=await c.repo.loadStage(id);assert.deepEqual(loaded.plan,plan);assert.equal(reviewManualRoute(loaded.document,loaded.plan.route).invalid.length,1);loaded.plan.route.manualEngagements=[];await c.repo.saveStage(id,'Cleaned',loaded.document,loaded.plan);assert.equal(reviewManualRoute((await c.repo.loadStage(id)).document,(await c.repo.loadStage(id)).plan.route).invalid.length,0);
  }finally{c.db.close();fs.rmSync(dir,{recursive:true});}
 });
 

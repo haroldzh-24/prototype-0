@@ -70,7 +70,7 @@ test('header: ↶ and ↷ beside the name undo and redo the document history; th
   h.child('ModeChip').action.props.onPress(); h.render();
   h.press('AREAS'); assert.equal(undos(), 1);
   h.child('ModeChip').action.props.onPress(); h.render();
-  h.press('ROUTE'); h.press('REVIEW'); assert.equal(h.child('ManualReviewPanel').onUndo, undefined);
+  assert.ok(!h.nodes().some(n => n.props?.title === 'REVIEW'), 'REVIEW is gone (its marks are in ANALYZE)');
 });
 
 test('Save is orange only with unsaved changes; saved reads SAVED ✓, quiet and disabled; the SAVED/UNSAVED word is gone', async () => {
@@ -191,12 +191,13 @@ test('press-and-hold hint: shown once on the BUILD canvas, gone for good when di
 test('radial ADD shows only the match family until OTHER FAMILIES is tapped (IDPA stays available there)', () => {
   const props = { at: { x: 180, y: 300 }, bounds: { width: 390, height: 600 }, targetFamily: 'USPSA', onChoose() {}, onClose() {} };
   const h = harness('editor/RadialAddMenu.tsx', props, { 'expo-image': { Image: 'Image' } });
-  const picker = () => h.nodes().find(n => n.type === 'Segmented');
+  // The one family picker (ui/TargetFamilyPicker), offered every family here.
+  const picker = () => h.nodes().find(n => n.type === 'TargetFamilyPicker');
   assert.equal(picker(), undefined, 'no family switcher by default');
   const labels = () => h.nodes().filter(n => n.type === 'Text').map(n => n.props.children);
   h.press('paper targets'); assert.ok(labels().includes('USPSA') && !labels().includes('Standard'), 'USPSA paper only');
   h.press('Other families');
-  assert.deepEqual([...picker().props.options], ['USPSA', 'PCSL', 'IDPA']); assert.equal(picker().props.value, 'USPSA');
+  assert.deepEqual([...picker().props.families], ['USPSA', 'PCSL', 'IDPA']); assert.equal(picker().props.value, 'USPSA');
   picker().props.onChange('IDPA'); h.render();
   assert.ok(labels().includes('Standard'), 'IDPA targets are a tap away');
   h.press('Only USPSA targets');
@@ -224,7 +225,7 @@ test('casing and separators: editor buttons read ALL CAPS, labels are sentence c
   h.press('Build settings'); check('Build settings'); h.press(W.words.stageSize); check('Stage size');
   closeSheet(h);
   h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render(); check('drawing'); assert.ok(titles(h).includes('SNAP ON')); h.press('DONE');
-  h.press('PLAN'); check('PLAN'); h.press('ROUTE'); check('ROUTE'); h.press('PATH'); check('PATH');
+  h.press('PLAN'); check('PLAN'); h.press('ROUTE'); check('ROUTE'); h.press('DRAW BY HAND'); check('DRAW BY HAND');
   assert.ok(titles(h).includes('ADD POSITION'));
   h.child('StageViewport').routePlanning.onSelect('p'); h.render(); check('position selected');
   assert.ok(titles(h).includes('POSITION 1')); h.press('Position 1'); check('Position sheet');

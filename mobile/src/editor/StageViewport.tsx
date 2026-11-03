@@ -1,10 +1,6 @@
-import ManualReviewOverlay from './ManualReviewOverlay';
-import type { ManualRouteReview } from '../planning/manualRouteReview';
-import { targetAt } from './manualEngagementGestures';
-import { beginEngagementGesture, moveEngagementGesture, finishEngagementGesture } from './manualEngagementGestures';
-import type { EngagementGesture } from './manualEngagementGestures';
+import { beginAssignGesture, finishAssignGesture, moveAssignGesture, targetAt } from './assignGesture';
+import type { AssignGesture } from './assignGesture';
 import type { EngagementAnchor } from '../planning/manualEngagements';
-import ManualEngagementOverlay from './ManualEngagementOverlay';
 import { colors, themed } from '../ui/tokens';
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, Platform, StyleSheet, View } from 'react-native';
@@ -16,7 +12,7 @@ import GeometryControls from './GeometryControls';
 import { startTap, trackTap, deliberateTap } from './designerTools';
 import type { DesignerTool } from './designerTools';
 import { createViewportTransform } from '@/stage/coordinates';
-import type { StagePosition, ViewportState } from '@/stage/coordinates';
+import type { StagePosition, ViewportState, ViewportTransform } from '@/stage/coordinates';
 import type { StageDocument } from '@/stage/model';
 import type { SnapSettings, SnapFeedback } from '@/stage/snapping';
 import DraggableObject from './DraggableObject';
@@ -34,10 +30,13 @@ import type { FiringAreaOverlayProps } from './FiringAreaOverlay';
 import type { RouteAssistantContext, RouteChangePreview, Highlights } from '../planning/routeAssistant/types';
 
 type Props = {
-  manualReview?: { review: ManualRouteReview; selectedTargetId: string | null; selectedEngagementId: string | null; onlyUnassigned: boolean; onSelectTarget: (id: string | null) => void };
-  manualEngage?: { selectedId: string | null; onSelect: (id: string | null) => void;
-    onCreate: (anchor: EngagementAnchor, targetId: string, direction: number) => void;
-    onDirection: (id: string, direction: number) => void };
+  /**
+   * PLAN's engage mode: a drag from a position, or from the path between two positions, to a target. `point` is where
+   * the drag started (on the path, for a new position there).
+   */
+  assign?: { onAssign: (anchor: EngagementAnchor, point: StagePosition, targetId: string) => void };
+  /** PLAN: a tap on a scoring target (opens its target sheet). */
+  onTargetTap?: (id: string) => void;
   routeAI?: {context:RouteAssistantContext;preview?:RouteChangePreview;highlights?:Highlights};
   tool?: DesignerTool;
   draft?: { start: StagePosition; end: StagePosition } | null;
@@ -69,9 +68,9 @@ type Props = {
 };
 
 export default function StageViewport(props: Props) {
-  const [engagementDraft, setEngagementDraft] = useState<EngagementGesture | null>(null);
-  const engagement = useRef<EngagementGesture | null>(null);
-  useEffect(() => { engagement.current = null; setEngagementDraft(null); }, [props.manualEngage !== undefined, props.readOnly, props.routePlanning?.route, props.stage]);
+  const [engagementDraft, setEngagementDraft] = useState<AssignGesture | null>(null);
+  const engagement = useRef<AssignGesture | null>(null);
+  useEffect(() => { engagement.current = null; setEngagementDraft(null); }, [props.assign !== undefined, props.readOnly, props.routePlanning?.route, props.stage]);
   const [feedback, setFeedback] = useState<SnapFeedback>({ guides: [], gridAxes: [] });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const frame = useRef<View>(null);
@@ -128,7 +127,7 @@ export default function StageViewport(props: Props) {
       if (drawing() && !intent.current.multiple) latest.current.props.onDraw?.('start', pointAt(e));
       const p = latest.current.props;
       cancelLongPress(); longPress.current.fired = false;
-      if (p.onLongPress && !p.readOnly && !p.routeEditing && !p.manualEngage && !p.manualReview && (!p.tool || p.tool === 'select') && !intent.current.multiple) {
+      if (p.onLongPress && !p.readOnly && !p.routeEditing && !p.assign && (!p.tool || p.tool === 'select') && !intent.current.multiple) {
         const point = pointAt(e), at = localCursor(e);
         longPress.current.timer = setTimeout(() => {
           longPress.current.timer = null;
@@ -136,10 +135,9 @@ export default function StageViewport(props: Props) {
           longPress.current.fired = true; latest.current.props.onLongPress?.(point, at);
         }, LONG_PRESS_MS);
       }
-      if (p.manualEngage && !p.readOnly && p.routePlanning && !intent.current.multiple) {
-        engagement.current = beginEngagementGesture(p.stage, p.routePlanning.route, currentTransform(), localCursor(e));
+      if (p.assign && !p.readOnly && p.routePlanning && !intent.current.multiple) {
+        engagement.current = beginAssignGesture(p.stage, p.routePlanning.route, currentTransform(), localCursor(e));
         setEngagementDraft(engagement.current);
-        p.manualEngage.onSelect(engagement.current?.editingId ?? null);
       }
       latest.current.props.onDragging(true);
     },
@@ -157,7 +155,7 @@ export default function StageViewport(props: Props) {
       if (engagement.current && !engagement.current.cancelled) {
         if (next.count !== 1) cancelEngagement();
         else {
-          engagement.current = moveEngagementGesture(engagement.current, latest.current.props.stage, currentTransform(), localCursor(e), next.count);
+          engagement.current = moveAssignGesture(engagement.current, latest.current.props.stage, currentTransform(), localCursor(e), next.count);
           setEngagementDraft(engagement.current); previous.current = next; return;
         }
       }
@@ -179,20 +177,15 @@ export default function StageViewport(props: Props) {
       const touch = e.nativeEvent.changedTouches?.[0] ?? e.nativeEvent;
       const x = touch.pageX-origin.current.x, y = touch.pageY-origin.current.y;
       const inside = x >= 0 && y >= 0 && x <= latest.current.size.width && y <= latest.current.size.height;
-      if (p.manualReview && !p.readOnly) {
-        if (inside && deliberateTap(intent.current, Date.now())) {
-          const allowed = new Set(p.manualReview.review.targets.filter(t => !p.manualReview!.onlyUnassigned || !t.assigned).map(t => t.target.id));
-          p.manualReview.onSelectTarget(targetAt({ ...p.stage, objects: p.stage.objects.filter(o => allowed.has(o.id)) }, currentTransform(), { x, y }, p.manualReview.selectedTargetId));
-        }
-      } else if (p.manualEngage && !p.readOnly) {
+      // A deliberate tap on a scoring target in PLAN opens its target sheet.
+      const tapTarget = () => { if (p.onTargetTap && inside && deliberateTap(intent.current, Date.now())) { const id = targetAt(p.stage, currentTransform(), { x, y }); if (id) { p.onTargetTap(id); return true; } } return false; };
+      if (p.assign && !p.readOnly) {
         const active = engagement.current;
-        if (active && !active.cancelled) {
-          // Release coordinates, rather than last move, decide the selected target.
-          const final = moveEngagementGesture(active, p.stage, currentTransform(), {x,y}, 1);
-          const result = finishEngagementGesture(final, inside);
-          if (result?.kind === 'create') p.manualEngage.onCreate(result.anchor, result.targetId, result.direction);
-          if (result?.kind === 'direction') p.manualEngage.onDirection(result.id, result.direction);
-        }
+        if (active && !active.cancelled && active.moved) {
+          // Release coordinates, rather than last move, decide the target.
+          const result = finishAssignGesture(moveAssignGesture(active, p.stage, currentTransform(), { x, y }, 1), inside);
+          if (result) p.assign.onAssign(result.anchor, result.point, result.targetId);
+        } else tapTarget();
       } else if (drawing()) {
         if (inside && !intent.current.multiple && (hadAnchor.current || intent.current.moved)) p.onDraw?.('commit',point);
         else if (!inside || intent.current.multiple) p.onDraw?.('cancel',point);
@@ -202,7 +195,7 @@ export default function StageViewport(props: Props) {
         if (inside && deliberateTap(intent.current, Date.now())) p.onRoutePoint(point);
       } else if (!p.readOnly && !p.routeEditing && p.tool === 'target') {
         if (inside && deliberateTap(intent.current,Date.now())) p.onPlace?.(point);
-      } else if (!p.readOnly && !moving.current && (!p.tool || p.tool === 'select')) p.onSelect(null);
+      } else if (!p.readOnly && !moving.current && (!p.tool || p.tool === 'select') && !tapTarget()) p.onSelect(null);
       finish();
     },
     onPanResponderTerminationRequest: () => false,
@@ -246,16 +239,29 @@ export default function StageViewport(props: Props) {
           {props.autoPositions && <AutoPositionOverlay positions={props.autoPositions} transform={transform} />}
           <SnapGuides feedback={feedback} stage={props.stage.stage} transform={transform} />
           {props.firingAreas && <FiringAreaOverlay {...props.firingAreas} transform={transform} />}
-          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.manualEngage && !props.manualReview && !props.readOnly && !props.onRoutePoint && !props.onAreaPoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
+          {props.routePlanning && <View pointerEvents={props.routeEditing && !props.assign && !props.readOnly && !props.onRoutePoint && !props.onAreaPoint ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
             <RouteOverlay {...props.routePlanning} stage={props.stage} transform={transform} />
           </View>}
-          {props.routePlanning && <ManualEngagementOverlay stage={props.stage} route={props.routePlanning.route} transform={transform} selectedId={props.manualReview?.selectedEngagementId ?? props.manualEngage?.selectedId} highlightTarget={!props.manualReview} draft={engagementDraft} onSelect={id => props.manualEngage?.onSelect(id)} />}
-          {props.manualReview && <ManualReviewOverlay review={props.manualReview.review} transform={transform} selectedId={props.manualReview.selectedTargetId} onlyUnassigned={props.manualReview.onlyUnassigned} onSelect={props.manualReview.onSelectTarget} />}
+          {props.assign && <AssignDraft stage={props.stage} transform={transform} draft={engagementDraft} />}
           {props.routeAI && <RouteAIOverlay {...props.routeAI} stage={props.stage} transform={transform} />}
         </>}
       </View>
     </View>
   );
+}
+
+/** While dragging to engage: a dotted line from where the drag started to the finger, and the target under it. */
+function AssignDraft({ stage, transform, draft }: { stage: StageDocument; transform: ViewportTransform; draft: AssignGesture | null }) {
+  if (!draft || draft.cancelled || !draft.moved) return null;
+  const a = stageToViewport(draft.point, transform), b = draft.cursor, length = Math.hypot(b.x - a.x, b.y - a.y);
+  const target = stage.objects.find(o => o.id === draft.targetId);
+  return <>
+    <View testID="assign-guide" pointerEvents="none" style={{ position: 'absolute', left: (a.x + b.x) / 2 - length / 2, top: (a.y + b.y) / 2 - 1, width: length, borderTopWidth: 2, borderStyle: 'dotted', borderColor: colors.accent, transform: [{ rotate: Math.atan2(b.y - a.y, b.x - a.x) + 'rad' }] }} />
+    {target && 'faceWidth' in target.geometry && (() => {
+      const center = stageToViewport(target.position, transform), width = Math.max(44, target.geometry.faceWidth * transform.scale), height = Math.max(44, target.geometry.faceHeight * transform.scale);
+      return <View testID={'assign-target-' + target.id} pointerEvents="none" style={{ position: 'absolute', left: center.x - width / 2, top: center.y - height / 2, width, height, borderWidth: 3, borderColor: colors.accent, backgroundColor: colors.selected, opacity: 0.6, transform: [{ rotate: target.rotation + 'deg' }] }} />;
+    })()}
+  </>;
 }
 
 const styles = themed(c => ({

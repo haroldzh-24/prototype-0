@@ -88,7 +88,7 @@ test('themed styles are rebuilt for the active palette and cached per palette', 
 });
 
 test('the plan canvas, target faces and handles take their colours from the theme', () => {
-  for (const file of ['editor/DraggableObject.tsx', 'editor/TargetFace.tsx', 'editor/GeometryControls.tsx', 'editor/AutoPositionOverlay.tsx', 'editor/StageViewport.tsx', 'editor/StageGrid.tsx', 'editor/RouteOverlay.tsx', 'editor/EngagementOverlay.tsx', 'editor/ManualReviewOverlay.tsx']) {
+  for (const file of ['editor/DraggableObject.tsx', 'editor/TargetFace.tsx', 'editor/GeometryControls.tsx', 'editor/AutoPositionOverlay.tsx', 'editor/StageViewport.tsx', 'editor/StageGrid.tsx', 'editor/RouteOverlay.tsx', 'editor/EngagementOverlay.tsx']) {
     const code = src(file).replace(/stroke="#262626"/g, ''); // the no-shoot cross is printed black on every no-shoot
     assert.doesNotMatch(code, /['"`]#[0-9A-Fa-f]{3,8}['"`]/, file + ' has no fixed colours');
   }

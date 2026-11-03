@@ -1,4 +1,3 @@
-import { reconcileManualEngagements } from './manualEngagements';
 import { migrateManualEngagements } from './assignments';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StageRoute } from './route';
@@ -85,9 +84,9 @@ export function assignRounds(plan: StagePlan, stage: StageDocument, id: string, 
  * Deleted/unsupported references cannot consume ammunition or reappear after Reset. Also where a loaded plan is
  * normalised: saved ENGAGE arrows become position engagements here (assignments.ts migrateManualEngagements).
  */
-export function reconcilePlan(plan: StagePlan, stage: StageDocument, previous?: { stage: StageDocument; route?: StageRoute }): StagePlan {
+export function reconcilePlan(plan: StagePlan, stage: StageDocument): StagePlan {
   if (plan.route) {
-    const route = migrateManualEngagements(stage, reconcileManualEngagements(stage, plan.route, previous?.route, previous?.stage));
+    const route = migrateManualEngagements(stage, plan.route);
     if (route !== plan.route) plan = { ...plan, route };
   }
   const valid = new Set(stage.objects.filter(isEngageable).map(o => o.id));

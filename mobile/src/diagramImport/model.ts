@@ -32,6 +32,8 @@ export type Reconstruction = {
   page?: PageImage; rectified?: PageImage; aligned?: PageImage; alignment: Alignment;
   projection: 'unknown' | 'top-down' | 'perspective'; calibration?: Calibration;
   origin: Point; proposals: Proposal[];
+  /** How strongly the drawing shows under the stage in the editor (0–1); remembered for the stage. Absent: half. */
+  opacity?: number;
 };
 export const fullQuad = (): Quad => [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
 export const fullCrop = (): Crop => ({ x: 0, y: 0, width: 1, height: 1 });
@@ -67,11 +69,14 @@ export function validProposal(p: Proposal) {
       && (p.recognition.groupId === undefined || typeof p.recognition.groupId === 'string' && p.recognition.groupId.length <= 100)
       && (p.recognition.templateId === undefined || typeof p.recognition.templateId === 'string' && p.recognition.templateId.length <= 100));
 }
+/** The drawing's top-left corner may sit up or left of the stage (a nudge past the edge), within this many inches. */
+const MAX_ORIGIN = 36 * 1000;
 export function validateReconstruction(d: Reconstruction): void {
   const pageValid = (p: PageImage | undefined) => p === undefined || assetValid(p.asset) && [p.width, p.height].every(n => finite(n) && n > 0 && n <= 4096) && Number.isInteger(p.page) && Number.isInteger(p.pageCount) && p.page >= 1 && p.page <= p.pageCount && p.pageCount <= 500;
   if (!d || d.version !== 1 || typeof d.id !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(d.id) || !assetValid(d.source) || !['pdf', 'image', 'paper-photo'].includes(d.sourceKind)
     || !pageValid(d.page) || !pageValid(d.rectified) || !pageValid(d.aligned) || !d.alignment || !validQuad(d.alignment.corners) || !validCrop(d.alignment.crop) || ![0, 90, 180, 270].includes(d.alignment.rotation)
-    || !['unknown', 'top-down', 'perspective'].includes(d.projection) || !d.origin || ![d.origin.x, d.origin.y].every(n => finite(n) && n >= 0)
+    || !['unknown', 'top-down', 'perspective'].includes(d.projection) || !d.origin || ![d.origin.x, d.origin.y].every(n => finite(n) && Math.abs(n) <= MAX_ORIGIN)
+    || (d.opacity !== undefined && !(finite(d.opacity) && d.opacity >= 0 && d.opacity <= 1))
     || !Array.isArray(d.proposals) || d.proposals.length > 1000 || !d.proposals.every(validProposal) || new Set(d.proposals.map(p => p.id)).size !== d.proposals.length)
     throw new Error('Invalid or unsupported reconstruction draft. The original has not been changed.');
   const c = d.calibration;
@@ -117,13 +122,24 @@ export function reconstruct(d: Reconstruction, stage: StageDocument, family: Tar
 }
 
 /** Where a calibrated top-down drawing lies under the stage, in stage inches: the picture to trace over. */
-export type Backdrop = { asset: DocumentAsset; left: number; top: number; width: number; height: number };
+export type Backdrop = { asset: DocumentAsset; left: number; top: number; width: number; height: number; opacity: number };
+/** Opacity of a drawing that has none saved yet. */
+export const DEFAULT_DRAWING_OPACITY = 0.5;
 export function backdropOf(d: Reconstruction): Backdrop | null {
   if (!d.aligned || !d.calibration || d.projection !== 'top-down') return null;
   try {
     const ipp = inchesPerPixel(d);
-    return { asset: d.aligned.asset, left: d.origin.x, top: d.origin.y, width: d.aligned.width * ipp, height: d.aligned.height * ipp };
+    return { asset: d.aligned.asset, left: d.origin.x, top: d.origin.y, width: d.aligned.width * ipp, height: d.aligned.height * ipp, opacity: d.opacity ?? DEFAULT_DRAWING_OPACITY };
   } catch { return null; }
+}
+/**
+ * The drawing as placed from the editor: its opacity and where its top-left corner sits on the stage (a nudge moves
+ * the origin, the same number the import's "Position on the stage" shows, so elements added later still line up).
+ */
+export function placeDrawing(d: Reconstruction, place: { left: number; top: number; opacity: number }): Reconstruction {
+  const next = { ...d, origin: { x: place.left, y: place.top }, opacity: place.opacity };
+  validateReconstruction(next);
+  return next;
 }
 /** The drawing to show under the stage: the most recently listed draft that is aligned, calibrated and top-down. */
 export const latestBackdrop = (drafts: readonly Reconstruction[]): { id: string; backdrop: Backdrop } | null => {

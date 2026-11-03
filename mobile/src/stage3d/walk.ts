@@ -13,6 +13,7 @@ import { checkEngagement, defaultNoShootPolicy, sightLine } from '../planning/v2
 import { optionsFromPlan, snapshotFromPlan } from '../planning/v2/adopt';
 import type { Ruleset } from '../planning/v2/types';
 import { shortTargetLabel } from './scene';
+import { positionName } from '../ui/words';
 
 /**
  * Walking the planned route at eye level. The walk follows the drawn path (bends included), the same path the
@@ -64,14 +65,16 @@ export function buildWalk(stage: StageDocument, route: StageRoute | undefined, a
   const origin0 = { x: start.position.x, y: start.position.y };
   const walk: Walk = { ...empty, stops: [{ id: start.id, label: 'START', distance: 0, point: origin0 }], path: [origin0] };
   let origin: StagePosition = start.position, originId = start.id, total = 0;
-  for (const waypoint of route?.positions ?? []) {
+  // Positions are named P1, P2… in route order, as in 2D, ANALYZE and the target sheet (not by their stored label).
+  for (const [index, waypoint] of (route?.positions ?? []).entries()) {
+    const label = positionName(index);
     const path = connectionPoints(route!, originId, waypoint.id, { space: 'stage', x: origin.x, y: origin.y, z: 0 }, waypoint.position).map(p => ({ x: p.x, y: p.y }));
     const cum = path.reduce<number[]>((acc, p, i) => { acc.push(i ? acc[i - 1] + dist(path[i - 1], p) : 0); return acc; }, []);
     const length = cum[cum.length - 1] ?? 0;
-    walk.legs.push({ waypointId: waypoint.id, label: waypoint.label, start: total, length, path, cum });
+    walk.legs.push({ waypointId: waypoint.id, label, start: total, length, path, cum });
     walk.path.push(...path.slice(1));
     total += length;
-    walk.stops.push({ id: waypoint.id, label: waypoint.label, distance: total, point: { x: waypoint.position.x, y: waypoint.position.y } });
+    walk.stops.push({ id: waypoint.id, label, distance: total, point: { x: waypoint.position.x, y: waypoint.position.y } });
     origin = waypoint.position; originId = waypoint.id;
   }
   walk.length = total;
