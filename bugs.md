@@ -1,3 +1,8 @@
+# Fixed 2026-11-03 (UI cohesion, independent review)
+
+- The undo bar could undo an older edit after a no-op RESET STAGE or DELETE; default spare magazines too few for PLAN RELOADS; LOADOUT and RELOAD sheets disagreeing with ANALYZE; one position with two P-names (stored label vs route order), which also misdirected Ask; RESET ROUTE marking an empty route unsaved; drill-sheet notes and procedurals lost on close; VoiceOver unable to open the PLAN target sheet; older History sessions no longer deletable. Details in changelog.md.
+- Open: SAVE RUN while the beep is still being found saves the video without its beep (it says so, but skips the beep step). The PLAN badge counts engaged targets with rounds above 0 while ANALYZE counts engaged targets. The warning "P1: target-2 cannot be engaged here…" prints the target id instead of T2. The position sheet has no side padding and says "1 targets assigned". Positions from the older position discovery carry the note "Auto position". "Add magazines in Loadout" (planStatus, reloadPlan) doesn't give the PLAN ••• path. Unit conversions outside `measurements.ts` remain in `stageCheck.ts`, `EyeLevelView.tsx`, `PlannerResultCard.tsx` (/36) and the import's scale units. Profile has no setting for magazine capacity, so the default loadout is always 15 / 15 / chamber empty.
+
 # Fixed 2026-11-02 (UI cohesion, phases 1–5)
 
 Found in the UI pass of 2026-11-02 (the plan's "silent changes" and "dead ends") and fixed; tests are listed in the changelog entries:

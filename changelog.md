@@ -1,3 +1,17 @@
+# UI cohesion: fixes from the independent review - 2026-11-03
+
+A reviewer who hadn't seen the work went through the whole pass (1d1cd6c..05fa593) with failing tests for each finding (`tests/reviewFixes.test.cjs`, `tests/reviewChecks.test.cjs`). It confirmed the arrow migration, the draft route, PARTIAL placement as one undo step, the rounds defaults against the rulebooks, the import records and the practice type. Fixed:
+- **The undo bar could undo an older, unrelated edit** (a RESET STAGE or DELETE that changed nothing still showed the bar, and its UNDO popped the previous edit). The history's revision now moves only when the document changes; the bar shows only for a real change, and a no-op takes down an older bar. Touching an object without moving it no longer hides the bar.
+- **Default loadout numbers didn't add up:** spares assumed no rounds are lost when a part-used magazine is dropped, so PLAN RELOADS could fail on the default. Spares are now worked out with PLAN RELOADS' own rules (`planDefaults.sparesNeeded`). The LOADOUT sheet and a position's RELOAD sheet show the same default loadout ANALYZE uses (marked "default"); picking a reload there saves that loadout with it. The note no longer claims the numbers come from "your profile" (they were never settable): "Default loadout: 15-round magazines, 15 to start, chamber empty, 2 spares. Add your magazines in PLAN ••• → LOADOUT."
+- **One position, two P-names:** stored labels ("P3") were printed in warnings, ANALYZE's lists, ORDER and Ask while the canvas numbered by route order, so after a reorder the same position was called P1 and P2, and "delete P2" in Ask could hit the wrong one. Every view now names positions by route order; Ask resolves "P2" by route order first. The position sheet's label field is an optional note shown beside the name ("P2 · Barricade left"); stored data isn't rewritten.
+- RESET ROUTE with nothing to reset no longer marks the stage unsaved.
+- Closing a drill sheet with typed procedurals or notes now asks first.
+- VoiceOver: in PLAN, activating a target opens its target sheet (it selected it for BUILD).
+- History: older sessions can be deleted again (DELETE SESSION, with a confirm; it withdraws their measurements from your numbers). Everything else about them stays read-only.
+- The older optimizer's candidate generator reads rounds as PLAN shows them (rule defaults).
+- Words: "Route tools", "Stage Settings", "Start Position" and the em dash in "Practice only · …" are fixed and added to the retired words; the eye-height display converts through `measurements.ts` (`formatFeetAndInches`).
+- Validation: 1107/1107 tests, TypeScript passed, web screenshots of the loadout, reload, reorder and undo cases. No device testing.
+
 # UI cohesion phase 3: PLAN as one guided path - 2026-11-02
 
 - **Checklist at the top of PLAN** (`planning/PlanChecklist.tsx`, `planStatus.planChecklist`): 1 Shooting areas · 2 Route · 3 Targets and reloads, each with ✓, a count or what's missing; tapping a line opens AREAS, the ROUTE sheet or the drag-to-engage mode. ANALYZE is the orange next step once all three are done. The PLAN badge counts targets planned.
