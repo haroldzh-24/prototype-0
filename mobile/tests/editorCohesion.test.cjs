@@ -22,9 +22,11 @@ const tree = n => !n || typeof n !== 'object' ? [] : Array.isArray(n) ? n.flatMa
 /** Titles inside the open sheet only (the canvas stays in the tree under a modal). */
 const sheetTitles = h => tree(h.find(n => n.type === 'EditorSheet' && n.props.visible).props.children).map(n => n.props?.title).filter(t => typeof t === 'string');
 const button = (h, title) => h.find(n => n.props?.title === title);
-/** The editor's Button is a local component: render it to see what the user reads and what VoiceOver reads. */
-const rendered = el => { const pressable = el.type(el.props); const text = [].concat(pressable.props.children).filter(Boolean).find(c => c.props && typeof c.props.children === 'string'); return { label: pressable.props.accessibilityLabel, text: text?.props.children }; };
-const saveButton = h => h.find(n => ['Save', 'Saved', 'Saving…'].includes(n.props?.title)).props;
+/** The kit's ToolButton and Action: what the user reads (title) and what VoiceOver reads (accessibilityLabel). */
+const byLabel = (h, label) => h.find(n => n.props?.accessibilityLabel === label);
+const rendered = el => ({ label: el.props.accessibilityLabel ?? el.props.title, text: el.props.title });
+const saveButton = h => h.find(n => ['Save', 'Saved', 'Saving…'].includes(n.props?.accessibilityLabel)).props;
+const closeSheet = h => { h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render(); };
 const objects = h => h.child('StageViewport').stage.objects;
 const selectFirstTarget = h => { const t = objects(h).find(o => o.type === 'cardboardTarget'); h.child('StageViewport').onSelect(t.id); h.render(); return t; };
 
@@ -47,37 +49,41 @@ test('words: one name per target in every view (T1… across paper and steel, NS
 
 test('header: ↶ and ↷ beside the name undo and redo the document history; the ••• menus no longer carry them', () => {
   const h = editor();
-  const undo = rendered(button(h, 'Undo')), redo = rendered(button(h, 'Redo'));
+  const undo = rendered(byLabel(h, 'Undo')), redo = rendered(byLabel(h, 'Redo'));
   assert.deepEqual([undo.text, undo.label, redo.text, redo.label], ['↶', 'Undo', '↷', 'Redo']);
-  assert.equal(button(h, 'Undo').props.disabled, true, 'nothing to undo yet'); assert.equal(button(h, 'Redo').props.disabled, true);
+  assert.equal(byLabel(h, 'Undo').type, 'ToolButton', 'the kit ToolButton, not a private button');
+  assert.equal(byLabel(h, 'Undo').props.disabled, true, 'nothing to undo yet'); assert.equal(byLabel(h, 'Redo').props.disabled, true);
   selectFirstTarget(h); const count = objects(h).length;
   h.press('DUPLICATE'); assert.equal(objects(h).length, count + 1);
-  assert.equal(button(h, 'Undo').props.disabled, false);
-  h.press('Undo'); assert.equal(objects(h).length, count); assert.equal(button(h, 'Redo').props.disabled, false);
+  assert.equal(byLabel(h, 'Undo').props.disabled, false);
+  h.press('Undo'); assert.equal(objects(h).length, count); assert.equal(byLabel(h, 'Redo').props.disabled, false);
   h.press('Redo'); assert.equal(objects(h).length, count + 1);
-  h.press('Stage tools');
-  for (const gone of ['UNDO EDIT', 'REDO EDIT', '3D view', 'Eye-level view']) assert.ok(!sheetTitles(h).includes(gone), gone + ' left Stage tools');
-  h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render();
-  h.press('PLAN'); h.press('Route tools');
-  assert.ok(!sheetTitles(h).some(t => /UNDO|REDO/i.test(t)), 'Route tools has no undo either');
-  h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render();
+  h.press('Build settings');
+  for (const gone of ['UNDO EDIT', 'REDO EDIT', '3D VIEW', 'EYE-LEVEL VIEW', 'ZOOM IN', 'ZOOM OUT']) assert.ok(!sheetTitles(h).includes(gone), gone + ' left Build settings');
+  closeSheet(h);
+  h.press('PLAN'); h.press('Plan settings');
+  assert.ok(!sheetTitles(h).some(t => /UNDO|REDO|ZOOM/i.test(t)), 'Plan settings has no undo or zoom either');
+  closeSheet(h);
   // ENGAGE and AREAS used the same history: only the header's undo remains.
-  h.press('ENGAGE'); assert.equal(titles(h).filter(t => /^undo$/i.test(t)).length, 1);
-  h.press('AREAS'); assert.equal(titles(h).filter(t => /^undo$/i.test(t)).length, 1);
-  h.press('REVIEW'); assert.equal(h.child('ManualReviewPanel').onUndo, undefined);
+  const undos = () => h.nodes().filter(n => /^undo$/i.test(n.props?.accessibilityLabel ?? n.props?.title ?? '')).length;
+  h.press('ROUTE'); h.press('ENGAGE'); assert.equal(undos(), 1);
+  h.child('ModeChip').action.props.onPress(); h.render();
+  h.press('AREAS'); assert.equal(undos(), 1);
+  h.child('ModeChip').action.props.onPress(); h.render();
+  h.press('ROUTE'); h.press('REVIEW'); assert.equal(h.child('ManualReviewPanel').onUndo, undefined);
 });
 
 test('Save is orange only with unsaved changes; saved reads SAVED ✓, quiet and disabled; the SAVED/UNSAVED word is gone', async () => {
   const h = editor();
   let save = saveButton(h);
-  assert.deepEqual([save.title, save.displayTitle, save.accent, save.disabled], ['Saved', 'SAVED ✓', false, true]);
+  assert.deepEqual([save.accessibilityLabel, save.title, save.primary, save.disabled], ['Saved', 'SAVED ✓', false, true]);
   assert.ok(!h.nodes().some(n => n.props?.children === 'SAVED' || n.props?.children === 'UNSAVED'));
   selectFirstTarget(h); h.press('DUPLICATE');
   save = saveButton(h);
-  assert.deepEqual([save.title, save.displayTitle, save.accent, save.disabled], ['Save', 'SAVE', true, false]);
+  assert.deepEqual([save.accessibilityLabel, save.title, save.primary, save.disabled], ['Save', 'SAVE', true, false]);
   h.press('Save'); await h.settle();
-  assert.equal(h.saved.length, 1); assert.equal(saveButton(h).title, 'Saved'); assert.equal(saveButton(h).accent, false);
-  h.press('Undo'); assert.equal(saveButton(h).title, 'Save', 'undoing a saved change has something to save again');
+  assert.equal(h.saved.length, 1); assert.equal(saveButton(h).accessibilityLabel, 'Saved'); assert.equal(saveButton(h).primary, false);
+  h.press('Undo'); assert.equal(saveButton(h).accessibilityLabel, 'Save', 'undoing a saved change has something to save again');
 });
 
 test('the stage name shows a pencil, so renaming is visible', () => {
@@ -90,31 +96,31 @@ test('the stage name shows a pencil, so renaming is visible', () => {
   assert.ok(h.nodes().some(n => typeof n.props?.children === 'string' && /kept when you save/.test(n.props.children)), 'no "Stage Designer" in the name sheet');
 });
 
-test('one entry per view: 2D · 3D on the canvas, WALK for eye level; View settings has no view buttons', () => {
+test('one entry per view: 2D · 3D on the canvas, WALK for eye level; no view buttons in •••', () => {
   const h = editor();
   const views = h.find(n => n.props?.accessibilityLabel === 'View');
-  const options = [].concat(views.props.children).flat().filter(Boolean).map(b => [b.props.title, b.props.label]);
+  const options = [].concat(views.props.children).flat().filter(Boolean).map(b => [b.props.title, b.props.accessibilityLabel]);
   assert.deepEqual(options, [['2D', 'Plan view'], ['3D', '3D view']], 'EYE is not a view here');
-  h.press('Stage tools'); h.press('View settings');
-  for (const gone of ['Top Down', '3D', 'Eye level', '2.5D']) assert.ok(!sheetTitles(h).includes(gone), gone + ' left View settings');
-  assert.ok(sheetTitles(h).includes('Grid · ON'));
-  h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render();
+  h.press('Build settings');
+  for (const gone of ['TOP DOWN', '3D', 'EYE LEVEL', '2.5D', 'VIEW SETTINGS']) assert.ok(!sheetTitles(h).includes(gone), gone + ' is not in •••');
+  h.press('Grid and snap'); assert.ok(sheetTitles(h).includes('GRID · ON'), 'the grid switch lives with snap');
+  closeSheet(h);
   h.press('WALK'); assert.ok(h.child('EyeLevelView'));
   assert.ok(!h.nodes().some(n => n.props?.accessibilityLabel === 'View'), 'no view switch while walking');
-  h.child('EyeLevelView').onExit(); h.render(); assert.ok(titles(h).includes('SELECT'), 'back to BUILD');
+  h.child('EyeLevelView').onExit(); h.render(); assert.ok(titles(h).includes('ADD'), 'back to BUILD');
 });
 
-test('STAGE CHECK counts safety and rule findings separately and points to PLAN → AREAS for shooting areas', () => {
+test('the stage check is BUILD\'s badge (safety and rule findings) and points to PLAN → AREAS for shooting areas', () => {
   const findings = list => ({ '@/rules/stageCheck': { checkStage: () => list } });
   const f = severity => ({ severity, code: severity, rule: '', objectIds: [], message: severity });
   let h = editor(undefined, findings([f('safety'), f('rule'), f('rule'), f('info')]));
-  let check = h.find(n => /^STAGE CHECK/.test(n.props?.title ?? '')).props;
-  assert.equal(check.title, 'STAGE CHECK · 1 SAFETY · 2 RULE'); assert.equal(check.danger, true);
+  let build = button(h, 'BUILD').props;
+  assert.deepEqual([build.badge, build.badgeTone, build.accessibilityLabel], ['3', 'danger', 'Build the stage. Stage check: 1 safety, 2 rule']);
   h = editor(undefined, findings([f('rule'), f('rule'), f('rule')]));
-  check = h.find(n => /^STAGE CHECK/.test(n.props?.title ?? '')).props;
-  assert.equal(check.title, 'STAGE CHECK · 3 RULE'); assert.equal(check.danger, false, 'no SAFETY without a safety finding');
+  build = button(h, 'BUILD').props;
+  assert.deepEqual([build.badge, build.badgeTone], ['3', 'neutral'], 'no danger without a safety finding');
   h = editor(undefined, findings([f('info')]));
-  assert.equal(h.find(n => /^STAGE CHECK/.test(n.props?.title ?? '')).props.title, 'STAGE CHECK');
+  assert.equal(button(h, 'BUILD').props.badge, undefined, 'information alone is not counted');
   const noAreas = checkStage(createDefaultStage(), undefined, 'USPSA').find(x => x.code === 'NO_AREAS');
   assert.match(noAreas.message, /shooting areas in PLAN → AREAS/); assert.doesNotMatch(noAreas.message, /Route settings|firing/);
 });
@@ -122,7 +128,7 @@ test('STAGE CHECK counts safety and rule findings separately and points to PLAN 
 test('targets are named T1… with their type where there is room, and engagement order is 1, 2, 3', () => {
   const h = editor();
   selectFirstTarget(h);
-  assert.ok(h.nodes().some(n => typeof n.props?.children === 'string' && /^T1 · PAPER TARGET$/.test(n.props.children)), 'the selection bar names the target, then what it is');
+  assert.equal(h.child('SelectionBar').title, 'T1 · PAPER TARGET', 'the selection bar names the target, then what it is');
   const document = createDefaultStage(), targets = document.objects.filter(o => o.type === 'cardboardTarget');
   const route = { ...createRoute('r'), positions: [{ id: 'p', label: 'P1', position: { space: 'stage', x: 100, y: 300, z: 0 }, visibleTargetIds: targets.map(t => t.id), engagedTargetIds: [targets[1].id, targets[0].id] }] };
   const panel = harness('planning/RoutePanel.tsx', { section: 'assign', stage: document, plan: plan(route), route, selectedId: 'p', onChange() {} });
@@ -141,7 +147,7 @@ const eyeOverrides = store => ({
   './GLStage': { __esModule: true, default: 'GLStage', glUnavailable: () => false },
   '../ui/prefsStore': { readPref: k => store?.[k] ?? null, writePref: (k, v) => { if (store) store[k] = v; } },
 });
-test('WALK: a ? legend explains the status words, VISIBLE and HIDDEN look different, and each row shows the target type', () => {
+test('WALK: ••• (in its tool bar) shows the legend for the status words, VISIBLE and HIDDEN look different, and each row shows the target type', () => {
   const document = createDefaultStage();
   const h = harness('stage3d/EyeLevelView.tsx', { stage: document, plan: plan(), ruleset: 'USPSA', onExit() {} }, eyeOverrides());
   assert.ok(!h.nodes().some(n => n.props?.testID === 'walk-legend'));
@@ -184,23 +190,26 @@ test('press-and-hold hint: shown once on the BUILD canvas, gone for good when di
 test('radial ADD shows only the match family until OTHER FAMILIES is tapped (IDPA stays available there)', () => {
   const props = { at: { x: 180, y: 300 }, bounds: { width: 390, height: 600 }, targetFamily: 'USPSA', onChoose() {}, onClose() {} };
   const h = harness('editor/RadialAddMenu.tsx', props, { 'expo-image': { Image: 'Image' } });
-  const radios = () => h.nodes().filter(n => n.props?.accessibilityRole === 'radio');
-  assert.equal(radios().length, 0, 'no family switcher by default');
+  const picker = () => h.nodes().find(n => n.type === 'Segmented');
+  assert.equal(picker(), undefined, 'no family switcher by default');
   const labels = () => h.nodes().filter(n => n.type === 'Text').map(n => n.props.children);
   h.press('paper targets'); assert.ok(labels().includes('USPSA') && !labels().includes('Standard'), 'USPSA paper only');
   h.press('Other families');
-  assert.deepEqual(radios().map(r => [].concat(r.props.children).find(c => c?.props).props.children), ['USPSA', 'PCSL', 'IDPA']);
-  radios().find(r => [].concat(r.props.children).find(c => c?.props).props.children === 'IDPA').props.onPress(); h.render();
+  assert.deepEqual([...picker().props.options], ['USPSA', 'PCSL', 'IDPA']); assert.equal(picker().props.value, 'USPSA');
+  picker().props.onChange('IDPA'); h.render();
   assert.ok(labels().includes('Standard'), 'IDPA targets are a tap away');
   h.press('Only USPSA targets');
-  assert.equal(radios().length, 0); assert.ok(labels().includes('USPSA') && !labels().includes('Standard'), 'back to the match family');
+  assert.equal(picker(), undefined); assert.ok(labels().includes('USPSA') && !labels().includes('Standard'), 'back to the match family');
 });
 
 test('casing and separators: editor buttons read ALL CAPS, labels are sentence case, one separator (·)', () => {
   const route = { ...createRoute('r'), positions: [{ id: 'p', label: 'P1', position: { space: 'stage', x: 100, y: 300, z: 0 }, visibleTargetIds: [], engagedTargetIds: [] }] };
   const h = editor(route);
   const check = where => {
-    for (const el of h.nodes().filter(n => typeof n.type === 'function' && n.type.name === 'Button')) {
+    const buttons = h.nodes().filter(n => n.type === 'ToolButton' || n.type === 'Action');
+    assert.ok(buttons.length > 0, where + ': kit buttons');
+    assert.ok(!h.nodes().some(n => typeof n.type === 'function' && n.type.name === 'Button'), where + ': no private Button');
+    for (const el of buttons) {
       const { text } = rendered(el);
       assert.equal(text, text.toUpperCase(), `${where}: button "${text}" is ALL CAPS`);
       assert.doesNotMatch(el.props.title, /\b(Stage Dimensions|Cancel Draft|Grid & Snapping|Reset Stage|Reset Route|Route Settings|Target Rounds|Overlay Layers)\b/, 'no Title Case');
@@ -211,13 +220,13 @@ test('casing and separators: editor buttons read ALL CAPS, labels are sentence c
     }
   };
   check('BUILD');
-  h.press('Stage tools'); check('Stage tools'); h.press(W.words.stageSize); check('Stage size');
-  h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render();
-  h.press('DRAW'); h.press('WALL'); check('drawing'); assert.ok(titles(h).includes('SNAP ON')); h.press('DONE');
-  h.press('PLAN'); check('PLAN'); h.press('PATH'); check('PATH');
+  h.press('Build settings'); check('Build settings'); h.press(W.words.stageSize); check('Stage size');
+  closeSheet(h);
+  h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render(); check('drawing'); assert.ok(titles(h).includes('SNAP ON')); h.press('DONE');
+  h.press('PLAN'); check('PLAN'); h.press('ROUTE'); check('ROUTE'); h.press('PATH'); check('PATH');
   assert.ok(titles(h).includes('ADD POSITION'));
   h.child('StageViewport').routePlanning.onSelect('p'); h.render(); check('position selected');
-  assert.ok(titles(h).includes('Position 1')); h.press('Position 1'); check('Position sheet');
+  assert.ok(titles(h).includes('POSITION 1')); h.press('Position 1'); check('Position sheet');
   assert.ok(h.nodes().some(n => n.type === 'EditorSheet' && n.props.title === 'Position' && n.props.visible));
 });
 

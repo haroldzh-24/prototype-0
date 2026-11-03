@@ -9,7 +9,7 @@ const P = require('../src/stage/targetPresets.ts');
 const radialSource = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/editor/RadialAddMenu.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 } }).outputText;
 const R = { exports: {} };
 new Function('require', 'module', 'exports', radialSource)(id => id === 'react' ? { useState() {}, useEffect() {}, useMemo() {} } : id === 'react/jsx-runtime' ? { jsx() {}, jsxs() {} }
-  : id === 'react-native' ? {} : id === 'expo-image' ? {} : require(path.resolve(__dirname, '../src/editor', id) + '.ts'), R, R.exports);
+  : id === 'react-native' ? {} : id === 'expo-image' ? {} : id === '../ui/kit' ? { Segmented: 'Segmented' } : require(path.resolve(__dirname, '../src/editor', id) + '.ts'), R, R.exports);
 const near = (a, b, e = 1e-9) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
 
 test('every preset has a picture: outline at its real size, valid SVG, as icon, dimensioned drawing and 3D view', () => {
@@ -56,9 +56,16 @@ test('radial layout: items evenly round the centre, first at the top, menu kept 
   const ring = R.exports.ringPositions(4, 100);
   near(ring[0].x, 0); near(ring[0].y, -100); near(ring[1].x, 100); near(ring[2].y, 100);
   for (const p of R.exports.ringPositions(7, 118)) near(Math.hypot(p.x, p.y), 118);
-  assert.deepEqual(R.exports.clampCenter({ x: 5, y: 5 }, { width: 400, height: 600 }, 150), { x: 150, y: 194 });
+  // The top keeps 56 pt clear for the family row (OTHER FAMILIES, or the family picker at the kit's 48 pt).
+  assert.deepEqual(R.exports.clampCenter({ x: 5, y: 5 }, { width: 400, height: 600 }, 150), { x: 150, y: 206 });
   assert.deepEqual(R.exports.clampCenter({ x: 200, y: 300 }, { width: 400, height: 600 }, 150), { x: 200, y: 300 });
-  assert.deepEqual(R.exports.clampCenter({ x: 0, y: 0 }, { width: 200, height: 200 }, 150), { x: 100, y: 122 }, 'a too-small canvas splits the difference');
+  assert.deepEqual(R.exports.clampCenter({ x: 0, y: 0 }, { width: 200, height: 200 }, 150), { x: 100, y: 128 }, 'a too-small canvas splits the difference');
+  // A ring of more than eight (PARTIAL on a USPSA target has eleven) uses smaller items further out, so labels do not collide.
+  assert.deepEqual(R.exports.ringLayout(7), { item: 64, radius: 118, label: 104 });
+  assert.deepEqual(R.exports.ringLayout(11), { item: 52, radius: 138, label: 72 });
+  const big = R.exports.ringPositions(11, 138);
+  for (let i = 0; i < 11; i++) { const a = big[i], b = big[(i + 1) % 11]; assert.ok(Math.hypot(a.x - b.x, a.y - b.y) > 72, 'neighbours sit a label apart'); }
+  assert.equal(R.exports.partialItems('USPSA').length, 11); assert.equal(R.exports.partialItems('IDPA').length, 6);
   // Each family's categories hold the right kinds of target.
   for (const family of ['USPSA', 'PCSL', 'IDPA']) {
     assert.ok(R.exports.presetsIn(family, 'paper').length > 0 && R.exports.presetsIn(family, 'paper').every(p => p.type === 'cardboardTarget'));

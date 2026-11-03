@@ -37,7 +37,7 @@ function harness(entry, props = {}, overrides = {}, exportName) {
       if (id.endsWith('StorageProvider')) return { useRepository: () => repo };
       // Device prefs are a native store: an in-memory one unless the test gives its own.
       if (id.endsWith('ui/prefsStore')) return { readPref: k => prefs.has(k) ? prefs.get(k) : null, writePref: (k, v) => { prefs.set(k, v); } };
-      if (id.endsWith('ui/kit') || id === './kit') return { Input: load(path.resolve(__dirname, '../src/ui/kit.tsx')).Input, DeleteConfirmation: load(path.resolve(__dirname, '../src/ui/kit.tsx')).DeleteConfirmation, ErrorState: 'ErrorState', ScreenHeader: 'ScreenHeader', MenuRow: 'MenuRow', StatusBadge: 'StatusBadge', Action: 'Action', Copy: 'Copy', Panel: 'Panel', Screen: 'Screen', DataRow: 'DataRow', Stat: 'Stat', Segmented: 'Segmented', EmptyState: 'EmptyState', Loading: 'Loading', Notice: 'Notice', Section: 'Section', ui: {}, colors: {} };
+      if (id.endsWith('ui/kit') || id === './kit') return { Input: load(path.resolve(__dirname, '../src/ui/kit.tsx')).Input, DeleteConfirmation: load(path.resolve(__dirname, '../src/ui/kit.tsx')).DeleteConfirmation, ErrorState: 'ErrorState', ScreenHeader: 'ScreenHeader', MenuRow: 'MenuRow', StatusBadge: 'StatusBadge', Action: 'Action', ToolButton: 'ToolButton', Copy: 'Copy', Panel: 'Panel', Screen: 'Screen', DataRow: 'DataRow', Stat: 'Stat', Segmented: 'Segmented', EmptyState: 'EmptyState', Loading: 'Loading', Notice: 'Notice', Section: 'Section', ui: {}, colors: {} };
       let target = id.startsWith('@/') ? path.resolve(__dirname, '../src', id.slice(2)) : path.resolve(path.dirname(file), id);
       if (fs.existsSync(target + '.tsx')) return defaultExport(path.basename(target));
       if (fs.existsSync(target + '.ts')) return load(target + '.ts');
@@ -68,6 +68,17 @@ function harness(entry, props = {}, overrides = {}, exportName) {
 function initial(route) {
   const h = harness('editor/StageBuilder.tsx', { initial: { id: 's', name: 'Stage', matchId: 'm', document: stage(), plan: plan(route) }, targetFamily: 'USPSA' }); return h;
 }
+/**
+ * The editor frame (UI cohesion phase 2): a PLAN tool is AREAS on the tool bar, or AUTO-PLAN, PATH, ENGAGE and REVIEW in
+ * ROUTE; a mode ends with DONE on its chip. Leave the current mode, then start the named tool.
+ */
+function routeTool(h, name) {
+  const chip = h.nodes().find(n => n.type === 'ModeChip');
+  if (chip) { chip.props.action.props.onPress(); h.render(); }
+  if (name !== 'AREAS') h.press('ROUTE');
+  h.press(name);
+}
+const doneMode = h => { h.child('ModeChip').action.props.onPress(); h.render(); };
 // Load pure model fixtures through the same TS compilation convention as the suite.
 require.extensions['.ts'] = (module, file) => module._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, file);
 const stage = () => require('../src/stage/defaults.ts').createDefaultStage();
@@ -80,7 +91,7 @@ test('ASK integrates controlled Apply dirty state explicit Save and normal undo 
   r.engagementRules={...require('../src/planning/engagements.ts').defaultEngagementRules(),firingAreas:[{id:'goal',vertices:[{x:50,y:50},{x:160,y:50},{x:160,y:70},{x:50,y:70}]}]};
   const mock=require('../src/planning/routeAI/testing/mockAdapter.ts').mockAdapter([{intent:'MOVE_WAYPOINT',waypointReference:'waypoint 1',distanceValue:2,distanceUnit:'yards',direction:'left'},{intent:'UNDO'}]);
   const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA',routeAIAdapter:mock.adapter});
-  await h.settle();h.press('PLAN');h.press('Route tools');h.press('Ask Route AI');
+  await h.settle();h.press('PLAN');h.press('Plan settings');h.press('Ask Route AI');
   let sheet=h.child('RouteAISheet');await sheet.controller.send('Move waypoint 1 two yards left');h.render();
   assert.equal(h.saved.length,0);assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,150);
   assert.equal(h.child('StageViewport').routeAI.preview.proposedRoute.positions[0].position.x,78);
@@ -89,9 +100,9 @@ test('ASK integrates controlled Apply dirty state explicit Save and normal undo 
   await sheet.controller.send('Move waypoint 1 two yards left');h.render(); // default mock query: no extra mutation
   h.child('RouteAISheet').close();h.render();
   // Undo restored the saved stage: Save shows the quiet saved state; the header's redo brings the change back.
-  const save=()=>h.find(n=>['Save','Saved','Saving…'].includes(n.props.title)).props;assert.equal(save().title,'Saved');assert.equal(save().disabled,true);assert.equal(save().accent,false);
-  h.press('Redo');assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,78);assert.equal(save().title,'Save');assert.equal(save().accent,true);
-  h.press('Save');await h.settle();assert.equal(h.saved.length,1);assert.equal(save().title,'Saved');
+  const save=()=>h.find(n=>['Save','Saved','Saving…'].includes(n.props.accessibilityLabel)).props;assert.equal(save().accessibilityLabel,'Saved');assert.equal(save().disabled,true);assert.equal(save().primary,false);
+  h.press('Redo');assert.equal(h.child('StageViewport').routePlanning.route.positions[0].position.x,78);assert.equal(save().accessibilityLabel,'Save');assert.equal(save().primary,true);
+  h.press('Save');await h.settle();assert.equal(h.saved.length,1);assert.equal(save().accessibilityLabel,'Saved');
 });
 
 test('library card body opens and separate overflow does not open the card', () => {
@@ -270,7 +281,7 @@ test('BUILD/ROUTE switches preserve route and explicit save boundary', () => {
   const r = route(); const h = initial(r); h.press('PLAN'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r);
   h.press('BUILD'); h.press('PLAN'); assert.deepEqual(h.child('StageViewport').routePlanning.route, r); assert.equal(h.saved.length, 0);
 });
-test('BUILD has SELECT/ADD/DRAW and target placement repeats until Done', () => {
+test('BUILD has ADD · IMPORT · CHECK · ••• and target placement repeats until Done', () => {
   const h = initial(); h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'target', presetId: 'uspsa-metric-chl-v1', noShoot: false }); h.render();
   assert.ok(!h.nodes().some(n => n.type === 'RadialAddMenu'), 'the menu closes after a choice');
   assert.equal(h.child('StageViewport').tool, 'target');
@@ -278,8 +289,8 @@ test('BUILD has SELECT/ADD/DRAW and target placement repeats until Done', () => 
   for (let i = 0; i < 2; i++) { h.child('StageViewport').onPlace({ space: 'stage', x: 100 + i * 50, y: 150, z: 0 }); h.render(); }
   assert.equal(h.child('StageViewport').stage.objects.length, count + 2); h.press('DONE'); assert.equal(h.child('StageViewport').tool, 'select');
 });
-test('DRAW chooser retains wall, fault line, local segment undo and document history', () => {
-  const h = initial(); h.press('DRAW'); h.press('WALL'); assert.equal(h.child('StageViewport').tool, 'wall');
+test('ADD → WALL retains wall, fault line, local segment undo and document history', () => {
+  const h = initial(); h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render(); assert.equal(h.child('StageViewport').tool, 'wall');
   h.child('StageViewport').onDraw('start', { space: 'stage', x: 100, y: 100, z: 0 }); h.render();
   const { endpoints } = require('../src/stage/segments.ts');
   const walls = () => h.child('StageViewport').stage.objects.filter(o => o.type === 'wall'), before = walls().length;
@@ -291,15 +302,15 @@ test('DRAW chooser retains wall, fault line, local segment undo and document his
   h.press('Undo'); assert.equal(walls().length, before, 'one undo removes the last segment');
   assert.deepEqual([h.child('StageViewport').draft.start.x, h.child('StageViewport').draft.start.y], [ends.start.x, ends.start.y], 'and the next segment starts where it started');
   h.press('Redo'); assert.equal(walls().length, before + 1); h.press('DONE');
-  h.press('DRAW'); h.press('FAULT LINE'); assert.equal(h.child('StageViewport').tool, 'faultLine');
+  h.press('ADD'); h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'faultLine' }); h.render(); assert.equal(h.child('StageViewport').tool, 'faultLine');
 });
 test('selected object opens existing inspector and keeps contextual duplicate/delete', () => {
   const h = initial(), target = h.child('StageViewport').stage.objects.find(o => o.type === 'cardboardTarget');
   h.child('StageViewport').onSelect(target.id); h.render(); h.press('EDIT'); assert.equal(h.child('ObjectInspector').item.id, target.id);
   assert.ok(h.nodes().some(n => n.props.title === 'DUPLICATE')); assert.ok(h.nodes().some(n => n.props.title === 'DELETE'));
 });
-test('the movement-only optimizer (Route tools) exposes prerequisites without leaving PLAN', () => {
-  const h = initial(); h.press('PLAN'); h.press('Route tools'); h.press('Movement-only optimizer (older)');
+test('the movement-only optimizer (PLAN •••) exposes prerequisites without leaving PLAN', () => {
+  const h = initial(); h.press('PLAN'); h.press('Plan settings'); h.press('Movement-only optimizer (older)');
   for (const section of ['loadout', 'targets', 'rules']) {
     h.child('AutoPlannerPanel').onConfigure(section); h.render();
     assert.equal(h.child('StageViewport').routeEditing, true);
@@ -308,21 +319,21 @@ test('the movement-only optimizer (Route tools) exposes prerequisites without le
   }
 });
 test('PATH controls, waypoint sheet and reload share the existing route state', () => {
-  const h = initial(); h.press('PLAN'); h.press('PATH'); h.press('ADD POSITION');
+  const h = initial(); h.press('PLAN'); routeTool(h, 'PATH'); h.press('ADD POSITION');
   assert.equal(h.child('StageViewport').routePlanning.route.positions.length, 0);
   h.child('StageViewport').onRoutePoint({ space: 'stage', x: 120, y: 180, z: 0 }); h.render();
   assert.equal(h.child('StageViewport').routePlanning.route.positions.length, 1); h.press('Position 1'); assert.ok(h.nodes().some(n => n.type === 'EditorSheet' && n.props.title === 'Position' && n.props.visible)); h.press('RELOAD'); assert.equal(h.child('RoutePanel').section, 'reload');
 });
 test('ANALYZE opens the read-only component and layer changes never save', () => {
   const h = initial(route()); h.press('PLAN'); h.press('ANALYZE'); assert.ok(h.child('RouteAnalysis'));
-  h.press('Route tools'); h.press('Route layers'); h.press('Target arrows · SELECTED');
+  h.press('Plan settings'); h.press('Route layers'); h.press('Target arrows · SELECTED');
   assert.equal(h.child('StageViewport').routePlanning.layers.arrows, 'ALL'); h.press('Grid · OFF'); assert.equal(h.child('StageViewport').gridVisible, true); assert.equal(h.saved.length, 0);
 });
 test('Save is explicit and dirty exit protection survives edits', async () => {
   const h = initial(); assert.equal(h.guard.enabled, false);
   h.find(n => n.props.accessibilityLabel === 'Edit stage name').props.onPress(); h.render();
   const input = h.find(n => n.props.accessibilityLabel === 'Stage name'); input.props.onChangeText('Renamed'); h.render(); assert.equal(h.guard.enabled, true); assert.equal(h.saved.length, 0);
-  h.guard.callback({ data: { action: { type: 'GO_BACK' } } }); h.render(); assert.ok(h.nodes().some(n => n.props.title === 'Keep editing'));
+  h.guard.callback({ data: { action: { type: 'GO_BACK' } } }); h.render(); assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Keep editing'));
   h.press('Keep editing'); h.press('Save'); await h.settle(); assert.equal(h.saved.length, 1); assert.equal(h.saved[0][1], 'Renamed'); assert.equal(h.guard.enabled, false);
 });
 test('selected arrow policy and empty-route adoption preserve meaningful manual data', () => {
@@ -416,7 +427,7 @@ test('structured firing area fields retain yard parsing and reject incomplete co
 });
 
 test('candidate preview omits editable-route Save and Back returns to results', () => {
-  const h = initial(route()); h.press('PLAN'); h.press('Route tools'); h.press('Movement-only optimizer (older)');
+  const h = initial(route()); h.press('PLAN'); h.press('Plan settings'); h.press('Movement-only optimizer (older)');
   h.child('AutoPlannerPanel').onPreview({ route: route(), number: 1, label: 'Candidate' }); h.render();
   assert.ok(!h.nodes().some(n => n.props.title === 'Save'));
   h.press('Back to results'); assert.equal(h.child('AutoPlannerPanel').preview, null); assert.equal(h.saved.length, 0);
@@ -572,10 +583,10 @@ test('Video Results show confirmed values and hold tentative values behind endpo
 
 test('PATH exposes connection editing and preserves stage objects through style edits',()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*50,y:100,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
- const h=initial(r);h.press('PLAN');h.press('PATH');
+ const h=initial(r);h.press('PLAN');routeTool(h,'PATH');
  const before=JSON.stringify(h.child('StageViewport').stage);
  assert.equal(h.child('StageViewport').routePlanning.editing,true);
- assert.ok(h.nodes().some(n=>n.props.title==='ENGAGE'&&!n.props.disabled));
+ assert.equal(h.child('ModeChip').title,'TAP A POSITION TO SELECT IT','PATH shows its mode on the canvas');
  h.child('StageViewport').routePlanning.onSelect('b');h.render();h.press('CONNECTION');h.press('ROUNDED');
  const edited=h.child('StageViewport').routePlanning.route;assert.deepEqual(edited.positions,r.positions);assert.equal(edited.connections[0].style,'ROUNDED');assert.equal(JSON.stringify(h.child('StageViewport').stage),before);assert.equal(h.saved.length,0);
 });
@@ -583,11 +594,11 @@ test('PATH exposes connection editing and preserves stage objects through style 
 test('ENGAGE preserves PATH and supports contextual assignment, order, direction, delete, undo and Save', async()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));
  r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
- const h=initial(r);await h.settle();h.press('PLAN');h.press('PATH');h.press('ENGAGE');
+ const h=initial(r);await h.settle();h.press('PLAN');routeTool(h,'PATH');routeTool(h,'ENGAGE');
  let v=h.child('StageViewport');const before=JSON.stringify(v.stage),targets=v.stage.objects.filter(require('../src/planning/model.ts').isEngageable);
  assert.equal(v.routePlanning.editing,false);assert.ok(v.manualEngage);assert.equal(v.routePlanning.layers.nodes,false);
  v.manualEngage.onCreate({kind:'waypoint',waypointId:'a'},targets[0].id,0);h.render();
- const first=h.child('StageViewport').routePlanning.route.manualEngagements[0];assert.ok(first.id.startsWith('engagement-'));assert.ok(!h.nodes().some(n=>n.props.title==='Earlier engagement'));assert.ok(h.nodes().some(n=>n.props.title==='Edit engagement'));
+ const first=h.child('StageViewport').routePlanning.route.manualEngagements[0];assert.ok(first.id.startsWith('engagement-'));assert.ok(!h.nodes().some(n=>n.props.accessibilityLabel==='Earlier engagement'));assert.ok(h.nodes().some(n=>n.props.accessibilityLabel==='Edit engagement'));
  h.child('StageViewport').manualEngage.onCreate({kind:'waypoint',waypointId:'a'},targets[0].id,1);h.render();h.press('Edit engagement');h.press('Earlier engagement');
  assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements[0].direction,1);
  h.press('Turn right');assert.ok(h.child('StageViewport').routePlanning.route.manualEngagements[0].direction>1);
@@ -595,7 +606,7 @@ test('ENGAGE preserves PATH and supports contextual assignment, order, direction
  assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements[0].targetId,targets[1].id);
  h.press('Delete engagement');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,1);
  h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,2);h.press('Redo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements.length,1);
- h.press('PATH');v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route.positions,r.positions);assert.deepEqual(v.routePlanning.route.connections,r.connections);assert.equal(JSON.stringify(v.stage),before);
+ routeTool(h,'PATH');v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route.positions,r.positions);assert.deepEqual(v.routePlanning.route.connections,r.connections);assert.equal(JSON.stringify(v.stage),before);
  h.press('Save');await h.settle();assert.equal(h.saved.length,1);assert.equal(h.saved[0][3].route.manualEngagements.length,1);
 });
 test('ENGAGE canvas owns creation, cancels on pinch, cleans drafts and keeps geometry untouched',()=>{
@@ -629,15 +640,15 @@ test('manual overlay shows short arrows, selected target and temporary dotted gu
 
 test('REVIEW derives manual coverage, preserves canvas and annotations across modes, and highlights saved anchors',()=>{
  const r=route(),document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
- const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');h.press('PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();h.press('ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();h.press('REVIEW');
+ const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');routeTool(h,'PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();routeTool(h,'ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();routeTool(h,'REVIEW');
  let v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,false);assert.deepEqual(v.viewport,pan);assert.equal(v.manualReview.review.assignedTargets,1);assert.equal(v.manualReview.selectedEngagementId,'e');
  v.manualReview.onSelectTarget(target.id);h.render();let panel=h.child('ManualReviewPanel');assert.equal(panel.selectedTargetId,target.id);panel.onHighlight(panel.review.engagements[0]);h.render();assert.deepEqual(h.child('StageViewport').focusPosition,r.positions[0].position);
  h.child('ManualReviewPanel').onToggle();h.render();assert.equal(h.child('StageViewport').manualReview.onlyUnassigned,true);assert.equal(h.child('StageViewport').manualReview.selectedTargetId,null);
- h.press('PATH');v=h.child('StageViewport');assert.equal(v.manualReview,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route,r);assert.deepEqual(v.viewport,pan);h.press('ENGAGE');assert.equal(h.child('StageViewport').manualEngage.selectedId,'e');assert.equal(h.saved.length,0);
+ routeTool(h,'PATH');v=h.child('StageViewport');assert.equal(v.manualReview,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route,r);assert.deepEqual(v.viewport,pan);routeTool(h,'ENGAGE');assert.equal(h.child('StageViewport').manualEngage.selectedId,'e');assert.equal(h.saved.length,0);
 });
 test('REVIEW retains invalid loaded entries for explicit removal and restores them through document undo',()=>{
  const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'missing',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'orphan',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'gone'},direction:0}];
- const h=initial(r);h.press('PLAN');h.press('REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);assert.equal(h.child('ManualReviewPanel').onUndo,undefined,'REVIEW has no undo of its own');h.press('Undo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.press('Redo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
+ const h=initial(r);h.press('PLAN');routeTool(h,'REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);assert.equal(h.child('ManualReviewPanel').onUndo,undefined,'REVIEW has no undo of its own');h.press('Undo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.press('Redo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
 });
 test('REVIEW overlay distinguishes status with symbols and filters assigned highlights',()=>{
  const document=stage(),r=route(),targets=document.objects.filter(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:targets[0].id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
@@ -672,14 +683,14 @@ test('PATH marker ignores tap jitter, latches pinch interruption, and exposes bo
 
 test('ENGAGE button creation on rounded sections survives dismissal, mode changes, undo, redo and Save',async()=>{
  const r=route();r.positions=['a','b'].map((id,i)=>({id,label:id,position:{space:'stage',x:100+i*100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}));r.connections=[{fromId:'a',toId:'b',style:'ROUNDED',bends:[{id:'bend',position:{space:'stage',x:150,y:150,z:0}}]}];
- const h=initial(r);await h.settle();h.press('PLAN');h.press('ENGAGE');h.press('ENGAGEMENTS');h.press('Create engagement without dragging');h.press('Anchor: Route section 1 midpoint');
- const create=h.nodes().find(n=>n.props.title?.startsWith('Create engagement to '));h.press(create.props.title);h.child('EditorSheet').close();h.render();
+ const h=initial(r);await h.settle();h.press('PLAN');routeTool(h,'ENGAGE');h.press('ENGAGEMENTS');h.press('Create engagement without dragging');h.press('Anchor: Route section 1 midpoint');
+ const create=h.nodes().find(n=>n.props.accessibilityLabel?.startsWith('Create engagement to '));h.press(create.props.accessibilityLabel);h.child('EditorSheet').close();h.render();
  const created=h.child('StageViewport').routePlanning.route;assert.equal(created.manualEngagements.length,1);assert.equal(created.manualEngagements[0].anchor.fraction,.5);assert.deepEqual(created.connections,r.connections);
- h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements?.length??0,0);h.press('Redo');h.press('REVIEW');h.press('PATH');assert.deepEqual(h.child('StageViewport').routePlanning.route,created);h.press('Save');await h.settle();assert.deepEqual(h.saved[0][3].route,created);
+ h.press('Undo');assert.equal(h.child('StageViewport').routePlanning.route.manualEngagements?.length??0,0);h.press('Redo');routeTool(h,'REVIEW');routeTool(h,'PATH');assert.deepEqual(h.child('StageViewport').routePlanning.route,created);h.press('Save');await h.settle();assert.deepEqual(h.saved[0][3].route,created);
 });
 
 test('stage diagram acceptance is undoable, additive and preserves manual route/engagement bytes until explicit Save',async()=>{
- const r=route();r.positions=[{id:'waypoint',label:'Keep',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'invalid-preserved',targetId:'missing-target',anchor:{kind:'waypoint',waypointId:'missing-waypoint'},direction:1}];const h=initial(r);await h.settle();h.press('Stage tools');h.press('Import stage diagram');
+ const r=route();r.positions=[{id:'waypoint',label:'Keep',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'invalid-preserved',targetId:'missing-target',anchor:{kind:'waypoint',waypointId:'missing-waypoint'},direction:1}];const h=initial(r);await h.settle();h.press('IMPORT');
  const screen=h.child('DiagramImportScreen');assert.equal(screen.visible,true);const before=JSON.stringify(h.child('StageViewport').routePlanning.route),added=require('../src/stage/defaults.ts').createObject('steelPlate','import-test',200,200);
  screen.apply({...screen.stage,objects:[...screen.stage.objects,added]});h.render();assert.equal(JSON.stringify(h.child('StageViewport').routePlanning.route),before);assert.equal(h.saved.length,0);h.child('DiagramImportScreen').close();h.render();h.press('Undo');assert.equal(h.child('StageViewport').stage.objects.some(o=>o.id===added.id),false);h.press('Redo');assert.equal(h.child('StageViewport').stage.objects.some(o=>o.id===added.id),true);h.press('Save');await h.settle();assert.equal(JSON.stringify(h.saved[0][3].route),before);
 });
@@ -723,7 +734,9 @@ test('3D and eye-level views share the document: select, move, raise and rotate 
   assert.ok(!h.nodes().some(n => n.type === 'StageViewport'), 'the 3D view replaces the plan canvas');
   const wall = view.stage.objects.find(o => o.type === 'wall'), target = view.stage.objects.find(o => o.type === 'cardboardTarget');
   view.onSelect(wall.id); h.render();
-  h.press('Raise the wall'); h.press('Rotate right');
+  // The same selection bar as the 2D plan; height −/+ is in EDIT, for both views.
+  assert.equal(h.child('SelectionBar').title, 'WALL');
+  h.press('EDIT'); h.press('Raise the wall'); h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render(); h.press('Rotate right');
   view = h.child('Stage3DView');
   const raised = view.stage.objects.find(o => o.id === wall.id);
   assert.equal(raised.geometry.height, wall.geometry.height + 6);
@@ -738,33 +751,33 @@ test('3D and eye-level views share the document: select, move, raise and rotate 
   assert.notEqual(moved.x, raised.position.x);
   h.press('Undo');
   assert.deepEqual(h.child('Stage3DView').stage.objects.find(o => o.id === wall.id).position, raised.position, 'one undo step');
-  h.child('Stage3DView').onSelect(target.id); h.render(); h.press('Raise the target');
+  h.child('Stage3DView').onSelect(target.id); h.render(); h.press('EDIT'); h.press('Raise the target'); h.find(n => n.type === 'EditorSheet' && n.props.visible).props.close(); h.render();
   assert.equal(h.child('Stage3DView').stage.objects.find(o => o.id === target.id).position.z, target.position.z + 3);
   // WALK is the one eye-level entry, from BUILD too; leaving it goes back to BUILD.
   h.press('WALK');
   assert.equal(h.child('EyeLevelView').ruleset, 'USPSA', 'visibility follows the match ruleset');
-  assert.ok(!h.nodes().some(n => n.props?.title === 'SELECT'), 'the bottom bar steps aside for the walk-through');
+  assert.ok(!h.nodes().some(n => n.props?.title === 'ADD'), 'the bottom bar steps aside for the walk-through');
   h.child('EyeLevelView').onExit(); h.render();
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
-  assert.ok(h.nodes().some(n => n.props?.title === 'SELECT'), 'back in BUILD, where WALK was opened');
+  assert.ok(h.nodes().some(n => n.props?.title === 'ADD'), 'back in BUILD, where WALK was opened');
   // Route tools are plan-only, however they are opened (PATH, ENGAGE, REVIEW, AREAS).
-  h.press('3D view'); h.press('PLAN'); h.press('PATH');
+  h.press('3D view'); h.press('PLAN'); routeTool(h, 'PATH');
   assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
   h.press('DONE'); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
   for (const tool of ['ENGAGE', 'REVIEW', 'AREAS']) {
-    h.press(tool); h.render();
+    routeTool(h, tool); h.render();
     assert.ok(h.nodes().some(n => n.type === 'StageViewport'), tool + ' returns to the plan');
-    h.press(tool); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
+    doneMode(h); h.press('3D view'); assert.ok(h.nodes().some(n => n.type === 'Stage3DView'));
   }
   // WALK is the eye-level walk-through of the plan; PLAN comes back to the 2D plan.
-  h.press('WALK'); assert.ok(h.child('EyeLevelView')); assert.ok(!h.nodes().some(n => n.props?.title === 'PATH'), 'route tools step aside while walking');
+  h.press('WALK'); assert.ok(h.child('EyeLevelView')); assert.ok(!h.nodes().some(n => n.props?.title === 'ROUTE'), 'route tools step aside while walking');
   h.press('PLAN'); assert.ok(h.nodes().some(n => n.type === 'StageViewport'));
   // WALK opened from PLAN comes back to PLAN.
   h.press('WALK'); h.child('EyeLevelView').onExit(); h.render();
-  assert.ok(h.nodes().some(n => n.props?.title === 'PATH') && h.nodes().some(n => n.type === 'StageViewport'));
+  assert.ok(h.nodes().some(n => n.props?.title === 'ROUTE') && h.nodes().some(n => n.type === 'StageViewport'));
 });
 
-test('press and hold on the bay opens the radial menu there; a choice places it at that spot', () => {
+test('press and hold on the bay opens the radial menu there; a choice places it at that spot, then places more until DONE', () => {
   const h = initial();
   const before = h.child('StageViewport').stage.objects.length;
   h.child('StageViewport').onLongPress({ space: 'stage', x: 200, y: 160, z: 0 }, { x: 120, y: 90 }); h.render();
@@ -775,7 +788,9 @@ test('press and hold on the bay opens the radial menu there; a choice places it 
   assert.equal(stage.objects.length, before + 1);
   assert.equal(placed.type, 'steelPopper'); assert.equal(placed.position.x, 200); assert.equal(placed.position.y, 160);
   assert.equal(h.child('StageViewport').selectedId, placed.id, 'the new target is selected, ready to drag or rotate');
-  assert.equal(h.child('StageViewport').tool, 'select');
+  assert.equal(h.child('StageViewport').tool, 'target', 'like ADD: each tap places another until DONE');
+  h.press('DONE');
+  assert.equal(h.child('StageViewport').tool, 'select'); assert.equal(h.child('StageViewport').selectedId, placed.id, 'the last placed stays selected');
   // A wall from a long press starts at the finger; a no-shoot keeps its role; the route has no add menu.
   h.child('StageViewport').onLongPress({ space: 'stage', x: 60, y: 60, z: 0 }, { x: 40, y: 40 }); h.render();
   h.child('RadialAddMenu').onChoose({ kind: 'tool', tool: 'wall' }); h.render();
@@ -821,7 +836,7 @@ test('AREAS: draw a firing area on the plan by tapping corners, adjust a corner,
 });
 
 test('the planner opens area drawing directly when there are no firing areas', () => {
-  const h = initial(); h.press('PLAN'); h.press('AUTO-PLAN');
+  const h = initial(); h.press('PLAN'); h.press('ROUTE'); h.press('AUTO-PLAN');
   h.child('RoutePlannerV2Panel').onConfigure('areas'); h.render();
   const v = h.child('StageViewport');
   assert.deepEqual(v.firingAreas.draft, [], 'a new area is ready for its first corner'); assert.equal(typeof v.onAreaPoint, 'function');

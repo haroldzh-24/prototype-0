@@ -13,7 +13,7 @@ import GLStage, { glUnavailable } from './GLStage';
 import { buildWalk, sightStage, suggestedHeading, targetStatuses, walkPoint } from './walk';
 import type { TargetState } from './walk';
 import type { Ruleset } from '../planning/v2/types';
-import { SEP, targetTypeName, walkStatusWords } from '../ui/words';
+import { SEP, targetTypeName, walkStatusWords, words } from '../ui/words';
 
 /** Web: stop the browser from panning or zooming the page under a drag (the 2D canvas does the same). */
 const NO_BROWSER_GESTURES = (Platform.OS === 'web' ? { touchAction: 'none' } : {}) as ViewStyle;
@@ -102,12 +102,6 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: 6 }}>
       <View style={{ flexShrink: 1 }}>
         <Text accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>{title}</Text>
-        <Text style={{ ...typography.category, color: colors.muted }}>{'EYE HEIGHT ' + feet(eyeHeight).toUpperCase()}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', gap: 6 }}>
-        {button('Lower eye height', '−', () => setEyeHeight(eyeHeight - 1), eyeHeight <= EYE_LIMITS[0])}
-        {button('Raise eye height', '+', () => setEyeHeight(eyeHeight + 1), eyeHeight >= EYE_LIMITS[1])}
-        {button(legend ? 'Hide what the status words mean' : 'What the status words mean', legend ? '×' : '?', () => setLegend(!legend))}
       </View>
     </View>
     <View style={{ flex: 1, minHeight: 160, overflow: 'hidden', backgroundColor: colors.sky }} onLayout={({ nativeEvent }) => setSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
@@ -125,25 +119,6 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
         {button('Back to the plan', '2D', onExit)}
       </View>
     </View>
-    {walk.length > 0 && <View style={{ paddingHorizontal: spacing.sm, paddingTop: spacing.sm, gap: 6 }}>
-      <View ref={trackView} {...scrubber.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Position along the route"
-        accessibilityValue={{ text: formatYardsFixed(at.distance, 1) + ' of ' + formatYardsFixed(walk.length, 1) }}
-        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={e => step(e.nativeEvent.actionName === 'increment' ? 36 : -36)}
-        onLayout={({ nativeEvent }) => { track.current.width = nativeEvent.layout.width; trackView.current?.measureInWindow(x => { track.current.x = x; }); }}
-        style={[{ height: 36, justifyContent: 'center' }, NO_BROWSER_GESTURES]}>
-        <View style={{ height: 6, backgroundColor: colors.gridMinor }} />
-        {walk.windows.map(w => <View key={w.targetId} pointerEvents="none" style={{ position: 'absolute', top: 12, height: 12, left: `${w.from / walk.length * 100}%`, width: `${Math.max(0.5, (w.to - w.from) / walk.length * 100)}%`, backgroundColor: colors.movement, opacity: 0.85 }} />)}
-        {walk.stops.map(s => <View key={s.id} pointerEvents="none" style={{ position: 'absolute', top: 6, height: 24, width: 3, marginLeft: -1.5, left: `${s.distance / walk.length * 100}%`, backgroundColor: colors.ink }} />)}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 2, width: 20, height: 32, marginLeft: -10, left: `${at.distance / walk.length * 100}%`, backgroundColor: colors.accent, borderWidth: borders.regular, borderColor: colors.border }} />
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        {button('Step back one yard', '◀', () => step(-36), at.distance <= 0)}
-        {walk.stops.map(s => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={'View from ' + s.label} accessibilityState={{ selected: at.stop?.id === s.id }} onPress={() => jump(s.id, s.distance)}
-          style={({ pressed }) => ({ minHeight: touch.min, minWidth: touch.min, paddingHorizontal: 12, justifyContent: 'center', borderWidth: borders.regular, borderColor: colors.border, backgroundColor: at.stop?.id === s.id ? colors.text : colors.panel, opacity: pressed ? 0.65 : 1 })}>
-          <Text style={{ ...typography.label, color: at.stop?.id === s.id ? colors.background : colors.text }}>{s.label}</Text></Pressable>)}
-        {button('Step forward one yard', '▶', () => step(36), at.distance >= walk.length)}
-      </ScrollView>
-    </View>}
     {!plan.route?.positions.length && <Text style={{ ...typography.body, color: colors.muted, paddingHorizontal: spacing.sm, paddingTop: 6 }}>No route yet: this is the view from the start. Plan a route to walk it here.</Text>}
     <ScrollView style={{ maxHeight: 190 }} contentContainerStyle={{ padding: spacing.sm, gap: 4 }}>
       {legend && <View testID="walk-legend" style={{ gap: 6, paddingBottom: 6, borderBottomWidth: borders.regular, borderColor: colors.border }}>
@@ -166,6 +141,36 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
       {walk.analysis && !walk.analysis.complete && <Text style={{ ...typography.body, fontSize: 15, color: colors.warning }}>{walk.analysis.warnings[0] ?? 'The route analysis is incomplete.'}</Text>}
       <Text style={{ ...typography.body, fontSize: 14, lineHeight: 18, color: colors.subdued }}>Sight lines use the plan view and wall heights: a target seen over a low wall or past another target is marked as assumed. Check on the range.</Text>
     </ScrollView>
+    {/* WALK's tool bar: stops ◀ ▶, eye height, and ••• for the legend of the status words. */}
+    <View style={{ borderTopWidth: borders.strong, borderColor: colors.border, backgroundColor: colors.panel, paddingHorizontal: spacing.sm, paddingVertical: 6, gap: 6 }}>
+      {walk.length > 0 && <>
+        <View ref={trackView} {...scrubber.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="Position along the route"
+          accessibilityValue={{ text: formatYardsFixed(at.distance, 1) + ' of ' + formatYardsFixed(walk.length, 1) }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={e => step(e.nativeEvent.actionName === 'increment' ? 36 : -36)}
+          onLayout={({ nativeEvent }) => { track.current.width = nativeEvent.layout.width; trackView.current?.measureInWindow(x => { track.current.x = x; }); }}
+          style={[{ height: 36, justifyContent: 'center' }, NO_BROWSER_GESTURES]}>
+          <View style={{ height: 6, backgroundColor: colors.gridMinor }} />
+          {walk.windows.map(w => <View key={w.targetId} pointerEvents="none" style={{ position: 'absolute', top: 12, height: 12, left: `${w.from / walk.length * 100}%`, width: `${Math.max(0.5, (w.to - w.from) / walk.length * 100)}%`, backgroundColor: colors.movement, opacity: 0.85 }} />)}
+          {walk.stops.map(s => <View key={s.id} pointerEvents="none" style={{ position: 'absolute', top: 6, height: 24, width: 3, marginLeft: -1.5, left: `${s.distance / walk.length * 100}%`, backgroundColor: colors.ink }} />)}
+          <View pointerEvents="none" style={{ position: 'absolute', top: 2, width: 20, height: 32, marginLeft: -10, left: `${at.distance / walk.length * 100}%`, backgroundColor: colors.accent, borderWidth: borders.regular, borderColor: colors.border }} />
+        </View>
+      </>}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        {walk.length > 0 ? <ScrollView horizontal style={{ flex: 1 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            {button('Step back one yard', '◀', () => step(-36), at.distance <= 0)}
+            {walk.stops.map(s => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={'View from ' + s.label} accessibilityState={{ selected: at.stop?.id === s.id }} onPress={() => jump(s.id, s.distance)}
+              style={({ pressed }) => ({ minHeight: touch.min, minWidth: touch.min, paddingHorizontal: 12, justifyContent: 'center', borderWidth: borders.regular, borderColor: colors.border, backgroundColor: at.stop?.id === s.id ? colors.text : colors.panel, opacity: pressed ? 0.65 : 1 })}>
+              <Text style={{ ...typography.label, color: at.stop?.id === s.id ? colors.background : colors.text }}>{s.label}</Text></Pressable>)}
+            {button('Step forward one yard', '▶', () => step(36), at.distance >= walk.length)}
+          </ScrollView> : <View style={{ flex: 1 }} />}
+        {button(legend ? 'Hide what the status words mean' : words.settings.walk, legend ? '×' : words.tools.more, () => setLegend(!legend))}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={{ ...typography.category, color: colors.muted, flex: 1 }}>{'EYE HEIGHT ' + feet(eyeHeight).toUpperCase()}</Text>
+        {button('Lower eye height', '−', () => setEyeHeight(eyeHeight - 1), eyeHeight <= EYE_LIMITS[0])}
+        {button('Raise eye height', '+', () => setEyeHeight(eyeHeight + 1), eyeHeight >= EYE_LIMITS[1])}
+      </View>
+    </View>
   </View>;
 }
 

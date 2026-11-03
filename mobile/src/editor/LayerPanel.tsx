@@ -9,6 +9,9 @@ import { targetLabel } from '@/planning/model';
 import { addLayer, attachmentText, coverLabel, exposure, hardCoverFromPreset, hardCoverPresets, isPaper, layersOf, rollCover, rollLayer,
   ROLL_STEP, setHardCover, slideCoverSnapped, slideLayer, SLIDE_STEP, updateAttachment } from '@/stage/targetLayers';
 import type { HardCoverPreset, Paper } from '@/stage/targetLayers';
+import { facePresets } from '@/stage/targetFace';
+import { editObject } from '@/stage/operations';
+import { removedText } from '@/ui/words';
 
 const row = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 };
 /** The stack face-on, so it can be seen while the sheet covers the stage. */
@@ -22,11 +25,13 @@ function StackPreview({ stage, baseId }: { stage: StageDocument; baseId: string 
 const MAX_COVERS = 3;
 
 /**
- * Layers on a paper target: hostage no-shoots and second targets on top of (or behind) it, and painted hard cover.
- * Every change is one undo step in the editor's history.
+ * Layers on a paper target: everything about which part of its face is shootable. Hostage no-shoots and second
+ * targets on top of (or behind) it, painted hard cover, and face cuts (material removed). Every change is one undo step
+ * in the editor's history; removing something says so with `onRemoved` (the editor shows "Removed … · UNDO").
  */
-export default function LayerPanel({ stage, selectedId, setStage, onSelect }: {
+export default function LayerPanel({ stage, selectedId, setStage, onSelect, onRemoved }: {
   stage: StageDocument; selectedId: string; setStage: (next: StageDocument) => void; onSelect: (id: string) => void;
+  onRemoved?: (text: string) => void;
 }) {
   const [coverId, setCoverId] = useState<string | null>(null), [error, setError] = useState('');
   const selected = stage.objects.find(o => o.id === selectedId);
@@ -53,7 +58,7 @@ export default function LayerPanel({ stage, selectedId, setStage, onSelect }: {
       <Segmented options={['IN FRONT', 'BEHIND']} value={a.front ? 'IN FRONT' : 'BEHIND'} onChange={v => setStage(updateAttachment(stage, selected.id, at => ({ ...at, front: v === 'IN FRONT' })))} />
       {open(base)}{open(selected)}
       <Action title="BASE TARGET" accessibilityLabel="Select the target underneath" onPress={() => onSelect(base.id)} />
-      <Action title="REMOVE LAYER" variant="destructive" onPress={() => { setStage({ ...stage, objects: stage.objects.filter(o => o.id !== selected.id) }); onSelect(base.id); }} />
+      <Action title="REMOVE LAYER" variant="destructive" onPress={() => { setStage({ ...stage, objects: stage.objects.filter(o => o.id !== selected.id) }); onSelect(base.id); onRemoved?.(removedText(selected.type === 'noShootTarget' ? 'no-shoot layer' : 'target layer')); }} />
     </Panel>;
   }
 
@@ -90,8 +95,14 @@ export default function LayerPanel({ stage, selectedId, setStage, onSelect }: {
         <Action title="↺" accessibilityLabel="Turn the paint edge left" onPress={() => change(c => rollCover(c, -ROLL_STEP))} />
         <Action title="↻" accessibilityLabel="Turn the paint edge right" onPress={() => change(c => rollCover(c, ROLL_STEP))} />
       </View>
-      <Action title="REMOVE PAINT" variant="destructive" onPress={() => { setStage(setHardCover(stage, base.id, list => list.filter(c => c.id !== cover.id))); setCoverId(null); }} />
+      <Action title="REMOVE PAINT" variant="destructive" onPress={() => { setStage(setHardCover(stage, base.id, list => list.filter(c => c.id !== cover.id))); setCoverId(null); onRemoved?.(removedText('paint')); }} />
     </>}
+    <Copy>FACE CUTS (MATERIAL REMOVED)</Copy>
+    <View style={row}>{facePresets.map(({ preset, label }) => <Action key={preset} title={(base.faceCut.preset === preset ? '✓ ' : '') + label.toUpperCase()}
+      accessibilityLabel={'Face cut: ' + label.toLowerCase()} onPress={() => {
+        const result = editObject(stage, base.id, { faceCut: { kind: 'preset', preset } });
+        setError(result.error ?? ''); if (!result.error) setStage(result.stage);
+      }} />)}</View>
     {!!error && <Notice tone="error">{error}</Notice>}
   </Panel>;
 }

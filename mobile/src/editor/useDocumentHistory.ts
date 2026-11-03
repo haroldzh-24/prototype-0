@@ -12,8 +12,11 @@ import type { AssistantHistory } from '../planning/routeAssistant/history';
 export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
   const [h, render] = useState(() => { const synced = syncLayers(stage); return history({ stage: synced, plan: reconcilePlan(plan, synced, { stage: synced, route: plan.route }) }); });
   const current = useRef(h);
+  // Counts every change to the history (edits, undo, redo), so a note about one edit ("Deleted T3 · UNDO") can tell
+  // whether the document is still exactly as that edit left it.
+  const revision = useRef(0);
   const assistantChanges = useRef<AssistantHistory['assistantChanges']>([]);
-  const set = (update: (value: typeof h) => typeof h) => { current.current = update(current.current); render(current.current); };
+  const set = (update: (value: typeof h) => typeof h) => { const next = update(current.current); if (next !== current.current) revision.current++; current.current = next; render(current.current); };
   const setStage = (next: SetStateAction<StageDocument>) => set(h => {
     // Layered targets (hostages, doubles) follow their parent through every edit; a removed parent takes its layers.
     const stage = syncLayers(typeof next === 'function' ? next(h.present.stage) : next);
@@ -34,8 +37,9 @@ export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
   const getAssistantHistory = (): AssistantHistory => ({ document: current.current, assistantChanges: assistantChanges.current });
   const applyAssistantPreview = (preview: RouteChangePreview) => {
     const result = applyRoutePreview(preview, getAssistantHistory());
-    if (result.status === 'applied') { assistantChanges.current = result.history.assistantChanges; current.current = result.history.document; render(current.current); }
+    if (result.status === 'applied') { assistantChanges.current = result.history.assistantChanges; current.current = result.history.document; revision.current++; render(current.current); }
     return result;
   };
-  return { ...h.present, setStage, setPlan, appendObjects, getAssistantHistory, applyAssistantPreview, begin: () => set(begin), end: () => set(end), undo: () => set(undo), redo: () => set(redo), canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
+  return { ...h.present, setStage, setPlan, appendObjects, getAssistantHistory, applyAssistantPreview, begin: () => set(begin), end: () => set(end), undo: () => set(undo), redo: () => set(redo), canUndo: h.past.length > 0, canRedo: h.future.length > 0,
+    /** The history's revision now (read it right after an edit, in the same handler). */ revision: () => revision.current };
 }

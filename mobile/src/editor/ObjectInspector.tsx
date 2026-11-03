@@ -1,6 +1,5 @@
 import { targetPreset } from '../stage/targetPresets';
-import { colors, typography, themed } from '../ui/tokens';
-import { facePresets } from '@/stage/targetFace';
+import { typography, themed } from '../ui/tokens';
 import WallPortsInspector from './WallPortsInspector';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
@@ -12,8 +11,13 @@ import { formatYards, parseYards } from '@/stage/measurements';
 
 import { inspectorValues, inspectorFields, parseInspectorEdit } from './inspectorFields';
 
-export default function ObjectInspector({ item, disabled, onApply, advancedContent }: {
+/**
+ * EDIT: position, size and rotation (and a wall's ports). Which part of a target's face is shootable (paint, face cuts,
+ * no-shoots and targets on top) is in LAYERS.
+ */
+export default function ObjectInspector({ item, disabled, onApply, advancedContent, onRemoved }: {
   item: StageObject; disabled: boolean; onApply: (edit: ObjectEdit) => string | null; advancedContent?: ReactNode;
+  /** A port was removed: the editor offers UNDO. */ onRemoved?: (text: string) => void;
 }) {
   const [draft, setDraft] = useState(() => inspectorValues(item));
   const [advanced, setAdvanced] = useState(false);
@@ -46,9 +50,8 @@ export default function ObjectInspector({ item, disabled, onApply, advancedConte
     <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>APPLY</Text></Pressable>
     {target && advancedContent && <><Text style={styles.title}>PLANNING</Text>{advancedContent}</>}
     {target && <><Text style={styles.title}>TARGET</Text><Text>{item.type === 'noShootTarget' ? 'No-shoot' : 'Scoring target'}</Text></>}
-    {(item.type === 'cardboardTarget' || item.type === 'noShootTarget') && <View><Text>Face cuts · material removed</Text><View style={styles.fields}>{facePresets.map(({ preset, label }) => <Pressable key={preset} accessibilityRole="button" accessibilityState={{ selected: item.faceCut.preset === preset, disabled }} disabled={disabled} style={[styles.button, item.faceCut.preset === preset && { backgroundColor: colors.selected }]} onPress={() => setNotice(onApply({ faceCut: { kind: 'preset', preset } }) ?? 'Physical preset applied.')}><Text style={styles.buttonText}>{label.toUpperCase()}</Text></Pressable>)}</View></View>}
     {target && <><Text style={styles.title}>PRESET INFO</Text><Text>Family: {'targetFamily' in item ? item.targetFamily : 'Custom'}</Text><Text>Preset: {preset?.name ?? 'Custom'}</Text><Text>{preset?.verification ?? 'Unverified'}{preset ? ' · ' + preset.reference + '\n' + preset.source : ''}</Text><Text>Editing dimensions creates a custom-sized instance.</Text></>}
-    {item.type === 'wall' && <><Text style={styles.title}>PORTS</Text><Text>{item.ports.length} openings</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: portsOpen }} onPress={() => setPortsOpen(!portsOpen)} style={styles.button}><Text style={styles.buttonText}>{portsOpen ? 'DONE' : 'EDIT PORTS >'}</Text></Pressable>{portsOpen && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} />}</>}
+    {item.type === 'wall' && <><Text style={styles.title}>PORTS</Text><Text>{item.ports.length} openings</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: portsOpen }} onPress={() => setPortsOpen(!portsOpen)} style={styles.button}><Text style={styles.buttonText}>{portsOpen ? 'DONE' : 'EDIT PORTS >'}</Text></Pressable>{portsOpen && <WallPortsInspector wall={item} disabled={disabled} onApply={onApply} onRemoved={onRemoved} />}</>}
     {(item.type === 'wall' || item.type === 'faultLine') && <Text>Length and angle edits keep the start endpoint fixed. Drag endpoint handles on the canvas.</Text>}
     {fields.some(f => ['z', 'thickness'].includes(f.key)) && <><Pressable accessibilityRole="button" accessibilityState={{ expanded: advanced }} onPress={() => setAdvanced(!advanced)} style={styles.button}><Text style={styles.buttonText}>ADVANCED {advanced ? '−' : '+'}</Text></Pressable>{advanced && <><View style={styles.fields}>{fields.filter(f => ['z', 'thickness'].includes(f.key)).map(({ key, label }) => <View style={styles.field} key={key}><Text>{label} (yards)</Text><TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]} style={styles.input} onChangeText={text => { setDraft(current => ({ ...current, [key]: text })); setNotice(''); }} /></View>)}</View><Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={apply} style={styles.button}><Text style={styles.buttonText}>APPLY</Text></Pressable></>}</>}
     {notice !== '' && <Text accessibilityLiveRegion="polite">{notice}</Text>}

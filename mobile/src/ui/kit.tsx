@@ -44,10 +44,27 @@ export function ErrorState({ title, detail, retry, busy = false }: { title: stri
 export function Input({ label, value, onChange, disabled = false, autoFocus = true }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean; autoFocus?: boolean }) {
   return <View style={{ gap: spacing.xs }}><Text style={ui.eyebrow}>{label}</Text><TextInput accessibilityLabel={label} autoFocus={autoFocus} style={ui.input} value={value} maxLength={100} editable={!disabled} onChangeText={onChange} placeholderTextColor={colors.subdued} /></View>;
 }
-export function ToolButton({ title, selected = false, disabled = false, onPress }: { title: string; selected?: boolean; disabled?: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}
-    style={[ui.action, selected && { backgroundColor: colors.text }, { opacity: disabled ? 0.4 : 1 }]}>
-    <Text style={[ui.actionText, selected && { color: colors.background }]}>{title}</Text></Pressable>;
+/**
+ * A tool in a bar (the editor's step bar and tool bars). `selected` reads as an inverse block; `primary` is the one
+ * orange next step; `danger` marks a destructive tool; `badge` is a small count beside the title (`badgeTone` danger for
+ * safety findings); `grow` shares the bar's spare width with the other growing tools.
+ */
+export function ToolButton({ title, selected = false, disabled = false, onPress, accessibilityLabel, badge, badgeTone = 'neutral', primary = false, danger = false, grow = false }: {
+  title: string; selected?: boolean; disabled?: boolean; onPress: () => void;
+  accessibilityLabel?: string; badge?: string; badgeTone?: 'neutral' | 'danger'; primary?: boolean; danger?: boolean; grow?: boolean;
+}) {
+  const ink = selected ? colors.background : primary ? colors.onPrimary : danger ? colors.danger : colors.text;
+  // A bar tool (grow or badge) centres a one-line title in a row; without them it keeps the plain wrapping look.
+  const bar = grow || !!badge;
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}
+    style={({ pressed }) => [ui.action, bar && { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
+      grow && { flexGrow: 1 }, primary && { backgroundColor: colors.primary }, danger && { borderColor: colors.danger }, selected && { backgroundColor: colors.text },
+      { opacity: disabled ? 0.4 : bar && pressed ? 0.65 : 1 }]}>
+    <Text numberOfLines={bar ? 1 : undefined} style={[ui.actionText, bar && { textAlign: 'center' }, { color: ink }]}>{title}</Text>
+    {!!badge && <Text style={[ui.eyebrow, { fontSize: 12, lineHeight: 15, paddingHorizontal: 4, minWidth: 20, textAlign: 'center',
+      color: badgeTone === 'danger' ? colors.onDanger : ink, backgroundColor: badgeTone === 'danger' ? colors.danger : 'transparent',
+      borderWidth: borders.regular, borderColor: badgeTone === 'danger' ? colors.danger : ink }]}>{badge}</Text>}
+  </Pressable>;
 }
 export function DeleteConfirmation({ detail, noun, busy, onKeep, onDelete, error }: { detail: string; noun: string; busy: boolean; onKeep: () => void; onDelete: () => void; error: string }) {
   return <Panel><Notice tone="warning">{detail}</Notice><Action title="Cancel" disabled={busy} onPress={onKeep} /><Action variant="destructive" title={busy ? 'Deleting...' : 'Delete'} disabled={busy} onPress={onDelete} />{!!error && <ErrorState title={'Could not delete ' + noun + '.'} detail={error} />}</Panel>;

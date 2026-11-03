@@ -27,6 +27,40 @@ export const words = {
   /** Leaves a mode. Sheet headers say "Done" instead (EditorSheet). */
   done: 'DONE', sheetDone: 'Done',
   stageSize: 'Stage size', stageSizeButton: 'STAGE SIZE',
+  /** The editor's tool bars: BUILD is ADD · IMPORT · CHECK · •••; PLAN is AREAS · ROUTE · ANALYZE · •••. */
+  tools: { add: 'ADD', import: 'IMPORT', check: 'CHECK', more: '•••', areas: 'AREAS', route: 'ROUTE', analyze: 'ANALYZE' },
+  /** What ••• holds: only the current step's settings. */
+  settings: { build: 'Build settings', plan: 'Plan settings', walk: 'What the status words mean' },
+  /** The selection bar: the selected object's actions, the same in 2D and 3D. */
+  selection: { edit: 'EDIT', layers: 'LAYERS', duplicate: 'DUPLICATE', delete: 'DELETE', baseTarget: 'BASE TARGET', rotateLeft: 'Rotate left', rotateRight: 'Rotate right', deselect: 'Deselect' },
+  /** The ADD ring's category of covered targets, placed with their cover already set. */
+  partial: 'PARTIAL',
+  /** The short bar after an edit that undo can bring back ("Deleted T3 · UNDO"). */
+  undo: 'UNDO',
+} as const;
+
+/** "Deleted T3", "Deleted wall": the undo bar after a delete. */
+export const deletedText = (name: string) => `Deleted ${name}`;
+/** "Removed paint", "Removed port 2": the undo bar after a layer, paint or port is taken off. */
+export const removedText = (what: string) => `Removed ${what}`;
+/** The undo bar after RESET STAGE. */
+export const resetText = 'Stage reset';
+
+/**
+ * The mode chip on the canvas: what a tap does now (the title) and which mode it is (the detail). Every mode that
+ * changes what a tap does shows one, with DONE.
+ */
+export const modeChip = {
+  place: 'TAP TO PLACE',
+  drawStart: 'TAP WHERE IT STARTS',
+  drawEnd: 'TAP OR DRAG TO THE END',
+  areaSelect: 'TAP AN AREA TO SELECT IT',
+  areaCorner: 'TAP THE NEXT CORNER',
+  pathSelect: 'TAP A POSITION TO SELECT IT',
+  pathAdd: 'TAP TO ADD A POSITION',
+  engage: 'DRAG FROM A POSITION TO A TARGET',
+  review: 'TAP A TARGET TO REVIEW IT',
+  assign: 'TAP TARGETS TO TOGGLE THEM',
 } as const;
 
 /** "P3": the short name of the position at this index in the route. */

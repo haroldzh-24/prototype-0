@@ -7,9 +7,11 @@ import type { FiringPort, StageObject } from '@/stage/model';
 import type { ObjectEdit } from '@/stage/operations';
 import { createPortId } from '@/stage/ids';
 import { createPort, parsePortDraft, portFields, portValues } from '@/stage/ports';
+import { removedText } from '@/ui/words';
 
-export default function WallPortsInspector({ wall, disabled, onApply }: {
+export default function WallPortsInspector({ wall, disabled, onApply, onRemoved }: {
   wall: Extract<StageObject, { type: 'wall' }>; disabled: boolean; onApply: (edit: ObjectEdit) => string | null;
+  /** A port was removed (no confirmation: the editor offers UNDO). */ onRemoved?: (text: string) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -22,9 +24,10 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
   };
   const remove = () => {
     if (!selected) return;
+    const number = wall.ports.indexOf(selected) + 1;
     const error = onApply({ ports: wall.ports.filter(port => port.id !== selected.id) });
     setNotice(error ?? 'Port removed.');
-    if (!error) setSelectedId(null);
+    if (!error) { setSelectedId(null); onRemoved?.(removedText('port ' + number)); }
   };
   return <View style={styles.panel}>
     <Text style={styles.title}>PORTS</Text>
