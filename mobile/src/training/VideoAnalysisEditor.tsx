@@ -35,9 +35,9 @@ function Details({ children }: { children: React.ReactNode }) {
  const [open, setOpen] = useState(false);
  return <View style={{ gap: 8 }}><Action title={open ? 'Hide details' : 'Details'} onPress={() => setOpen(!open)} />{open && children}</View>;
 }
-function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy, task }: { video: TrainingVideo; preview: { ms: number; key: number } | null; task: string;
+function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy, task, readOnly = false }: { video: TrainingVideo; preview: { ms: number; key: number } | null; task: string;
   onCloseUp: (selection: CloseSelection, preMs: number, postMs: number) => void; closeBusy: boolean;
-  onMetadata: (durationMs: number, fps: number | null) => void; onMark: (ms: number) => void }) {
+  onMetadata: (durationMs: number, fps: number | null) => void; onMark: (ms: number) => void; readOnly?: boolean }) {
   const [timeMs, setTimeMs] = useState(0), [seekText, setSeekText] = useState('0'), [error, setError] = useState('');
   const [precision, setPrecision] = useState(false);
   const [ready, setReady] = useState(false), [playing, setPlaying] = useState(false);
@@ -140,13 +140,17 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy, task
     {video.session.fps !== null && <Copy>*Nominal FPS step; variable-rate video and player seeking may differ.</Copy>}
     <TextInput accessibilityLabel="Seek time in milliseconds" style={ui.input} value={seekText} onChangeText={setSeekText} keyboardType="decimal-pad" />
     <Action title="Seek to ms" disabled={!ready} onPress={() => seek(seekText.trim() ? Number(seekText) : NaN)} />
-    <Action title="Add selected event at current time" disabled={!ready} onPress={() => control(() => { player.pause(); onMark(secondsToMs(player.currentTime)); })} />
+    {!readOnly && <Action title="Add selected event at current time" disabled={!ready} onPress={() => control(() => { player.pause(); onMark(secondsToMs(player.currentTime)); })} />}
     </>} {!!error && <><Copy>VIDEO COULDN'T LOAD</Copy><Action title="Retry playback" onPress={() => control(() => player.replace(playbackUri(video.session.asset)))} /><Details><Copy>{error}</Copy></Details></>}
   </Panel>;
 }
 
-export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: {
-  record: TrainingRecord; initialVideo: TrainingVideo; onSaved: (record: TrainingRecord) => void; onClose: () => void;
+/**
+ * The older video analysis. `readOnly` (History · Older sessions, recorded before the drill library): the video can be
+ * watched and its timeline and results read, but nothing is edited, analysed, compared, saved or added to the profile.
+ */
+export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose, readOnly = false }: {
+  record: TrainingRecord; initialVideo: TrainingVideo; onSaved: (record: TrainingRecord) => void; onClose: () => void; readOnly?: boolean;
 }) {
   const repo = useRepository(), [video, setVideo] = useState(initialVideo), [saved, setSaved] = useState(() => JSON.stringify(initialVideo));
   const [section, setSection] = useState('TIMELINE'), [confirmClose, setConfirmClose] = useState(false);
@@ -293,7 +297,8 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
     } catch (e) { if (operation.current.current(token)) fail(e); else discardPendingAssets(); }
     finally { savingAsset.current = false; if (operation.current.current(token)) setBusy(false); operation.current.finish(token); }
   };
-  const close = () => { if (operation.current.busy) return; if (dirty) setConfirmClose(true); else onClose(); };
+  // Read-only: nothing to save (the player's duration reading is not a change of yours).
+  const close = () => { if (operation.current.busy) return; if (dirty && !readOnly) setConfirmClose(true); else onClose(); };
   const relink = async () => {
     if (audioJob.current || poseJob.current || closeJob.current) return;
     const token = operation.current.begin(); if (token === null) return;
@@ -318,15 +323,16 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
       discardPendingAssets(); onClose();
     }} />{messageError && <ErrorState title="Changes could not be saved or applied. Keep editing and try again." detail={message} />}</Panel>;
   return <Modal visible animationType="none" onRequestClose={close}>
-    <Screen title="ANALYSIS" header={<SafeAreaView edges={['top']} style={{ backgroundColor: '#0A0A0A' }}><View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 12, gap: 12 }}><Action title="Close analysis" variant="quiet" onPress={close} disabled={busy} /><Action title="Save analysis" variant="primary" disabled={busy || analyzing || analyzingMovement || analyzingClose} onPress={() => save()} /></View></SafeAreaView>}>
+    <Screen title="ANALYSIS" header={<SafeAreaView edges={['top']} style={{ backgroundColor: '#0A0A0A' }}><View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 12, gap: 12 }}><Action title="Close analysis" variant="quiet" onPress={close} disabled={busy} />{!readOnly && <Action title="Save analysis" variant="primary" disabled={busy || analyzing || analyzingMovement || analyzingClose} onPress={() => save()} />}</View></SafeAreaView>}>
       <EditorSheet title="Close analysis" visible={confirmClose} close={() => setConfirmClose(false)}>{closePrompt}</EditorSheet>
-      <Text numberOfLines={1} ellipsizeMode="middle" style={ui.copy}>{video.session.asset.name}</Text><Copy>{video.session.context.replaceAll('_', ' ')} / {dirty ? 'UNSAVED' : 'SAVED'}</Copy>
-      <Segmented options={['TIMELINE', 'ANALYZE', 'COMPARE', 'RESULTS']} value={section} onChange={setSection} />
+      <Text numberOfLines={1} ellipsizeMode="middle" style={ui.copy}>{video.session.asset.name}</Text>
+      {readOnly ? <Notice>Read-only: recorded before the drill library.</Notice> : <Copy>{video.session.context.replaceAll('_', ' ')} / {dirty ? 'UNSAVED' : 'SAVED'}</Copy>}
+      <Segmented options={readOnly ? ['TIMELINE', 'RESULTS'] : ['TIMELINE', 'ANALYZE', 'COMPARE', 'RESULTS']} value={section} onChange={setSection} />
       {video.session.asset.storage === 'BROWSER_SESSION' && <Copy>Browser video access lasts for this page session. Annotations are saved; reselect the original file after reloading.</Copy>}
-      {available === true && <MediaPlayerBoundary key={video.session.asset.uri}><Player task={section} video={video} preview={preview} onCloseUp={runCloseUp} closeBusy={busy || analyzing || analyzingMovement || analyzingClose} onMetadata={onMetadata} onMark={ms => { if (!busy) mark(ms); }} /></MediaPlayerBoundary>}
+      {available === true && <MediaPlayerBoundary key={video.session.asset.uri}><Player task={section} video={video} preview={preview} onCloseUp={runCloseUp} closeBusy={busy || analyzing || analyzingMovement || analyzingClose} onMetadata={onMetadata} onMark={ms => { if (!busy && !readOnly) mark(ms); }} readOnly={readOnly} /></MediaPlayerBoundary>}
       {available === null && <Copy>Checking local video…</Copy>}
       {available === false && <Panel><Copy>ORIGINAL VIDEO MISSING / Saved annotations remain available.</Copy>
-        <Action title="Relink original video (keep markers)" onPress={relink} disabled={busy || analyzing || analyzingMovement || analyzingClose} /></Panel>}
+        {!readOnly && <Action title="Relink original video (keep markers)" onPress={relink} disabled={busy || analyzing || analyzingMovement || analyzingClose} />}</Panel>}
       <View style={[{ gap: 16 }, section !== 'ANALYZE' && { display: 'none' }]}><Action title={reviewOpen ? 'Close review' : 'REVIEW SUGGESTIONS'} onPress={() => setReviewOpen(!reviewOpen)} />
       <Panel><Copy>CLOSE-UP</Copy>{Platform.OS !== 'ios' && <Copy>Requires the iOS analysis build.</Copy>}<StatusBadge tone={failures['CLOSE-UP'] ? 'error' : analyzingClose ? 'selected' : pendingReview('CLOSE_UP_VISION', 'VISION_DETECTED') ? 'warning' : video.analysis.closeRun ? 'success' : 'inactive'} label={analyzingClose ? 'RUNNING' : failures['CLOSE-UP'] ? 'ERROR' : video.analysis.closeRun ? pendingReview('CLOSE_UP_VISION', 'VISION_DETECTED') ? 'NEEDS REVIEW' : 'COMPLETE' : 'NOT RUN'} />{failures['CLOSE-UP'] && <Notice tone="error">Close-up analysis failed. Try again.</Notice>}{!!closeMessage && <Details><Copy>{closeMessage}</Copy></Details>}</Panel>
       {analyzingClose && <Action title="Cancel close-up analysis" onPress={() => closeJob.current?.abort()} />}
@@ -355,7 +361,7 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
       </Panel>
       </View>
       <View style={[{ gap: 16 }, section !== 'TIMELINE' && !(section === 'ANALYZE' && reviewOpen) && { display: 'none' }]}>
-      <Action title="+ Add event" variant="primary" onPress={() => { setEventError(''); setEditingId(null); setEventSheet(true); }} />
+      {!readOnly && <Action title="+ Add event" variant="primary" onPress={() => { setEventError(''); setEditingId(null); setEventSheet(true); }} />}
       <EditorSheet title={editingId ? 'Edit Event' : 'Add Event'} visible={eventSheet} close={() => setEventSheet(false)}><Panel>
         <Copy>{editingId ? 'EDIT EVENT' : 'NEW EVENT'}</Copy>
         {!!eventError && <Notice tone="error">{eventError}</Notice>}
@@ -391,7 +397,7 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
             width: `${100 * s.durationMs / Math.max(1, video.session.durationMs ?? s.endMs)}%` }} /></View>
         </View>)}</Details>
         {!video.analysis.events.length && <Copy>No markers yet. Select an event type, pause at the event, and add it.</Copy>}
-        {video.analysis.fusion && <FusionReview fusion={video.analysis.fusion} busy={busy}
+        {video.analysis.fusion && !readOnly && <FusionReview fusion={video.analysis.fusion} busy={busy}
           onPreview={ms => setPreview(previous => ({ ms, key: (previous?.key ?? 0) + 1 }))}
           onReview={(id, action, patch) => guard(() => {
             const reviewed = reviewFusedHypothesis(video.analysis.events, video.analysis.fusion!, id, action, patch, video.session.durationMs);
@@ -406,10 +412,12 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
           {isTrustedEvent(e) && video.analysis.fusion && <Details><FusionReview fusion={video.analysis.fusion} authoritativeEventId={e.id} busy={busy}
             onPreview={ms => setPreview(previous => ({ ms, key: (previous?.key ?? 0) + 1 }))} onReview={() => {}} /></Details>}
           <Action title={`Preview at ${e.timestampMs.toFixed(2)} ms`} disabled={available !== true} onPress={() => setPreview(previous => ({ ms: e.timestampMs, key: (previous?.key ?? 0) + 1 }))} />
+          {!readOnly && <>
           <Action title="Edit" disabled={busy} onPress={() => { setEventError(''); setEventSheet(true); setEditingId(e.id); setTimestamp(String(e.timestampMs)); setType(e.type);
             setTarget(e.metadata?.targetId ?? ''); setStringId(e.metadata?.stringId ?? ''); setMovementType(e.metadata?.movementType ?? ''); setDistance(e.metadata?.distanceInches?.toString() ?? ''); }} />
           {!e.confirmed && <Action title="Confirm event" disabled={busy} onPress={() => guard(() => changeEvents(confirmEvent(video.analysis.events, e.id)))} />}
           <Action title="Delete event" variant="destructive" disabled={busy} onPress={() => guard(() => { changeEvents(deleteEvent(video.analysis.events, e.id)); if (editingId === e.id) setEditingId(null); })} />
+          </>}
         </View>)}
       </Panel>
       </View>
@@ -419,7 +427,7 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
           const kinds = { REACTION: ['REACTION'], DRAW: ['DRAW', 'PRESENTATION'], SPLITS: ['SPLIT'], RELOAD: ['MAG_ACCESS', 'RELOAD_MANIPULATION', 'RELOAD', 'POST_RELOAD_SHOT'], MOVEMENT: ['MOVEMENT', 'POSITION_TRANSITION'], 'TARGET TRANSITIONS': ['TARGET_TRANSITION'], TOTAL: ['TOTAL', 'STRING_TIME'] };
           const measurements = video.analysis.measurements.filter(m => kinds[group].includes(m.kind));
           return measurements.length > 0 && <View key={group} style={{ gap: 12 }}><Copy>{group}</Copy>{measurements.map(m => <View key={m.id} style={{ gap: 8 }}><Stat label={measurementLabels[m.kind]} value={m.eligible ? msToSeconds(m.durationMs).toFixed(2) : '\u2014'} unit={m.eligible ? 's' : undefined} />
-            {!m.eligible && <><Copy>Endpoints need review</Copy><Details><Copy>Candidate {(m.durationMs / 1000).toFixed(2)} s / {m.confidence}</Copy><Action title="Confirm measurement endpoints" disabled={busy} onPress={() => guard(() => changeEvents(m.eventIds.reduce((events, id) => confirmEvent(events, id), video.analysis.events)))} /></Details></>}
+            {!m.eligible && <><Copy>Endpoints need review</Copy><Details><Copy>Candidate {(m.durationMs / 1000).toFixed(2)} s / {m.confidence}</Copy>{!readOnly && <Action title="Confirm measurement endpoints" disabled={busy} onPress={() => guard(() => changeEvents(m.eventIds.reduce((events, id) => confirmEvent(events, id), video.analysis.events)))} />}</Details></>}
           </View>)}</View>;
         })}
         {!video.analysis.measurements.length && <Copy>Add matching start/end events to derive measurements.</Copy>}
@@ -428,18 +436,21 @@ export function VideoAnalysisEditor({ record, initialVideo, onSaved, onClose }: 
         </Details>{video.analysis.warnings.map(w => <Copy key={w}>{w}</Copy>)}
       </Panel>
       </View>
-      <View style={section !== 'COMPARE' ? { display: 'none' } : undefined}>
+      {!readOnly && <View style={section !== 'COMPARE' ? { display: 'none' } : undefined}>
       <ExecutionComparisonReview video={video} busy={busy || analyzing || analyzingMovement || analyzingClose}
         onChange={executionComparison => setVideo(previous => ({ ...previous, executionComparison }))}
         onPreview={ms => setPreview(previous => ({ ms, key: (previous?.key ?? 0) + 1 }))} />
-      </View>
-      <View style={section !== 'RESULTS' ? { display: 'none' } : undefined}>
+      </View>}
+      {readOnly && <View style={section !== 'RESULTS' ? { display: 'none' } : undefined}>
+      <Panel><Copy>PROFILE DATA</Copy><Copy>{(contributed ? 'Its measurements were added to your profile when it was recorded.' : 'Not added to your profile.') + ' Editing, comparing with a plan and adding to your profile are off for sessions recorded before the drill library.'}</Copy></Panel>
+      </View>}
+      {!readOnly && <View style={section !== 'RESULTS' ? { display: 'none' } : undefined}>
       <Panel><Copy>PROFILE DATA</Copy><Copy>{observations.length} eligible measurements</Copy><Details>
         <Copy>Compatible timings: stimulus response, holster draw, complete reload, labeled same-target splits, movement with known physical distance. Other intervals remain in the analysis.</Copy>
-        <Copy>Contributing activates {video.session.context} calibration. Other contexts stay separate. Repeat contribution replaces these samples.</Copy>
+        <Copy>These count toward your {video.session.context.replaceAll('_', ' ').toLowerCase()} numbers; your plans use the practice type set in Profile. Other practice types stay separate. Repeat contribution replaces these samples.</Copy>
         </Details>{contributed && <Copy>Added to {video.session.context.replaceAll('_', ' ')} profile</Copy>}<Action title={contributed ? 'UPDATE PROFILE DATA' : `Add ${observations.length} eligible measurements to profile`} disabled={busy || analyzing || analyzingMovement || analyzingClose || !observations.length} onPress={() => save(true)} />
       </Panel>
-      </View>
+      </View>}
       {!!message && (messageError ? <ErrorState title="Video changes could not be saved or applied." detail={message} /> : <Notice tone="success">{message}</Notice>)}
     </Screen>
   </Modal>;

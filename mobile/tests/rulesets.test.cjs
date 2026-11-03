@@ -12,10 +12,11 @@ test('IDPA rules are on hold: new matches are USPSA or PCSL, IDPA maps to USPSA 
   assert.equal(R.activeRuleset('IDPA'), 'USPSA'); assert.equal(R.activeRuleset('PCSL'), 'PCSL'); assert.equal(R.activeRuleset(undefined), undefined);
   assert.ok(R.idpaOnHold('IDPA')); assert.ok(!R.idpaOnHold('USPSA'));
   assert.ok(P.presetsForFamily('IDPA').length >= 5, 'IDPA targets are still offered in the stage builder');
-  // The family picker and the drill logger offer the active families; an existing IDPA match still shows its family.
+  // The family picker and the drill library offer the active families; an existing IDPA match still shows its family.
   const picker = fs.readFileSync(path.join(__dirname, '../src/ui/TargetFamilyPicker.tsx'), 'utf8');
   assert.match(picker, /matchFamilies\.includes\(value\) \? matchFamilies : \[\.\.\.matchFamilies, value\]/);
-  assert.match(fs.readFileSync(path.join(__dirname, '../src/training/DrillRunEditor.tsx'), 'utf8'), /const families: TargetFamily\[\] = \[\.\.\.matchFamilies\]/);
+  // Library drills are scored as USPSA or PCSL only.
+  assert.deepEqual([...require('../src/training/drillLibrary.ts').libraryFamilies], [...R.matchFamilies]);
 });
 
 test('drill logger taps: native location, or the web event offset, or nothing', () => {

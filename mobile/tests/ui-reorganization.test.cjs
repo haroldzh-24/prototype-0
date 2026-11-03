@@ -19,7 +19,7 @@ function harness(entry, props = {}, overrides = {}, exportName) {
   };
   const jsx = (type, props, key) => ({ type, props: props ?? {}, key });
   const repo = { trainingReadWarnings: [], loadProfile: async () => ({ performance: null }), saveStage: async (...args) => saved.push(args), ...overrides.repo };
-  const saved = [], pushes = [];
+  const saved = [], pushes = [], prefs = new Map(Object.entries(overrides.prefs ?? {}));
   const defaultExport = value => ({ __esModule: true, default: value });
   function load(file) {
     if (cache.has(file)) return cache.get(file);
@@ -31,10 +31,12 @@ function harness(entry, props = {}, overrides = {}, exportName) {
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' };
       if (id === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Modal: 'Modal', ScrollView: 'ScrollView', Platform: { OS: 'ios' }, StyleSheet: { create: s => s, hairlineWidth: 1 }, AppState: { addEventListener: () => ({ remove() {} }) }, BackHandler: { addEventListener: () => ({ remove() {} }) } };
       if (id === 'react-native-safe-area-context') return { SafeAreaView: 'SafeAreaView' };
-      if (id === 'expo-router') return { router: { push: v => pushes.push(v), dismissTo: v => pushes.push(v) }, useNavigation: () => navigation, useFocusEffect: fn => react.useEffect(fn, [fn]), useLocalSearchParams: () => ({ id: 'match' }) };
+      if (id === 'expo-router') return { router: { push: v => pushes.push(v), dismissTo: v => pushes.push(v) }, useNavigation: () => navigation, useFocusEffect: fn => react.useEffect(fn, [fn]), useLocalSearchParams: () => overrides.params ?? ({ id: 'match' }) };
       if (id === 'expo-router/react-navigation') return { usePreventRemove: (enabled, callback) => { guard = { enabled, callback }; } };
       if (id === 'expo-modules-core') return { requireOptionalNativeModule: () => null, uuid: { v4: () => 'new-' + (++serial) } };
       if (id.endsWith('StorageProvider')) return { useRepository: () => repo };
+      // Device prefs are a native store: an in-memory one unless the test gives its own.
+      if (id.endsWith('ui/prefsStore')) return { readPref: k => prefs.has(k) ? prefs.get(k) : null, writePref: (k, v) => { prefs.set(k, v); } };
       if (id.endsWith('ui/kit') || id === './kit') return { Input: load(path.resolve(__dirname, '../src/ui/kit.tsx')).Input, DeleteConfirmation: load(path.resolve(__dirname, '../src/ui/kit.tsx')).DeleteConfirmation, ErrorState: 'ErrorState', ScreenHeader: 'ScreenHeader', MenuRow: 'MenuRow', StatusBadge: 'StatusBadge', Action: 'Action', Copy: 'Copy', Panel: 'Panel', Screen: 'Screen', DataRow: 'DataRow', Stat: 'Stat', Segmented: 'Segmented', EmptyState: 'EmptyState', Loading: 'Loading', Notice: 'Notice', Section: 'Section', ui: {}, colors: {} };
       let target = id.startsWith('@/') ? path.resolve(__dirname, '../src', id.slice(2)) : path.resolve(path.dirname(file), id);
       if (fs.existsSync(target + '.tsx')) return defaultExport(path.basename(target));
@@ -53,11 +55,11 @@ function harness(entry, props = {}, overrides = {}, exportName) {
     if (Array.isArray(node)) return node.flatMap(n => nodes(n));
     if (typeof node.type === 'function' && ['Input', 'DeleteConfirmation'].includes(node.type.name)) return nodes(node.type(node.props));
     if (node.props?.visible === false || node.props?.style?.some?.(s => s?.display === 'none')) return [];
-    return [node, ...nodes(node.props?.header), ...nodes(node.props?.action), ...nodes(node.props?.children)];
+    return [node, ...nodes(node.props?.header), ...nodes(node.props?.action), ...nodes(node.props?.children), ...nodes(node.props?.footer)];
   }
   const find = predicate => { const result = nodes(tree).find(predicate); assert.ok(result, 'Missing UI node'); return result; };
   render();
-  return { render, nodes: () => nodes(tree), find, saved, pushes, repo, get guard() { return guard; },
+  return { render, nodes: () => nodes(tree), find, saved, pushes, repo, prefs, get guard() { return guard; },
     press(title) { const node = find(n => typeof n.props.onPress === 'function' && (n.props.title === title || n.props.accessibilityLabel === title || n.props.label === title)); assert.ok(!node.props.disabled, title + ' is disabled'); node.props.onPress(); render(); },
     child(name) { return find(n => n.type === name).props; },
     async settle() { await new Promise(resolve => setImmediate(resolve)); render(); },
@@ -107,7 +109,9 @@ test('Training opens on the drill library: every drill is a card, and a run is f
   assert.match(bill().detail, /No runs yet$/);
   bill().open(); h.render();
   const sheet = () => h.child('DrillSheet');
-  assert.equal(sheet().drillId, 'bill'); assert.equal(sheet().context, 'DRY_FIRE');
+  // Nothing picked on this phone yet: PRACTICE starts on Profile · Practice type for plans (live fire by default).
+  assert.equal(sheet().drillId, 'bill'); assert.equal(sheet().context, 'LIVE_FIRE'); assert.equal(sheet().planPractice, 'LIVE_FIRE');
+  sheet().onContextChange('DRY_FIRE'); h.render(); assert.deepEqual(prefs.at(-1), ['psp.trainingContext', 'DRY_FIRE']);
   const run = id => ({ id, drillId: 'bill', recordedAt: new Date().toISOString(), choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55, family: 'USPSA', notes: '' });
   await sheet().onSave(run('a'), undefined); await h.settle();
   await sheet().onSave(run('b'), undefined); await h.settle();
@@ -170,13 +174,62 @@ test('shared primary action retains disabled accessibility and touch size', () =
   assert.ok(button.props.style({ pressed: false }).some(style => style?.minHeight >= 44), 'at least 44 pt (56 for primary)');
 });
 
-test('Profile displays baseline and context-separated sample counts without sign-in controls', async () => {
+test('Profile is settings: appearance, power factor, practice type for plans, shooting hand, eye height, and a link to YOUR NUMBERS', async () => {
   const profile = require('../src/profile/model.ts').createLocalProfile();
   profile.performanceObservations = [{ context: 'DRY_FIRE' }, { context: 'LIVE_FIRE' }, { context: 'PRESSURE_MATCH' }];
   const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => profile } }); await h.settle();
-  assert.equal(h.nodes().filter(n => n.type === 'DataRow' && ['DRAW', 'RELOAD', 'SPLIT', 'MOVEMENT', 'TRANSITION'].includes(n.props.label)).length, 5);
-  assert.equal(h.nodes().filter(n => n.type === 'DataRow' && n.props.value === '1 samples').length, 3);
+  const eyebrows = h.nodes().filter(n => n.type === 'Text' && typeof n.props.children === 'string' && /^[A-Z ]+$/.test(n.props.children)).map(n => n.props.children);
+  for (const title of ['APPEARANCE', 'POWER FACTOR', 'PRACTICE TYPE FOR PLANS', 'SHOOTING HAND', 'EYE HEIGHT FOR WALK', 'YOUR NUMBERS', 'CLOUD SYNC']) assert.ok(eyebrows.includes(title), title);
+  // The numbers live in YOUR NUMBERS only: no second PERFORMANCE list, no unused magazine fields, no calibration words.
+  assert.ok(!h.nodes().some(n => n.type === 'DataRow' && ['DRAW', 'RELOAD', 'SPLIT', 'MOVEMENT', 'TRANSITION', 'Magazine capacity', 'Starting rounds', 'Chamber', 'Active context'].includes(n.props.label)));
+  for (const gone of ['PERFORMANCE', 'TRAINING DATA', 'CALIBRATION']) assert.ok(!eyebrows.includes(gone), gone);
+  assert.ok(!h.nodes().some(n => typeof n.props?.children === 'string' && /Video Results|calibration|context/i.test(n.props.children)), 'no retired words');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Measurements so far: dry fire 1 · live fire 1 · pressure / match 1'));
   assert.ok(!h.nodes().some(n => /sign.in/i.test(n.props.title ?? '')));
+  h.press('Open your numbers in Training');
+  assert.deepEqual(h.pushes.at(-1), { pathname: '/training', params: { show: 'numbers' } });
+});
+
+test('Profile: practice type for plans is saved as the profile’s practice type (default live fire); a failed save puts it back', async () => {
+  let stored = { performance: {}, performanceObservations: [] }, fail = false;
+  const sets = [];
+  const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => stored,
+    setPracticeType: async c => { if (fail) throw new Error('disk full'); sets.push(c); stored = { ...stored, calibrationContext: c }; } } });
+  await h.settle();
+  const practice = () => h.find(n => n.type === 'Segmented' && n.props.options.includes('PRESSURE / MATCH')).props;
+  assert.deepEqual(practice().options, ['DRY FIRE', 'LIVE FIRE', 'PRESSURE / MATCH']);
+  assert.equal(practice().value, 'LIVE FIRE', 'live fire until changed');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Your plans use your live-fire runs\./.test(n.props.children)));
+  practice().onChange('DRY FIRE'); h.render(); await h.settle();
+  assert.deepEqual(sets, ['DRY_FIRE']); assert.equal(practice().value, 'DRY FIRE');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Your plans use your dry-fire runs\./.test(n.props.children)));
+  fail = true; practice().onChange('PRESSURE / MATCH'); h.render(); await h.settle();
+  assert.equal(practice().value, 'DRY FIRE');
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Couldn’t save the practice type: Error: disk full/.test(n.props.children)));
+});
+
+test('Profile: shooting hand and eye height for WALK are phone settings, read by Training and WALK', async () => {
+  const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => ({ performance: {} }) }, prefs: { 'psp.eyeHeight': '83' } });
+  await h.settle();
+  const hand = () => h.find(n => n.type === 'Segmented' && n.props.options.includes('LEFT')).props;
+  assert.equal(hand().value, 'RIGHT');
+  hand().onChange('LEFT'); h.render();
+  assert.equal(h.prefs.get('psp.shootingHand'), 'left'); assert.equal(hand().value, 'LEFT');
+  assert.ok(h.nodes().some(n => n.type === 'Text' && n.props.children === '6 ft 11 in · 83 in'));
+  h.press('Raise eye height'); assert.equal(h.prefs.get('psp.eyeHeight'), '84');
+  assert.ok(h.find(n => n.props.accessibilityLabel === 'Raise eye height').props.disabled, 'stops at 84 in, WALK’s limit');
+  for (let i = 0; i < 60; i++) { const lower = h.find(n => n.props.accessibilityLabel === 'Lower eye height'); if (lower.props.disabled) break; h.press('Lower eye height'); }
+  assert.equal(h.prefs.get('psp.eyeHeight'), '36', 'and at 36 in');
+  // Same key and limits as WALK (stage3d/EyeLevelView.tsx), which this screen only writes to.
+  const walk = fs.readFileSync(path.resolve(__dirname, '../src/stage3d/EyeLevelView.tsx'), 'utf8');
+  assert.match(walk, /EYE_KEY = 'psp\.eyeHeight', DEFAULT_EYE = 63, EYE_LIMITS = \[36, 84\]/);
+  const prefsSource = fs.readFileSync(path.resolve(__dirname, '../src/profile/devicePrefs.ts'), 'utf8');
+  assert.match(prefsSource, /EYE_HEIGHT_KEY = 'psp\.eyeHeight', EYE_HEIGHT_DEFAULT = 63, EYE_HEIGHT_LIMITS = \[36, 84\]/);
+  assert.match(prefsSource, /SHOOTING_HAND_KEY = 'psp\.shootingHand'/);
+  // Training reads the hand for the breakdown.
+  const t = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [] }, prefs: { 'psp.shootingHand': 'left' } });
+  await t.settle(); t.nodes().find(n => n.type === 'LibraryCard' && n.props.name === 'Bill Drill').props.open(); t.render();
+  assert.equal(t.child('DrillSheet').hand, 'left');
 });
 
 test('mapping suggestions hide pair details until review and display a user-facing element label', () => {
@@ -367,7 +420,7 @@ test('Training loading and failed read show no drills to log into, and retry rec
   assert.ok(h.nodes().some(n => n.type === 'LibraryCard' && n.props.name === 'Draw to first hit'));
 });
 
-test('History keeps older sessions: their videos still open, runs can be removed, a drill day can be deleted', async () => {
+test('History lists drill days; older sessions sit under OLDER SESSIONS and open read-only; a drill day can be deleted', async () => {
   const Days = require('../src/training/drillDays.ts');
   const libraryRun = { id: 'lr1', drillId: 'bill', recordedAt: '2026-10-05T12:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55,
     family: 'USPSA', zones: { A: 6 }, notes: '' };
@@ -375,39 +428,47 @@ test('History keeps older sessions: their videos still open, runs can be removed
     videos: [{ session: { id: 'v', analysisStatus: 'REVIEWED' } }], libraryRuns: [libraryRun] };
   const day = { ...Days.newDrillDay('d', '2026-10-20', 'DRY_FIRE', '2026-10-20T15:00:00Z'), libraryRuns: [{ ...libraryRun, id: 'lr2', recordedAt: '2026-10-20T15:00:00Z', zones: undefined }] };
   const writes = [], deleted = [];
-  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': { discardVideoAsset() {} }, '@/ui/prefsStore': { readPref: () => null, writePref() {} },
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': { discardVideoAsset() {} },
     repo: { trainingReadWarnings: [], listTraining: async () => [day, old], saveTraining: async r => { writes.push(r); }, deleteTraining: async id => { deleted.push(id); },
       loadProfile: async () => ({ performance: {}, powerFactor: 'minor', drillPars: {} }) } });
   await h.settle();
   const card = name => h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === name)?.props;
-  assert.equal(card('Old session'), undefined, 'history starts closed');
-  assert.match(card('Bill Drill').detail, /2 runs · last Oct 20/);
+  assert.equal(card(Days.historyTitle(day)), undefined, 'history starts closed');
+  assert.match(card('Bill Drill').detail, /2 runs · last Oct 20/, 'older sessions still count');
+  assert.ok(h.nodes().some(n => n.props?.title === 'HISTORY · 1'), 'History counts drill days only');
   h.press('Show history');
-  assert.match(card('Old session').detail, /1 drill run: Bill Drill · 1 video$/);
   assert.equal(card(Days.historyTitle(day)).category, 'DRY FIRE');
+  assert.equal(card('Old session'), undefined, 'older sessions are not mixed into the drill days');
+  const nodes = h.nodes(), olderAt = nodes.findIndex(n => n.props?.title === 'OLDER SESSIONS · 1'), dayAt = nodes.findIndex(n => n.type === 'LibraryCard' && n.props.name === Days.historyTitle(day));
+  assert.ok(olderAt > dayAt, 'one OLDER SESSIONS entry at the bottom of History');
+  h.press('Show older sessions');
+  assert.match(card('Old session').detail, /1 drill run: Bill Drill · 1 video$/);
   card('Old session').open(); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Read-only: recorded before the drill library.'));
   assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === '1. Bill Drill · 7 yd · 2.55 s · 100% points · HF 11.76'));
-  assert.ok(!h.nodes().some(n => /ADD VIDEO|LOG/.test(n.props?.title ?? '')), 'nothing new is added to an old session');
-  h.press('Video 1 · Analysis saved'); assert.ok(h.nodes().some(n => n.props.initialVideo === old.videos[0]));
-  card('Old session').open(); h.render();
+  assert.ok(!h.nodes().some(n => /^(REMOVE|DELETE|ADD VIDEO|LOG)/.test(n.props?.title ?? '')), 'nothing is changed or added in an older session');
+  h.press('Watch video 1, read-only');
+  const editor = h.find(n => n.props?.initialVideo === old.videos[0]).props;
+  assert.equal(editor.readOnly, true, 'its video opens read-only');
+  // A drill day: remove a run, delete the day.
+  card(Days.historyTitle(day)).open(); h.render();
   h.press('Remove library run 1'); h.press('Confirm removing library run 1'); await h.settle();
-  assert.deepEqual(writes[0].libraryRuns, []); assert.equal(writes[0].id, 'r');
+  assert.deepEqual(writes[0].libraryRuns, []); assert.equal(writes[0].id, 'd');
   card(Days.historyTitle(day)).open(); h.render();
   h.press('DELETE THIS DAY');
   assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Delete this day’s drill runs and the measurements/.test(n.props.children)));
-  h.press('Delete'); await h.settle();
-  assert.deepEqual(deleted, ['d']);
+  h.press('DELETE'); await h.settle();
+  assert.deepEqual(deleted, ['d'], 'only the day; the older session and its data are untouched');
 });
 
-test('Profile renders stored zero, unavailable metrics, factual counts and local-storage limitation', async () => {
-  const profile = { displayName: 'Local shooter', performance: { drawTime: 0, reloadTime: 1.12, averageSplitTime: undefined, movementSpeed: null, transitionTime: NaN }, calibrationContext: 'PRESSURE_MATCH', performanceObservations: [{ context: 'LIVE_FIRE' }] };
-  const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => profile } });
-  await h.settle(); const rows = h.nodes().filter(n => n.type === 'DataRow');
-  assert.equal(rows.find(n => n.props.label === 'DRAW').props.value, '0 s');
-  assert.equal(rows.find(n => n.props.label === 'SPLIT').props.value, '—');
-  assert.equal(rows.find(n => n.props.label === 'MOVEMENT').props.value, '—');
-  assert.equal(rows.find(n => n.props.label === 'Live Fire').props.value, '1 samples');
-  assert.equal(rows.find(n => n.props.label === 'Active context').props.value, 'Pressure / Match');
+test('Profile shows its settings without the profile (phone settings still work) and keeps the local-storage note', async () => {
+  const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => { throw new Error('storage unavailable'); } } });
+  await h.settle();
+  assert.equal(h.child('ErrorState').title, 'Couldn’t load profile.');
+  assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('NIGHT')));
+  assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('LEFT')));
+  assert.ok(h.nodes().some(n => n.props?.accessibilityLabel === 'Raise eye height'));
+  assert.ok(!h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('MAJOR')), 'profile settings wait for the profile');
   assert.ok(h.nodes().some(n => n.props.children === 'Data is stored on this device. Cloud sync is not included in this release.'));
   assert.ok(!h.nodes().some(n => /sign.?in/i.test(n.props.title ?? '')));
 });
@@ -462,7 +523,7 @@ test('Profile failed load exposes a retry that recovers without navigation', asy
   await h.settle(); assert.equal(h.child('ErrorState').title,'Couldn’t load profile.');
   fail=false; h.child('ErrorState').retry(); h.render(); await h.settle();
   assert.equal(reads,2); assert.ok(!h.nodes().some(n=>n.type==='ErrorState'));
-  assert.ok(h.nodes().some(n=>n.props.children?.startsWith?.('No training calibration yet.')));
+  assert.ok(h.nodes().some(n=>n.type==='Segmented' && n.props.value==='LIVE FIRE'), 'practice type for plans shows once loaded');
 });
 
 test('Matches failed load has no empty-state flicker and retries the existing repository', async () => {
@@ -852,13 +913,23 @@ test('review 3: dragging a layer in 3D moves its target by the drag, keeping the
 });
 
 const discardedVideos = [];
-const drillSheet = (drillId, patch = {}) => harness('training/DrillSheet.tsx', { visible: true, drillId, records: [], context: 'LIVE_FIRE', onContextChange() {}, powerFactor: 'minor',
-  pars: {}, onClose() {}, onSave() {}, onRemove() {}, onUpdate() {}, hand: 'right', onHandChange() {}, ...patch }, { './videoAssets': { discardVideoAsset: a => discardedVideos.push(a.uri), playbackUri: a => 'file:///' + a.uri } });
+const drillSheet = (drillId, patch = {}) => harness('training/DrillSheet.tsx', { visible: true, drillId, records: [], context: 'LIVE_FIRE', onContextChange() {}, planPractice: 'LIVE_FIRE', powerFactor: 'minor',
+  pars: {}, onClose() {}, onSave() {}, onRemove() {}, onUpdate() {}, hand: 'right', ...patch }, { './videoAssets': { discardVideoAsset: a => discardedVideos.push(a.uri), playbackUri: a => 'file:///' + a.uri } });
+/** Switch the drill sheet's tab (LOG, RUNS, HOW TO). */
+const drillTab = (h, name) => { h.find(n => n.type === 'Segmented' && n.props.options.includes('HOW TO')).props.onChange(name); h.render(); };
 test('Drill sheet: how to run it, options, paste timer times, count hits, save with a par', async () => {
   let saved, savedPar;
   const h = drillSheet('sprint', { powerFactor: 'major', pars: { 'sprint|direction=back|move=10': 3.5 }, onSave: async (r, par) => { saved = r; savedPar = par; } });
   assert.equal(h.child('EditorSheet').title, 'Sprint');
+  assert.equal(h.find(n => n.type === 'Segmented' && n.props.options.includes('HOW TO')).props.value, 'LOG', 'opens on LOG');
+  assert.ok(!h.nodes().some(n => n.type === 'Copy' && /^Two shooting spots/.test(n.props.children)), 'how to run it is its own tab');
+  drillTab(h, 'HOW TO');
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Two shooting spots 5, 10 or 15 yd apart/.test(n.props.children)), 'setup shown');
+  for (const title of ['HOW TO RUN IT', 'WHAT IT MEASURES', 'WHAT THE PLANNER USES IT FOR']) assert.ok(h.nodes().some(n => n.props?.children === title), title);
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Long moves.'));
+  // The options apply to LOG and RUNS, so they stay above the tabs.
+  assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('SIDEWAYS')), 'options stay visible on every tab');
+  drillTab(h, 'LOG');
   h.find(n => n.type === 'Segmented' && n.props.options.includes('SIDEWAYS')).props.onChange('BACK'); h.render();
   const par = () => h.find(n => n.type === 'TextInput' && n.props.accessibilityLabel === 'PAR TIME (SECONDS, BLANK = NONE)');
   assert.equal(par().props.value, '3.5', 'the saved par for this variant');
@@ -928,9 +999,13 @@ test('Drill sheet: your runs of these options, best time and par, and remove aft
   const removed = [];
   const h = drillSheet('bill', { records, pars: { 'bill|distance=7': 2.5 }, onRemove: id => { removed.push(id); } });
   const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
+  assert.equal(row('Runs'), undefined, 'your runs are their own tab');
+  drillTab(h, 'RUNS');
   assert.equal(row('Runs'), '2'); assert.equal(row('Best time'), '2.45 s'); assert.equal(row('Par'), '2.50 s');
-  const lines = h.nodes().filter(n => n.type === 'Copy' && /^Oct 20 · Live Fire · /.test(n.props.children)).map(n => n.props.children);
-  assert.deepEqual(lines, ['Oct 20 · Live Fire · 2.45 s · under par', 'Oct 20 · Live Fire · 2.60 s · over par'], 'newest first, this variant only');
+  const lines = h.nodes().filter(n => n.type === 'Copy' && /^Oct 20 · Live fire · /.test(n.props.children)).map(n => n.props.children);
+  assert.deepEqual(lines, ['Oct 20 · Live fire · 2.45 s · under par', 'Oct 20 · Live fire · 2.60 s · over par'], 'newest first, this variant only');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Breakdown works on Bill Drill, Draw from hands at sides and standing Reload runs with a video whose beep was used.'),
+    'says why no run here can be broken down');
   h.press('Remove run 1'); h.press('Confirm removing run 1');
   assert.deepEqual(removed, ['b']);
 });
@@ -948,14 +1023,19 @@ test('Drill sheet: a run’s video fills the times, is saved with the run, and i
   assert.equal(h.child('DrillVideo').video, null, 'the next run starts without a video');
   const before = discardedVideos.length;
   h.child('DrillVideo').onChange({ ...video, id: 'v2', asset: { ...video.asset, uri: 'training-videos/v2.mov' } }); h.render();
-  h.child('EditorSheet').close();
+  // Closing with a picked video asks first; KEEP EDITING keeps it, DISCARD removes its copy and closes.
+  h.child('EditorSheet').close(); h.render();
+  assert.equal(closes, 0); assert.deepEqual(discardedVideos.slice(before), [], 'nothing removed before you answer');
+  h.press('KEEP EDITING'); assert.equal(h.child('DrillVideo').video.id, 'v2');
+  h.child('EditorSheet').close(); h.render(); h.press('DISCARD');
   assert.deepEqual(discardedVideos.slice(before), ['training-videos/v2.mov'], 'an unsaved run’s video copy is removed'); assert.equal(closes, 1);
   // A saved run with a video can be watched from YOUR RUNS, with a mark at the beep and each shot.
   const Days = require('../src/training/drillDays.ts');
   const run = { ...saved, id: 'r9', recordedAt: '2026-10-20T15:00:00Z' };
   const record = Days.addRun(Days.newDrillDay('d', '2026-10-20', 'LIVE_FIRE', run.recordedAt), { ...run, videoId: undefined }, video);
   const w = drillSheet('bill', { records: [record] });
-  assert.ok(w.nodes().some(n => n.type === 'Copy' && /^Oct 20 · Live Fire · 2\.66 s · video$/.test(n.props.children)));
+  drillTab(w, 'RUNS');
+  assert.ok(w.nodes().some(n => n.type === 'Copy' && /^Oct 20 · Live fire · 2\.66 s · video$/.test(n.props.children)));
   w.press('Watch run 1');
   const player = w.find(n => Array.isArray(n.props?.marks) && n.props.uri).props;
   assert.equal(player.uri, 'file:///training-videos/v1.mov');
@@ -1035,6 +1115,138 @@ test('review: a new drill starts counting again with shot times; LOG ONLY is for
   assert.equal(seg('LOG ONLY').value, 'COUNTS'); assert.equal(seg('TOTAL ONLY').value, 'SHOT TIMES'); assert.equal(seg('PCSL').value, 'PCSL');
 });
 
+test('Drill sheet LOG says whether the run counts toward your plans, following the practice type for plans', () => {
+  const line = h => h.nodes().find(n => n.type === 'Copy' && /^(Counts toward your plans|Practice only|Kept in the log only)/.test(n.props.children))?.props.children;
+  assert.equal(line(drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'LIVE_FIRE' })), 'Counts toward your plans');
+  assert.equal(line(drillSheet('bill', { context: 'DRY_FIRE', planPractice: 'LIVE_FIRE' })), 'Practice only — your plans use live-fire runs');
+  assert.equal(line(drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'PRESSURE_MATCH' })), 'Practice only — your plans use pressure / match runs');
+  const h = drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'LIVE_FIRE' });
+  h.find(n => n.type === 'Segmented' && n.props.options.includes('LOG ONLY')).props.onChange('LOG ONLY'); h.render();
+  assert.equal(line(h), 'Kept in the log only');
+  // Practice type buttons are ALL CAPS; the value given back is the stored context.
+  const changes = [];
+  const c = drillSheet('bill', { onContextChange: v => changes.push(v) });
+  const practice = c.find(n => n.type === 'Segmented' && n.props.options.includes('PRESSURE / MATCH')).props;
+  assert.deepEqual(practice.options, ['DRY FIRE', 'LIVE FIRE', 'PRESSURE / MATCH']); assert.equal(practice.value, 'LIVE FIRE');
+  practice.onChange('PRESSURE / MATCH'); assert.deepEqual(changes, ['PRESSURE_MATCH']);
+  const P = require('../src/training/presentation.ts');
+  assert.equal(P.practiceLine('PRESSURE_MATCH', 'PRESSURE_MATCH', true), 'Counts toward your plans');
+});
+
+test('Drill sheet says why MARK ON TARGET isn’t offered: several targets, steel, dry fire', () => {
+  const note = 'Marking hits works on single paper-target drills, live fire.';
+  const has = h => h.nodes().some(n => n.type === 'Copy' && n.props.children === note);
+  const marking = h => h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('MARK ON TARGET'));
+  const bill = drillSheet('bill'); assert.ok(marking(bill)); assert.ok(!has(bill), 'offered: nothing to explain');
+  for (const [id, patch] of [['blake', {}], ['steel', {}], ['partial', {}], ['bill', { context: 'DRY_FIRE' }]]) {
+    const h = drillSheet(id, patch); assert.ok(!marking(h), id); assert.ok(has(h), id + ' says why');
+  }
+});
+
+test('Drill sheet: saving a video run whose beep wasn’t used asks first; USE THE BEEP keeps your typed times', async () => {
+  const saves = [];
+  const h = drillSheet('bill', { onSave: async (r, _p, v) => { saves.push([r, v]); } });
+  const video = { id: 'v1', asset: { uri: 'training-videos/v1.mov', name: 'IMG_1.MOV', storage: 'DOCUMENTS' }, durationMs: 9000, timing: null };
+  const found = { beepMs: 1250, beepDurationMs: 200, shotMs: [], ignoredMs: [], shotTimes: [1.42, 1.68, 1.93, 2.17, 2.42, 2.66], dryFire: false };
+  const type = text => { h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel)).props.onChangeText(text); h.render(); };
+  h.child('DrillVideo').onChange(video); h.child('DrillVideo').onFound(found); h.render();
+  type('1.40 1.65 1.90 2.15 2.40 2.65');
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saves.length, 0, 'asks before saving');
+  assert.ok(h.nodes().some(n => n.props?.children === 'Use the beep from the video?'));
+  assert.ok(!h.nodes().some(n => n.props?.title === 'SAVE RUN'), 'the question replaces SAVE RUN');
+  h.press('USE THE BEEP'); await h.settle();
+  assert.equal(saves.length, 1);
+  assert.deepEqual(saves[0][0].shotTimes, [1.4, 1.65, 1.9, 2.15, 2.4, 2.65], 'typed times kept');
+  assert.equal(saves[0][1].timing.beepMs, 1250, 'the video is saved with its beep');
+  // A run whose video's beep wasn't used: saved without it, and it says what that means.
+  h.child('DrillVideo').onChange({ ...video, id: 'v2' }); h.child('DrillVideo').onFound(found); h.render();
+  type('1.40 1.65 1.90 2.15 2.40 2.65');
+  h.press('SAVE RUN'); await h.settle(); h.press('SAVE WITHOUT IT'); await h.settle();
+  assert.equal(saves.length, 2); assert.equal(saves[1][1].timing, null);
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /Its beep wasn’t used, so it can’t be broken down\.$/.test(n.props.children)));
+  // Times already used from the video (or dry fire's USE THE BEEP): nothing to ask.
+  h.child('DrillVideo').onChange({ ...video, id: 'v3', timing: found }); h.child('DrillVideo').onFound(found); h.render();
+  type('1.42 1.68 1.93 2.17 2.42 2.66');
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saves.length, 3); assert.equal(saves[2][1].timing.beepMs, 1250);
+  // No beep found in the sound: nothing to offer, it saves straight away.
+  h.child('DrillVideo').onChange({ ...video, id: 'v4' }); h.child('DrillVideo').onFound(null); h.render();
+  type('1.42 1.68 1.93 2.17 2.42 2.66');
+  h.press('SAVE RUN'); await h.settle();
+  assert.equal(saves.length, 4);
+  assert.match(fs.readFileSync(path.resolve(__dirname, '../src/training/DrillVideo.tsx'), 'utf8'), /timing\.dryFire\s*\?\s*<Action title=\{video\.timing === timing \? 'BEEP IN USE' : 'USE THE BEEP'\}/, 'dry fire keeps its USE THE BEEP');
+});
+
+test('Drill sheet: closing with typed times or counted hits asks first; nothing typed closes at once; SAVE RUN keeps it open', async () => {
+  let closes = 0;
+  const h = drillSheet('bill', { onClose: () => { closes++; }, onSave: async () => {} });
+  h.child('EditorSheet').close(); assert.equal(closes, 1, 'nothing typed: closes');
+  const times = () => h.find(n => n.type === 'TextInput' && /SHOT TIMES/.test(n.props.accessibilityLabel));
+  times().props.onChangeText('1.3 1.55'); h.render();
+  h.child('EditorSheet').close(); h.render(); assert.equal(closes, 1);
+  assert.ok(h.nodes().some(n => n.props?.children === 'This run isn’t saved'));
+  h.press('KEEP EDITING'); assert.equal(times().props.value, '1.3 1.55', 'still there');
+  // The backdrop and Done close the same way (both call close).
+  h.child('EditorSheet').close(); h.render(); h.press('DISCARD'); assert.equal(closes, 2);
+  assert.equal(times().props.value, '', 'discarded');
+  const counter = zone => h.find(n => n.type?.name === 'Counter' && n.props.label === zone);
+  counter('A').props.onChange(2); h.render();
+  h.child('EditorSheet').close(); h.render(); assert.equal(closes, 2, 'counted hits ask too');
+  h.press('DISCARD');
+  // After SAVE RUN the sheet stays open and nothing is left to lose.
+  times().props.onChangeText('1.3 1.55 1.8 2.05 2.3 2.55'); h.render();
+  h.press('SAVE RUN'); await h.settle();
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && /^Saved:/.test(n.props.children))); assert.equal(closes, 3);
+  h.child('EditorSheet').close(); assert.equal(closes, 4);
+});
+
+test('Training intro follows the practice type for plans; /training?show=numbers opens YOUR NUMBERS (Profile’s link)', async () => {
+  const intro = h => h.nodes().find(n => n.type === 'Copy' && /^Pick a drill/.test(n.props.children))?.props.children;
+  const h = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [], loadProfile: async () => ({ performance: {}, calibrationContext: 'DRY_FIRE' }) } });
+  await h.settle();
+  assert.equal(intro(h), 'Pick a drill, run it on your timer, log it. Dry-fire runs that count update YOUR NUMBERS, which your plans use.');
+  assert.ok(!/Every run/.test(intro(h)));
+  assert.ok(!h.nodes().some(n => n.type === 'YourNumbers'), 'YOUR NUMBERS starts closed');
+  h.nodes().find(n => n.type === 'LibraryCard' && n.props.name === 'Bill Drill').props.open(); h.render();
+  assert.equal(h.child('DrillSheet').context, 'DRY_FIRE', 'PRACTICE starts on the plans’ practice type');
+  const live = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [], loadProfile: async () => ({ performance: {} }) } });
+  await live.settle();
+  assert.equal(intro(live), 'Pick a drill, run it on your timer, log it. Live-fire runs that count update YOUR NUMBERS, which your plans use.');
+  // A practice type picked on this phone wins over the setting.
+  const picked = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [], loadProfile: async () => ({ performance: {} }) }, prefs: { 'psp.trainingContext': 'PRESSURE_MATCH' } });
+  await picked.settle(); picked.nodes().find(n => n.type === 'LibraryCard' && n.props.name === 'Bill Drill').props.open(); picked.render();
+  assert.equal(picked.child('DrillSheet').context, 'PRESSURE_MATCH');
+  const numbers = harness('app/training.tsx', {}, { '@/training/videoAssets': {}, repo: { trainingReadWarnings: [], listTraining: async () => [] }, params: { show: 'numbers' } });
+  await numbers.settle();
+  assert.equal(numbers.child('YourNumbers').visible, true);
+});
+
+test('Older sessions’ videos open read-only: watch and read, no edit, analyse, compare, save or profile contribution', async () => {
+  const h = videoHarness({}, () => {}, { readOnly: true }); await h.settle();
+  assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Read-only: recorded before the drill library.'));
+  assert.deepEqual(h.find(n => n.type === 'Segmented').props.options, ['TIMELINE', 'RESULTS']);
+  for (const title of ['Save analysis', '+ Add event', 'ANALYZE AUDIO', 'SELECT STAGE', 'Relink original video (keep markers)']) assert.ok(!h.nodes().some(n => n.props?.title === title), title + ' hidden');
+  h.child('Segmented').onChange('RESULTS'); h.render();
+  assert.ok(!h.nodes().some(n => /eligible measurements to profile|UPDATE PROFILE DATA/.test(n.props?.title ?? '')), 'no profile contribution');
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Not added to your profile\. Editing, comparing with a plan and adding to your profile are off/.test(n.props.children)));
+  // A video that still exists can be watched, and its markers played.
+  const session = { id: 'v', trainingSessionId: 't', drillId: null, asset: { name: 'video.mp4', uri: 'training-videos/v.mp4', storage: 'DOCUMENTS' }, durationMs: 10000, fps: null, context: 'LIVE_FIRE',
+    analysisStatus: 'REVIEWED', analysisVersion: 1, createdAt: '2026-10-04T12:00:00.000Z', importedAt: '2026-10-04T12:00:00.000Z' };
+  const initialVideo = { session, analysis: require('../src/training/videoAnalysis.ts').analyzeVideo(session, [{ id: 'e', type: 'STIMULUS', timestampMs: 100, source: 'MANUAL', confidence: 'CONFIRMED', confirmed: true }]) };
+  const w = harness('training/VideoAnalysisEditor.tsx', { record: { id: 't', startingType: 'competitionHolster', videos: [initialVideo] }, initialVideo, onSaved() {}, onClose() {}, readOnly: true },
+    { 'expo-video': {}, './videoAssets': { assetExists: async () => true, discardVideoAsset() {} }, './extractPose': {}, './extractCloseUp': {}, './extractAnalysisAudio': {}, repo: {} });
+  await w.settle();
+  assert.equal(w.find(n => n.type?.name === 'Player').props.readOnly, true);
+  assert.ok(w.nodes().some(n => n.props?.title === 'Preview at 100.00 ms'), 'its markers can be played');
+  assert.ok(!w.nodes().some(n => ['Edit', 'Delete event', 'Confirm event'].includes(n.props?.title)));
+});
+
+test('Home LAST DRILL shows % POINTS', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/app/index.tsx'), 'utf8');
+  assert.match(source, /\['% POINTS', score/); assert.doesNotMatch(source, /\['POINTS',/);
+});
+
 test('review: the home screen shows the newest drill-library run', () => {
   const Days = require('../src/training/drillDays.ts');
   const mk = (id, at, drillId = 'bill', shotTimes = [1.3, 1.55, 1.8, 2.05, 2.3, 2.55]) => ({ id, drillId, recordedAt: at, choices: { distance: '7' }, shotTimes, totalTime: shotTimes.at(-1), family: 'USPSA', notes: '', zones: { A: 6 } });
@@ -1076,7 +1288,7 @@ function drawExtraction(beep = 1000, fps = 60, endMs = 2400) {
 test('Movement breakdown: tracks the run’s video, times each movement, adds play buttons, and keeps it on the run', async () => {
   let extract = async (_s, endMs) => { assert.equal(endMs, 1000 + 1050 + 300, 'tracked up to just after the first shot'); return drawExtraction(); };
   const kept = [], marks = [];
-  const props = { kind: 'draw', session: { asset: { uri: 'training-videos/v.mov' } }, beepMs: 1000, shotTimes: [1.05, 1.3], side: 'right', onSideChange() {},
+  const props = { kind: 'draw', session: { asset: { uri: 'training-videos/v.mov' } }, beepMs: 1000, shotTimes: [1.05, 1.3], side: 'right',
     saved: undefined, onMarks: m => marks.push(m), onKeep: p => { kept.push(p); }, disabled: false };
   const h = harness('training/PhaseBreakdown.tsx', props, { './extractPose': { extractPoseUntil: (...args) => extract(...args) } });
   h.press('BREAK DOWN THE DRAW');
@@ -1089,10 +1301,12 @@ test('Movement breakdown: tracks the run’s video, times each movement, adds pl
   h.press('KEEP ON THIS RUN'); await h.settle();
   assert.equal(kept.length, 1); assert.equal(kept[0].kind, 'draw'); assert.equal(kept[0].side, 'right');
   assert.equal(require('../src/training/movementPhases.ts').savedPhasesProblem(kept[0]), null);
-  // Switching the shooting hand after tracking clears the result (it can't be kept for the other hand).
+  // The shooting hand is set in Profile and shown here; a hand changed after tracking clears the result (it can't be kept for the other hand).
+  assert.equal(h.find(n => n.type === 'DataRow' && n.props.label === 'Shooting hand').props.value, 'Right');
+  assert.ok(!h.nodes().some(n => n.type === 'Segmented' && n.props.options?.includes('LEFT')), 'no second hand switch here');
   h.press('BREAK DOWN THE DRAW');
   for (let i = 0; i < 50 && !h.nodes().some(n => n.props?.title === 'KEEP ON THIS RUN'); i++) await h.settle();
-  h.find(n => n.type === 'Segmented' && n.props.options.includes('LEFT')).props.onChange('LEFT'); h.render();
+  props.side = 'left'; h.render();
   assert.ok(!h.nodes().some(n => n.props?.title === 'KEEP ON THIS RUN')); assert.deepEqual(marks.at(-1), []);
   // The installed build can't track at 60 frames a second yet: it says so plainly.
   extract = async () => { throw new Error('Unsupported local pose request.'); };
@@ -1108,7 +1322,8 @@ test('Drill sheet: a watched draw run offers the breakdown; kept breakdowns are 
   const record = Days.addRun(Days.newDrillDay('d', '2026-10-20', 'LIVE_FIRE', run.recordedAt), run,
     { id: 'v1', asset: { uri: 'training-videos/v1.mov', name: 'IMG.MOV', storage: 'DOCUMENTS' }, durationMs: null, timing: { beepMs: 1000 } });
   const updates = [];
-  const h = drillSheet('draw', { records: [record], hand: 'right', onHandChange() {}, onUpdate: r => { updates.push(r); } });
+  const h = drillSheet('draw', { records: [record], hand: 'right', onUpdate: r => { updates.push(r); } });
+  drillTab(h, 'RUNS');
   h.press('Watch run 1');
   const panel = h.child('PhaseBreakdown');
   assert.deepEqual([panel.kind, panel.beepMs, panel.shotTimes, panel.side], ['draw', 1000, [1.05], 'right']);
@@ -1117,7 +1332,8 @@ test('Drill sheet: a watched draw run offers the breakdown; kept breakdowns are 
   assert.equal(require('../src/training/drillLibrary.ts').libraryRunProblem(updates[0]), null);
   // With the breakdown saved, the drill shows your averages.
   const saved = { ...record, libraryRuns: [{ ...record.libraryRuns[0], phases }] };
-  const w = drillSheet('draw', { records: [saved], hand: 'right', onHandChange() {}, onUpdate() {} });
+  const w = drillSheet('draw', { records: [saved], hand: 'right', onUpdate() {} });
+  drillTab(w, 'RUNS');
   const row = label => w.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
   assert.ok(w.nodes().some(n => n.props?.children === 'YOUR DRAW, BROKEN DOWN · 1 RUN'));
   assert.equal(row('Reaction'), '0.20 s'); assert.equal(row('To the grip'), '0.15 s'); assert.equal(row('Sight to shot'), '0.25 s');
@@ -1148,8 +1364,10 @@ test('Your numbers shows measured values with run counts, the planner values, an
   assert.equal(row('Par'), '2.60 s');
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /Green runs are at or under par/.test([].concat(n.props.children).join(''))));
   assert.ok(h.nodes().some(n => n.props.accessibilityLabel === 'Par mark'));
-  h.child('Segmented').onChange('Dry Fire'); h.render();
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Your plans use these live-fire numbers. Change it in Profile · Practice type for plans.'));
+  h.child('Segmented').onChange('DRY FIRE'); h.render();
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /No drill-library runs in dry fire yet/.test([].concat(n.props.children).join(''))));
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Your plans use your live-fire numbers \(Profile · Practice type for plans\)\. These dry-fire numbers are for comparison\.$/.test(n.props.children)));
 });
 
 test('review: Your numbers survives a damaged saved move fit and opens on the planner context; par is left alone unless typed', async () => {
@@ -1157,13 +1375,13 @@ test('review: Your numbers survives a damaged saved move fit and opens on the pl
   // The profile arrives after the screen mounts.
   const props = { visible: true, records: [], profile: null, onClose() {} };
   const h = harness('training/YourNumbers.tsx', props);
-  assert.equal(h.child('Segmented').value, 'Live Fire');
+  assert.equal(h.child('Segmented').value, 'LIVE FIRE');
   props.profile = loaded; h.render();
-  assert.equal(h.child('Segmented').value, 'Dry Fire', 'follows the planner context once the profile loads');
+  assert.equal(h.child('Segmented').value, 'DRY FIRE', 'follows the practice type for plans once the profile loads');
   assert.ok(!h.nodes().some(n => n.props?.label === 'Move time (used for legs)'), 'damaged fit not shown, no crash');
-  h.child('Segmented').onChange('Live Fire'); h.render();
+  h.child('Segmented').onChange('LIVE FIRE'); h.render();
   props.visible = false; h.render(); props.visible = true; h.render();
-  assert.equal(h.child('Segmented').value, 'Dry Fire', 'opens on the planner context again');
+  assert.equal(h.child('Segmented').value, 'DRY FIRE', 'opens on the practice type for plans again');
   assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === 'Draw'), 'planner values shown for the planner context');
 
   let savedPar = 'not called';

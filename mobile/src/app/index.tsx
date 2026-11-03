@@ -53,7 +53,7 @@ export default function Home() {
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.push('/account')}
         style={({ pressed }) => [tile, { flex: 1, minHeight: 110, opacity: pressed ? 0.7 : 1 }]}>
-        <Text style={{ ...typography.section, color: colors.text }}>PROFILE</Text><Copy>Times, day and night</Copy>
+        <Text style={{ ...typography.section, color: colors.text }}>PROFILE</Text><Copy>Settings · day and night</Copy>
       </Pressable>
     </View>
     {lastRun && <View style={{ gap: spacing.sm }}>
@@ -61,7 +61,7 @@ export default function Home() {
       <View style={{ flexDirection: 'row', borderWidth: borders.strong, borderColor: colors.border, minHeight: touch.primary }}>
         {[['TIME', lastRun.run.totalTime !== null ? lastRun.run.totalTime.toFixed(2) : '—'],
           ['HIT FACTOR', score?.hitFactor != null ? score.hitFactor.toFixed(2) : '—'],
-          ['POINTS', score ? Math.round(score.percent * 100) + '%' : '—']].map(([label, value], i) =>
+          ['% POINTS', score ? Math.round(score.percent * 100) + '%' : '—']].map(([label, value], i) =>
           <View key={label} style={{ flex: 1, padding: spacing.md, borderLeftWidth: i ? borders.strong : 0, borderColor: colors.border }}>
             <Text style={{ ...typography.category, color: colors.muted }}>{label}</Text>
             <Text style={{ ...typography.value, color: colors.text }}>{value}</Text>

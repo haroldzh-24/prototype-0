@@ -403,7 +403,8 @@ export class Repository {
         // Stored observations come back sorted by id; compare in the same order so an unchanged session writes nothing.
         const libraryChanged = canonicalById((profile.performanceObservations ?? []).filter(o => isLibraryObservation(o, record.id))) !== canonicalById(library);
         if (selected || libraryChanged || next.length !== (profile.performanceObservations ?? []).length) {
-          const updated = withVideoObservations(profile, next, selected?.session.context ?? profile.calibrationContext ?? 'LIVE_FIRE');
+          // The practice type your plans use is set in Profile only: adding a video's measurements never switches it.
+          const updated = withVideoObservations(profile, next, profile.calibrationContext ?? 'LIVE_FIRE');
           await this.persistProfile(updated);
         }
         await this.db.runAsync('INSERT INTO training (id, userId, occurredAt, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET userId=excluded.userId, occurredAt=excluded.occurredAt, payload=excluded.payload', record.id, record.userId, record.occurredAt, JSON.stringify(record));
@@ -461,6 +462,14 @@ export class Repository {
       if (seconds === null) delete drillPars[key]; else drillPars[key] = seconds;
       return { ...p, drillPars };
     });
+  }
+  /**
+   * Practice type for plans (Profile): the context whose measurements give the profile's planner values. Stored as
+   * `calibrationContext`; the values are rebuilt from the stored measurements in the same write.
+   */
+  setPracticeType(context: TrainingContext) {
+    if (!trainingContexts.includes(context)) return Promise.reject(new Error('Invalid practice type.'));
+    return this.updateProfile(p => withPerformanceObservations(p, p.performanceObservations ?? [], context, false));
   }
   setManualOverride(factor: TimingFactor, value: number | null) { return this.updateProfile(p => setManualOverride(p, factor, value)); }
   rebuildProfile(context?: TrainingContext) { return this.updateProfile(p => withPerformanceObservations(p, p.performanceObservations ?? [], context ?? p.calibrationContext ?? 'LIVE_FIRE')); }

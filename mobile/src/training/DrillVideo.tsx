@@ -26,10 +26,14 @@ export function timingError(e: unknown): string {
 export type RunVideo = { id: string; asset: VideoSession['asset']; durationMs: number | null; timing: DrillTiming | null };
 const s2 = (ms: number) => (ms / 1000).toFixed(2) + ' s';
 
-/** A small player with a button per mark (the beep, each shot) that plays from just before it. */
-export function ClipPlayer({ uri, marks, onDuration }: { uri: string; marks: Mark[]; onDuration?: (ms: number) => void }) {
+/**
+ * A small player with a button per mark (the beep, each shot) that plays from just before it. `active` false (its tab
+ * is hidden) pauses it, so a hidden video doesn't keep playing.
+ */
+export function ClipPlayer({ uri, marks, onDuration, active = true }: { uri: string; marks: Mark[]; onDuration?: (ms: number) => void; active?: boolean }) {
   const player = useVideoPlayer(uri, p => { p.timeUpdateEventInterval = 0.1; });
   const [error, setError] = useState('');
+  useEffect(() => { if (!active) { try { player.pause(); } catch { /* not loaded yet */ } } }, [active, player]);
   useEffect(() => {
     const metadata = () => { try { if (Number.isFinite(player.duration) && player.duration > 0) onDuration?.(player.duration * 1000); } catch { /* duration stays unknown */ } };
     const listeners = [player.addListener('sourceLoad', metadata), player.addListener('statusChange', e => {
@@ -52,9 +56,13 @@ export function ClipPlayer({ uri, marks, onDuration }: { uri: string; marks: Mar
  * Time a run from its video: pick the video, the app finds the timer beep and the drill's shots in the audio, and you
  * check them against the video before using the times. The video is saved with the run; nothing is uploaded.
  */
-export default function DrillVideo({ drill, context, video, onChange, onUseTimes, disabled }: {
+export default function DrillVideo({ drill, context, video, onChange, onUseTimes, onFound, disabled, active = true }: {
   drill: LibraryDrill; context: TrainingContext; video: RunVideo | null; onChange: (video: RunVideo | null) => void;
   onUseTimes: (shotTimes: number[]) => void; disabled: boolean;
+  /** The run found in the video's sound (its beep), or null: SAVE RUN offers to use the beep when it wasn't used yet. */
+  onFound?: (timing: DrillTiming | null) => void;
+  /** False while its tab is hidden: the player pauses. */
+  active?: boolean;
 }) {
   const [status, setStatus] = useState<'IDLE' | 'PICKING' | 'TIMING' | 'DONE' | 'FAILED'>('IDLE');
   const [progress, setProgress] = useState(0), [error, setError] = useState(''), [result, setResult] = useState<DrillTimingResult | null>(null);
@@ -97,6 +105,8 @@ export default function DrillVideo({ drill, context, video, onChange, onUseTimes
     } catch (e) { setError(String(e instanceof Error ? e.message : e)); setStatus('FAILED'); }
   };
   const remove = () => { job.current?.abort(); if (video) discardVideoAsset(video.asset); current.current = null; onChange(null); };
+  const found = video ? result?.runs[Math.min(chosen, result.runs.length - 1)] ?? null : null;
+  useEffect(() => { onFound?.(found); }, [found]);
 
   if (!video) return <View style={{ gap: 6 }}>
     <Action title={status === 'PICKING' ? 'Opening…' : 'TIME IT FROM A VIDEO'} disabled={disabled || status === 'PICKING'} onPress={() => { void pick(); }} />
@@ -104,13 +114,13 @@ export default function DrillVideo({ drill, context, video, onChange, onUseTimes
     {!!error && <Notice tone="warning">{error}</Notice>}
   </View>;
 
-  const timing = result?.runs[Math.min(chosen, result.runs.length - 1)] ?? null;
+  const timing = found;
   let uri: string | null = null, uriError = '';
   try { uri = playbackUri(video.asset); } catch (e) { uriError = String(e instanceof Error ? e.message : e); }
   const marks = timing ? marksOf(timing.beepMs, timing.shotTimes) : [];
   return <View style={{ gap: 6 }}>
     <Text style={ui.eyebrow}>{'VIDEO · ' + video.asset.name}</Text>
-    {uri ? <MediaPlayerBoundary key={uri}><ClipPlayer uri={uri} marks={marks} onDuration={ms => { if (current.current && current.current.durationMs !== ms) onChange({ ...current.current, durationMs: ms }); }} /></MediaPlayerBoundary>
+    {uri ? <MediaPlayerBoundary key={uri}><ClipPlayer uri={uri} marks={marks} active={active} onDuration={ms => { if (current.current && current.current.durationMs !== ms) onChange({ ...current.current, durationMs: ms }); }} /></MediaPlayerBoundary>
       : <Notice tone="warning">{uriError}</Notice>}
     {status === 'TIMING' && <View style={{ gap: 4 }}>
       <Copy>{`Finding the beep and your shots… ${Math.round(progress * 100)}%`}</Copy>
