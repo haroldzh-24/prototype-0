@@ -4,6 +4,7 @@ import type { PlannerContext, PlannerResult, RoutePlannerConfig, RankingMetrics,
 import type { StagePlan } from './model';
 import type { StageRoute } from './route';
 import { formatYardsFixed } from '../stage/measurements';
+import { withPlanDefaults } from './planDefaults';
 
 /** Presentation mapping only; all metrics and route decisions come from the planner. */
 export function mapPlannerResults(result: PlannerResult, sources: Record<string, PositionMetadata> = {}) {
@@ -32,7 +33,9 @@ export function mapPlannerResults(result: PlannerResult, sources: Record<string,
 }
 export type PlannerCard = Omit<ReturnType<typeof mapPlannerResults>[number], 'routeStyle'> & { routeStyle: ReturnType<typeof mapPlannerResults>[number]['routeStyle'] | 'GEOMETRY' };
 
-export function generatePlannerCards(context: PlannerContext, config: RoutePlannerConfig, sources: Record<string, PositionMetadata> = {}) {
+export function generatePlannerCards(input: PlannerContext, config: RoutePlannerConfig, sources: Record<string, PositionMetadata> = {}) {
+  // Candidates are generated and evaluated on the plan as ANALYZE reads it (rule-default rounds, default loadout).
+  const context: PlannerContext = { ...input, plan: withPlanDefaults(input.stage, input.plan, input.profile).plan };
   const generated = generateCandidates(context, config);
   const ranked = rankCandidates(generated.candidates.map(candidate => evaluateCandidate(context, candidate)), config, { maxResults: 3 });
   return {

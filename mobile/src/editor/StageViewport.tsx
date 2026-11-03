@@ -14,6 +14,7 @@ import type { DesignerTool } from './designerTools';
 import { createViewportTransform } from '@/stage/coordinates';
 import type { StagePosition, ViewportState, ViewportTransform } from '@/stage/coordinates';
 import type { StageDocument } from '@/stage/model';
+import { isEngageable } from '../planning/model';
 import type { SnapSettings, SnapFeedback } from '@/stage/snapping';
 import DraggableObject from './DraggableObject';
 import StageGrid from './StageGrid';
@@ -228,7 +229,9 @@ export default function StageViewport(props: Props) {
           <View accessibilityElementsHidden={props.readOnly} importantForAccessibility={props.readOnly ? 'no-hide-descendants' : 'auto'} pointerEvents={(props.routeEditing || props.readOnly || (props.tool && props.tool !== 'select')) ? 'none' : 'box-none'} style={StyleSheet.absoluteFill}>
           {props.stage.objects.map((item) => <DraggableObject key={item.id}
             item={item} transform={transform} stage={props.stage} snapping={props.snapping} onFeedback={setFeedback} selected={props.selectedId === item.id}
-            onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage} />)}
+            onSelect={props.onSelect} onDragging={props.onDragging} setStage={props.setStage}
+            // PLAN: VoiceOver reaches the same target sheet as a tap on the target (BUILD selects the object instead).
+            onAccessibilityTap={props.routeEditing ? (props.onTargetTap && isEngageable(item) ? () => props.onTargetTap!(item.id) : null) : undefined} />)}
           </View>
           {!props.routeEditing && !props.readOnly && (!props.tool || props.tool === 'select') && props.stage.objects.filter(o => o.id === props.selectedId && !(o.type === 'cardboardTarget' || o.type === 'noShootTarget' ? o.attachment : undefined)).map(item => <GeometryControls key={item.id} item={item} stage={props.stage} transform={transform} snapping={props.snapping} onDragging={props.onDragging} setStage={props.setStage} />)}
           {props.draft && (() => {

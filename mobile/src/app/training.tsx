@@ -35,7 +35,8 @@ const savedContext = (): TrainingContext | null => { const v = readPref(CONTEXT_
 /**
  * Training is the drill library: pick a drill, run it, log it. Runs are filed by day and practice type for you; runs
  * that count update YOUR NUMBERS, and those of the practice type set in Profile are what your plans use. Drill days
- * are under History; sessions recorded before the drill library are a read-only archive at its bottom.
+ * are under History; sessions recorded before the drill library are a read-only archive at its bottom (each can be
+ * deleted, with a confirm).
  * `/training?show=numbers` (Profile · YOUR NUMBERS) opens on YOUR NUMBERS.
  */
 export default function Training() {
@@ -124,9 +125,9 @@ export default function Training() {
   };
   const trendFor = (record: TrainingRecord) => drillTrend(records.filter(r => drillKey(r) === drillKey(record))
     .flatMap(r => (r.runs ?? []).map(logged => ({ ...logged, sessionName: r.drillName || 'Practice Session' }))));
-  // Only a drill day is deleted from here; older sessions are a read-only archive.
-  const deleteDay = (record: TrainingRecord) => run(async token => {
-    if (!isDrillDay(record)) return;
+  // A drill day or an older session is deleted (with a confirm): the record, its video copies and the measurements it
+  // added to your numbers. An older session is otherwise read-only.
+  const deleteRecord = (record: TrainingRecord) => run(async token => {
     await repo.deleteTraining(record.id);
     // The record is gone; remove its app-owned video copies (best effort, after the database commit).
     for (const video of record.videos ?? []) { try { discardVideoAsset(video.session.asset); } catch { /* already removed */ } }
@@ -163,7 +164,7 @@ export default function Training() {
         {older.length > 0 && <Action title={(olderOpen ? 'HIDE OLDER SESSIONS' : 'OLDER SESSIONS') + ` · ${older.length}`}
           accessibilityLabel={olderOpen ? 'Hide older sessions' : 'Show older sessions'} onPress={() => setOlderOpen(!olderOpen)} />}
         {olderOpen && older.length > 0 && <>
-          <Copy>Recorded before the drill library. Their videos can be watched and their analysis read; they can’t be changed.</Copy>
+          <Copy>Recorded before the drill library. Their videos can be watched and their analysis read; they can’t be changed, only deleted.</Copy>
           {older.map(record => <LibraryCard key={record.id} name={historyTitle(record)} category={contextLabels[record.context ?? 'DRY_FIRE'].toUpperCase()}
             detail={new Date(record.occurredAt).toLocaleDateString() + '\n' + historyDetail(record)} disabled={busy} open={() => openRecord(record)} />)}
         </>}
@@ -198,12 +199,13 @@ export default function Training() {
               onPress={() => run(async () => { await removeLibraryRun(libraryRun.id); })} />
           </View> : <Action title="REMOVE" variant="quiet" accessibilityLabel={`Remove library run ${index + 1}`} disabled={busy} onPress={() => setRemovingRun(libraryRun.id)} />}
         </View>)}
-        {!legacy && (confirmDelete ? <>
-          <Notice tone="warning">{'Delete this day’s drill runs' + (activeSession.videos?.length ? `, its ${activeSession.videos.length} imported video copies` : '')
+        {/* Deleting a day or an older session can't be undone, so it is confirmed (rule 4). */}
+        {confirmDelete ? <>
+          <Notice tone="warning">{(legacy ? 'Delete this session' : 'Delete this day’s drill runs') + (activeSession.videos?.length ? `, its ${activeSession.videos.length} imported video copies` : '')
             + ' and the measurements they added to your numbers? This cannot be undone.' + (activeSession.videos?.length ? ' Videos in Photos or Files are not touched.' : '')}</Notice>
           <Action title="KEEP" disabled={busy} onPress={() => setConfirmDelete(false)} />
-          <Action title="DELETE" variant="destructive" disabled={busy} onPress={() => deleteDay(activeSession)} />
-        </> : <Action title="DELETE THIS DAY" variant="destructive" disabled={busy} onPress={() => setConfirmDelete(true)} />)}
+          <Action title="DELETE" variant="destructive" disabled={busy} onPress={() => deleteRecord(activeSession)} />
+        </> : <Action title={legacy ? 'DELETE SESSION' : 'DELETE THIS DAY'} variant="destructive" disabled={busy} onPress={() => setConfirmDelete(true)} />}
         {!!message && <Notice tone="error">{message}</Notice>}
       </Panel>}
     </EditorSheet>

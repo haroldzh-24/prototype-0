@@ -97,7 +97,7 @@ import EyeLevelView from '../stage3d/EyeLevelView';
 import { buildWalk } from '../stage3d/walk';
 import { moveObject } from '../stage/operations';
 import HoldHint from './HoldHint';
-import { deletedText, modeChip, positionName, positionTitle, resetText, SEP, targetName, targetNameWithType, targetTypeName, words } from '../ui/words';
+import { deletedText, modeChip, positionName, positionNameWithNote, positionNote, positionTitle, positionTitleWithNote, resetText, SEP, targetName, targetNameWithType, targetTypeName, words } from '../ui/words';
 import { partialLabel, placePartial } from '../stage/partialTargets';
 
 export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: { initial: SavedStage; targetFamily: TargetFamily; routeAIAdapter?: RouteAIAdapter }) {
@@ -162,6 +162,9 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const enterRoute = () => { setRouteMode(true); setSelectedId(null); setViewMode('topDown'); };
   type Panel = 'check' | 'layers' | 'settings' | 'edit' | 'plan' | 'view' | 'snap' | 'drawing' | 'route' | 'summary' | 'assign' | 'reload' | 'aiPlan' | 'planV2' | 'more' | 'rules' | 'waypoint' | 'order' | 'engagement' | 'saveError';
   const [panel, setPanel] = useState<Panel | null>(null);
+  // What you are typing in a position's note field (kept as typed, even "P1…", which as a stored label alone is not shown).
+  const [noteDraft, setNoteDraft] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => { setNoteDraft(null); }, [positionId, panel]);
   // A sheet opened from another (an item from •••, Route settings from AUTO-PLAN or the older optimizer) shows ‹ BACK
   // and returns there. Arriving back at ••• or at a planner, or closing, forgets it.
   const [sheetBack, setSheetBack] = useState<Panel | null>(null);
@@ -314,16 +317,23 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   // short bar offers UNDO. The bar shows only while the document is exactly as that edit left it (and for a while).
   const [undoNote, setUndoNote] = useState<{ text: string; revision: number } | null>(null);
   const noteUndo = (text: string) => setUndoNote({ text, revision: documentHistory.revision() });
-  /** Make an edit and offer UNDO for it, only if it changed the document (an UNDO for nothing would take back an older edit). */
-  const withUndo = (text: string, edit: () => void) => { const before = documentHistory.revision(); edit(); if (documentHistory.revision() !== before) noteUndo(text); };
+  /**
+   * Make an edit and offer UNDO for it only if it changed the document: an UNDO for nothing would take back an older
+   * edit. An edit that changed nothing also takes down an older edit's bar, so the bar on screen is always about the
+   * last thing you did.
+   */
+  const withUndo = (text: string, edit: () => void) => {
+    const before = documentHistory.revision(); edit();
+    if (documentHistory.revision() !== before) noteUndo(text); else setUndoNote(null);
+  };
   const undoVisible = !!undoNote && undoNote.revision === documentHistory.revision();
   useEffect(() => { if (!undoNote) return; const timer = setTimeout(() => setUndoNote(null), 8000); return () => clearTimeout(timer); }, [undoNote]);
   const deleteSelected = () => {
     if (!selected || selected.type === 'start') return;
     const name = targetName(stage, selected) || objectLabel(selected.type).toLowerCase();
-    act({ kind: 'delete' }); noteUndo(deletedText(name));
+    withUndo(deletedText(name), () => act({ kind: 'delete' }));
   };
-  const resetStage = () => { act({ kind: 'reset', targetFamily }); setPanel(null); noteUndo(resetText); };
+  const resetStage = () => { withUndo(resetText, () => act({ kind: 'reset', targetFamily })); setPanel(null); };
   const applyEdit = (edit: ObjectEdit): string | null => {
     if (!selected) return 'Select an object first.';
     const result = applyInspectorEdit(stage, selected.id, edit, snapping.enabled ? snapping.rotationIncrement : null);
@@ -640,7 +650,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {panel === 'rules' && <>
         <EngagementSettings stage={stage} initial={route.engagementRules} family={targetFamily} onCancel={() => setPanel(sheetBack)} onApply={rules => { changeRoute({ ...route, engagementRules: rules }); setPanel(sheetBack); }} /></>}
       {panel === 'waypoint' && selectedWaypoint && <>
-        <Text style={styles.title}>{positionTitle(waypointIndex)}</Text>
+        <Text style={styles.title}>{positionTitleWithNote(waypointIndex, selectedWaypoint.label)}</Text>
         <Text>Select a position to edit its incoming connection. Drag diamonds; tap + to insert bends.</Text>
         {(() => {
           const index=waypointIndex, origin=index ? route.positions[index-1] : stage.objects.find(o=>o.type==='start');
@@ -650,17 +660,21 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           {connection.bends.map((bend,i)=><View key={'move-'+bend.id}><Text>{'Move bend '+(i+1)+' (one inch)'}</Text><View style={styles.controls}>{(['Left','Right','Up','Down'] as const).map(direction=><Action key={direction} title={('Bend '+(i+1)+' '+direction).toUpperCase()} accessibilityLabel={'Bend '+(i+1)+' '+direction} onPress={()=>changeRoute(setConnection(route,{...connection,bends:connection.bends.map(b=>b.id===bend.id?{...b,position:{...b.position,x:Math.max(0,Math.min(stage.stage.width,b.position.x+(direction==='Left'?-1:direction==='Right'?1:0))),y:Math.max(0,Math.min(stage.stage.depth,b.position.y+(direction==='Up'?-1:direction==='Down'?1:0)))}}:b)}))} />)}</View></View>)}
           {connection.bends.map((bend,i)=><Action key={bend.id} title={'DELETE BEND '+(i+1)} accessibilityLabel={'Delete bend '+(i+1)} variant="destructive" onPress={()=>changeRoute(setConnection(route,{...connection,bends:connection.bends.filter(b=>b.id!==bend.id)}))} />)}</>;
         })()}
-        <TextInput accessibilityLabel="Position label" style={ui.input} value={selectedWaypoint.label} maxLength={30} onChangeText={label => changeRoute({ ...route, positions: route.positions.map(p => p.id === positionId ? { ...p, label } : p) })} />
+        {/* The name is the route order (P2); the stored label is only your optional note beside it ("P2 · Barricade left"). */}
+        <Text>{`Note (optional), shown beside ${positionName(waypointIndex)}`}</Text>
+        <TextInput accessibilityLabel="Position note" placeholder="Barricade left" style={ui.input} maxLength={30}
+          value={noteDraft?.id === selectedWaypoint.id ? noteDraft.text : positionNote(selectedWaypoint.label)}
+          onChangeText={label => { setNoteDraft({ id: selectedWaypoint.id, text: label }); changeRoute({ ...route, positions: route.positions.map(p => p.id === positionId ? { ...p, label } : p) }); }} />
         <Text>{formatYards(routeEvaluation?.segments.find(s => s.toId === positionId)?.distance ?? 0)} from previous</Text>
         <Text>{formatYards(routeEvaluation?.segments.find(s => s.fromId === positionId)?.distance ?? 0)} to next</Text>
         <Text>{selectedWaypoint.engagedTargetIds.length} targets assigned{selectedWaypoint.movingTargetIds?.length ? ` (${selectedWaypoint.movingTargetIds.length} while moving)` : ''}</Text>
-        <Text>Reload: {(() => { const reload = route.reloads.find(r => r.positionId === positionId); const index = plan.loadout.magazines.findIndex(m => m.id === reload?.magazineId); return !reload ? 'None' : index < 0 ? 'Missing magazine' : plan.loadout.magazines[index].label || 'Magazine ' + (index + 1); })()}</Text>
+        <Text>Reload: {(() => { const magazines = planDefaults.plan.loadout.magazines, reload = route.reloads.find(r => r.positionId === positionId); const index = magazines.findIndex(m => m.id === reload?.magazineId); return !reload ? 'None' : index < 0 ? 'Missing magazine' : magazines[index].label || 'Magazine ' + (index + 1); })()}</Text>
         <Action title="TARGETS" onPress={() => setPanel('assign')} />
         <Action title="RELOAD" onPress={() => setPanel('reload')} />
         <Action title="DELETE" accessibilityLabel="Delete position" variant="destructive" onPress={deletePosition} />
       </>}
       {panel === 'order' && <>
-        {route.positions.map((p, i) => <View key={p.id}><Action title={String(i + 1) + SEP + p.label} onPress={() => { setPositionId(p.id); setPanel('waypoint'); }} /><View style={styles.controls}><Action title="EARLIER" accessibilityLabel="Earlier" disabled={!i} onPress={() => changeRoute(reorderPosition(route, p.id, -1))} /><Action title="LATER" accessibilityLabel="Later" disabled={i === route.positions.length - 1} onPress={() => changeRoute(reorderPosition(route, p.id, 1))} /></View></View>)}
+        {route.positions.map((p, i) => <View key={p.id}><Action title={positionNameWithNote(i, p.label).toUpperCase()} accessibilityLabel={positionTitleWithNote(i, p.label)} onPress={() => { setPositionId(p.id); setPanel('waypoint'); }} /><View style={styles.controls}><Action title="EARLIER" accessibilityLabel="Earlier" disabled={!i} onPress={() => changeRoute(reorderPosition(route, p.id, -1))} /><Action title="LATER" accessibilityLabel="Later" disabled={i === route.positions.length - 1} onPress={() => changeRoute(reorderPosition(route, p.id, 1))} /></View></View>)}
       </>}
       {/* ROUTE: AUTO-PLAN is the main way to a route; drawing it by hand is the alternative. ENGAGE (checklist line 3) assigns targets by dragging. */}
       {panel === 'route' && <Panel>
@@ -722,7 +736,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {panel === 'summary' && <RouteAnalysis stage={stage} plan={plan} route={route} profile={profile} ruleset={activeRuleset(targetFamily) === 'PCSL' ? 'PCSL' : 'USPSA'} powerFactor={powerFactor} onRouteChange={changeRoute} onPlanChange={setPlan} edit={() => { startRouteTool('path'); }} />}
       {panel === 'plan' && <>
         <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <ToolButton key={section} title={section === 'loadout' ? 'LOADOUT' : 'TARGET ROUNDS'} accessibilityLabel={section === 'loadout' ? 'Loadout' : 'Target rounds'} selected={planSection === section} onPress={() => setPlanSection(section)} />)}</View>
-        {<PlanningPanel section={planSection} plan={plan} stage={stage} onChange={setPlan} />}
+        {<PlanningPanel section={planSection} plan={plan} stage={stage} profile={profile} onChange={setPlan} />}
       </>}
       {panel === 'view' && <>
         {(['path', 'waypoints', 'nodes', 'windows', 'targetIds', 'grid'] as const).map(key => { const label = ({ path: 'Route', waypoints: words.positions, nodes: 'Engagement marks', windows: 'Moving windows', targetIds: 'Target names', grid: 'Grid' }[key]) + SEP + (layers[key] ? 'ON' : 'OFF');
@@ -746,7 +760,9 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {(panel === 'assign' || panel === 'reload') && <>
         <Action title="BACK TO POSITION" accessibilityLabel="Back to position" onPress={() => setPanel('waypoint')} />
         {!!profileError && <ErrorState title="Profile unavailable. Route timing may be unavailable." detail={profileError} />}
-        <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={route} selectedId={positionId} onChange={changeRoute} />
+        {/* RELOAD lists the magazines ANALYZE plans with: yours, or the default loadout (saved with a reload picked from it). */}
+        <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={route} selectedId={positionId} onChange={changeRoute}
+          profile={profile} onPlanChange={setPlan} />
       </>}
     </EditorSheet>
     {panel === 'planV2' && <RoutePlannerV2Panel stage={stage} plan={plan} preview={preview} onPreview={setPreview}

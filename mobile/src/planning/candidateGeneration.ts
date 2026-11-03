@@ -5,6 +5,7 @@ import { evaluateRoute } from './route';
 import type { RouteEvaluation, ShootingPosition, StageRoute } from './route';
 import { shootingDifficulty } from './shootingDifficulty';
 import { analyzeEngagements, suggestEngagements } from './engagements';
+import { withPlanDefaults } from './planDefaults';
 
 /** Hard ceilings; callers may lower them for a smaller search, never raise them. */
 export const PLANNER_SEARCH_LIMITS = Object.freeze({
@@ -26,8 +27,11 @@ export type CandidateGenerationResult = Readonly<{
 }>;
 const distance = (a: StagePosition, b: StagePosition) => Math.hypot(a.x - b.x, a.y - b.y);
 
-/** Uses plan.route.positions as the manually supplied pool. All scoring targets require
- * positive planned rounds, matching evaluateRoute. Visibility is asserted by the user,
+/** Uses plan.route.positions as the manually supplied pool. The plan is read as ANALYZE reads it (planDefaults.ts):
+ * targets without your own round count use the rule default PLAN shows, and the default loadout applies until you add
+ * magazines. All scoring targets then require positive planned rounds (a 0 you set yourself still fails), matching
+ * evaluateRoute. A candidate's reloads can name default magazines: a caller that adopts one saves that loadout with it,
+ * as ANALYZE's PLAN RELOADS does. Visibility is asserted by the user,
  * not geometrically proven. Config policies are intentionally deferred to the next phase.
  * Returned routes are ordinary StageRoute objects; nothing is applied to the input plan.
  */
@@ -53,7 +57,8 @@ export function generateCandidates(context: PlannerContext, _config: RoutePlanne
       limits[key] = value;
     }
   }
-  const { stage, plan, profile } = context;
+  const { stage, profile } = context;
+  const plan = withPlanDefaults(stage, context.plan, profile).plan;
   const targets = stage.objects.filter(isEngageable);
   const targetIds = new Set(targets.map(t => t.id));
   const start = stage.objects.find(o => o.type === 'start');
@@ -61,7 +66,7 @@ export function generateCandidates(context: PlannerContext, _config: RoutePlanne
   if (!start || !finite(start.position) || !Number.isFinite(stage.stage.width) || !Number.isFinite(stage.stage.depth)
     || stage.stage.width <= 0 || stage.stage.depth <= 0 || targets.some(t => !finite(t.position))
     || new Set(stage.objects.map(o => o.id)).size !== stage.objects.length) {
-    warn('INVALID_INPUT', 'Stage requires finite geometry, unique object IDs and an existing Start Position.');
+    warn('INVALID_INPUT', 'Stage requires finite geometry, unique object IDs and an existing start position.');
     return finish('INVALID_INPUT');
   }
   if (!targets.length || targets.some(t => !Number.isSafeInteger(plan.engagements[t.id]) || plan.engagements[t.id] <= 0)

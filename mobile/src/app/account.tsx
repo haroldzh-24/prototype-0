@@ -3,7 +3,8 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useRepository } from '@/storage/StorageProvider';
 import type { UserProfile } from '@/profile/model';
-import { EYE_HEIGHT_LIMITS, feetAndInches, readEyeHeight, readShootingHand, writeEyeHeight, writeShootingHand } from '@/profile/devicePrefs';
+import { EYE_HEIGHT_LIMITS, readEyeHeight, readShootingHand, writeEyeHeight, writeShootingHand } from '@/profile/devicePrefs';
+import { formatFeetAndInches } from '@/stage/measurements';
 import { contextLabels, PLAN_PRACTICE_DEFAULT, practiceAdjectives, practiceButtons, practiceOfButton } from '@/training/presentation';
 import { trainingContexts } from '@/training/observations';
 import type { Side } from '@/training/movementPhases';
@@ -61,7 +62,7 @@ export default function Account() {
     <Panel><Text style={ui.eyebrow}>EYE HEIGHT FOR WALK</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Action title="−" accessibilityLabel="Lower eye height" disabled={eye <= EYE_HEIGHT_LIMITS[0]} onPress={() => setEye(writeEyeHeight(eye - 1))} />
-        <Text style={[ui.dataValue, { flex: 1, textAlign: 'center' }]}>{`${feetAndInches(eye)} · ${eye} in`}</Text>
+        <Text style={[ui.dataValue, { flex: 1, textAlign: 'center' }]}>{`${formatFeetAndInches(eye)} · ${eye} in`}</Text>
         <Action title="+" accessibilityLabel="Raise eye height" disabled={eye >= EYE_HEIGHT_LIMITS[1]} onPress={() => setEye(writeEyeHeight(eye + 1))} />
       </View>
       <Copy>{`How high WALK puts your eyes in the stage editor (${EYE_HEIGHT_LIMITS[0]}–${EYE_HEIGHT_LIMITS[1]} in).`}</Copy></Panel>

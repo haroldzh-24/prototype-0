@@ -150,7 +150,7 @@ export function planChecklist(stage: StageDocument, plan: StagePlan, profile: Sh
   const areas = route?.engagementRules?.firingAreas.length ?? 0;
   const areasLine: ChecklistLine = { key: 'areas', step: 1, title: planWords.checklist.areas, done: areas > 0, status: areas ? done(count(areas, 'area')) : 'Draw at least one shooting area' };
   const positions = route?.positions.length ?? 0, start = stage.objects.some(o => o.type === 'start');
-  const effective = withPlanDefaults(stage, plan, profile).plan;
+  const effective = withPlanDefaults(stage, route ? { ...plan, route } : plan, profile).plan;
   const result = route && positions ? evaluation ?? evaluateRoute(stage, effective, route, profile) : null;
   const blocked = result?.engagementAnalysis?.segments.findIndex(s => !s.traversable) ?? -1;
   const blockedAt = blocked >= 0 && route ? route.positions.findIndex(p => p.id === result!.engagementAnalysis!.segments[blocked].id) : -1;

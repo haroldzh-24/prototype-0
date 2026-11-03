@@ -15,7 +15,7 @@ import { planReloads } from './reloadPlan';
 import type { TargetEstimate } from './expectedPoints';
 import { formatYardsFixed, yardsToInches } from '../stage/measurements';
 import { buildPersonalizedModel } from '../profile/personalizedPerformance';
-import { positionName, positionTitle, SEP, targetNameWithType, targetTypeName } from '../ui/words';
+import { positionName, positionNameWithNote, positionTitle, positionTitleWithNote, SEP, targetNameWithType, targetTypeName } from '../ui/words';
 import { migrateManualEngagements } from './assignments';
 import { REQUIRED_HITS_SOURCE, withPlanDefaults } from './planDefaults';
 import { pointsSource, reviewTargets, timeSource, whatsMissing } from './planStatus';
@@ -55,7 +55,8 @@ export default function RouteAnalysis({ stage, plan, route: savedRoute, profile,
   const [details, setDetails] = useState(false), [reloadNote, setReloadNote] = useState<{ text: string; ok: boolean; reloads: string } | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({}), [timeDetails, setTimeDetails] = useState(false);
   const route = migrateManualEngagements(stage, savedRoute);
-  const defaults = withPlanDefaults(stage, plan, profile), effective: StagePlan = { ...defaults.plan, route };
+  // Defaults for the route shown (its spare magazines are counted for these positions).
+  const defaults = withPlanDefaults(stage, { ...plan, route }, profile), effective: StagePlan = { ...defaults.plan, route };
   const result = evaluateRoute(stage, effective, route, profile), analysis = result.engagementAnalysis;
   const points = estimateStagePoints(stage, effective, route, profile, ruleset, powerFactor);
   const time = estimateStageTime(stage, effective, route, profile, result);
@@ -106,7 +107,7 @@ export default function RouteAnalysis({ stage, plan, route: savedRoute, profile,
         return <Panel key={node.id}>
         <Copy>{node.kind === 'moving' ? `Moving${SEP}on the way to ${at >= 0 ? positionTitle(at) : 'the next position'}` : `${at >= 0 ? positionTitle(at) : 'Position'}${SEP}standing`}</Copy>
         {node.targets.map(t => <Copy key={t.targetId}>{t.orderLabel + '. ' + targetNameWithType(stage, t.targetId)}</Copy>)}
-      </Panel>; }) : route.positions.map((p, i) => <Panel key={p.id}><Copy>{positionTitle(i) + SEP + p.label}</Copy>
+      </Panel>; }) : route.positions.map((p, i) => <Panel key={p.id}><Copy>{positionTitleWithNote(i, p.label)}</Copy>
         {p.engagedTargetIds.map((id, j) => <Copy key={id}>{engagementLabel(j) + '. ' + targetNameWithType(stage, id)}</Copy>)}
       </Panel>)}
     </>)}
@@ -119,7 +120,7 @@ export default function RouteAnalysis({ stage, plan, route: savedRoute, profile,
       <DataRow label="Reloads" value={result.magazineChanges} />
       <DataRow label="Remaining" value={result.ammo.at(-1)?.remaining ?? result.startingRounds} />
       {route.reloads.map(r => { const at = route.positions.findIndex(p => p.id === r.positionId);
-        return at >= 0 && <Copy key={r.positionId}>{`Reload ${(r.mode ?? 'moving') === 'moving' ? 'on the move into' : 'standing at'} ${at + 1}. ${route.positions[at].label}`}</Copy>; })}
+        return at >= 0 && <Copy key={r.positionId}>{`Reload ${(r.mode ?? 'moving') === 'moving' ? 'on the move into' : 'standing at'} ${positionNameWithNote(at, route.positions[at].label)}`}</Copy>; })}
       {canPlanReloads && result.ammo.some(a => !a.sufficient) && <Action title="PLAN RELOADS" accessibilityLabel="Plan reloads around magazine capacity" onPress={() => {
         // Only a plan that carries every position is applied; otherwise the note says what is missing.
         const planned = planReloads(stage, effective, route, profile, result);
@@ -143,8 +144,8 @@ export default function RouteAnalysis({ stage, plan, route: savedRoute, profile,
         {time.sources.map((line, i) => <Copy key={i}>{line}</Copy>)}
         <Action title={timeDetails ? 'HIDE TIME BY POSITION' : 'TIME BY POSITION'} onPress={() => setTimeDetails(!timeDetails)} />
         {timeDetails && time.draw > 0 && <DataRow label="Draw (start)" value={sec(time.draw)} />}
-        {timeDetails && time.positions.map((p, i) => <View key={p.positionId} style={{ gap: 2 }}>
-          <DataRow label={`${i + 1}. ${p.label}`} value={sec(p.seconds)} />
+        {timeDetails && time.positions.map(p => <View key={p.positionId} style={{ gap: 2 }}>
+          <DataRow label={p.label} value={sec(p.seconds)} />
           <Copy>{[p.arrival > 0 ? `move ${sec(p.arrival)}` : '', p.reload > 0 ? `reload ${sec(p.reload)}` : '',
             ...p.targets.map(t => `${t.label} ${formatYardsFixed(yardsToInches(t.yards), 1)}: ` + [t.transition ? `transition ${sec(t.transition.seconds)} (${Math.round(t.transition.degrees)}°)` : '',
               t.splits ? `${t.splits} × ${sec(t.secondsPerSplit)} split${t.splitSource === 'SINGLE' ? ' (single value)' : ''}` : '',

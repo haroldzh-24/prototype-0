@@ -25,6 +25,12 @@ export function formatLength(inches: number): string {
   return (inches < 0 ? '-' : '') + feet + ' ft ' + remainder + ' in';
 }
 
+/** Whole feet and inches, rounded to the inch ("5 ft 3 in"): heights such as the eye height. Display only. */
+export function formatFeetAndInches(inches: number): string {
+  const whole = Math.round(Math.abs(inches));
+  return (inches < 0 && whole ? '-' : '') + Math.floor(whole / 12) + ' ft ' + (whole % 12) + ' in';
+}
+
 export const yardsToInches = (yards: number): number => yards * 36;
 export const inchesToYards = (inches: number): number => inches / 36;
 /** Display rounding never changes stored geometry. */

@@ -12,6 +12,7 @@ import { formatYardsFixed } from '../stage/measurements';
 import { isEngageable, targetLabel } from './model';
 import type { StagePlan } from './model';
 import { analyzeEngagements, validEngagementRules } from './engagements';
+import { positionName } from '../ui/words';
 import type { EngagementRules, EngagementAnalysis } from './engagements';
 
 export type ShootingPosition = {
@@ -102,7 +103,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
   let origin = previous?.position, fromId = previous?.id ?? 'start';
   let magazineChanges = 0, splits = 0, transitions = 0, targetCount = 0;
   const used = new Set<string>(), engaged = new Set<string>();
-  if (!origin) warnings.push('Start Position is missing.');
+  if (!origin) warnings.push('Start position is missing.');
   if (magazineId && !magazines.has(magazineId)) warnings.push('Starting magazine is missing.');
   if (magazineId) used.add(magazineId);
   const startingRounds = (magazines.get(magazineId ?? '') ?? 0) + chamber;
@@ -128,21 +129,23 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     return prediction.seconds;
   };
   for (const reload of route.reloads) if (!route.positions.some(p => p.id === reload.positionId)) warnings.push('Reload references a deleted shooting position.');
-  for (const p of route.positions) {
+  for (const [index, p] of route.positions.entries()) {
+    // Warnings name a position by its place in the route (P1, P2…), as every view does; never by its stored label.
+    const name = positionName(index);
     let incomingSeconds = 0;
     if (origin) {
       const points = connectionPoints(route, fromId, p.id, origin, p.position), distance = pathLength(points);
-      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? legSeconds(points, distance, p.label) : null });
+      segments.push({ fromId, toId: p.id, distance, seconds: validProfile ? legSeconds(points, distance, name) : null });
       incomingSeconds = segments[segments.length - 1].seconds ?? 0;
     }
     origin = p.position; fromId = p.id;
-    if (p.position.x < 0 || p.position.x > stage.stage.width || p.position.y < 0 || p.position.y > stage.stage.depth) warnings.push(`${p.label}: position is outside the stage.`);
-    for (const id of new Set([...p.visibleTargetIds, ...p.engagedTargetIds])) if (!targets.has(id)) warnings.push(`${p.label}: deleted or non-shootable target ${id}.`);
+    if (p.position.x < 0 || p.position.x > stage.stage.width || p.position.y < 0 || p.position.y > stage.stage.depth) warnings.push(`${name}: position is outside the stage.`);
+    for (const id of new Set([...p.visibleTargetIds, ...p.engagedTargetIds])) if (!targets.has(id)) warnings.push(`${name}: deleted or non-shootable target ${id}.`);
     const reloads = route.reloads.filter(r => r.positionId === p.id);
-    if (reloads.length > 1) warnings.push(`${p.label}: multiple reloads at one position are unsupported.`);
+    if (reloads.length > 1) warnings.push(`${name}: multiple reloads at one position are unsupported.`);
     const reload = reloads[0];
     if (reload) {
-      if (!magazines.has(reload.magazineId) || used.has(reload.magazineId)) warnings.push(`${p.label}: reload magazine is missing or already used.`);
+      if (!magazines.has(reload.magazineId) || used.has(reload.magazineId)) warnings.push(`${name}: reload magazine is missing or already used.`);
       else {
         // Preserve at most one chambered round when replacing a nonempty inserted magazine.
         if (!chamber && (magazines.get(magazineId ?? '') ?? 0) > 0) chamber = 1;
@@ -160,11 +163,11 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
     let required = 0, count = 0, positionSplits = 0;
     for (const id of p.engagedTargetIds) {
       if (!targets.has(id)) continue;
-      if (engaged.has(id)) { warnings.push(`${p.label}: ${targetLabel(stage, id)} is engaged more than once.`); continue; }
+      if (engaged.has(id)) { warnings.push(`${name}: ${targetLabel(stage, id)} is engaged more than once.`); continue; }
       engaged.add(id);
-      if (!p.visibleTargetIds.includes(id)) warnings.push(`${p.label}: engaged ${targetLabel(stage, id)} is not marked visible.`);
+      if (!p.visibleTargetIds.includes(id)) warnings.push(`${name}: engaged ${targetLabel(stage, id)} is not marked visible.`);
       const rounds = plan.engagements[id];
-      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for ${targetLabel(stage, id)} in Target rounds.`); continue; }
+      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${name}: set planned rounds for ${targetLabel(stage, id)} in Target rounds.`); continue; }
       required += rounds; splits += rounds - 1; positionSplits += rounds - 1; count++;
     }
     targetCount += count; transitions += Math.max(0, count - 1);
@@ -172,7 +175,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
       engagementSeconds: positionSplits * profile.averageSplitTime + Math.max(0, count - 1) * profile.transitionTime });
     const available = (magazines.get(magazineId ?? '') ?? 0) + chamber;
     const sufficient = required <= available;
-    if (!sufficient) warnings.push(`${p.label}: requires ${required} rounds; only ${available} available. Magazine plan cannot complete this engagement.`);
+    if (!sufficient) warnings.push(`${name}: requires ${required} rounds; only ${available} available. Magazine plan cannot complete this engagement.`);
     const remaining = Math.max(0, available - required);
     // Fire available rounds only; never manufacture ammunition or carry a negative balance.
     chamber = Math.min(1, remaining);

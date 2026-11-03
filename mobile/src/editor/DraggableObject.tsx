@@ -17,6 +17,11 @@ import type { SnapFeedback, SnapSettings } from '@/stage/snapping';
 
 type ObjectProps = {
   onSelect: (id: string) => void;
+  /**
+   * What a VoiceOver double-tap does, when it is not selecting the object (BUILD). In PLAN a scoring target opens its
+   * target sheet, as a tap on the canvas does; other objects do nothing there. Undefined: select it.
+   */
+  onAccessibilityTap?: (() => void) | null;
   onDragging: (dragging: boolean) => void;
   setStage: React.Dispatch<React.SetStateAction<StageDocument>>;
   stage: StageDocument;
@@ -73,7 +78,7 @@ export default function DraggableObject(props: ObjectProps) {
   const layerTransform = layer ? [{ translateY: -layer.offset.y * transform.scale }, { rotate: layer.roll + 'deg' }] : [];
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={targetName(props.stage, item) ? targetNameWithType(props.stage, item.id) : objectLabel(item.type)}
-    accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
+    accessibilityState={{ selected }} onAccessibilityTap={() => { if (props.onAccessibilityTap === undefined) props.onSelect(item.id); else props.onAccessibilityTap?.(); }}
     style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {
       left: center.x - width / 2, top: center.y - height / 2, width, height,

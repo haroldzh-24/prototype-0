@@ -11,11 +11,12 @@ import type { AssistantHistory } from '../planning/routeAssistant/history';
 export function useDocumentHistory(stage: StageDocument, plan: StagePlan) {
   const [h, render] = useState(() => { const synced = syncLayers(stage); return history({ stage: synced, plan: reconcilePlan(plan, synced) }); });
   const current = useRef(h);
-  // Counts every change to the history (edits, undo, redo), so a note about one edit ("Deleted T3 · UNDO") can tell
-  // whether the document is still exactly as that edit left it.
+  // Counts every change to the document (edits, undo, redo), so a note about one edit ("Deleted T3 · UNDO") can tell
+  // whether the document is still exactly as that edit left it. Only a changed document counts: begin() and end()
+  // (the start and end of a drag) and an edit that changes nothing leave it as it was.
   const revision = useRef(0);
   const assistantChanges = useRef<AssistantHistory['assistantChanges']>([]);
-  const set = (update: (value: typeof h) => typeof h) => { const next = update(current.current); if (next !== current.current) revision.current++; current.current = next; render(current.current); };
+  const set = (update: (value: typeof h) => typeof h) => { const next = update(current.current); if (next.present !== current.current.present) revision.current++; current.current = next; render(current.current); };
   const setStage = (next: SetStateAction<StageDocument>) => set(h => {
     // Layered targets (hostages, doubles) follow their parent through every edit; a removed parent takes its layers.
     const stage = syncLayers(typeof next === 'function' ? next(h.present.stage) : next);

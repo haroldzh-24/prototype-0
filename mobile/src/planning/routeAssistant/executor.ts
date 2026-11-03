@@ -10,6 +10,7 @@ import * as Q from './queries';
 import { validatePoint, validateRoute, validateSolverCompatibility } from './validation';
 import { previousRoute } from './history';
 import type { AssistantHistory } from './history';
+import { positionTitleWithNote } from '../../ui/words';
 function query(c: RouteAssistantContext,q: RouteQuery): unknown {
   switch(q.type){
     case 'SUMMARY':return Q.getRouteSummary(c);
@@ -54,7 +55,7 @@ export function executeRouteAssistantCommand(c: RouteAssistantContext, command: 
   const find=(id:string)=>route.positions.findIndex(p=>p.id===id);
   if(command.type==='MOVE_WAYPOINT'){
     const id=command.waypointId??c.selectedWaypointId;
-    if(!id)return {kind:'clarification',data:{question:'Which position should move?',options:route.positions.map(p=>({id:p.id,label:p.label}))},durationMs:performance.now()-started};
+    if(!id)return {kind:'clarification',data:{question:'Which position should move?',options:route.positions.map((p,i)=>({id:p.id,label:positionTitleWithNote(i,p.label)}))},durationMs:performance.now()-started};
     const i=find(id);if(i<0)return error('WAYPOINT_NOT_FOUND');
     const d=command.destination,p=d.kind==='absolute'?d.position:{x:route.positions[i].position.x+d.deltaXInches,y:route.positions[i].position.y+d.deltaYInches};
     const invalid=validatePoint(c,p);if(invalid)return error(invalid);

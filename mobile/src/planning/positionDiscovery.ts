@@ -151,7 +151,7 @@ export function discoverCandidatePositions(stage: StageDocument, requested: Part
       && [object.position.x, object.position.y, object.position.z].every(n => Math.abs(n) <= 1e7);
     if (object.type === 'start') {
       if (validBase && isPointInsideAllowedArea(object.position, stage.stage)) start ??= object.position;
-      else warn('INVALID_GEOMETRY', 'Invalid Start Position ignored.');
+      else warn('INVALID_GEOMETRY', 'Invalid start position ignored.');
       continue;
     }
     if (object.type === 'wall') {

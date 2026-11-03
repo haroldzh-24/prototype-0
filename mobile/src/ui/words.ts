@@ -66,6 +66,18 @@ export const modeChip = {
 export const positionName = (index: number) => `P${index + 1}`;
 /** "Position 3": the long name, for sheet titles and lists. */
 export const positionTitle = (index: number) => `${words.position} ${index + 1}`;
+/**
+ * A position's name is always its place in the route (P1, P2…). Its stored label is kept for saved data and is shown
+ * only as the user's own note beside that name; a label that is just an automatic number ("P3", made when the position
+ * was added) is never shown, because after a reorder or an insert it names a different position.
+ */
+const AUTO_POSITION_LABEL = /^\s*(p|position|waypoint)\s*\d+\s*$/i;
+/** The user's note on a position (its stored label), or '' when the label is empty or only an automatic number. */
+export const positionNote = (label: string | undefined | null) => !label || AUTO_POSITION_LABEL.test(label) ? '' : label.trim();
+/** "P2 · Barricade left", or "P2" without a note. */
+export const positionNameWithNote = (index: number, label?: string | null) => joinLabel(positionName(index), positionNote(label));
+/** "Position 2 · Barricade left", or "Position 2" without a note. */
+export const positionTitleWithNote = (index: number, label?: string | null) => joinLabel(positionTitle(index), positionNote(label));
 /** Shooting areas are numbered in drawing order: "Shooting area 2". */
 export const shootingAreaTitle = (index: number) => `${words.shootingArea} ${index + 1}`;
 /** Engagement order within a position: 1, 2, 3 (not A, B, C). */
@@ -117,4 +129,12 @@ export const RETIRED_WORDS: readonly { pattern: RegExp; use: string }[] = [
   { pattern: /(firing|shooting) areas?\b[^.]*\bin Route settings|Route settings[^.]*\b(firing|shooting) areas?/i, use: 'PLAN → AREAS' },
   { pattern: /\bCardboard \d/, use: 'T1, T2…' },
   { pattern: /calibration context|active context/i, use: words.practiceType },
+  // Menus renamed in the UI cohesion pass: PLAN's ••• is "Plan settings" (loadout: PLAN ••• → LOADOUT); stage size is
+  // STAGE SIZE in BUILD's •••.
+  { pattern: /route tools/i, use: `PLAN ${words.tools.more} → LOADOUT` },
+  { pattern: /Stage Settings/, use: `${words.stageSizeButton} in BUILD's ${words.tools.more}` },
+  // Sentence case, not Title Case.
+  { pattern: /Start Position/, use: 'Start position' },
+  // One separator (SEP).
+  { pattern: /Practice only —/, use: `Practice only${SEP}…` },
 ];

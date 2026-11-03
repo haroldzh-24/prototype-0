@@ -122,7 +122,7 @@ export function deleteObject(stage: StageDocument, id: string): StageDocument {
 /** IDs are allocated by the editor event before invoking this pure operation. */
 export function duplicateObject(stage: StageDocument, sourceId: string, id: string, portIds: readonly string[] = []): EditResult {
   const source = stage.objects.find(entry => entry.id === sourceId);
-  if (!source || source.type === 'start') return { stage, error: 'Select a standalone object other than Start Position.' };
+  if (!source || source.type === 'start') return { stage, error: 'Select a standalone object other than the start position.' };
   const usedIds = new Set(stage.objects.flatMap(entry => [entry.id, ...(entry.type === 'wall' ? entry.ports.map(port => port.id) : [])]));
   const newIds = [id, ...portIds];
   if (newIds.some(value => !value.trim() || usedIds.has(value)) || new Set(newIds).size !== newIds.length) return { stage, error: 'Duplicate IDs must be fresh and unique.' };

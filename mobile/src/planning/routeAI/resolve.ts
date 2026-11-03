@@ -4,6 +4,7 @@ import type { RouteAssistantCommand, RouteAssistantContext } from '../routeAssis
 import { executeRouteAssistantCommand } from '../routeAssistant/executor';
 import { candidateToStageRoute } from '../routeSolver/adoption';
 import { clone } from '../routeAssistant/context';
+import { positionNote, positionTitleWithNote } from '../../ui/words';
 
 const numericFields=['alternativeNumber','absoluteXInches','absoluteYInches','deltaXInches','deltaYInches','distanceValue','areaMinXInches','areaMinYInches','areaMaxXInches','areaMaxYInches'];
 const fields=['intent','waypointReference','secondWaypointReference','areaReference','distanceUnit','direction','clarificationText',...numericFields];
@@ -26,12 +27,19 @@ export function inches(value:number,unit:string):number {
 export function waypointCandidates(c:RouteAssistantContext,reference?:string):string[] {
   const r=reference?.trim().toLowerCase();
   if(!r||['that waypoint','that position','this position','this point','selected','that','this'].includes(r))return c.selectedWaypointId&&c.route.positions.some(p=>p.id===c.selectedWaypointId)?[c.selectedWaypointId]:c.route.positions.map(p=>p.id);
-  const exact=c.route.positions.filter(p=>p.id.toLowerCase()===r||p.label.toLowerCase()===r);if(exact.length)return exact.map(p=>p.id);
+  // A position is named by its place in the route, as on the canvas: "P2", "position 2", "2nd", "second" mean the
+  // second position, whatever its stored label says.
+  const named=r.match(/^(?:the )?p ?(\d+)$/);
+  if(named)return c.route.positions.slice(Number(named[1])-1,Number(named[1])).map(p=>p.id);
+  const byId=c.route.positions.filter(p=>p.id.toLowerCase()===r);if(byId.length)return byId.map(p=>p.id);
   if(/^(the )?last( waypoint| position)?$/.test(r))return c.route.positions.slice(-1).map(p=>p.id);
   // The app says "position" (P1, P2…); "waypoint" still works for anyone who types it.
   const number=r.match(/^(?:the )?(?:waypoint |position )?(\d+)(?:st|nd|rd|th)?(?: waypoint| position)?$/);
   const ordinal=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth'].indexOf(r.replace(/^the /,'').replace(/ (waypoint|position)$/,''));
   if(number||ordinal>=0)return c.route.positions.slice((number?Number(number[1]):ordinal+1)-1,(number?Number(number[1]):ordinal+1)).map(p=>p.id);
+  // Then a note you gave a position ("barricade left"). Automatic labels (a stored "P3") are never matched: after a
+  // reorder they name a different position than the canvas does.
+  const noted=c.route.positions.filter(p=>positionNote(p.label).toLowerCase()===r);if(noted.length)return noted.map(p=>p.id);
   const near=r.match(/^(?:the one |waypoint |position )?near (.+)$/);
   if(near){
     const wallNumber=near[1].match(/^wall (\d+)$/);
@@ -48,7 +56,7 @@ export function waypointCandidates(c:RouteAssistantContext,reference?:string):st
 export type Resolution = {command:RouteAssistantCommand; pendingField?:'waypointReference'|'secondWaypointReference'|'areaReference'|'alternativeNumber'};
 export function resolveDecision(c:RouteAssistantContext,d:Decision,newId:string):Resolution {
   const clarify=(question:string,options:{id:string;label:string}[],pendingField?:Resolution['pendingField']):Resolution=>({command:{type:'NEED_CLARIFICATION',question,options:options.length?options:[{id:'rephrase',label:'Describe the request more precisely'}]},pendingField});
-  const waypoints=c.route.positions.map((p,i)=>({id:p.id,label:`Position ${i+1} (${p.label})`}));
+  const waypoints=c.route.positions.map((p,i)=>({id:p.id,label:positionTitleWithNote(i,p.label)}));
   let id:string|undefined,second:string|undefined;
   if(['QUERY_WAYPOINT','QUERY_EXPLANATION','MOVE_WAYPOINT','DELETE_WAYPOINT','REORDER_WAYPOINT'].includes(d.intent)){
     const candidates=waypointCandidates(c,d.waypointReference);

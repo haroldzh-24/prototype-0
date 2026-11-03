@@ -8,23 +8,14 @@
  */
 import type { StageDocument } from '../stage/model';
 import type { ShooterPerformanceProfile } from '../profile/model';
-import { isEngageable } from './model';
 import type { StagePlan } from './model';
 import { evaluateRoute } from './route';
 import type { StageRoute } from './route';
+import { positionName } from '../ui/words';
+import { roundsByPosition } from './planDefaults';
 
 export type ReloadPlan = { route: StageRoute; added: number; complete: boolean; note: string };
 type Reload = StageRoute['reloads'][number];
-
-/** Rounds each position needs, counting every target once (where the route first engages it), as the evaluator does. */
-function roundsByPosition(stage: StageDocument, plan: StagePlan, route: StageRoute): number[] {
-  const valid = new Set(stage.objects.filter(isEngageable).map(o => o.id)), seen = new Set<string>();
-  return route.positions.map(p => p.engagedTargetIds.reduce((sum, id) => {
-    if (!valid.has(id) || seen.has(id)) return sum;
-    seen.add(id); const r = plan.engagements[id];
-    return Number.isSafeInteger(r) && r > 0 ? sum + r : sum;
-  }, 0));
-}
 
 export function planReloads(stage: StageDocument, plan: StagePlan, route: StageRoute, profile: ShooterPerformanceProfile | null,
   base = evaluateRoute(stage, plan, { ...route, engagementRules: undefined }, profile)): ReloadPlan {
@@ -36,7 +27,7 @@ export function planReloads(stage: StageDocument, plan: StagePlan, route: StageR
   const tooBig = route.positions.findIndex((p, i) => required[i] > fullest + 1);
   const fail = (note: string): ReloadPlan => ({ route, added: 0, complete: false, note });
   if (!plan.loadout.magazines.length) return fail('Add magazines in Loadout to plan reloads.');
-  if (tooBig >= 0) return fail(`${route.positions[tooBig].label} needs ${required[tooBig]} rounds; your fullest magazine holds ${fullest} (+1 chambered). Plan fewer rounds there or split it over two positions.`);
+  if (tooBig >= 0) return fail(`${positionName(tooBig)} needs ${required[tooBig]} rounds; your fullest magazine holds ${fullest} (+1 chambered). Plan fewer rounds there or split it over two positions.`);
   if (!spares.length) return fail('No spare loaded magazine: add one in Loadout or plan fewer rounds.');
   // Reload time a move can hide: the incoming leg's time, for a reload done on the move.
   const reloadTime = profile?.reloadTime ?? 0;

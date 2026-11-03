@@ -9,21 +9,30 @@ import type { StagePlan } from './model';
 import { toggleRouteTarget } from './route';
 import type { TargetAssignmentMode, StageRoute } from './route';
 import { reorderEngagement } from './engagements';
-import { positionTitle, SEP, targetNameWithType } from '../ui/words';
-import { plannedRounds } from './planDefaults';
+import { positionNameWithNote, positionTitleWithNote, SEP, targetNameWithType } from '../ui/words';
+import { LOADOUT_PATH, plannedRounds, withPlanDefaults } from './planDefaults';
+import type { ShooterPerformanceProfile } from '../profile/model';
 
-type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section: 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; selectedId: string | null; onChange: (route: StageRoute) => void };
-export default function RoutePanel({ stage, plan, route, selectedId, onChange, onAssign, section }: Props) {
+type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section: 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; selectedId: string | null; onChange: (route: StageRoute) => void;
+  /** For the default loadout (no magazines of your own yet), as ANALYZE reads it. */
+  profile?: ShooterPerformanceProfile | null;
+  /** A reload picked from the default loadout saves that loadout with it (as ANALYZE's PLAN RELOADS does), so it keeps pointing at a real magazine. */
+  onPlanChange?: (plan: StagePlan) => void };
+export default function RoutePanel({ stage, plan, route, selectedId, onChange, onAssign, section, profile = null, onPlanChange }: Props) {
   const [assigning, setAssigning] = useState(false), [error, setError] = useState('');
   const selected = route.positions.find(p => p.id === selectedId);
   const targets = stage.objects.filter(isEngageable);
+  // The magazines ANALYZE plans with: yours, or the default loadout until you add your own.
+  const defaults = withPlanDefaults(stage, { ...plan, route }, profile), magazines = defaults.plan.loadout.magazines;
   const reload = route.reloads.find(r => r.positionId === selectedId);
-  const reloadIndex = plan.loadout.magazines.findIndex(m => m.id === reload?.magazineId);
-  const reloadLabel = !reload ? 'None' : reloadIndex < 0 ? 'Missing magazine' : plan.loadout.magazines[reloadIndex].label || 'Magazine ' + (reloadIndex + 1);
+  const reloadIndex = magazines.findIndex(m => m.id === reload?.magazineId);
+  const reloadLabel = !reload ? 'None' : reloadIndex < 0 ? 'Missing magazine' : magazines[reloadIndex].label || 'Magazine ' + (reloadIndex + 1);
+  const pickReload = (next: StageRoute) => defaults.loadoutNote && onPlanChange && next.reloads.some(r => magazines.some(m => m.id === r.magazineId))
+    ? onPlanChange({ ...plan, loadout: defaults.plan.loadout, route: next }) : onChange(next);
   const updateSelected = (change: Partial<NonNullable<typeof selected>>) => onChange({ ...route, positions: route.positions.map(p => p.id === selectedId ? { ...p, ...change } : p) });
   return <Panel>
     {selected && <>
-      <Copy>{positionTitle(route.positions.indexOf(selected)).toUpperCase()}</Copy>
+      <Copy>{positionTitleWithNote(route.positions.indexOf(selected), selected.label).toUpperCase()}</Copy>
 
       {section === 'assign' && <>
       <Copy>{'TARGETS' + SEP + 'engagement order'}</Copy>
@@ -39,9 +48,9 @@ export default function RoutePanel({ stage, plan, route, selectedId, onChange, o
       {onAssign && <View style={{ gap: 8 }}><Action title={'VISIBLE TARGETS' + SEP + 'TAP ON STAGE'} onPress={() => onAssign('visible')} /><Action title={'ENGAGED TARGETS' + SEP + 'TAP ON STAGE'} onPress={() => onAssign('engaged')} /></View>}
       {targets.map(t => {
         const visible = selected.visibleTargetIds.includes(t.id), here = selected.engagedTargetIds.includes(t.id);
-        const owner = route.positions.find(p => p.engagedTargetIds.includes(t.id));
+        const owner = route.positions.findIndex(p => p.engagedTargetIds.includes(t.id));
         return <View key={t.id} style={{ gap: 6 }}>
-          <Copy>{[targetNameWithType(stage, t.id), `${plannedRounds(plan, t).rounds} rounds`, `engage: ${owner?.label ?? 'unassigned'}`].join(SEP)}</Copy>
+          <Copy>{[targetNameWithType(stage, t.id), `${plannedRounds(plan, t).rounds} rounds`, `engage: ${owner >= 0 ? positionNameWithNote(owner, route.positions[owner].label) : 'unassigned'}`].join(SEP)}</Copy>
           <Action title={visible ? 'VISIBLE ✓ (REMOVE)' : 'MARK VISIBLE'} onPress={() => { if (visible && (here || selected.movingTargetIds?.includes(t.id))) setError(`${targetLabel(stage, t.id)}: visibility removed; engagement cleared at this position.`); onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'visible')); }} />
           <Action title={here ? 'CLEAR ENGAGEMENT' : 'ENGAGE HERE'} onPress={() => onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'engaged'))} />
         </View>;
@@ -51,9 +60,10 @@ export default function RoutePanel({ stage, plan, route, selectedId, onChange, o
       </>}
       {section === 'reload' && <>
       <Copy>{'RELOAD BEFORE ENGAGEMENT' + SEP + reloadLabel}</Copy>
-      {!plan.loadout.magazines.length && <Copy>No magazines. Add a magazine in Route tools → Loadout.</Copy>}
+      {!magazines.length && <Copy>{`No magazines yet. Add your magazines in ${LOADOUT_PATH}.`}</Copy>}
+      {!!defaults.loadoutNote && <Copy>{defaults.loadoutNote + ' Picking a reload here keeps this loadout with the stage.'}</Copy>}
       <Action title="NO RELOAD HERE" onPress={() => onChange({ ...route, reloads: route.reloads.filter(r => r.positionId !== selected.id) })} />
-      {plan.loadout.magazines.map((m, index) => <Action key={m.id} title={`RELOAD: ${(m.label || `Magazine ${index + 1}`).toUpperCase()} (${m.startingRounds} ROUNDS)`} onPress={() => onChange({ ...route, reloads: [...route.reloads.filter(r => r.positionId !== selected.id), { positionId: selected.id, magazineId: m.id }] })} />)}
+      {magazines.map((m, index) => <Action key={m.id} title={`RELOAD: ${(m.label || `Magazine ${index + 1}`).toUpperCase()} (${m.startingRounds} ROUNDS)`} onPress={() => pickReload({ ...route, reloads: [...route.reloads.filter(r => r.positionId !== selected.id), { positionId: selected.id, magazineId: m.id }] })} />)}
       </>}
     </>}
     {!selected && <Copy>Select a position on the stage to edit its targets or reload.</Copy>}

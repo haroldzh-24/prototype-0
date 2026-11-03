@@ -27,11 +27,16 @@ export function commitRoute(plan: StagePlan, route: StageRoute): StagePlan {
   return plan.route === route ? plan : { ...plan, route };
 }
 
+/** Something RESET ROUTE would clear: positions, reloads, a drawn path or saved arrows (the route rules are kept). */
+export const hasRouteToReset = (route: StageRoute) => !!(route.positions.length || route.reloads.length || route.connections?.length || route.manualEngagements?.length);
+
 /**
  * Reset route: a new empty route that keeps the route rules (shooting areas, safe direction, ruleset, procedures).
- * Positions, reloads, the drawn path and any saved arrows go; undo brings them back.
+ * Positions, reloads, the drawn path and any saved arrows go; undo brings them back. A route with nothing to clear is
+ * returned as it is, so resetting it changes nothing (the stage stays saved and no UNDO is offered).
  */
 export function resetRouteKeepingAreas(route: StageRoute | undefined, id: string): StageRoute {
+  if (route && !hasRouteToReset(route)) return route;
   const fresh = createRoute(id);
   return route?.engagementRules ? { ...fresh, engagementRules: JSON.parse(JSON.stringify(route.engagementRules)) } : fresh;
 }

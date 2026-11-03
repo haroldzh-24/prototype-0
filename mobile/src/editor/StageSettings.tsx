@@ -8,7 +8,7 @@ import { formatYards, parseYards, yardInput } from '../stage/measurements';
 import { outsideStage, resizeStage } from '../stage/resize';
 import type { OutsideItem } from '../stage/resize';
 import { DOWNRANGE_CHOICES, downrangeLabel, setStageDownrange, stageDownrange } from '../stage/orientation';
-import { positionTitle, SEP, targetName } from '../ui/words';
+import { positionTitleWithNote, SEP, targetName } from '../ui/words';
 
 export default function StageSettings({ stage, route, onApply, onSelect }: {
   stage: StageDocument; route?: StageRoute; onApply: (stage: StageDocument) => void; onSelect: (item: OutsideItem) => void;
@@ -19,7 +19,7 @@ export default function StageSettings({ stage, route, onApply, onSelect }: {
   const [notice, setNotice] = useState('');
   const outside = outsideStage(stage, stage.stage, route);
   const outsideLabel = (item: OutsideItem) => {
-    if (item.kind === 'position') { const index=route?.positions.findIndex(p=>p.id===item.id) ?? -1; return index < 0 ? 'Missing position' : positionTitle(index) + SEP + route!.positions[index].label; }
+    if (item.kind === 'position') { const index=route?.positions.findIndex(p=>p.id===item.id) ?? -1; return index < 0 ? 'Missing position' : positionTitleWithNote(index, route!.positions[index].label); }
     const object=stage.objects.find(o=>o.id===item.id);
     if (!object) return 'Missing object';
     return targetName(stage, object) ? targetName(stage, object) + SEP + objectLabel(object.type) : `${objectLabel(object.type)} ${stage.objects.filter(o=>o.type===object.type).findIndex(o=>o.id===item.id)+1}`;

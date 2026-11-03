@@ -21,4 +21,3 @@ export function writeEyeHeight(inches: number): number {
   writePref(EYE_HEIGHT_KEY, String(v));
   return v;
 }
-export const feetAndInches = (inches: number) => `${Math.floor(inches / 12)} ft ${Math.round(inches % 12)} in`;

@@ -10,9 +10,12 @@ import type { ScoringType } from './model';
 import { addMagazineBatch, ammunitionSummary, assignRounds, createMagazineId, deleteMagazine, designateMagazine, isEngageable, saveMagazine, setChamber } from './model';
 import type { Magazine, PlanResult, StagePlan } from './model';
 import { SEP, targetNameWithType } from '../ui/words';
-import { ownRounds, plannedRounds, REQUIRED_HITS, REQUIRED_HITS_SOURCE, withRoundDefaults } from './planDefaults';
+import { ownRounds, plannedRounds, REQUIRED_HITS, REQUIRED_HITS_SOURCE, withPlanDefaults } from './planDefaults';
+import type { ShooterPerformanceProfile } from '../profile/model';
 
-export default function PlanningPanel({ plan, stage, onChange, section = 'loadout' }: { section?: 'loadout' | 'targets'; plan: StagePlan; stage: StageDocument; onChange: (plan: StagePlan) => void }) {
+export default function PlanningPanel({ plan, stage, onChange, section = 'loadout', profile = null }: { section?: 'loadout' | 'targets'; plan: StagePlan; stage: StageDocument; onChange: (plan: StagePlan) => void;
+  /** For the default loadout ANALYZE uses until you add magazines. */
+  profile?: ShooterPerformanceProfile | null }) {
   const [error, setError] = useState('');
   const [massOpen, setMassOpen] = useState(false);
   const [targetType, setTargetType] = useState<ScoringType>('cardboardTarget');
@@ -20,20 +23,28 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
   const [applied, setApplied] = useState('');
   const affected = stage.objects.filter(o => o.type === targetType).length;
   const apply = (result: PlanResult) => { setError(result.error ?? ''); if (!result.error) onChange(result.plan); };
-  // Rounds you have not set count at the rule default, as ANALYZE counts them (planDefaults.ts).
-  const summary = ammunitionSummary(withRoundDefaults(plan, stage),stage);
+  // What ANALYZE counts (planDefaults.ts): rounds you have not set at the rule default, and the default loadout until
+  // you add magazines of your own.
+  const defaults = withPlanDefaults(stage, plan, profile);
+  const summary = ammunitionSummary(defaults.plan,stage);
   return <View style={{ gap: 12, padding: 16, backgroundColor: colors.panel }}>
     <Text style={{ ...typography.section, color: colors.text }}>{section === 'loadout' ? 'Loadout and starting ammo' : 'Target rounds'}</Text>
-    <View style={ui.statGroup}><Stat value={summary.totalAvailable} label="Total available" /><Stat value={summary.totalPlanned} label="Planned rounds" /><Stat value={summary.reserve} label="Reserve" /></View>
+    <View style={ui.statGroup}><Stat value={summary.totalAvailable} label={defaults.loadoutNote ? 'Available (default loadout)' : 'Total available'} /><Stat value={summary.totalPlanned} label="Planned rounds" /><Stat value={summary.reserve} label="Reserve" /></View>
     {section === 'loadout' && <>
+    {!plan.loadout.magazines.length && !defaults.loadoutNote && <Text>No magazines yet. Add your magazines here.</Text>}
+    {/* The default loadout ANALYZE uses until you add a magazine, marked as the default (not yours). */}
+    {!!defaults.loadoutNote && <View style={{ gap: 6, padding: 12, backgroundColor: colors.secondary }}>
+      <Text style={{ ...typography.label, color: colors.text }}>DEFAULT LOADOUT</Text>
+      <Text>{defaults.loadoutNote}</Text>
+      {defaults.plan.loadout.magazines.map((magazine, index) => <Text key={magazine.id}>{['Magazine ' + (index + 1), defaults.plan.loadout.startingMagazineId === magazine.id ? 'starting in firearm' : 'carried spare', `${magazine.startingRounds} of ${magazine.capacity} rounds`, 'default'].join(SEP)}</Text>)}
+    </View>}
     <Text>Magazine counts are rounds actually loaded, excluding the chamber. Other magazines are carried spares. These are totals, not an engagement order or reload plan.</Text>
     <Text>Chamber loaded: {plan.loadout.chamberLoaded ? 'Yes (1 round)' : 'No'}</Text>
     <Switch hitSlop={7} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
     <Action label="Add magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
     <BatchMagazineForm plan={plan} onChange={onChange} />
     <Action label="Start without magazine" onPress={() => apply(designateMagazine(plan,null))} />
-    {!plan.loadout.magazines.length && <Text>No magazines yet: ANALYZE uses the magazine size, rounds loaded and chamber stored in your profile until you add your own.</Text>}
-    {plan.loadout.startingMagazineId === null && <Text>No starting magazine designated.</Text>}
+    {plan.loadout.startingMagazineId === null && !defaults.loadoutNote && <Text>No starting magazine designated.</Text>}
     {plan.loadout.magazines.map((magazine,index) => <View key={magazine.id} style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 12, gap: 8 }}>
       <Text>{'Magazine ' + (index+1) + SEP + (plan.loadout.startingMagazineId === magazine.id ? 'starting in firearm' : 'carried spare')}</Text>
       <MagazineForm magazine={magazine} onSave={value => apply(saveMagazine(plan,value))} />

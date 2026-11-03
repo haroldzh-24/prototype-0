@@ -173,7 +173,7 @@ test('ANALYZE opens on the answer: time, hit factor, targets, what is missing an
   assert.deepEqual(h.nodes().filter(n => n.type === 'DataRow' && /^[✓!] /.test(n.props.label)).map(n => [n.props.label, n.props.value]),
     [['✓ T1 · Paper', 'P1 · standing · not checked'], ['✓ T2 · Paper', 'P1 · standing · not checked'], ['! T3 · Paper', 'Not engaged']]);
   h.press('Show ammunition');
-  assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Loadout from your profile: 15-round magazines loaded with 15, chamber empty; no spares needed\./.test(text(n))));
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && text(n) === 'Default loadout: 15-round magazines, 15 to start, chamber empty, no spares. Add your magazines in PLAN ••• → LOADOUT.'));
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Rounds for 3 targets: the rule default \(2 per paper target, 1 per steel; USPSA 9\.5\.1, PCSL 11\.3\.1\)/.test(text(n))));
 
   // Everything engaged, measured live-fire numbers: a hit factor, nothing missing except the unchecked engagements.
@@ -205,7 +205,7 @@ test('PLAN RELOADS with the profile loadout saves that loadout with the reloads,
   const h = harness('planning/RouteAnalysis.tsx', props);
   assert.ok(h.nodes().some(n => n.type === 'Notice' && text(n) === 'No reload planned for P2 (needs 6 rounds, 2 left)'));
   h.press('Show ammunition');
-  assert.ok(h.nodes().some(n => n.type === 'Copy' && /1 spare, enough for the 14 planned rounds/.test(text(n))));
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && text(n) === 'Default loadout: 10-round magazines, 10 to start, chamber empty, 1 spare. Add your magazines in PLAN ••• → LOADOUT.'));
   h.press('Plan reloads around magazine capacity');
   assert.deepEqual(changed.loadout.magazines.map(m => m.id), ['magazine-profile-1', 'magazine-profile-2']);
   assert.deepEqual(changed.route.reloads.map(r => [r.positionId, r.magazineId]), [['P2', 'magazine-profile-2']]);
@@ -260,7 +260,7 @@ test('the loadout defaults from the profile magazine fields, with spares for the
   const { plan, loadoutNote } = D.withPlanDefaults(stage, createPlan(), p);
   // 5 rule-default rounds: 8 + 1 chambered cover them.
   assert.deepEqual(plan.loadout, { chamberLoaded: true, startingMagazineId: 'magazine-profile-1', magazines: [{ id: 'magazine-profile-1', capacity: 10, startingRounds: 8 }] });
-  assert.match(loadoutNote, /^Loadout from your profile: 10-round magazines loaded with 8, chamber loaded; no spares needed\. Set your own in Loadout\.$/);
+  assert.equal(loadoutNote, 'Default loadout: 10-round magazines, 8 to start, chamber loaded, no spares. Add your magazines in PLAN ••• → LOADOUT.');
   assert.equal(D.profileLoadout(p, 26).loadout.magazines.length, 4, '8 + 1 in the gun, then 17 more rounds need 3 spares of 8');
   assert.equal(D.profileLoadout({ magazineCapacity: 10, startingRounds: 12, chamberedRound: false }, 5), null, 'impossible numbers give no default');
   assert.equal(D.profileLoadout(null, 5), null);

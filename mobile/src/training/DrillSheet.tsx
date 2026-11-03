@@ -55,7 +55,8 @@ function Counter({ label, value, onChange, disabled }: { label: string; value: n
 /**
  * One drill, in three tabs under its options: LOG a run (timer times, hits by zone or marked on the target, par),
  * your RUNS of these options (watch, break down, remove) and HOW TO run it. Runs are filed by day and practice type by
- * the caller; there are no sessions to manage. Closing with an unsaved run (times, hits or a video) asks first.
+ * the caller; there are no sessions to manage. Closing with an unsaved run (times, hits, procedurals, notes or a video)
+ * asks first.
  */
 export default function DrillSheet({ visible, drillId, records, context, onContextChange, planPractice, powerFactor, pars, onSave, onRemove, onUpdate, hand, onClose }: {
   visible: boolean; drillId: string | null; records: readonly TrainingRecord[];
@@ -128,8 +129,8 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   const timed = mine.filter(e => e.run.totalTime !== null);
   const best = timed.length ? Math.min(...timed.map(e => e.run.totalTime!)) : null;
   const preset = target ? papers(family).find(p => p.id === target.presetId) : undefined;
-  // Typed times, counted or marked hits, or a picked video: closing asks before throwing them away.
-  const unsaved = !!times.trim() || !!total.trim() || Object.values(zones).some(n => n > 0) || !!target?.hits.length || !!video;
+  // Typed times, counted or marked hits, typed procedurals or notes, or a picked video: closing asks before throwing them away.
+  const unsaved = !!times.trim() || !!total.trim() || Object.values(zones).some(n => n > 0) || !!target?.hits.length || !!procedurals.trim() || !!notes.trim() || !!video;
 
   /** A saved run's video and its marks (the beep from the video, the run's shot times). */
   function runClip(recordId: string, saved: LibraryRun): { uri: string | null; error: string; marks: Mark[]; session: VideoSession; beepMs: number | null } | null {
@@ -195,7 +196,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   // Asked below the sheet's content, so it shows wherever the sheet is scrolled.
   const closePrompt = confirmClose ? <Panel>
     <Text style={ui.sectionTitle}>This run isn’t saved</Text>
-    <Copy>{'Discard its times and hits' + (video ? ' and the app’s copy of its video (the original in Photos or Files is not touched)' : '') + '?'}</Copy>
+    <Copy>{'Discard what you entered for it (times, hits, procedurals, notes)' + (video ? ' and the app’s copy of its video (the original in Photos or Files is not touched)' : '') + '?'}</Copy>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       <Action title="KEEP EDITING" onPress={() => setConfirmClose(false)} />
       <Action title="DISCARD" variant="destructive" onPress={discard} />

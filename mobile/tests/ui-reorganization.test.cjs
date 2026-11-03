@@ -449,7 +449,7 @@ test('Training loading and failed read show no drills to log into, and retry rec
   assert.ok(h.nodes().some(n => n.type === 'LibraryCard' && n.props.name === 'Draw to first hit'));
 });
 
-test('History lists drill days; older sessions sit under OLDER SESSIONS and open read-only; a drill day can be deleted', async () => {
+test('History lists drill days; older sessions sit under OLDER SESSIONS and open read-only (only DELETE SESSION); a drill day can be deleted', async () => {
   const Days = require('../src/training/drillDays.ts');
   const libraryRun = { id: 'lr1', drillId: 'bill', recordedAt: '2026-10-05T12:00:00Z', choices: { distance: '7' }, shotTimes: [1.3, 1.55, 1.8, 2.05, 2.3, 2.55], totalTime: 2.55,
     family: 'USPSA', zones: { A: 6 }, notes: '' };
@@ -475,7 +475,8 @@ test('History lists drill days; older sessions sit under OLDER SESSIONS and open
   card('Old session').open(); h.render();
   assert.ok(h.nodes().some(n => n.type === 'Notice' && n.props.children === 'Read-only: recorded before the drill library.'));
   assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === '1. Bill Drill · 7 yd · 2.55 s · 100% points · HF 11.76'));
-  assert.ok(!h.nodes().some(n => /^(REMOVE|DELETE|ADD VIDEO|LOG)/.test(n.props?.title ?? '')), 'nothing is changed or added in an older session');
+  // Nothing is changed or added in an older session; it can only be deleted (tests/reviewFixes.test.cjs).
+  assert.ok(!h.nodes().some(n => /^(REMOVE|DELETE(?! SESSION$)|ADD VIDEO|LOG)/.test(n.props?.title ?? '')), 'nothing is changed or added in an older session');
   h.press('Watch video 1, read-only');
   const editor = h.find(n => n.props?.initialVideo === old.videos[0]).props;
   assert.equal(editor.readOnly, true, 'its video opens read-only');
@@ -1080,8 +1081,8 @@ test('review: a new drill starts counting again with shot times; LOG ONLY is for
 test('Drill sheet LOG says whether the run counts toward your plans, following the practice type for plans', () => {
   const line = h => h.nodes().find(n => n.type === 'Copy' && /^(Counts toward your plans|Practice only|Kept in the log only)/.test(n.props.children))?.props.children;
   assert.equal(line(drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'LIVE_FIRE' })), 'Counts toward your plans');
-  assert.equal(line(drillSheet('bill', { context: 'DRY_FIRE', planPractice: 'LIVE_FIRE' })), 'Practice only — your plans use live-fire runs');
-  assert.equal(line(drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'PRESSURE_MATCH' })), 'Practice only — your plans use pressure / match runs');
+  assert.equal(line(drillSheet('bill', { context: 'DRY_FIRE', planPractice: 'LIVE_FIRE' })), 'Practice only · your plans use live-fire runs');
+  assert.equal(line(drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'PRESSURE_MATCH' })), 'Practice only · your plans use pressure / match runs');
   const h = drillSheet('bill', { context: 'LIVE_FIRE', planPractice: 'LIVE_FIRE' });
   h.find(n => n.type === 'Segmented' && n.props.options.includes('LOG ONLY')).props.onChange('LOG ONLY'); h.render();
   assert.equal(line(h), 'Kept in the log only');
@@ -1461,12 +1462,13 @@ test('ANALYZE times the stage from your numbers, shows where each part came from
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Splits: your split curve for 3 targets\.$/.test([].concat(n.props.children).join(''))));
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /1 transition uses the generic transition \(0\.40 s, not measured\)/.test([].concat(n.props.children).join(''))));
   h.press('TIME BY POSITION');
-  assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === '1. P1'));
+  // Positions are named by route order (P1), the same name as everywhere else; not "1. " plus the stored label.
+  assert.ok(h.nodes().some(n => n.type === 'DataRow' && n.props.label === 'P1'));
   h.press('Plan reloads around magazine capacity');
   assert.deepEqual(changed.reloads.map(r => [r.positionId, r.magazineId]), [['P2', 'm2']]);
   props.route = changed; props.plan = { ...plan, route: changed }; h.render();
   assert.ok(h.nodes().some(n => n.type === 'Notice' && /^1 reload added/.test(n.props.children)), 'the note shows with the route it planned');
-  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Reload on the move into 2. P2'));
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Reload on the move into P2'));
   props.route = { ...changed, reloads: [] }; h.render();
   assert.ok(!h.nodes().some(n => n.type === 'Notice' && /^1 reload added/.test(n.props.children)), 'a later change hides the old note');
 });

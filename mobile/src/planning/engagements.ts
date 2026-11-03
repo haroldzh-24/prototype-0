@@ -12,7 +12,7 @@ import { stageDownrange } from '../stage/orientation';
 import { normalizeStage } from './v2/normalizeStage';
 import type { NormalizedStage, TargetFace } from './v2/normalizeStage';
 import { checkEngagement, defaultNoShootPolicy, FOOT_REACH_INCHES } from './v2/coverage';
-import { engagementOrder } from '../ui/words';
+import { engagementOrder, positionName } from '../ui/words';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -192,7 +192,9 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
   const futureWindows = suggest ? analyzeEngagements(stage, { ...route, positions: route.positions.map(p => ({ ...p, engagedTargetIds: [], movingTargetIds: [] })) }).windows : [];
   const alternatives = targets.map(t => ({ targetId: t.id, stationaryWaypointIds: [] as string[], movingSegmentIds: [] as string[] }));
   let origin = start.position, originId = start.id, budget = 0, geometryWork = 0, reachable = true;
-  for (const waypoint of route.positions) {
+  for (const [index, waypoint] of route.positions.entries()) {
+    // Warnings name the position by its place in the route (P1, P2…), as every view does.
+    const name = positionName(index);
     // Follow the drawn path (bends included), the same path the timing evaluator measures.
     const from = point(origin.x, origin.y), to = waypoint.position;
     const path = connectionPoints(route, originId, waypoint.id, from, to).map(p => point(p.x, p.y));
@@ -214,7 +216,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
       && (rules.allowOutsideTravel || (!intervals(cuts, s => !inTravelArea(s)).length && inTravelArea(0) && inTravelArea(d)));
     reachable &&= traversable;
     result.segments.push({ id: waypoint.id, from, to, distance: d, traversable, noFiringIntervals });
-    if (!reachable) { result.warnings.push(`${waypoint.label}: movement path is blocked or outside permitted travel.`); continue; }
+    if (!reachable) { result.warnings.push(`${name}: movement path is blocked or outside permitted travel.`); continue; }
     const local: EngagementWindow[] = [];
     for (const target of targets) {
       const alternative = alternatives.find(a => a.targetId === target.id)!;
@@ -233,7 +235,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
     result.windows.push(...local);
     const ids = suggest ? targets.map(t => t.id).filter(id => !completed.has(id)) : waypoint.engagedTargetIds;
     if (!suggest && ids.some((id, i) => waypoint.movingTargetIds?.includes(id) && ids.slice(0, i).some(previous => !waypoint.movingTargetIds?.includes(previous)))) {
-      result.warnings.push(`${waypoint.label}: moving engagements must precede stationary arrival engagements.`); continue;
+      result.warnings.push(`${name}: moving engagements must precede stationary arrival engagements.`); continue;
     }
     let cursor = 0, lastAngle = Math.atan2(path[1 % path.length].y - from.y, path[1 % path.length].x - from.x);
     const pending = [...ids];
@@ -274,7 +276,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
       };
       if (!suggest && !eligible(stationaryPending[0])) {
         // Saved order: an ineligible target is skipped and reported; the targets after it are still checked.
-        result.warnings.push(`${waypoint.label}: ${stationaryPending[0]} cannot be engaged here in the saved order.`);
+        result.warnings.push(`${name}: ${stationaryPending[0]} cannot be engaged here in the saved order.`);
         stationaryPending.shift(); continue;
       }
       const id = suggest ? stationaryPending.find(eligible) : stationaryPending[0];

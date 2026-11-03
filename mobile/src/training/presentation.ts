@@ -2,6 +2,7 @@ import type { TrainingContext } from './observations';
 import type { StartingType } from './model';
 import { plannedElements } from './executionComparison';
 import type { ExecutionComparison, MappingKind } from './executionComparison';
+import { positionTitleWithNote, SEP } from '../ui/words';
 
 /** Practice types in sentence case (buttons use them upper-cased: DRY FIRE, LIVE FIRE, PRESSURE / MATCH). */
 export const contextLabels: Record<TrainingContext, string> = {
@@ -19,7 +20,7 @@ export const PLAN_PRACTICE_DEFAULT: TrainingContext = 'LIVE_FIRE';
 /** The line under PRACTICE in a drill's LOG: whether this run will reach your plans. */
 export function practiceLine(context: TrainingContext, planPractice: TrainingContext, counts: boolean): string {
   if (!counts) return 'Kept in the log only';
-  return context === planPractice ? 'Counts toward your plans' : `Practice only — your plans use ${practiceAdjectives[planPractice]} runs`;
+  return context === planPractice ? 'Counts toward your plans' : `Practice only${SEP}your plans use ${practiceAdjectives[planPractice]} runs`;
 }
 /** Training's intro, following the practice type your plans use. */
 export function trainingIntro(planPractice: TrainingContext): string {
@@ -46,7 +47,7 @@ export function labeledPlanElements(comparison: ExecutionComparison, kind: Mappi
     const route = comparison.snapshot?.plan.route;
     const segment = comparison.snapshot?.evaluation.segments.find(s => s.toId === element.id);
     if (!route || !segment) return element;
-    const label = (id: string) => { const index = route.positions.findIndex(p => p.id === id); return index < 0 ? 'Start' : `Position ${index + 1} · ${route.positions[index].label}`; };
+    const label = (id: string) => { const index = route.positions.findIndex(p => p.id === id); return index < 0 ? 'Start' : positionTitleWithNote(index, route.positions[index].label); };
     return { ...element, label: `${label(segment.fromId)} → ${label(segment.toId)}` };
   });
 }

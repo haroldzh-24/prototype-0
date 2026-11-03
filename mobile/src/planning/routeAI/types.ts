@@ -1,4 +1,5 @@
 import type { RouteAssistantContext, RouteAssistantResult } from '../routeAssistant/types';
+import { positionNameWithNote } from '../../ui/words';
 export type Availability = 'AVAILABLE' | 'UNSUPPORTED_DEVICE' | 'APPLE_INTELLIGENCE_NOT_ENABLED' | 'MODEL_NOT_READY' | 'UNSUPPORTED_OS' | 'NATIVE_UNAVAILABLE' | 'UNKNOWN';
 export const intents = ['QUERY_ROUTE_SUMMARY','QUERY_DISTANCE','QUERY_WAYPOINTS','QUERY_WAYPOINT','QUERY_EXPLANATION','QUERY_BLOCKERS','QUERY_AREAS','QUERY_LONGEST_SEGMENT','QUERY_COMPARISON','QUERY_PLAN','MOVE_WAYPOINT','ADD_WAYPOINT','DELETE_WAYPOINT','REORDER_WAYPOINT','REPLAN','REPLAN_AVOIDING_AREA','UNDO','NEED_CLARIFICATION'] as const;
 export type Decision = {
@@ -23,7 +24,7 @@ export const instructions = 'You are the conversational interface for a route-pl
 export function compactContext(stageId: string, c: RouteAssistantContext): CompactContext {
   // The assistant revision is an exact full-content fingerprint; never send it to the model.
   return {stageId:c.stageId??stageId,revision: revisionToken(c.revision),routeId:c.route.id,selectedWaypointId:c.selectedWaypointId,
-    waypointCount:c.route.positions.length,waypoints:c.route.positions.slice(0,24).map((w,i)=>({id:w.id,label:w.label.slice(0,40),order:i+1}))};
+    waypointCount:c.route.positions.length,waypoints:c.route.positions.slice(0,24).map((w,i)=>({id:w.id,label:positionNameWithNote(i,w.label).slice(0,40),order:i+1}))};
 }
 export function revisionToken(value: string) { let n=2166136261; for(let i=0;i<value.length;i++)n=Math.imul(n^value.charCodeAt(i),16777619); return (n>>>0).toString(16); }
 export function trustedFacts(result: RouteAssistantResult): unknown {

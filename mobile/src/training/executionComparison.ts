@@ -7,6 +7,7 @@ import type { SavedStage } from '../storage/repository';
 import type { TrainingVideo } from './videoModel';
 import { isTrustedEvent } from './videoModel';
 import { analyzeVideo } from './videoAnalysis';
+import { positionNameWithNote } from '../ui/words';
 import type { MappingSuggestionSet } from './mappingSuggestions';
 
 export const COMPARISON_VERSION = 1;
@@ -149,7 +150,7 @@ export function plannedElements(c: ExecutionComparison, kind: MappingKind): { id
   if (kind === 'TOTAL') return [{ id: 'TOTAL', label: 'Entire execution', order: 0 }];
   if (kind === 'MOVEMENT') return c.snapshot.evaluation.segments.map(s => ({ id: s.toId, label: `${s.fromId} → ${s.toId}`, order: route.positions.findIndex(p => p.id === s.toId) }));
   return route.positions.flatMap((p, order) => kind === 'RELOAD' && !route.reloads.some(r => r.positionId === p.id)
-    || kind === 'STRING' && !p.engagedTargetIds.length ? [] : [{ id: p.id, label: `${order + 1}. ${p.label}`, order }]);
+    || kind === 'STRING' && !p.engagedTargetIds.length ? [] : [{ id: p.id, label: positionNameWithNote(order, p.label), order }]);
 }
 export function mappingInterval(m: ExecutionMapping, intervals: ObservedInterval[]): ObservedInterval | undefined {
   const ids = m.observedIntervalIds ?? [m.observedIntervalId];

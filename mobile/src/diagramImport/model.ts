@@ -114,7 +114,7 @@ export function reconstruct(d: Reconstruction, stage: StageDocument, family: Tar
       object = object.type === 'wall' ? { ...object, ...common, geometry: { ...object.geometry, length } } : { ...object, ...common, geometry: { length } };
     }
     if (object.type === 'start' && [...stage.objects, ...additions].some(o => o.type === 'start')) throw new Error('This stage already has a start. Reject this proposal or explicitly remove the old start in the editor first.');
-    if (outsideStage({ ...stage, objects: [object] }, stage.stage).length) throw new Error('Accepted geometry extends outside this stage. Adjust scale/origin or resize the stage explicitly in Stage Settings.');
+    if (outsideStage({ ...stage, objects: [object] }, stage.stage).length) throw new Error('Accepted geometry extends outside this stage. Adjust the scale or origin, or resize the stage with STAGE SIZE in BUILD\'s •••.');
     additions.push(object);
   }
   if (stage.objects.length + additions.length > 2000) throw new Error('This stage would exceed 2000 objects.');

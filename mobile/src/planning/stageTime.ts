@@ -21,6 +21,7 @@ import type { StagePlan } from './model';
 import { evaluateRoute } from './route';
 import type { RouteEvaluation, StageRoute } from './route';
 import { classifyTarget, targetCenter, validExpectations } from './expectedPoints';
+import { positionNameWithNote } from '../ui/words';
 
 export type SplitSource = 'CURVE' | 'PARTIAL_CURVE' | 'SINGLE';
 export type TransitionSource = 'SWING_FIT' | 'STEEL_PER_PLATE' | 'SINGLE';
@@ -59,7 +60,7 @@ export function estimateStageTime(stage: StageDocument, plan: StagePlan, route: 
   const ends = model.curve.length ? [model.curve[0].difficulty, model.curve[model.curve.length - 1].difficulty] : [];
   const count = { curve: 0, partial: 0, single: 0, partialFallback: 0, fit: 0, steel: 0, plain: 0, wider: 0, narrower: 0, nearestSteel: 0, makeups: 0 };
   const engaged = new Set<string>();
-  const positions: PositionTime[] = route.positions.map(p => {
+  const positions: PositionTime[] = route.positions.map((p, index) => {
     const arrival = base.segments.find(s => s.toId === p.id)?.seconds ?? 0;
     const reload = base.timing!.reloadDetails.find(r => r.positionId === p.id)?.additionalPenalty ?? 0;
     let previous: { x: number; y: number } | null = null;
@@ -103,7 +104,7 @@ export function estimateStageTime(stage: StageDocument, plan: StagePlan, route: 
         seconds: splits * secondsPerSplit + (transition?.seconds ?? 0) + makeupSeconds });
       previous = center;
     }
-    return { positionId: p.id, label: p.label, arrival, reload, targets: list, seconds: arrival + reload + list.reduce((s, t) => s + t.seconds, 0) };
+    return { positionId: p.id, label: positionNameWithNote(index, p.label), arrival, reload, targets: list, seconds: arrival + reload + list.reduce((s, t) => s + t.seconds, 0) };
   });
   const all = positions.flatMap(p => p.targets);
   const splits = all.reduce((s, t) => s + t.splits * t.secondsPerSplit, 0), transitions = all.reduce((s, t) => s + (t.transition?.seconds ?? 0), 0);
