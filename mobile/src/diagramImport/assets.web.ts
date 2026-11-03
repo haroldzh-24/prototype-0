@@ -52,7 +52,7 @@ export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reco
 /** The browser has no photo album: a picture file is chosen the same way as any document. */
 export async function pickPhoto(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> { return pickDocument(); }
 export async function photographPaper(): Promise<{ asset: DocumentAsset; kind: 'paper-photo' } | null> {
-  throw new Error('Use your phone camera to photograph the paper, then Import PDF or image. Direct capture is available in the rebuilt iPhone app.');
+  throw new Error('Photograph the paper with your phone’s camera, then use IMPORT PDF OR IMAGE. Photographing directly works in the iPhone app.');
 }
 export async function openOriginal(asset: DocumentAsset): Promise<void> {
   const url = URL.createObjectURL(await readBlob(asset));

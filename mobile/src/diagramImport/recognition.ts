@@ -18,10 +18,10 @@ export async function propose(draft: Reconstruction, raster: Raster, recognizer:
   const result = await recognizer.recognize({ raster, signal });
   if (signal.aborted) throw new Error('Recognition cancelled.');
   if (result.proposals.length > 1000 || !result.proposals.every(validProposal) || new Set(result.proposals.map(p => p.id)).size !== result.proposals.length || result.layoutRegion && !validCrop(result.layoutRegion) || !['unknown', 'top-down', 'perspective'].includes(result.projection)) throw new Error('Detector returned invalid proposals.');
-  // Never auto-accept, auto-calibrate, or upgrade an unknown projection to metric top-down.
+  // Never auto-accept, auto-review, auto-calibrate, or upgrade an unknown projection to metric top-down.
   let scaleStatus: NonNullable<Proposal['recognition']>['scaleStatus']='uncalibrated';
   try { inchesPerPixel(draft); scaleStatus=draft.calibration?.approximate?'calibrated-approximate':'calibrated'; } catch { /* Geometry can be reviewed without stage units. */ }
-  const proposals = result.proposals.map(p => ({ ...p, id:'rec-'+stableHash(draft.aligned!.asset.path+':'+recognizer.id)+'-'+p.id.slice(0,64)+'-'+stableHash(p.id), accepted: false, approximate: true, source: recognizer.id,
+  const proposals = result.proposals.map(p => ({ ...p, id:'rec-'+stableHash(draft.aligned!.asset.path+':'+recognizer.id)+'-'+p.id.slice(0,64)+'-'+stableHash(p.id), accepted: false, reviewed: false, approximate: true, source: recognizer.id,
     ...(p.recognition ? {recognition:{...p.recognition,sourceImage:{path:draft.aligned!.asset.path,page:draft.aligned!.page},scaleStatus}} : {}) }));
   if(new Set(proposals.map(p=>p.id)).size!==proposals.length)throw new Error('Ambiguous detection IDs. Use manual overlays.');
   return { ...result, proposals };

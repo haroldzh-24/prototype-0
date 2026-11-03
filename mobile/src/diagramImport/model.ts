@@ -15,6 +15,8 @@ export type Calibration = { a: Point; b: Point; inches: number; evidence: 'grid'
 export type Proposal = {
   id: string; type: StageObject['type'] | 'port' | 'prop' | 'unknown'; position: Point; rotation: number;
   end?: Point; presetId?: string; accepted: boolean; approximate: boolean; notes: string;
+  /** True once the user accepted or rejected it. Unreviewed proposals (detections, new manual elements) are neither. */
+  reviewed?: boolean;
   source: 'manual' | string; confidence?: number;
   /** Editable overlay size only; target physical dimensions still come from defaults/presets. */
   extent?: { width: number; height: number };
@@ -56,7 +58,7 @@ const types = ['cardboardTarget', 'noShootTarget', 'steelPlate', 'steelPopper', 
 export function validProposal(p: Proposal) {
   return !!p && typeof p.id === 'string' && /^[a-z0-9-]{1,100}$/i.test(p.id) && types.includes(p.type) && imagePoint(p.position) && finite(p.rotation)
     && (p.end === undefined || imagePoint(p.end)) && (p.presetId === undefined || typeof p.presetId === 'string')
-    && typeof p.accepted === 'boolean' && typeof p.approximate === 'boolean' && typeof p.notes === 'string' && p.notes.length <= 2000 && typeof p.source === 'string'
+    && typeof p.accepted === 'boolean' && (p.reviewed === undefined || typeof p.reviewed === 'boolean') && typeof p.approximate === 'boolean' && typeof p.notes === 'string' && p.notes.length <= 2000 && typeof p.source === 'string'
     && (p.confidence === undefined || finite(p.confidence) && p.confidence >= 0 && p.confidence <= 1)
     && (p.extent === undefined || !!p.extent && [p.extent.width, p.extent.height].every(n => finite(n) && n > 0 && n <= 1))
     && (p.recognition === undefined || !!p.recognition && ['line','rectangle','circle','symbol'].includes(p.recognition.shape) && validImageBounds(p.recognition.bounds)

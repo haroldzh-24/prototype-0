@@ -12,7 +12,7 @@ export function acceptSelection(proposals:Proposal[],selectedIds:readonly string
   const chosen=proposals.filter(p=>selected.has(p.id));
   if(!chosen.length)throw new Error('Select at least one overlay for the batch.');
   if(accepted&&chosen.some(p=>!validProposal(p)||['unknown','prop','port'].includes(p.type)))throw new Error('Classify each selected shape before accepting it. Unsupported props and ports need manual editor mapping.');
-  return proposals.map(p=>selected.has(p.id)?{...p,accepted}:p);
+  return proposals.map(p=>selected.has(p.id)?{...p,accepted,reviewed:true}:p);
 }
 export function editSegmentOverlay(p:Proposal,image:Pick<PageImage,'width'|'height'>,edit:{rotation?:number;lengthPixels?:number}):Proposal {
   if(!p.end)throw new Error('This overlay has no segment endpoints.');

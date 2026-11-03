@@ -177,7 +177,7 @@ test('stage pictures from Photos: copied into the app, old app builds explained,
   const fsMock = { File, Directory: class { create() {} }, Paths: { document: { uri: 'file:///docs/' }, cache: { uri: 'file:///cache/' } } };
   const base = { 'expo-file-system': fsMock, 'expo-document-picker': {} };
   const old = loadWith('../src/diagramImport/assets.ts', { ...base, 'expo-modules-core': { uuid: { v4: () => 'u1' }, requireOptionalNativeModule: () => ({ pickVideo() {} }) } });
-  await assert.rejects(old.pickPhoto(), /rebuilt iPhone app/);
+  await assert.rejects(old.pickPhoto(), /next version of the app on your iPhone/);
   const picker = loadWith('../src/diagramImport/assets.ts', { ...base, 'expo-modules-core': { uuid: { v4: () => 'u2' }, requireOptionalNativeModule: () => ({ pickImage: async () => ({ uri: 'file:///tmp/picked-2.heic', name: 'Stage 4.heic', size: 2048 }) }) } });
   const picked = await picker.pickPhoto();
   assert.equal(picked.kind, 'image'); assert.equal(picked.asset.mime, 'image/heic'); assert.equal(picked.asset.path, 'diagram-imports/u2.heic');

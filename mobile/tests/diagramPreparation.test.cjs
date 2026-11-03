@@ -12,7 +12,7 @@ test('PDF adapter uses the chosen one-based page and preserves the original refe
  const result=await a.preparePage(source,3);assert.deepEqual(calls[0],['file:///Documents/diagram-imports/original.pdf',true,3]);assert.equal(result.page.page,3);assert.equal(result.page.pageCount,4);assert.equal(JSON.stringify(source),before);assert.equal(a.copies.length,1);
 });
 test('missing native module and locked or invalid PDF pages fail without inventing a raster',async()=>{
- await assert.rejects(adapter(null).preparePage(source,1),/rebuilt/);await assert.rejects(adapter({page:async()=>{throw Error('PDF locked');}}).preparePage(source,1),/locked/);
+ await assert.rejects(adapter(null).preparePage(source,1),/^Error: This needs the next version of the app on your iPhone/);await assert.rejects(adapter({page:async()=>{throw Error('PDF locked');}}).preparePage(source,1),/locked/);
  const a=adapter({page:async()=>({uri:'file:///tmp/p.png',width:0,height:5,pageCount:1})});await assert.rejects(a.preparePage(source,1),/invalid/);assert.equal(a.copies.length,0);await assert.rejects(a.preparePage(source,0),/valid PDF page/);
 });
 test('image alignment passes manual corners, rotation and crop to the local adapter',async()=>{

@@ -35,7 +35,7 @@ export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reco
 /** A match book page, printout or screenshot from the photo album. PHPicker: no photo library permission is asked. */
 export async function pickPhoto(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> {
   const module = requireOptionalNativeModule<{ pickImage?(): Promise<{ uri: string; name: string; size: number } | null> }>('TrainingMedia');
-  if (!module?.pickImage) throw new Error('Choosing from Photos needs the rebuilt iPhone app. You can import the picture with Import PDF or image.');
+  if (!module?.pickImage) throw new Error('Choosing from Photos needs the next version of the app on your iPhone. You can use IMPORT PDF OR IMAGE instead.');
   const picked = await module.pickImage();
   if (!picked) return null;
   const mime = /\.png$/i.test(picked.name) ? 'image/png' : /\.hei[cf]$/i.test(picked.name) ? 'image/heic' : 'image/jpeg';
@@ -43,14 +43,14 @@ export async function pickPhoto(): Promise<{ asset: DocumentAsset; kind: Reconst
 }
 export async function photographPaper(): Promise<{ asset: DocumentAsset; kind: 'paper-photo' } | null> {
   const module = requireOptionalNativeModule<{ capture(): Promise<string | null> }>('DiagramImport');
-  if (!module) throw new Error('Paper capture needs the rebuilt iPhone app. You can import an existing photograph with Import PDF or image.');
+  if (!module) throw new Error('Photographing paper needs the next version of the app on your iPhone. You can import a photo you already took with IMPORT PDF OR IMAGE.');
   const uri = await module.capture();
   if (!uri) return null;
   return { asset: await preserveFile(uri, 'Paper photograph.jpg', 'image/jpeg'), kind: 'paper-photo' };
 }
 export async function openOriginal(asset: DocumentAsset): Promise<void> {
   const module = requireOptionalNativeModule<{ openOriginal(uri: string): Promise<void> }>('DiagramImport');
-  if (!module) throw new Error('Opening the preserved original needs the rebuilt iPhone app.');
+  if (!module) throw new Error('Opening the original file needs the next version of the app on your iPhone.');
   await module.openOriginal(await assetUri(asset));
 }
 

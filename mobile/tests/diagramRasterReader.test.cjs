@@ -6,7 +6,7 @@ test('Hermes-compatible RGBA decoder preserves channel order/alpha without Buffe
  for(const [data,w,h]of [['!',8,8],['AAAA',8,8],['',2000,8],[Buffer.alloc(8*8*4).toString('base64').replace('==','A='),8,8]])assert.throws(()=>decodeRgba(data,w,h));
 });
 test('native raster adapter checks availability and cancellation before/after decode',async()=>{
- const page={asset:{}},signal=new AbortController();await assert.rejects(load(null).readRaster(page,signal.signal),/rebuilt/);let calls=0;
+ const page={asset:{}},signal=new AbortController();await assert.rejects(load(null).readRaster(page,signal.signal),/next version of the app on your iPhone/);let calls=0;
  const controller=new AbortController(),reader=load({pixels:async()=>{calls++;controller.abort();return {width:8,height:8,rgba:Buffer.alloc(256).toString('base64')};}});await assert.rejects(reader.readRaster(page,controller.signal),/cancelled/);assert.equal(calls,1);
  const before=new AbortController();before.abort();await assert.rejects(reader.readRaster(page,before.signal),/cancelled/);assert.equal(calls,1);
 });

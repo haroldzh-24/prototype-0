@@ -20,7 +20,7 @@ async function saved(element: HTMLCanvasElement, page: number, pageCount: number
   return { asset, width: element.width, height: element.height, page, pageCount };
 }
 export async function preparePage(source: DocumentAsset, page: number) {
-  if (source.mime === 'application/pdf') throw new Error('PDF page rendering currently needs the rebuilt iPhone app. Import a PNG/JPEG page export here, or save this PDF as a reference.');
+  if (source.mime === 'application/pdf') throw new Error('PDF pages can only be shown in the iPhone app. Import a PNG or JPEG of the page here, or keep this PDF for reference.');
   if (page !== 1) throw new Error('An image has only one page.');
   const input = await image(source), factor = Math.min(1,2048/Math.max(input.naturalWidth,input.naturalHeight));
   const {element,context} = canvas(input.naturalWidth*factor,input.naturalHeight*factor); context.drawImage(input,0,0,element.width,element.height);
