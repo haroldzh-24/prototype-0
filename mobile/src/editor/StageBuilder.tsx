@@ -74,7 +74,6 @@ import { targetPreset } from '../stage/targetPresets';
 import { addSegment, endpoints, isSegment, segmentMetrics, snapEndpoint } from '../stage/segments';
 import type { DesignerTool } from './designerTools';
 import { formatYards, formatYardsFixed, yardsToInches } from '../stage/measurements';
-import { outsideStage } from '../stage/resize';
 import type { StagePosition } from '../stage/coordinates';
 import type { TargetFamily } from '../stage/targetFamily';
 import RouteAISheet from '../planning/routeAI/RouteAISheet';
@@ -98,7 +97,7 @@ import EyeLevelView from '../stage3d/EyeLevelView';
 import { buildWalk } from '../stage3d/walk';
 import { moveObject } from '../stage/operations';
 import HoldHint from './HoldHint';
-import { deletedText, modeChip, positionName, positionTitle, resetText, SEP, targetName, targetTypeName, words } from '../ui/words';
+import { deletedText, modeChip, positionName, positionTitle, resetText, SEP, targetName, targetNameWithType, targetTypeName, words } from '../ui/words';
 import { partialLabel, placePartial } from '../stage/partialTargets';
 
 export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: { initial: SavedStage; targetFamily: TargetFamily; routeAIAdapter?: RouteAIAdapter }) {
@@ -631,7 +630,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           <ToolButton title={words.tools.more} accessibilityLabel={words.settings.build} disabled={dragging} onPress={() => setPanel('more')} />
         </>}
     </ToolBar>}
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : sheetTitles[panel ?? 'edit']} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}
+    <EditorSheet title={panel === 'edit' && selected ? (targetName(stage, selected) ? targetNameWithType(stage, selected.id) : objectLabel(selected.type)) : sheetTitles[panel ?? 'edit']} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}
       back={sheetBack && panel !== sheetBack ? { label: 'Back to ' + sheetTitles[sheetBack].toLowerCase(), onPress: () => setPanel(sheetBack) } : undefined}
       footer={undoVisible && (panel === 'layers' || panel === 'edit') ? undoBar(false) : undefined}>
       {panel === 'layers' && selected && <LayerPanel stage={stage} selectedId={selected.id} setStage={setStage} onSelect={setSelectedId} onRemoved={noteUndo} />}

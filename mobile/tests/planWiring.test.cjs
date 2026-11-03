@@ -134,6 +134,7 @@ test('tapping a target in PLAN (2D and 3D) opens its target sheet; BUILD\'s EDIT
   // BUILD: a selected target's EDIT is position, size and rotation only.
   h.press('BUILD'); h.child('StageViewport').onSelect('t1'); h.render(); h.press('EDIT');
   const edit = sheet(h);
+  assert.equal(edit.title, 'T1 · Paper', 'the EDIT sheet names the target T1 with its type, as everywhere else');
   assert.ok(!tree(edit.children).some(n => ['RoundAssignment', 'ExpectedHits'].includes(n.type)), 'no rounds or expected hits in BUILD');
   assert.equal(h.child('ObjectInspector').advancedContent, undefined);
   assert.doesNotMatch(src('editor/ObjectInspector.tsx'), /PLANNING|advancedContent/);
@@ -366,4 +367,12 @@ test('one family picker: the match families by default, every family when asked 
   const pickers = ['editor', 'planning', 'diagramImport'].flatMap(dir => fs.readdirSync(path.join(__dirname, '../src', dir), { recursive: true }).filter(f => /\.tsx$/.test(f)).map(f => path.join(dir, f)))
     .filter(f => /options=\{targetFamilies\}|matchFamilies\.map\(family/.test(src(f)));
   assert.deepEqual(pickers, [], 'no other target family picker in the editor');
+});
+
+test('follow-ups: canvas targets are read as T1 · Paper, route settings are padded like other sheets', () => {
+  const { stage } = fixture();
+  const rn = { View: 'View', Text: 'Text', Platform: { OS: 'ios' }, StyleSheet: { create: s => s, absoluteFill: {} }, PanResponder: { create: handlers => ({ panHandlers: handlers }) } };
+  const D = harness('editor/DraggableObject.tsx', { stage, item: stage.objects[1], transform: { scale: 1, offsetX: 0, offsetY: 0 }, selected: false, snapping: { enabled: false }, onFeedback() {}, onSelect() {}, setStage() {}, onDragging() {} }, { 'react-native': rn });
+  assert.equal(D.find(n => n.props?.testID === 'stage-object-t1').props.accessibilityLabel, 'T1 · Paper');
+  assert.match(src('planning/EngagementSettings.tsx'), /paddingHorizontal: gaps\.lg/);
 });

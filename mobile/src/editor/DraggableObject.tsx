@@ -7,6 +7,7 @@ import Text from '@/editor/FieldText';
 import { moveByViewportDelta, stageToViewport } from '@/stage/coordinates';
 import type { ViewportTransform } from '@/stage/coordinates';
 import { objectLabel } from '@/stage/model';
+import { targetName, targetNameWithType } from '@/ui/words';
 import type { StageDocument, StageObject } from '@/stage/model';
 import { footprint } from '@/stage/geometry';
 import { moveObject } from '@/stage/operations';
@@ -71,7 +72,7 @@ export default function DraggableObject(props: ObjectProps) {
   const mirror = (item.type === 'cardboardTarget' || item.type === 'noShootTarget') && shooterSign(props.stage, item.rotation) < 0 ? [{ scaleX: -1 }] : [];
   const layerTransform = layer ? [{ translateY: -layer.offset.y * transform.scale }, { rotate: layer.roll + 'deg' }] : [];
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
-    accessible accessibilityRole="button" accessibilityLabel={objectLabel(item.type)}
+    accessible accessibilityRole="button" accessibilityLabel={targetName(props.stage, item) ? targetNameWithType(props.stage, item.id) : objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => props.onSelect(item.id)}
     style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {

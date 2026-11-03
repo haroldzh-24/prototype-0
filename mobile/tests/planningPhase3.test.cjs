@@ -331,7 +331,7 @@ test('PLAN checklist: each line shows ✓, a count or what is missing, and wheth
   // Every target engaged, but the rounds outrun the starting magazine: the missing reload is named.
   const full = { ...partial, positions: [position('w1', 100, 300, ['t1']), position('w2', 200, 300, ['t2']), position('w3', 300, 300, ['t3'])] };
   const plan = { ...createPlan(), route: full, engagements: { t1: 10, t2: 10, t3: 1 }, loadout: { chamberLoaded: false, startingMagazineId: 'm', magazines: [{ id: 'm', capacity: 15, startingRounds: 15 }, { id: 's', capacity: 15, startingRounds: 15 }] } };
-  assert.equal(S.planChecklist(stage, plan, profile()).lines[2].status, '3/3 targets planned · no reloads · no reload planned for P2');
+  assert.equal(S.planChecklist(stage, plan, profile()).lines[2].status, '3/3 targets planned · no reload planned for P2');
   const reloaded = { ...plan, route: { ...full, reloads: [{ positionId: 'w2', magazineId: 's' }] } };
   const ready = S.planChecklist(stage, reloaded, profile());
   assert.deepEqual(ready.lines[2], { key: 'targets', step: 3, title: 'Targets and reloads', done: true, status: '✓ · 3/3 targets planned · 1 reload' });

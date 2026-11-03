@@ -50,7 +50,7 @@ export default function TargetPlanSheet({ visible, close, stage, plan, route, ta
     {route.positions.length ? <>
       <Segmented options={options} value={at ? positionName(at.index) : NOT_ENGAGED}
         onChange={value => onRouteChange(value === NOT_ENGAGED ? unassignTarget(route, targetId) : assignTarget(route, stage, route.positions[options.indexOf(value)].id, targetId))} />
-      <DataRow label={planWords.engagedFrom} value={at ? positionName(at.index) + SEP + (at.moving ? 'on the way in' : 'standing') : planWords.notEngaged} />
+      {at && <DataRow label={planWords.engagedFrom} value={positionName(at.index) + SEP + (at.moving ? 'on the way in' : 'standing')} />}
       {legal === null ? <Copy>Not checked: draw a shooting area to check line of sight and safe angles.</Copy>
         : legal.length ? <Copy>{`Legal standing from ${legal.join(', ')} (shooting area, safe angle, line of sight).`}</Copy>
         : <Notice tone="warning">Not legal standing from any position on this route.</Notice>}

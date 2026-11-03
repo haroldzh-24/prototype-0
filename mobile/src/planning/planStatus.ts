@@ -164,7 +164,9 @@ export function planChecklist(stage: StageDocument, plan: StagePlan, profile: Sh
   const missing = !scoring.length ? 'no scoring targets on the stage'
     : planned < scoring.length ? `${scoring.length - planned} to engage`
     : short >= 0 ? (route!.reloads.some(r => r.positionId === result!.ammo[short].positionId) ? `${positionName(short)} runs short` : `no reload planned for ${positionName(short)}`) : '';
-  const targetsText = `${planned}/${scoring.length} targets planned${SEP}${reloads ? count(reloads, 'reload') : 'no reloads'}`;
+  // "no reload planned for P2" already says there are none, so "no reloads" isn't repeated before it.
+  const reloadText = reloads ? count(reloads, 'reload') : missing.startsWith('no reload') ? '' : 'no reloads';
+  const targetsText = `${planned}/${scoring.length} targets planned` + (reloadText ? SEP + reloadText : '');
   const targetsLine: ChecklistLine = { key: 'targets', step: 3, title: planWords.checklist.targets, done: !missing,
     status: missing ? `${targetsText}${SEP}${missing}` : done(targetsText) };
   const ready = positions > 0 && planned > 0;

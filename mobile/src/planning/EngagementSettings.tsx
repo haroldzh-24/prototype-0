@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE, matchFamilies } from '../rules/rulesets';
 import { TextInput, View } from 'react-native';
 import { Action, Copy, Notice, ui } from '../ui/kit';
+import { spacing as gaps } from '../ui/tokens';
 import type { StageDocument } from '../stage/model';
 import { inchesToYards, yardsToInches } from '../stage/measurements';
 import { isEngageable } from './model';
@@ -31,7 +32,7 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
     setAreas([...areas, { id: area.id, text: areaText(area) }]);
     setAreaId(area.id);
   };
-  return <View style={{ gap: 8 }}>
+  return <View style={{ gap: 8, paddingHorizontal: gaps.lg }}>
     <Copy>RULESET</Copy>
     {idpaOnHold(rules.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{matchFamilies.map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? '✓ ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
