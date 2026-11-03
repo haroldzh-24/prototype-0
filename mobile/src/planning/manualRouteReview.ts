@@ -14,7 +14,11 @@ export type ManualRouteReview = {
   totalTargets: number; assignedTargets: number; unassignedTargets: number;
   waypoints: number; distance: number; waypointEngagements: number; routeEngagements: number;
 };
-/** Inspection of saved manual references only. Coverage is neither visibility nor feasibility. */
+/**
+ * Inspection of saved manual references only. Coverage is neither visibility nor feasibility.
+ * @deprecated REVIEW's ✓ / ! marks now come from planStatus.ts reviewTargets (position engagements, shown in ANALYZE).
+ * After the load migration no route has arrows, so this reports none; used only by editor/ManualReviewPanel until REVIEW is removed.
+ */
 export function reviewManualRoute(stage: StageDocument, route?: StageRoute): ManualRouteReview {
   const objects = new Map(stage.objects.map(o => [o.id, o]));
   const targets: ReviewedTarget[] = [...objects.values()].filter(isEngageable).map(target => ({ target, assigned: false, engagements: [] }));

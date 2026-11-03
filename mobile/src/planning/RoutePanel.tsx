@@ -10,6 +10,7 @@ import { toggleRouteTarget } from './route';
 import type { TargetAssignmentMode, StageRoute } from './route';
 import { reorderEngagement } from './engagements';
 import { positionTitle, SEP, targetNameWithType } from '../ui/words';
+import { plannedRounds } from './planDefaults';
 
 type Props = { onAssign?: (mode: TargetAssignmentMode) => void; section: 'assign' | 'reload'; stage: StageDocument; plan: StagePlan; route: StageRoute; selectedId: string | null; onChange: (route: StageRoute) => void };
 export default function RoutePanel({ stage, plan, route, selectedId, onChange, onAssign, section }: Props) {
@@ -40,7 +41,7 @@ export default function RoutePanel({ stage, plan, route, selectedId, onChange, o
         const visible = selected.visibleTargetIds.includes(t.id), here = selected.engagedTargetIds.includes(t.id);
         const owner = route.positions.find(p => p.engagedTargetIds.includes(t.id));
         return <View key={t.id} style={{ gap: 6 }}>
-          <Copy>{[targetNameWithType(stage, t.id), `${plan.engagements[t.id] ?? 0} rounds`, `engage: ${owner?.label ?? 'unassigned'}`].join(SEP)}</Copy>
+          <Copy>{[targetNameWithType(stage, t.id), `${plannedRounds(plan, t).rounds} rounds`, `engage: ${owner?.label ?? 'unassigned'}`].join(SEP)}</Copy>
           <Action title={visible ? 'VISIBLE ✓ (REMOVE)' : 'MARK VISIBLE'} onPress={() => { if (visible && (here || selected.movingTargetIds?.includes(t.id))) setError(`${targetLabel(stage, t.id)}: visibility removed; engagement cleared at this position.`); onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'visible')); }} />
           <Action title={here ? 'CLEAR ENGAGEMENT' : 'ENGAGE HERE'} onPress={() => onChange(toggleRouteTarget(route, stage, selected.id, t.id, 'engaged'))} />
         </View>;

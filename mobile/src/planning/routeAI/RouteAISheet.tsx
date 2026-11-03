@@ -5,6 +5,7 @@ import { Action, Copy, DataRow, ErrorState, Loading, Notice, Panel, StatusBadge,
 import type { AIState, RouteAIController } from './controller';
 import { quickPrompts, isBusy } from './controller';
 import { formatYardsFixed } from '../../stage/measurements';
+import { planWords } from '../planWords';
 export default function RouteAISheet({visible,close,state,controller,revision,apply,inspect}: {
   visible:boolean;close:()=>void;state:AIState;controller:RouteAIController;revision:string;apply:()=>void;inspect:()=>void;
 }) {
@@ -16,6 +17,7 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
     <TextInput accessibilityLabel="Ask about this route" placeholder="Ask about this route…" placeholderTextColor={colors.subdued} style={[ui.input,{maxHeight:100}]} multiline maxLength={600} value={input} onChangeText={setInput} editable={available&&!busy&&!preview} />
     <Action title="SEND" variant="primary" disabled={!available||busy||!!preview||!input.trim()} onPress={send} />
   </View>}><View testID="route-ai-sheet" style={{padding:12,gap:12}}>
+    <Copy>{planWords.ask}</Copy>
     <StatusBadge label={available?'OFFLINE':state.availability.replaceAll('_',' ')} tone={available?'selected':'warning'} />
     {!available&&<><Notice>{labels[state.availability]}</Notice><Copy>The route planner (AUTO-PLAN) remains fully usable.</Copy><Action title="CHECK AGAIN" onPress={()=>void controller.initialize()} /></>}
     {available&&!state.messages.length&&<><Copy>Ask about the current route or propose a position change.</Copy>{quickPrompts.map(prompt=><Action key={prompt} title={prompt} disabled={busy} onPress={()=>void controller.send(prompt)} />)}</>}

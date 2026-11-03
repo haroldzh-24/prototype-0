@@ -131,6 +131,7 @@ test('targets are named T1… with their type where there is room, and engagemen
   assert.ok(copy.includes('1. T2 · Paper') && copy.includes('2. T1 · Paper'), copy.join(' | '));
   assert.ok(titles(panel).includes('EARLIER') && titles(panel).includes('LATER'));
   const analysis = harness('planning/RouteAnalysis.tsx', { stage: document, plan: plan(route), route, profile: null, edit() {} });
+  analysis.press('Show route');
   const lines = analysis.nodes().filter(n => n.type === 'Copy').map(n => [].concat(n.props.children).join(''));
   assert.ok(lines.includes('Position 1 · P1') && lines.includes('1. T2 · Paper'), lines.join(' | '));
   assert.ok(!lines.some(l => /Cardboard \d|Waypoint/.test(l)));

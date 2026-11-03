@@ -11,6 +11,7 @@ import { adoptionLosses, solverInputFromPlan, solverPreviewCard } from './routeS
 import type { RouteSolverResult } from './routeSolver/types';
 import { meaningfulRoute } from '../editor/routePresentation';
 import { formatYardsFixed } from '../stage/measurements';
+import { planWords } from './planWords';
 
 export default function AutoPlannerPanel({stage,plan,onUse,preview,onPreview,onClose,discoveryPreview,onConfigure,onSolverResult}:PlannerContext & {onSolverResult?:(result:RouteSolverResult)=>void;onConfigure:(section:'loadout'|'targets'|'rules'|'geometry'|'start')=>void;discoverySession:DiscoverySession|null;onDiscovery:(session:DiscoverySession)=>void;discoveryPreview:boolean;onDiscoveryPreview:()=>void;preview:PlannerCard|null;onPreview:(card:PlannerCard)=>void;onClose:()=>void;onUse:(plan:StagePlan)=>void}) {
   const [result,setResult]=useState<RouteSolverResult|null>(null),[generating,setGenerating]=useState(false),[alternatives,setAlternatives]=useState(false),[pending,setPending]=useState<PlannerCard|null>(null);
@@ -26,8 +27,9 @@ export default function AutoPlannerPanel({stage,plan,onUse,preview,onPreview,onC
   }
   function useRoute(card:PlannerCard,confirmed=false){const next=copyPlannerRoute(plan,card.route,confirmed||!meaningfulRoute(plan.route));if(next)onUse(next);else setPending(card);}
   return <EditorSheet title="Movement optimizer" visible={!preview&&!discoveryPreview} close={onClose}><Panel>
+    <Copy>{planWords.olderOptimizer}</Copy>
     <Copy>Shortest movement through your shooting areas or positions.</Copy>
-    <Notice>Movement only: this does not check targets, line of sight or safe angles. Use ANALYZE and REVIEW for those.</Notice>
+    <Notice>Movement only: this does not check targets, line of sight or safe angles. Use AUTO-PLAN for a checked route, and ANALYZE to check this one.</Notice>
     {!cards.length&&<>
       <DataRow label="Start" value={Number.isFinite(input.start.x)?'Ready':'Needs setup'} />
       <DataRow label="Shooting areas · positions to visit" value={input.requiredAreas.length} />

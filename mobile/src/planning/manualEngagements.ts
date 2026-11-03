@@ -7,6 +7,7 @@ import { isEngageable } from './model';
 
 export type EngagementAnchor = { kind: 'waypoint'; waypointId: string }
   | { kind: 'section'; sectionId: string; fraction: number };
+/** Saved ENGAGE arrow, the older second engagement model. Still read when a saved plan loads; migrateManualEngagements (assignments.ts) turns it into position engagements. */
 export type ManualEngagement = { id: string; targetId: string; anchor: EngagementAnchor; direction: number };
 export type RouteSection = { id: string; fromId: string; toId: string; points: StagePosition[] };
 /** Endpoint pairs already identify PATH connections. Encoding is collision-safe and stable across shape/style edits. */
@@ -74,6 +75,7 @@ export function validManualEngagements(value: unknown, route: StageRoute, allowM
     } catch { return false; }
   });
 }
+/** @deprecated ENGAGE arrows are folded into position engagements on load (assignments.ts); the drag calls assignTarget. Kept until StageBuilder's ENGAGE is rewired. */
 export function addManualEngagement(stage: StageDocument, route: StageRoute, engagement: ManualEngagement): StageRoute {
   if (route.manualEngagements?.some(e => e.id === engagement.id) || !validManualEngagements([engagement], route) || !stage.objects.some(o => o.id === engagement.targetId && isEngageable(o)) || !resolveAnchor(stage, route, engagement.anchor)) return route;
   return { ...route, manualEngagements: [...(route.manualEngagements ?? []), engagement] };

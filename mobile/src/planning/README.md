@@ -3,6 +3,8 @@
 - `v2/` — **Route Planner V2** (`planRoute`, `planRouteAsync`): fewest legal shooting positions, then the shortest walk, with per-target reasons and an explicit safety report. Design and rule sources: `docs/route-planner-v2.md`. UI: PLAN in ROUTE mode.
 - `routeSolver/` — the **movement optimizer** (OPTIMIZE): shortest movement through firing areas or waypoints; it does not check targets or safety. Kept until V2 is verified on devices.
 - `engagements.ts`, `manualEngagements.ts`, `manualRouteReview.ts` — legality analysis and the manual PATH/ENGAGE/REVIEW tools. The analysis follows drawn bends.
+- `assignments.ts` — the one engagement model (UI cohesion phase 3): `position.engagedTargetIds` is the only assignment; `assignTarget` / `unassignTarget` change it, and `migrateManualEngagements` (run by `reconcilePlan`) folds saved ENGAGE arrows into it. `manualEngagements.ts` and `manualRouteReview.ts` stay only until the editor's ENGAGE and REVIEW are rewired.
+- `planDefaults.ts`, `planStatus.ts`, `routeLifecycle.ts`, `planWords.ts` — PLAN's defaults (rule rounds, profile loadout, AUTO-PLAN standing only), REVIEW's marks / ANALYZE's answer / the checklist state, the draft route and Reset route keeping shooting areas, and PLAN's new labels. `TargetPlanSheet.tsx` and `PlanChecklist.tsx` are their panels.
 - `kernel.ts` — the single import point for shared geometry rules (inside, line of sight, path legs, headings).
 - `planner.ts`, `candidateGeneration.ts`, `ranking.ts`, `personalizedRoute.ts`, `positionDiscovery.ts`, `positionSources.ts` — the earlier automatic planner; not reachable from the UI and kept as reference until V2 replaces it on devices.
 
@@ -28,8 +30,10 @@ values must not leave stale results after reopening. Position coordinates are
 ground-level inches and use the existing viewport conversion helpers.
 
 Visibility may overlap, but the UI moves a target's intended engagement to exactly
-one position. Round counts come only from `StagePlan.engagements`. Missing/zero
-counts and unengaged shootable targets warn. Target deletion does not silently
+one position. `evaluateRoute` reads round counts only from `StagePlan.engagements`;
+ANALYZE, the checklist and the target sheet pass it the plan with defaults filled in
+(`planDefaults.ts`: the rule's required hits, the profile loadout), so only rounds you
+set to zero, and unengaged shootable targets, warn there. Target deletion does not silently
 remove route references; the route panel offers removal of missing assignments.
 
 Ammo starts with the designated magazine's actual loaded rounds plus the explicit
