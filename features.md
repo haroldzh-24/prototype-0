@@ -1,3 +1,9 @@
+# UI cohesion - 2026-11-02
+
+The owner's UI pass (plan: [Claude Doc](https://claude.ai/artifact/UroyABKMmyqc5qgaykbpYj), `docs/roadmap.md` U1–U5): **done in code 2026-11-02**, all five phases, on the web build only. Needs a phone check (gestures, VoiceOver, large text, safe areas, the drag-to-engage, the import on real photos).
+- Defaults taken (change any of them): Position and Shooting area as the words; PARTIAL as the ring's name; ENGAGE arrows merged into positions' targets; Ask and the older optimizer kept under PLAN's •••; practice type for plans in Profile (Live fire); old video analysis read-only; with no magazine count on the profile, ANALYZE assumes as many spare magazines as the planned rounds need and says so.
+- Next: measure the other two timed tasks (match-book photo → drawing; Bill Drill from video); update the browser smoke scripts to the new labels.
+
 # 1.0 plan - 2026-10-26
 
 Full plan with "done when" for each item: [docs/roadmap.md](docs/roadmap.md). Milestones in order:

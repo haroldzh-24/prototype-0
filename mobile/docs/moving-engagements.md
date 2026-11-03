@@ -1,5 +1,8 @@
 # Moving engagements for recreational airsoft
 
+> Names and placement in the editor changed on 2026-11-02 (UI cohesion; see `changelog.md` and `docs/ui-overhaul.md`): Position (P1, P2…) for waypoint, Shooting area for firing area, T1 for target names, WALK for EYE / eye-level view, DRAW BY HAND for PATH; ENGAGE arrows became a position's targets and REVIEW's marks moved into ANALYZE. What follows describes the feature as built at the date above.
+
+
 Open Route Analysis → Set up moving engagements. Choose USPSA, PCSL or IDPA, enter the stage brief's firing-area polygon corners in yards, safe direction/half angle, movement permission and outside-area travel permission. Sampling is configurable from 0.25 to 24 physical inches (default 2). The whole-stage area button is an explicit choice; the solver never assumes all traversable ground permits firing.
 
 Use target procedures for stationary-only targets, permitted areas and prerequisite target engagements. IDPA requires explicit per-target areas representing the brief's cover/exposure constraints. These are course-author inputs, not automatic rulebook or cover interpretation. Fault-line marks are not closed legal-area polygons: enter the permitted side as firing-area geometry and keep it aligned when editing the course.

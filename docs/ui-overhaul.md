@@ -1,3 +1,19 @@
+# UI cohesion rules - November 2, 2026
+
+The owner's cohesion plan ([Claude Doc](https://claude.ai/artifact/UroyABKMmyqc5qgaykbpYj); phases in `changelog.md`). New screens and changes follow these on top of the theme rules below.
+
+1. **One home per feature.** A gesture can be a shortcut, never the only way, and it gets a one-time hint (`editor/HoldHint.tsx`).
+2. **The mode is always on screen.** Any mode that changes what a tap does shows the canvas chip (`editor/ModeChip.tsx`): what a tap does now, and DONE.
+3. **Prerequisites before the action** (a checklist such as PLAN's), not errors after the tap.
+4. **Undo instead of confirm.** The header's ↶ ↷ cover every edit; deletes show "Deleted T3 · UNDO" (`editor/UndoBar.tsx`). Confirm only what undo can't bring back (deleting a match, stage or run).
+5. **One orange (primary) button per screen, and it is the next step.** SAVE is orange only with unsaved changes.
+6. **Same object, same name, same sheet.** T1, T2… (`targetName` / `targetNameWithType`), P1, P2… (`positionName`) in 2D, 3D, PLAN, WALK and ANALYZE; tapping a target in PLAN opens the target sheet in 2D and 3D.
+7. **Numbers say where they come from** ("Times from your live-fire numbers…", "rule default (USPSA 9.5.1…)").
+
+**Words:** `mobile/src/ui/words.ts` is the word list (Stage editor; Plan view (2D) · 3D · WALK; Position / Path point; Shooting area; T1 with its type; Practice type; DONE to leave a mode, Done on sheet headers). `tests/words.test.cjs` fails on a retired word in any user-facing string in `src`. Buttons ALL CAPS, other text sentence case, one separator " · ", yards on the stage (inches only inside a target's layers).
+
+**Stage editor frame:** five fixed slots, top to bottom: header (‹, name ✎, ↶, ↷, SAVE), step bar (BUILD · PLAN · WALK with badges), canvas (2D / 3D, FIT, mode chip; PLAN adds its checklist above it), selection bar (the same in 2D and 3D), tool bar (up to four tools + ••• for that step's settings only, with ‹ BACK). Use the kit's `Action`, `ToolButton`, `Segmented` and `TargetFamilyPicker`; no private buttons.
+
 # Outdoor high-contrast redesign and night mode - October 25, 2026
 
 The approved mockups (outdoor high-contrast: black on white for full sun, a near-black night version) are the reference. Implementation:

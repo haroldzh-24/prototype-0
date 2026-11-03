@@ -1,3 +1,20 @@
+# Fixed 2026-11-02 (UI cohesion, phases 1–5)
+
+Found in the UI pass of 2026-11-02 (the plan's "silent changes" and "dead ends") and fixed; tests are listed in the changelog entries:
+- Opening PLAN created a route and marked the stage UNSAVED. PLAN now shows a draft route and creates it on the first edit.
+- Reset Route deleted the shooting areas. It keeps them (and the route rules).
+- AUTO-PLAN defaulted to ON THE MOVE once rules existed, which left ANALYZE with no time. It starts on STANDING ONLY and says what ON THE MOVE costs.
+- Two engagement models: ENGAGE arrows were counted in the header coverage without line-of-sight, safety or ammunition checks, and REVIEW read only arrows. There is one model now (a position's targets); saved arrows are folded in when a stage opens.
+- DRAW FIRING AREAS from AUTO-PLAN didn't return to AUTO-PLAN; Route Settings returned to the wrong place; "Back to PLAN ROUTE" showed from •••.
+- Closing a drill sheet lost typed times, hits and the picked video without asking.
+- Training defaulted to Dry Fire while the planner read Live Fire, so runs could silently not count. Practice type for plans is set in Profile and every log says whether the run counts.
+- Adding a video's measurements to the profile switched the profile's practice type.
+- The stage diagram import ignored night mode (fixed colours), and the drawing appeared under the stage only after an explicit save with a confirmed scale and "top-down" picked by hand. Top-down is the default and closing with a confirmed scale saves it.
+- Browser: tapping a corner or scale point in the import set NaN coordinates; dragging from a position in ENGAGE never started (an explicit `pointerEvents="auto"` overrode the overlay).
+- SAVE stayed orange when there was nothing to save; the target info card's BACK / PLACE IT were cut off at 390×844; Route settings had no side padding.
+- Open: AUTO-PLAN and the older optimizer still ask "Replace your existing route?" (a confirm, not undo). A position's stored label is still editable and shown in the ORDER sheet and ANALYZE's detail ("2. P3") while the canvas numbers positions by route order, so the two can differ. On web, a mouse drag selects the START box and target images as text. The 3D hint doesn't say that tapping a target in PLAN opens its sheet. The browser scripts `tests/final-ui-browser.cjs`, `browser-smoke.cjs` and `designer-browser-smoke.cjs` (not part of `npm test`) still use labels from before the pass. Nothing in this pass was checked on a phone.
+- Reminder: the September 9–10 device checks and the September 9 dense-snapping assessment are more than a month overdue (`mobile/docs/rc-hardware-validation.md`).
+
 # Fixed 2026-10-26 (batch 22b)
 
 - From the independent review of batches 21–22: the 101st video run of a day failed to save; the grip found too early when the support hand moved first; a tracking gap before the run lost the shooter; KEEP could save the wrong hand; a dry-fire click taken as a shot; steel echoes counted as makeups.

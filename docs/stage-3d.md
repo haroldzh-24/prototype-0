@@ -1,5 +1,8 @@
 # 3D stage view and eye-level walk-through (RC2 batch 10, 2026-10-25)
 
+> Names and placement in the editor changed on 2026-11-02 (UI cohesion; see `changelog.md` and `docs/ui-overhaul.md`): Position (P1, P2…) for waypoint, Shooting area for firing area, T1 for target names, WALK for EYE / eye-level view, DRAW BY HAND for PATH; ENGAGE arrows became a position's targets and REVIEW's marks moved into ANALYZE. What follows describes the feature as built at the date above.
+
+
 The stage editor has three views of the same stage document, switched with **2D · 3D · EYE** at the top left of the canvas (also under Stage tools and View):
 
 | View | What it is for | Editing |

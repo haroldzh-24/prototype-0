@@ -1,5 +1,8 @@
 # Target layers and painted hard cover (RC2 batch 15, 2026-10-26)
 
+> Names and placement in the editor changed on 2026-11-02 (UI cohesion; see `changelog.md` and `docs/ui-overhaul.md`): Position (P1, P2…) for waypoint, Shooting area for firing area, T1 for target names, WALK for EYE / eye-level view, DRAW BY HAND for PATH; ENGAGE arrows became a position's targets and REVIEW's marks moved into ANALYZE. What follows describes the feature as built at the date above.
+
+
 Select a paper target in BUILD → **LAYERS**:
 
 - **ADD ON TOP:** a no-shoot (a hostage) or a second scoring target (a "double"). It copies the target's preset and size, starts over the lower left (no-shoot, in front) or to the right (target, behind), and then slides (1 in steps), rotates (5° steps) and goes in front or behind. Slides snap so the layer's top edge meets the target's neck, shoulder line, centre or top, its side edges meet the head edges, centre line or sides, or its centre lines up with the target's.

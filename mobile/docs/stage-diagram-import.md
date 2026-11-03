@@ -19,7 +19,7 @@ Messages that need native code missing from the installed build say "…needs th
 
 ## Tracing over the drawing (batch 16)
 
-Once a draft is aligned, cropped, marked top-down and has a confirmed scale, closing the import shows that drawing under the stage in BUILD and PLAN, at its calibrated size and origin (`backdropOf`/`latestBackdrop` in `src/diagramImport/model.ts`, drawn by `src/editor/StageBackdrop.tsx` over the grid and under the stage objects). View settings → Drawing OFF / LIGHT / HALF / STRONG. Trace with the normal tools (press and hold to add, DRAW for walls and fault lines, AREAS → FROM FAULT LINES). The latest calibrated draft for the stage is used.
+Once a draft is aligned, cropped, marked top-down and has a confirmed scale, closing the import shows that drawing under the stage in BUILD and PLAN, at its calibrated size and origin (`backdropOf`/`latestBackdrop` in `src/diagramImport/model.ts`, drawn by `src/editor/StageBackdrop.tsx` over the grid and under the stage objects). **DRAWING** in BUILD's ••• and PLAN's ••• (2026-11-02) sets its opacity (OFF / LIGHT / HALF / STRONG, saved per stage on the import record as `opacity`; older records load at half), nudges it 0.1 yd at a time with ← ↑ ↓ → (moves the record's `origin`, through `measurements.ts`, so elements added later stay lined up; the origin may now be negative, bounded at ±36,000 in), and **REALIGN** reopens the import on that drawing's SCALE step. These settings save straight to the record, not through the stage's SAVE or undo. Trace with the normal tools (ADD or press and hold for targets, walls and fault lines; AREAS → FROM FAULT LINES). The latest calibrated draft for the stage is used.
 
 ## Storage and compatibility
 

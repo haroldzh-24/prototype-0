@@ -50,6 +50,20 @@ The drills are the whole Training section and the way the app collects data. No 
 | T3 ★ | **Draw and reload broken into movements** | Start signal → hand moves → grip → out of the holster → hands meet → on target → first shot (and the reload's phases), from body and hand tracking on the run's video, with how sure each mark is. Needs tracking above today's 10 frames a second (a native change and a new phone build) and real draw videos to tune before the numbers are trusted. |
 | T4 ★ | **Practice drills for USPSA and other matches** | More standard drills, described in our own words, each with what it measures; par set by you. |
 
+## UI cohesion (owner, 2026-11-02) — phases 1–5 done in code 2026-11-02; needs a phone check
+
+From the UI inventory and cohesion plan ([Claude Doc](https://claude.ai/artifact/UroyABKMmyqc5qgaykbpYj)): one home per feature, the mode always on screen, prerequisites before the action, undo instead of confirm, one orange next step, same object same name same sheet, numbers that say where they come from. Details in `changelog.md`.
+
+| # | Item | Done when |
+| --- | --- | --- |
+| U1 | **Words and placement** | One word list (`src/ui/words.ts`) checked by a test; undo/redo/save in the editor header; one way to each view; T1, T2… everywhere; WALK legend. |
+| U2 | **The editor frame** | Five fixed slots; BUILD tools ADD · IMPORT · CHECK · •••; one ADD behaviour; PARTIAL ring (covered targets ready to place); one selection bar in 2D and 3D; undo bars instead of confirms. |
+| U3 | **PLAN as one guided path** | Checklist header; one engagement model; target sheet in PLAN; defaults so ANALYZE works at once; ANALYZE answer first. Timed task: empty plan → timed plan with reloads on 8 targets in under 12 taps (11 in the web build). |
+| U4 | **Training and Profile** | Drill sheet LOG · RUNS · HOW TO with an unsaved-run prompt; practice type for plans in Profile; Profile as settings; History drill days only. |
+| U5 | **Import** | PHOTO · CORNERS · SCALE with progress; night mode; saves on close with a confirmed scale; drawing opacity and nudge per stage, from BUILD and PLAN. |
+
+The other two timed tasks in the plan (match-book photo → drawing, about 24 taps → under 12; log a Bill Drill from video, about 15 → about 10) haven't been measured yet.
+
 ## Milestone D: close the loop and keep the data
 
 | # | Item | Done when |

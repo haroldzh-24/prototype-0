@@ -1,5 +1,8 @@
 # On-device Route AI — October 5, 2026
 
+> Names and placement in the editor changed on 2026-11-02 (UI cohesion; see `changelog.md` and `docs/ui-overhaul.md`): Position (P1, P2…) for waypoint, Shooting area for firing area, T1 for target names, WALK for EYE / eye-level view, DRAW BY HAND for PATH; ENGAGE arrows became a position's targets and REVIEW's marks moved into ANALYZE. What follows describes the feature as built at the date above.
+
+
 ## Architecture and ownership
 
 ROUTE → ASK → Swift Foundation Models guided decision → TypeScript validation/reference resolution → `executeRouteAssistantCommand` → current facts/preview/clarification → local model formats facts → sheet. The interpreter has no document, storage, generic patch, geometry-solving or mutation API. Existing RouteSolver and RouteAssistant remain authoritative. No schema or persistence changes were made. Chat is memory-only, bounded to 24 messages with 1,200 characters per response and 600 per user request.

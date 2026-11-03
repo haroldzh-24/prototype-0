@@ -1,5 +1,8 @@
 # Offline route solver — 2026-10-05
 
+> Names and placement in the editor changed on 2026-11-02 (UI cohesion; see `changelog.md` and `docs/ui-overhaul.md`): Position (P1, P2…) for waypoint, Shooting area for firing area, T1 for target names, WALK for EYE / eye-level view, DRAW BY HAND for PATH; ENGAGE arrows became a position's targets and REVIEW's marks moved into ANALYZE. What follows describes the feature as built at the date above.
+
+
 PLAN ROUTE now runs one deterministic, offline geometry solver. It minimizes traversable movement through caller-required regions and removes unnecessary route points. No profile, style, backward preference, viewport or screen coordinate participates in solving. No document/route schema, SQLite implementation or explicit Save boundary changed.
 
 ## Architecture and files
