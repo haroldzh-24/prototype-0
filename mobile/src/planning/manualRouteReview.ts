@@ -5,6 +5,7 @@ import type { ManualEngagement } from './manualEngagements';
 import { manualEngagementLabel, resolveAnchor, routeSections } from './manualEngagements';
 import { pathLength } from './routeGeometry';
 import { isEngageable } from './model';
+import { positionTitle, SEP } from '../ui/words';
 
 export type ReviewedEngagement = { engagement: ManualEngagement; position: StagePosition | null; source: string; issues: string[] };
 export type ReviewedTarget = { target: StageObject; assigned: boolean; engagements: ReviewedEngagement[] };
@@ -28,7 +29,7 @@ export function reviewManualRoute(stage: StageDocument, route?: StageRoute): Man
     const anchor = engagement.anchor;
     const index = anchor?.kind === 'waypoint' ? route?.positions.findIndex(p => p.id === anchor.waypointId) ?? -1 : -1;
     const source = anchor?.kind === 'waypoint'
-      ? index >= 0 ? `Waypoint ${index + 1} / ${manualEngagementLabel(route!, engagement)}` : `Missing waypoint ${anchor.waypointId}`
+      ? index >= 0 ? `${positionTitle(index)}${SEP}engagement ${manualEngagementLabel(route!, engagement)}` : `Missing position ${anchor.waypointId}`
       : anchor?.kind === 'section' ? `Route engagement (${Math.round(anchor.fraction * 100)}% along section)` : 'Missing route anchor';
     const entry = { engagement, position: issues.includes('Missing or invalid route anchor') ? null : position, source, issues };
     const reviewedTarget = byId.get(engagement.targetId);

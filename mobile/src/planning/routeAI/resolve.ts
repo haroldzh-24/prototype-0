@@ -25,13 +25,14 @@ export function inches(value:number,unit:string):number {
 }
 export function waypointCandidates(c:RouteAssistantContext,reference?:string):string[] {
   const r=reference?.trim().toLowerCase();
-  if(!r||['that waypoint','this point','selected','that','this'].includes(r))return c.selectedWaypointId&&c.route.positions.some(p=>p.id===c.selectedWaypointId)?[c.selectedWaypointId]:c.route.positions.map(p=>p.id);
+  if(!r||['that waypoint','that position','this position','this point','selected','that','this'].includes(r))return c.selectedWaypointId&&c.route.positions.some(p=>p.id===c.selectedWaypointId)?[c.selectedWaypointId]:c.route.positions.map(p=>p.id);
   const exact=c.route.positions.filter(p=>p.id.toLowerCase()===r||p.label.toLowerCase()===r);if(exact.length)return exact.map(p=>p.id);
-  if(/^(the )?last( waypoint)?$/.test(r))return c.route.positions.slice(-1).map(p=>p.id);
-  const number=r.match(/^(?:the )?(?:waypoint )?(\d+)(?:st|nd|rd|th)?(?: waypoint)?$/);
-  const ordinal=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth'].indexOf(r.replace(/^the /,'').replace(/ waypoint$/,''));
+  if(/^(the )?last( waypoint| position)?$/.test(r))return c.route.positions.slice(-1).map(p=>p.id);
+  // The app says "position" (P1, P2…); "waypoint" still works for anyone who types it.
+  const number=r.match(/^(?:the )?(?:waypoint |position )?(\d+)(?:st|nd|rd|th)?(?: waypoint| position)?$/);
+  const ordinal=['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth'].indexOf(r.replace(/^the /,'').replace(/ (waypoint|position)$/,''));
   if(number||ordinal>=0)return c.route.positions.slice((number?Number(number[1]):ordinal+1)-1,(number?Number(number[1]):ordinal+1)).map(p=>p.id);
-  const near=r.match(/^(?:the one |waypoint )?near (.+)$/);
+  const near=r.match(/^(?:the one |waypoint |position )?near (.+)$/);
   if(near){
     const wallNumber=near[1].match(/^wall (\d+)$/);
     const object=wallNumber?c.stage.objects.filter(o=>o.type==='wall').slice(Number(wallNumber[1])-1,Number(wallNumber[1])):c.stage.objects.filter(o=>o.id.toLowerCase()===near[1]);
@@ -47,16 +48,16 @@ export function waypointCandidates(c:RouteAssistantContext,reference?:string):st
 export type Resolution = {command:RouteAssistantCommand; pendingField?:'waypointReference'|'secondWaypointReference'|'areaReference'|'alternativeNumber'};
 export function resolveDecision(c:RouteAssistantContext,d:Decision,newId:string):Resolution {
   const clarify=(question:string,options:{id:string;label:string}[],pendingField?:Resolution['pendingField']):Resolution=>({command:{type:'NEED_CLARIFICATION',question,options:options.length?options:[{id:'rephrase',label:'Describe the request more precisely'}]},pendingField});
-  const waypoints=c.route.positions.map((p,i)=>({id:p.id,label:`Waypoint ${i+1} (${p.label})`}));
+  const waypoints=c.route.positions.map((p,i)=>({id:p.id,label:`Position ${i+1} (${p.label})`}));
   let id:string|undefined,second:string|undefined;
   if(['QUERY_WAYPOINT','QUERY_EXPLANATION','MOVE_WAYPOINT','DELETE_WAYPOINT','REORDER_WAYPOINT'].includes(d.intent)){
     const candidates=waypointCandidates(c,d.waypointReference);
-    if(candidates.length!==1)return clarify('Which waypoint do you mean?',candidates.length?waypoints.filter(p=>candidates.includes(p.id)):waypoints,'waypointReference');
+    if(candidates.length!==1)return clarify('Which position do you mean?',candidates.length?waypoints.filter(p=>candidates.includes(p.id)):waypoints,'waypointReference');
     id=candidates[0];
   }
   if(d.intent==='REORDER_WAYPOINT'){
     const candidates=waypointCandidates(c,d.secondWaypointReference);
-    if(candidates.length!==1)return clarify('Before which waypoint?',waypoints,'secondWaypointReference');second=candidates[0];
+    if(candidates.length!==1)return clarify('Before which position?',waypoints,'secondWaypointReference');second=candidates[0];
   }
   const sourceRevision=c.revision;
   switch(d.intent){
@@ -88,9 +89,9 @@ export function resolveDecision(c:RouteAssistantContext,d:Decision,newId:string)
         return {command:{type:'MOVE_WAYPOINT',sourceRevision,waypointId:id!,destination:{kind:'delta',deltaXInches:axis[0]*distance,deltaYInches:axis[1]*distance}}};
       }
       // Directional moves must retain value/unit; do not accept model-computed delta arithmetic.
-      return clarify('Where should the waypoint move? Give coordinates in inches or a distance, unit and direction.',[]);
+      return clarify('Where should the position move? Give coordinates in inches or a distance, unit and direction.',[]);
     }
-    case 'ADD_WAYPOINT':return d.absoluteXInches!==undefined&&d.absoluteYInches!==undefined?{command:{type:'ADD_WAYPOINT',sourceRevision,waypointId:newId,position:{x:d.absoluteXInches,y:d.absoluteYInches},placement:{kind:'nearest'}}}:clarify('Give the new waypoint X and Y in inches.',[]);
+    case 'ADD_WAYPOINT':return d.absoluteXInches!==undefined&&d.absoluteYInches!==undefined?{command:{type:'ADD_WAYPOINT',sourceRevision,waypointId:newId,position:{x:d.absoluteXInches,y:d.absoluteYInches},placement:{kind:'nearest'}}}:clarify('Give the new position X and Y in inches.',[]);
     case 'DELETE_WAYPOINT':return {command:{type:'DELETE_WAYPOINT',sourceRevision,waypointId:id!}};
     case 'REORDER_WAYPOINT':return {command:{type:'REORDER_WAYPOINT',sourceRevision,waypointId:id!,beforeId:second!}};
     case 'REPLAN':return {command:{type:'REPLAN',sourceRevision}};
@@ -102,12 +103,12 @@ export function resolveDecision(c:RouteAssistantContext,d:Decision,newId:string)
       }
       const areas=c.solverInput.requiredAreas;
       const matches=areas.filter(a=>a.id===d.areaReference);
-      if(matches.length!==1)return clarify('Give the area rectangle bounds in inches, or choose a configured area.',areas.map((a,i)=>({id:a.id,label:`Area ${i+1}`})),'areaReference');
+      if(matches.length!==1)return clarify('Give the area rectangle bounds in inches, or choose a configured area.',areas.map((a,i)=>({id:a.id,label:`Shooting area ${i+1}`})),'areaReference');
       const area=matches[0];
-      if(area.polygon.length<3)return clarify('Avoidance needs a polygon area. Configure one in Route Settings.',[]);
+      if(area.polygon.length<3)return clarify('Avoidance needs a shooting area with corners. Draw one in PLAN → AREAS.',[]);
       return {command:{type:'REPLAN_AVOIDING_AREA',sourceRevision,area:{id:newId,polygon:clone(area.polygon)}}};
     }
     case 'UNDO':return {command:{type:'UNDO_LAST_ASSISTANT_CHANGE',sourceRevision}};
-    default:return clarify(d.clarificationText||'Describe the route question or waypoint change.',[]);
+    default:return clarify(d.clarificationText||'Describe the route question or position change.',[]);
   }
 }

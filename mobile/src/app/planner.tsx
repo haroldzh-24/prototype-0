@@ -45,15 +45,15 @@ export default function Matches() {
       detail={match.stageCount + ' ' + (match.stageCount === 1 ? 'stage' : 'stages')} disabled={busy}
       open={() => router.push({ pathname: '/match', params: { id: match.id } })} more={() => setMenu(match)} />)}
     <EditorSheet title={menu?.name ?? 'Match actions'} visible={!!menu} close={() => setMenu(null)}>
-      <MenuRow title="Edit match" onPress={() => { if (menu) edit(menu); setMenu(null); }} />
-      <MenuRow title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateMatch(menu.id)); setMenu(null); }} />
-      <MenuRow title="Delete" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
+      <MenuRow title="EDIT MATCH" onPress={() => { if (menu) edit(menu); setMenu(null); }} />
+      <MenuRow title="DUPLICATE" onPress={() => { if (menu) void run(() => repo.duplicateMatch(menu.id)); setMenu(null); }} />
+      <MenuRow title="DELETE" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
     </EditorSheet>
-    <EditorSheet title={editing === 'new' ? 'Create Match' : 'Match Settings'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
+    <EditorSheet title={editing === 'new' ? 'Create match' : 'Match settings'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
       <Panel><Input label="Match name" value={name} disabled={busy} onChange={setName} />
         <Copy>Target family</Copy><TargetFamilyPicker value={family} onChange={setFamily} disabled={busy} />
         {editing !== 'new' && <Copy>This sets the default for new targets. Existing targets keep their family and geometry.</Copy>}
-        <Action variant="primary" title={busy ? 'Saving...' : editing === 'new' ? 'Create Match' : 'Save match'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
+        <Action variant="primary" title={busy ? 'SAVING…' : editing === 'new' ? 'CREATE MATCH' : 'DONE'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
           if (editing === 'new') { const id = await repo.createMatch(name, family); setEditing(null); router.push({ pathname: '/match', params: { id } }); }
           else if (editing) await repo.updateMatch(editing.id, name, family);
         })} />{!!error && <ErrorState title="Changes could not be saved." detail={error} />}

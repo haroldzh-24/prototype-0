@@ -34,10 +34,10 @@ export default function WallPortsInspector({ wall, disabled, onApply }: {
     <View style={styles.row}>{wall.ports.map((port, index) => <Pressable key={port.id}
       accessibilityRole="button" accessibilityState={{ selected: selected?.id === port.id, disabled }} disabled={disabled}
       onPress={() => { setSelectedId(port.id); setNotice(''); }} style={[styles.button, selected?.id === port.id && styles.selected]}>
-      <Text style={[styles.buttonText, selected?.id === port.id && { color: colors.background }]}>Port {index + 1} &gt;</Text>
+      <Text style={[styles.buttonText, selected?.id === port.id && { color: colors.background }]}>PORT {index + 1} &gt;</Text>
     </Pressable>)}</View>
     <Control title="ADD PORT" disabled={disabled} onPress={add} />
-    {selected && <><Control title="Back to ports" disabled={disabled} onPress={() => setSelectedId(null)} /><Control title="Remove Port" disabled={disabled} onPress={remove} /><PortForm key={selected.id} port={selected} disabled={disabled} onApply={port => {
+    {selected && <><Control title="BACK TO PORTS" disabled={disabled} onPress={() => setSelectedId(null)} /><Control title="REMOVE PORT" disabled={disabled} onPress={remove} /><PortForm key={selected.id} port={selected} disabled={disabled} onApply={port => {
       const error = onApply({ ports: wall.ports.map(current => current.id === port.id ? port : current) });
       setNotice(error ?? 'Port updated.');
     }} onError={setNotice} /></>}
@@ -56,7 +56,7 @@ function PortForm({ port, disabled, onApply, onError }: {
       <TextInput accessibilityLabel={label} editable={!disabled} value={draft[key]} autoCorrect={false} autoCapitalize="none"
         style={styles.input} onChangeText={text => { setDraft(current => ({ ...current, [key]: text })); onError(''); }} />
     </View>)}</View>
-    <Control title="Apply Port Changes" disabled={disabled} onPress={() => {
+    <Control title="APPLY PORT" disabled={disabled} onPress={() => {
       const result = parsePortDraft(port, draft);
       if (result.error !== undefined) onError(result.error);
       else onApply(result.port);
@@ -65,7 +65,7 @@ function PortForm({ port, disabled, onApply, onError }: {
 }
 function Control({ title, disabled, onPress }: { title: string; disabled: boolean; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={[styles.button, title.startsWith('Remove') && { borderColor: colors.danger }, disabled && { opacity: 0.4 }]}><Text style={[styles.buttonText, title.startsWith('Remove') && { color: colors.danger }]}>{title}</Text></Pressable>;
+    style={[styles.button, title.startsWith('REMOVE') && { borderColor: colors.danger }, disabled && { opacity: 0.4 }]}><Text style={[styles.buttonText, title.startsWith('REMOVE') && { color: colors.danger }]}>{title}</Text></Pressable>;
 }
 const styles = themed(c => ({
   panel: { gap: 8, marginTop: 12 }, title: { ...typography.section, color: c.text },

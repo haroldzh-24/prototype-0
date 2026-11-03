@@ -9,6 +9,7 @@ import { assignRoundsByType, scoringTypes, targetTypeLabel, targetLabel } from '
 import type { ScoringType } from './model';
 import { addMagazineBatch, ammunitionSummary, assignRounds, createMagazineId, deleteMagazine, designateMagazine, isEngageable, saveMagazine, setChamber } from './model';
 import type { Magazine, PlanResult, StagePlan } from './model';
+import { SEP, targetNameWithType } from '../ui/words';
 
 export default function PlanningPanel({ plan, stage, onChange, section = 'loadout' }: { section?: 'loadout' | 'targets'; plan: StagePlan; stage: StageDocument; onChange: (plan: StagePlan) => void }) {
   const [error, setError] = useState('');
@@ -20,29 +21,29 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
   const apply = (result: PlanResult) => { setError(result.error ?? ''); if (!result.error) onChange(result.plan); };
   const summary = ammunitionSummary(plan,stage);
   return <View style={{ gap: 12, padding: 16, backgroundColor: colors.panel }}>
-    <Text style={{ ...typography.section, color: colors.text }}>{section === 'loadout' ? 'Loadout & starting ammo' : 'Target rounds'}</Text>
+    <Text style={{ ...typography.section, color: colors.text }}>{section === 'loadout' ? 'Loadout and starting ammo' : 'Target rounds'}</Text>
     <View style={ui.statGroup}><Stat value={summary.totalAvailable} label="Total available" /><Stat value={summary.totalPlanned} label="Planned rounds" /><Stat value={summary.reserve} label="Reserve" /></View>
     {section === 'loadout' && <>
     <Text>Magazine counts are rounds actually loaded, excluding the chamber. Other magazines are carried spares. These are totals, not an engagement order or reload plan.</Text>
     <Text>Chamber loaded: {plan.loadout.chamberLoaded ? 'Yes (1 round)' : 'No'}</Text>
     <Switch hitSlop={7} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.text} accessibilityLabel="Chamber loaded" value={plan.loadout.chamberLoaded} onValueChange={value => onChange(setChamber(plan,value))} />
-    <Action label="Add Magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
+    <Action label="Add magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
     <BatchMagazineForm plan={plan} onChange={onChange} />
     <Action label="Start without magazine" onPress={() => apply(designateMagazine(plan,null))} />
     {plan.loadout.startingMagazineId === null && <Text>No starting magazine designated.</Text>}
     {plan.loadout.magazines.map((magazine,index) => <View key={magazine.id} style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 12, gap: 8 }}>
-      <Text>Magazine {index+1} — {plan.loadout.startingMagazineId === magazine.id ? 'Starting in firearm' : 'Carried spare'}</Text>
+      <Text>{'Magazine ' + (index+1) + SEP + (plan.loadout.startingMagazineId === magazine.id ? 'starting in firearm' : 'carried spare')}</Text>
       <MagazineForm magazine={magazine} onSave={value => apply(saveMagazine(plan,value))} />
       <Action label="Use as starting magazine" onPress={() => apply(designateMagazine(plan,magazine.id))} />
-      <Action label="Delete Magazine" onPress={() => { onChange(deleteMagazine(plan,magazine.id)); setError(''); }} />
+      <Action label="Delete magazine" onPress={() => { onChange(deleteMagazine(plan,magazine.id)); setError(''); }} />
     </View>)}
     </>}
     {section === 'targets' && <>
     <Text>Unassigned targets have zero planned rounds. No-shoots and props do not consume ammunition.</Text>
-    <Action label="Mass Target Editor" onPress={() => setMassOpen(v => !v)} />
+    <Action label="Rounds by target type" onPress={() => setMassOpen(v => !v)} />
     {massOpen && <View style={{ gap: 8, padding: 12, backgroundColor: colors.secondary }}>
-      {scoringTypes.map(type => <Action key={type} label={`${type === targetType ? '✓ ' : ''}${targetTypeLabel(type)} / ${stage.objects.filter(o => o.type === type).length} targets`} onPress={() => { setTargetType(type); setApplied(''); }} />)}
-      <Text>{targetTypeLabel(targetType).toUpperCase()} / {affected} TARGETS</Text>
+      {scoringTypes.map(type => <Action key={type} label={`${type === targetType ? '✓ ' : ''}${targetTypeLabel(type)}${SEP}${stage.objects.filter(o => o.type === type).length} targets`} onPress={() => { setTargetType(type); setApplied(''); }} />)}
+      <Text>{targetTypeLabel(targetType).toUpperCase() + SEP + affected + ' TARGETS'}</Text>
       <Text>ROUNDS PER TARGET</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
         <Action label="−" onPress={() => { setRounds(n => Math.max(0, n - 1)); setApplied(''); }} /><Text>{rounds}</Text><Action label="+" onPress={() => { setRounds(n => n + 1); setApplied(''); }} />
@@ -54,7 +55,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
       {!!applied && <Text accessibilityLiveRegion="polite">{applied}</Text>}
     </View>}
     {stage.objects.filter(isEngageable).map(object => <RoundAssignment key={object.id}
-      label={targetLabel(stage, object.id)} value={plan.engagements[object.id] ?? 0}
+      label={targetNameWithType(stage, object.id)} value={plan.engagements[object.id] ?? 0}
       onSave={rounds => apply(assignRounds(plan,stage,object.id,rounds))} />)}
     </>}
     {summary.insufficient && <Text accessibilityLiveRegion="polite" style={{ color: colors.danger }}>Planned rounds exceed available ammunition by {-summary.reserve}.</Text>}
@@ -71,7 +72,7 @@ function BatchMagazineForm({ plan, onChange }: { plan: StagePlan; onChange: (pla
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   return <View style={{ gap: 8 }}>
-    <Action label="Batch Magazine Editor" onPress={() => { setOpen(v => !v); setMessage(''); }} />
+    <Action label="Batch magazine editor" onPress={() => { setOpen(v => !v); setMessage(''); }} />
     {open && <View style={{ gap: 8, padding: 12, backgroundColor: colors.secondary }}>
       <Text>Quantity (1-100)</Text>
       <TextInput accessibilityLabel="Batch magazine quantity" style={inputStyle} value={quantity} onChangeText={setQuantity} keyboardType="number-pad" />
@@ -101,7 +102,7 @@ function MagazineForm({ magazine, onSave }: { magazine: Magazine; onSave: (magaz
     <Text>Label (optional)</Text><TextInput accessibilityLabel="Magazine label" style={inputStyle} value={label} onChangeText={setLabel} />
     <Text>Capacity</Text><TextInput accessibilityLabel="Magazine capacity" style={inputStyle} value={capacity} onChangeText={setCapacity} keyboardType="number-pad" />
     <Text>Loaded rounds</Text><TextInput accessibilityLabel="Magazine loaded rounds" style={inputStyle} value={rounds} onChangeText={setRounds} keyboardType="number-pad" />
-    <Action label="Apply Magazine" onPress={() => onSave({ ...magazine, label: label.trim() || undefined, capacity: numeric(capacity), startingRounds: numeric(rounds) })} />
+    <Action label="Apply magazine" onPress={() => onSave({ ...magazine, label: label.trim() || undefined, capacity: numeric(capacity), startingRounds: numeric(rounds) })} />
   </View>;
 }
 function numeric(text: string) { return /^\d+$/.test(text.trim()) ? Number(text) : NaN; }
@@ -110,9 +111,10 @@ export function RoundAssignment({ label, value, onSave }: { label: string; value
   useEffect(() => setDraft(String(value)),[value]);
   return <View style={{ gap: 6 }}><Text>{label}</Text>
     <TextInput accessibilityLabel={'Planned rounds for '+label} style={inputStyle} value={draft} onChangeText={setDraft} keyboardType="number-pad" />
-    <Action label="Apply Planned Rounds" onPress={() => onSave(numeric(draft))} />
+    <Action label="Apply planned rounds" onPress={() => onSave(numeric(draft))} />
   </View>;
 }
 function Action({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return <SharedAction accessibilityLabel={label === '+' ? 'Increase rounds per target' : label.codePointAt(0) === 8722 ? 'Decrease rounds per target' : undefined} title={label} onPress={onPress} disabled={disabled} variant={label.startsWith('Delete') ? 'destructive' : label.startsWith('Apply') ? 'primary' : 'secondary'} />;
+  // Buttons read ALL CAPS; VoiceOver reads the sentence-case label.
+  return <SharedAction accessibilityLabel={label === '+' ? 'Increase rounds per target' : label.codePointAt(0) === 8722 ? 'Decrease rounds per target' : label} title={label.toUpperCase()} onPress={onPress} disabled={disabled} variant={label.startsWith('Delete') ? 'destructive' : label.startsWith('Apply') ? 'primary' : 'secondary'} />;
 }

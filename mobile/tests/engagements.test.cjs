@@ -55,7 +55,7 @@ test('sequential doorway targets engage by availability and earliest closing win
   f.stage.objects.push(createObject('cardboardTarget', 't2', 160, 100), createObject('cardboardTarget', 't3', 240, 100));
   const { result } = solved(f); assert.equal(result.complete, true);
   assert.deepEqual(result.nodes.flatMap(n => n.targets.map(t => t.targetId)), ['t3', 't1', 't2']);
-  assert.deepEqual(result.nodes.flatMap(n => n.targets.map(t => t.orderLabel)), ['A', 'B', 'C']);
+  assert.deepEqual(result.nodes.flatMap(n => n.targets.map(t => t.orderLabel)), ['1', '2', '3']);
   assert.match(result.nodes[0].targets[0].reason, /Earliest closing/);
 });
 test('overlapping windows form a continuous moving sequence without stops', () => {
@@ -115,11 +115,12 @@ test('several targets share one stationary circle and ordered A/B/C/D arrows', (
   const f = fixture(); f.route.engagementRules.allowMoving = false;
   for (let i = 2; i <= 4; i++) f.stage.objects.push(createObject('cardboardTarget', `t${i}`, 160 + i * 20, 100));
   const { route, result } = solved(f); assert.equal(result.nodes.length, 1);
-  assert.deepEqual(result.nodes[0].targets.map(t => t.orderLabel), ['A', 'B', 'C', 'D']);
+  assert.deepEqual(result.nodes[0].targets.map(t => t.orderLabel), ['1', '2', '3', '4']);
   const edited = reorderEngagement(f.stage, route, 'w1', 't2', -1); assert.equal(edited.error, undefined);
   const next = analyzeEngagements(f.stage, edited.route);
-  assert.equal(next.nodes[0].targets[0].targetId, 't2'); assert.equal(next.nodes[0].targets[0].orderLabel, 'A');
-  assert.equal(engagementLabel(26), 'AA');
+  assert.equal(next.nodes[0].targets[0].targetId, 't2'); assert.equal(next.nodes[0].targets[0].orderLabel, '1');
+  // Engagement order is shown as 1, 2, 3 (ui/words.ts), not A, B, C.
+  assert.equal(engagementLabel(26), '27');
 });
 test('overlapping moving target order is editable and survives serialization', () => {
   const f = fixture(); f.stage.objects.push(createObject('cardboardTarget', 't2', 220, 100));
@@ -128,7 +129,7 @@ test('overlapping moving target order is editable and survives serialization', (
   const loaded = JSON.parse(JSON.stringify(change.route)); assert.equal(isStageRoute(loaded), true);
   const result = analyzeEngagements(f.stage, loaded);
   assert.equal(result.nodes[0].targets[0].targetId, loaded.positions[0].engagedTargetIds[0]);
-  assert.equal(result.nodes[0].targets[0].orderLabel, 'A'); assert.equal(result.complete, true);
+  assert.equal(result.nodes[0].targets[0].orderLabel, '1'); assert.equal(result.complete, true);
 });
 test('viewport zoom/pan never changes inch-based windows or persisted stage geometry', () => {
   const f = fixture(); doorway(f); const before = JSON.stringify(f.stage), route = solved(f).route;

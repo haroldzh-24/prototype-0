@@ -77,7 +77,7 @@ export default function LayerPanel({ stage, selectedId, setStage, onSelect }: {
       accessibilityLabel={`Layer ${i + 1}`} onPress={() => onSelect(o.id)} />)}
     <Copy>HARD COVER (PAINTED BLACK)</Copy>
     <View style={row}>{hardCoverPresets.map(p => <Action key={p.preset} title={p.label} accessibilityLabel={'Paint: ' + p.detail} onPress={() => paint(p.preset)} />)}</View>
-    {covers.map((c, i) => <Action key={c.id} title={`Paint ${i + 1} · ${coverLabel(c)}${c.id === cover?.id ? ' / Selected' : ''}`} onPress={() => setCoverId(c.id)} />)}
+    {covers.map((c, i) => <Action key={c.id} title={`${c.id === cover?.id ? '✓ ' : ''}Paint ${i + 1} · ${coverLabel(c)}`} onPress={() => setCoverId(c.id)} />)}
     {cover && <>
       <View style={row}>
         {cover.kind === 'edge' ? <>

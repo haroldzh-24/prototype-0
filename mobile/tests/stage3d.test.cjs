@@ -92,8 +92,9 @@ test('scene: every wall and target is pickable, ports are real openings, labels 
   assert.equal(pickObject(scene, { origin: M.toWorld({ x: 300, y: 0, z: 30 }), dir: [0, 1, 0] }), null, 'looking up the plan, out of the bay');
   assert.equal(pickObject(scene, { origin: M.toWorld({ x: 300, y: 30, z: 63 }), dir: [0, -1, 0] }).objectId, 'T', 'face (48–78 in) is hit from in front');
   assert.equal(pickObject(scene, { origin: M.toWorld({ x: 300, y: 30, z: 30 }), dir: [0, -1, 0] }).objectId, 'w', 'under the raised face the ray reaches the wall');
-  assert.deepEqual(scene.labels.filter(l => l.kind !== 'start').map(l => l.text).sort(), ['NS1', 'PP1', 'T1']);
-  assert.equal(shortTargetLabel(stage, stage.objects.find(o => o.id === 'S')), 'PP1');
+  // One name per target in every view: scoring targets of every kind are T1, T2… in stage order; no-shoots NS1.
+  assert.deepEqual(scene.labels.filter(l => l.kind !== 'start').map(l => l.text).sort(), ['NS1', 'T1', 'T2']);
+  assert.equal(shortTargetLabel(stage, stage.objects.find(o => o.id === 'S')), 'T2');
   // Selection and tints change colours; night uses the night palette.
   const selected = buildScene(stage, dayPalette, { selectedId: 'w' }), night = buildScene(stage, nightPalette);
   assert.notDeepEqual([...selected.triangles.colors], [...scene.triangles.colors]);

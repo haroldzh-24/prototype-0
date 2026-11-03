@@ -38,8 +38,8 @@ export function solveRoute(input: RouteSolverInput): RouteSolverResult {
   if(input.stage.objects.length>512||input.requiredAreas.length>32||input.requiredAreas.some(a=>a.polygon.length>64)||[...(input.barriers??[]),...(input.restrictedRegions??[])].some(b=>b.polygon.length>64)||(input.allowedTravelRegions?.some(r=>r.length>64))||input.requiredAreas.reduce((n,a)=>n+a.polygon.length,0)+[...(input.barriers??[]),...(input.restrictedRegions??[])].reduce((n,b)=>n+b.polygon.length,0)+(input.allowedTravelRegions?.reduce((n,r)=>n+r.length,0)??0)>256) {diagnostics.warnings.push('Geometry intake limit exceeded.');return finish('limit');}
   const g=stageGeometry(input,diagnostics);
   g.requiredAreas.sort((a,b)=>a.id.localeCompare(b.id));
-  if(g.allowedTravelRegions&&!g.allowedTravelRegions.length){diagnostics.warnings.push('Outside travel is off, but no firing areas are configured to travel within. Add a firing area or allow outside travel.');return finish('invalid-input');}
-  if(!isPointTraversable(g.start,g)){diagnostics.warnings.push(g.allowedTravelRegions&&!g.allowedTravelRegions.some(r=>inside(g.start,r))?'Start is outside every firing area while outside travel is off. Allow outside travel or extend a firing area to the start.':'Start is outside the stage or blocked.');return finish('invalid-input');}
+  if(g.allowedTravelRegions&&!g.allowedTravelRegions.length){diagnostics.warnings.push('Outside travel is off, but no shooting areas are configured to travel within. Add a shooting area or allow outside travel.');return finish('invalid-input');}
+  if(!isPointTraversable(g.start,g)){diagnostics.warnings.push(g.allowedTravelRegions&&!g.allowedTravelRegions.some(r=>inside(g.start,r))?'Start is outside every shooting area while outside travel is off. Allow outside travel or extend a shooting area to the start.':'Start is outside the stage or blocked.');return finish('invalid-input');}
   const graph=navigationGraph(g,Math.min(512,options.maxNodes??512),diagnostics);
   if(!graph)return finish('limit');
   const limit=Math.min(200000,options.maxSearchIterations??100000),exactLimit=options.exactAreaLimit??8;

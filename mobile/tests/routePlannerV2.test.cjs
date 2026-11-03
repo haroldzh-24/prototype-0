@@ -156,7 +156,7 @@ test('partial plans list exactly which targets are uncovered and why', () => {
 
 test('invalid input explains itself instead of guessing', () => {
   const noAreas = plan(blankStage([target('T1', 300, 60)]), []);
-  assert.equal(noAreas.status, 'invalid-input'); assert.match(noAreas.errors.join(' '), /No firing areas/);
+  assert.equal(noAreas.status, 'invalid-input'); assert.match(noAreas.errors.join(' '), /No shooting areas/);
   const noStart = blankStage([target('T1', 300, 60)]); noStart.objects = noStart.objects.filter(o => o.type !== 'start');
   assert.match(plan(noStart, [box('A', 0, 0, 100, 100)]).errors.join(' '), /no start/);
   assert.equal(plan(blankStage([]), [box('A', 0, 300, 600, 180)]).status, 'no-targets');

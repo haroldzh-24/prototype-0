@@ -10,8 +10,8 @@ export function mapPlannerResults(result: PlannerResult, sources: Record<string,
   const candidates = result.candidates.slice(0, 3);
   return candidates.map((item, index) => ({
     number: index + 1,
-    label: candidates.length > 1 && candidates.every(other => other === item || item.metrics.movementDistance < other.metrics.movementDistance) ? 'Lowest Movement'
-      : candidates.length > 1 && candidates.every(other => other === item || item.metrics.averageShootingDifficulty < other.metrics.averageShootingDifficulty) ? 'Easier Shooting'
+    label: candidates.length > 1 && candidates.every(other => other === item || item.metrics.movementDistance < other.metrics.movementDistance) ? 'Lowest movement'
+      : candidates.length > 1 && candidates.every(other => other === item || item.metrics.averageShootingDifficulty < other.metrics.averageShootingDifficulty) ? 'Easier shooting'
       : index === 0 ? 'Recommended route' : 'Alternative route',
     sourceCounts: { auto: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source === 'AUTO_DISCOVERED').length, manual: item.originalCandidate.route.positions.filter(p => sources[p.id]?.source !== 'AUTO_DISCOVERED').length },
     id: item.originalCandidate.id, route: item.originalCandidate.route,
@@ -51,7 +51,7 @@ export type PlannerRuleConstraints = Readonly<{
 export function rulesetMetadata(choice: PlannerRuleset) {
   return { choice, label: choice === 'CUSTOM' ? 'Custom' : choice,
     constraints: {} as PlannerRuleConstraints,
-    description: 'Choices behave identically here. Competition capacity, reload and penalty rules are not modeled. Use Route Settings for firing areas, safety and target procedures.' };
+    description: 'Choices behave identically here. Competition capacity, reload and penalty rules are not modeled. Draw shooting areas with AREAS. Safety and target procedures are in Route settings.' };
 }
 export function plannerSearchWarning(warnings: readonly PlannerWarning[]) {
   return warnings.find(w => w.code === 'SEARCH_LIMIT') ?? null;
@@ -65,8 +65,8 @@ export function plannerDetails(m: RankingMetrics) {
     ['Rounds remaining (loaded)', `${m.roundsRemaining} rounds`],
     ['Minimum ammo margin', `${m.ammoMargin} rounds`],
     ['Movement complexity (index)', m.movementComplexityScore.toFixed(1)],
-    ['Direction changes / sharp reversals', `${m.directionChangeCount} / ${m.sharpReversalCount}`],
-    ['Backward movement (estimate)', `${formatYardsFixed(m.backwardDistance)} / ${m.backwardSegmentCount} segments`],
+    ['Direction changes · sharp reversals', `${m.directionChangeCount} · ${m.sharpReversalCount}`],
+    ['Backward movement (estimate)', `${formatYardsFixed(m.backwardDistance)} · ${m.backwardSegmentCount} segments`],
     ['Sustained retreat (estimate)', formatYardsFixed(m.sustainedBackwardDistance)],
     ['Raw reload duration', seconds(m.rawReloadDuration)],
     ['Movement available for reloads', seconds(m.reloadMovementAvailable)],

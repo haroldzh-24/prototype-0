@@ -110,10 +110,10 @@ export function normalizeStage(snapshot: StageSnapshot, options: PlanRouteOption
   const start = doc.objects.find(o => o.type === 'start');
   if (!start) errors.push('The stage has no start position.');
   const areas = (snapshot.firingAreas ?? []).filter(Boolean);
-  if (!areas.length) errors.push('No firing areas are configured. Add at least one firing area so legal shooting positions exist.');
+  if (!areas.length) errors.push('No shooting areas are configured. Add at least one shooting area so legal shooting positions exist.');
   for (const a of areas) {
     if (!a.id || !Array.isArray(a.vertices) || a.vertices.length < 3 || !a.vertices.every(p => p && finite(p.x, p.y)))
-      errors.push(`Firing area ${a.id || '(unnamed)'} needs at least three finite vertices.`);
+      errors.push(`Shooting area ${a.id || '(unnamed)'} needs at least three finite corners.`);
   }
   for (const w of doc.objects.filter((o): o is Wall => o.type === 'wall')) {
     const e = endpoints(w);

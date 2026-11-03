@@ -12,10 +12,10 @@ export default function Stage25D({ stage, selectedId, back }: { stage: StageDocu
   const [error, setError] = useState('');
   const uri = useMemo(() => 'data:image/svg+xml;base64,' + btoa(stageSvg(stage, yaw, zoom, selectedId)), [stage, yaw, zoom, selectedId]);
   return <View style={{ flex: 1, gap: 8, padding: 8 }}>
-    <Text>2.5D / READ ONLY</Text>
+    <Text>{'2.5D · READ ONLY'}</Text>
     <Image source={{ uri }} style={{ width: '100%', flex: 1, minHeight: 80, backgroundColor: colors.panel }} contentFit="contain"
       cachePolicy="none" transition={0} accessibilityLabel="Read-only projected stage visualization"
-      onError={() => setError('The 2.5D preview could not be displayed on this device. Top Down remains available.')}
+      onError={() => setError('The 2.5D preview could not be displayed on this device. The plan view (2D) remains available.')}
       onLoad={() => setError('')} />
     {error !== '' && <Text accessibilityLiveRegion="polite">{error}</Text>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -26,12 +26,12 @@ export default function Stage25D({ stage, selectedId, back }: { stage: StageDocu
         { label: 'Zoom in', action: () => setZoom(value => Math.min(3, value * 1.25)), disabled: zoom >= 3 },
         { label: 'Fit', action: () => { setYaw(45); setZoom(1); }, disabled: false },
         { label: 'Back', action: back, disabled: false },
-      ].map(control => <Pressable key={control.label} accessibilityRole="button" disabled={control.disabled}
+      ].map(control => <Pressable key={control.label} accessibilityRole="button" accessibilityLabel={control.label} disabled={control.disabled}
         accessibilityState={{ disabled: control.disabled }} onPress={control.action}
         style={{ backgroundColor: colors.secondary, padding: 10, minHeight: 44, minWidth: 44, maxWidth: '100%', flexShrink: 1, borderBottomWidth: 1, borderColor: colors.border, opacity: control.disabled ? 0.4 : 1 }}>
-        <Text style={{ color: colors.text }}>{control.label}</Text>
+        <Text style={{ color: colors.text }}>{control.label.toUpperCase()}</Text>
       </Pressable>)}
     </View>
-    <Text>{yaw} degrees / {Math.round(zoom * 100)}%</Text>
+    <Text>{yaw + ' degrees · ' + Math.round(zoom * 100) + '%'}</Text>
   </View>;
 }

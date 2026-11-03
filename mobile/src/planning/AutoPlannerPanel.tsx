@@ -25,32 +25,32 @@ export default function AutoPlannerPanel({stage,plan,onUse,preview,onPreview,onC
     timer.current=setTimeout(()=>{timer.current=null;try{const solved=solveRoute(input);setResult(solved);onSolverResult?.(solved);}catch{setError('Unable to plan this geometry. Review the stage and try again.');}finally{setGenerating(false);}},50);
   }
   function useRoute(card:PlannerCard,confirmed=false){const next=copyPlannerRoute(plan,card.route,confirmed||!meaningfulRoute(plan.route));if(next)onUse(next);else setPending(card);}
-  return <EditorSheet title="MOVEMENT OPTIMIZER" visible={!preview&&!discoveryPreview} close={onClose}><Panel>
-    <Copy>Shortest movement through your firing areas or waypoints.</Copy>
+  return <EditorSheet title="Movement optimizer" visible={!preview&&!discoveryPreview} close={onClose}><Panel>
+    <Copy>Shortest movement through your shooting areas or positions.</Copy>
     <Notice>Movement only: this does not check targets, line of sight or safe angles. Use ANALYZE and REVIEW for those.</Notice>
     {!cards.length&&<>
       <DataRow label="Start" value={Number.isFinite(input.start.x)?'Ready':'Needs setup'} />
-      <DataRow label="Required areas / waypoints" value={input.requiredAreas.length} />
-      <Copy>Visits configured firing areas. Without areas, existing manual waypoints are required. Target assignments and reloads can be edited after using the route.</Copy>
-      {!input.requiredAreas.length&&<Notice>Configure firing areas or add required manual waypoints. With no requirements, the route stays at Start.</Notice>}
+      <DataRow label="Shooting areas · positions to visit" value={input.requiredAreas.length} />
+      <Copy>Visits your shooting areas. Without areas, the positions you placed by hand are visited. Target assignments and reloads can be edited after using the route.</Copy>
+      {!input.requiredAreas.length&&<Notice>Draw shooting areas or place positions by hand. With neither, the route stays at Start.</Notice>}
       <Action title="CONFIGURE" onPress={()=>onConfigure('rules')} />
       {!Number.isFinite(input.start.x)&&<Action title="SET START" onPress={()=>onConfigure('start')} />}
-      {generating&&<Loading label="Optimizing movement..." />}
+      {generating&&<Loading label="Optimizing movement…" />}
       {!!error&&<Notice tone="error">{error}</Notice>}
-      {result&&!result.bestRoute&&<Notice tone="error">{result.status==='limit'?'Planning limit reached. Simplify the required geometry.':result.status==='invalid-input'?(result.diagnostics.warnings[0]??'Check Start and required geometry.'):'A required area cannot be reached.'}</Notice>}
-      <Action variant="primary" title={generating?'Optimizing...':'OPTIMIZE MOVEMENT'} disabled={generating} onPress={generate} />
+      {result&&!result.bestRoute&&<Notice tone="error">{result.status==='limit'?'Planning limit reached. Simplify the required geometry.':result.status==='invalid-input'?(result.diagnostics.warnings[0]??'Check Start and required geometry.'):'A shooting area cannot be reached.'}</Notice>}
+      <Action variant="primary" title={generating?'OPTIMIZING…':'OPTIMIZE MOVEMENT'} disabled={generating} onPress={generate} />
     </>}
     {!!cards.length&&<>
       <Copy>ROUTE FOUND</Copy>
       {(alternatives?cards:cards.slice(0,1)).map((card,i)=><Panel key={card.id}>
         {alternatives&&<Copy>{i===0?'Best route':`Alternative ${i}`}</Copy>}
         <DataRow label="Movement" value={formatYardsFixed(card.movementDistance)} />
-        <DataRow label="Waypoints" value={card.positions} />
+        <DataRow label="Positions" value={card.positions} />
         <Copy>{card.comparison}</Copy>
-        {pending?.id===card.id?<><Copy>Replace your existing route?</Copy>{(()=>{const l=adoptionLosses(plan.route,card.route),parts=[l.waypoints&&`${l.waypoints} waypoint(s)`,l.reloads&&`${l.reloads} reload(s)`,l.bends&&`${l.bends} bend(s)`,l.engageArrows&&`${l.engageArrows} ENGAGE arrow(s)`].filter(Boolean);return parts.length?<Notice>{`This drops ${parts.join(', ')} that no longer fit the new order. Everything else is kept.`}</Notice>:<Copy>Waypoints, reloads, bends and ENGAGE arrows that still fit are kept.</Copy>;})()}<Action title="Keep route" onPress={()=>setPending(null)} /><Action variant="primary" title="Confirm replacement" onPress={()=>useRoute(card,true)} /></>:<Action variant="primary" title="USE ROUTE" onPress={()=>useRoute(card)} />}
+        {pending?.id===card.id?<><Copy>Replace your existing route?</Copy>{(()=>{const l=adoptionLosses(plan.route,card.route),parts=[l.waypoints&&`${l.waypoints} position(s)`,l.reloads&&`${l.reloads} reload(s)`,l.bends&&`${l.bends} bend(s)`,l.engageArrows&&`${l.engageArrows} ENGAGE arrow(s)`].filter(Boolean);return parts.length?<Notice>{`This drops ${parts.join(', ')} that no longer fit the new order. Everything else is kept.`}</Notice>:<Copy>Positions, reloads, bends and ENGAGE arrows that still fit are kept.</Copy>;})()}<Action title="KEEP ROUTE" onPress={()=>setPending(null)} /><Action variant="primary" title="CONFIRM REPLACEMENT" onPress={()=>useRoute(card,true)} /></>:<Action variant="primary" title="USE ROUTE" onPress={()=>useRoute(card)} />}
         <Action title="VIEW ON STAGE" onPress={()=>onPreview(card)} />
       </Panel>)}
-      {cards.length>1&&<Action title={alternatives?'Hide alternatives':'COMPARE ALTERNATIVES'} onPress={()=>setAlternatives(!alternatives)} />}
+      {cards.length>1&&<Action title={alternatives?'HIDE ALTERNATIVES':'COMPARE ALTERNATIVES'} onPress={()=>setAlternatives(!alternatives)} />}
       <Action title="OPTIMIZE AGAIN" onPress={()=>setResult(null)} />
     </>}
   </Panel></EditorSheet>;

@@ -49,7 +49,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     await click('Open STAGE PLANNER'); await waitText('MATCHES');
     const name='Designer tools '+Date.now();
     await click('+ MATCH'); await fill('Match name',name); await click('Create Match'); await waitText('STAGES');
-    await click('+ STAGE'); await fill('Stage name',name); await click('Open Stage Designer'); await waitText('SELECT');
+    await click('+ STAGE'); await fill('Stage name',name); await click('OPEN STAGE EDITOR'); await waitText('SELECT');
     const rect=selector=>evaluate('(()=>{const r=document.querySelector('+JSON.stringify(selector)+').getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()');
     const objects=()=>evaluate('[...document.querySelectorAll("[data-testid^=stage-object-]")].map(e=>e.dataset.testid)');
     const canvas=()=>rect('[data-testid="stage-canvas"]');

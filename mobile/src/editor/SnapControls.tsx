@@ -14,14 +14,14 @@ export default function SnapControls({ value, onChange, disabled }: {
       <Pressable key={increment} accessibilityRole="button" accessibilityState={{ selected: value.gridIncrement === increment, disabled: disabled || !value.enabled }}
         disabled={disabled || !value.enabled} onPress={() => onChange({ ...value, gridIncrement: increment })}
         style={[styles.option, value.gridIncrement === increment && styles.active]}><Text style={value.gridIncrement === increment && { color: colors.background }}>{formatYards(increment)}</Text></Pressable>)}</View>
-    <View style={styles.row}><Text>Object alignment / {formatYards(3)}</Text><Switch hitSlop={7} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.background} accessibilityLabel="Object alignment"
+    <View style={styles.row}><Text>{'Object alignment · ' + formatYards(3)}</Text><Switch hitSlop={7} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.background} accessibilityLabel="Object alignment"
       disabled={disabled || !value.enabled} value={value.objectAlignment}
       onValueChange={(objectAlignment) => onChange({ ...value, objectAlignment })} /></View>
     <View style={styles.row}><Text>Rotation</Text>{([15, 5, null] as const).map((increment) =>
       <Pressable key={String(increment)} accessibilityRole="button" accessibilityState={{ selected: value.rotationIncrement === increment, disabled: disabled || !value.enabled }}
         disabled={disabled || !value.enabled} onPress={() => onChange({ ...value, rotationIncrement: increment })}
         style={[styles.option, value.rotationIncrement === increment && styles.active]}>
-        <Text style={value.rotationIncrement === increment && { color: colors.background }}>{increment === null ? 'Free' : increment + ' deg'}</Text></Pressable>)}</View>
+        <Text style={value.rotationIncrement === increment && { color: colors.background }}>{increment === null ? 'FREE' : increment + '°'}</Text></Pressable>)}</View>
     {!value.enabled && <Text>Position and rotation snapping are off.</Text>}
   </View>;
 }

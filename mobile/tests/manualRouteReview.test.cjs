@@ -22,7 +22,7 @@ test('coverage counts distinct eligible saved target IDs, never arrow direction 
 });
 test('sources retain independent waypoint letters and never letter route-attached annotations',()=>{
  const {stage,route}=fixture();route.manualEngagements=[e('1','a'),e('2','b'),e('3','a',{kind:'waypoint',waypointId:'w2'}),e('4','a',{kind:'section',sectionId:routeSectionId('w1','w2'),fraction:.5})];
- const r=reviewManualRoute(stage,route);assert.deepEqual(r.engagements.slice(0,3).map(e=>e.source),['Waypoint 1 / A','Waypoint 1 / B','Waypoint 2 / A']);assert.equal(r.engagements[3].source,'Route engagement (50% along section)');assert.deepEqual(r.engagements[3].position,point(150,300));assert.equal(r.waypointEngagements,3);assert.equal(r.routeEngagements,1);
+ const r=reviewManualRoute(stage,route);assert.deepEqual(r.engagements.slice(0,3).map(e=>e.source),['Position 1 · engagement 1','Position 1 · engagement 2','Position 2 · engagement 1']);assert.equal(r.engagements[3].source,'Route engagement (50% along section)');assert.deepEqual(r.engagements[3].position,point(150,300));assert.equal(r.waypointEngagements,3);assert.equal(r.routeEngagements,1);
 });
 test('missing targets, non-engagement objects and missing anchors are inspectable and excluded',()=>{
  const {stage,route}=fixture();route.manualEngagements=[e('missing','gone'),e('prop','wall'),e('noshoot','ns'),e('anchor','b',{kind:'waypoint',waypointId:'gone'}),e('section','c',{kind:'section',sectionId:routeSectionId('gone','w2'),fraction:.5}),e('valid','a')];

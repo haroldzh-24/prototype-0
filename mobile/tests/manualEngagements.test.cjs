@@ -19,15 +19,15 @@ function fixture() {
 const waypoint = waypointId => ({kind:'waypoint',waypointId});
 const section = (a,b,fraction) => ({kind:'section',sectionId:routeSectionId(a,b),fraction});
 const add = (stage,route,id,anchor,targetId='t1') => addManualEngagement(stage,route,{id,anchor,targetId,direction:-Math.PI/2});
-test('each waypoint letters independently, uses array order, and supports AA beyond Z; route entries are unlettered',()=>{
+test('each position numbers its engagements independently (1, 2, 3, as shown to the user), in array order, past 26; route entries are unnumbered',()=>{
   const {stage,route}=fixture(); let r=route;
   for(let i=0;i<28;i++) {r=add(stage,r,'a'+i,waypoint('w1'));if(i<3)r=add(stage,r,'b'+i,waypoint('w2'));}
   r=add(stage,r,'travel',section('w1','w2',.5));
   const labels=id=>r.manualEngagements.filter(e=>e.anchor.waypointId===id).map(e=>manualEngagementLabel(r,e));
-  assert.deepEqual(labels('w1').slice(0,4),['A','B','C','D']); assert.deepEqual(labels('w2'),['A','B','C']); assert.deepEqual(labels('w1').slice(-3),['Z','AA','AB']);
+  assert.deepEqual(labels('w1').slice(0,4),['1','2','3','4']); assert.deepEqual(labels('w2'),['1','2','3']); assert.deepEqual(labels('w1').slice(-3),['26','27','28']);
   assert.equal(manualEngagementLabel(r,r.manualEngagements.at(-1)),'');
-  r=reorderManualEngagement(r,'b2',-1);assert.equal(manualEngagementLabel(r,r.manualEngagements.find(e=>e.id==='b2')),'B');
-  r=deleteManualEngagement(r,'b0');assert.equal(manualEngagementLabel(r,r.manualEngagements.find(e=>e.id==='b2')),'A');assert.equal(labels('w1')[0],'A');
+  r=reorderManualEngagement(r,'b2',-1);assert.equal(manualEngagementLabel(r,r.manualEngagements.find(e=>e.id==='b2')),'2');
+  r=deleteManualEngagement(r,'b0');assert.equal(manualEngagementLabel(r,r.manualEngagements.find(e=>e.id==='b2')),'1');assert.equal(labels('w1')[0],'1');
   assert.ok(isStageRoute(r));assert.equal(route.manualEngagements,undefined);
 });
 test('anchors resolve by actual straight/rounded arc length and follow waypoint, bend, and style edits',()=>{

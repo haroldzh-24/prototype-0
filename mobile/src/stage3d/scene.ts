@@ -5,6 +5,7 @@ import { isTarget } from '../stage/targetPlacement';
 import type { Palette } from '../ui/tokens';
 import { normalize, rayTriangle, toWorld, triangulate } from './math';
 import type { Ray, Vec3 } from './math';
+import { targetName } from '../ui/words';
 
 /**
  * Turns a stage document into flat vertex arrays for the 3D view, plus what the view needs around them: pick triangles
@@ -49,10 +50,9 @@ export function rgb(hex: string): RGB {
 }
 export const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
-/** Short plan labels, as on a stage diagram: T1, NS1, S1, PP1. */
+/** Plan labels, the same name the target has in 2D, PLAN and ANALYZE: T1, T2… and NS1 for no-shoots (ui/words.ts). */
 export function shortTargetLabel(stage: StageDocument, object: StageObject): string {
-  const prefix = object.type === 'cardboardTarget' ? 'T' : object.type === 'noShootTarget' ? 'NS' : object.type === 'steelPlate' ? 'S' : 'PP';
-  return prefix + (stage.objects.filter(o => o.type === object.type).findIndex(o => o.id === object.id) + 1);
+  return targetName(stage, object);
 }
 
 const GRID_INCHES = 36, MAJOR_EVERY = 5;

@@ -178,7 +178,7 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
       ? nearestClear(stage.start, clearance + 2, q => graph.traversable(q) && !crossesWall(stage.start, q, stage)) : null;
     if (!nudged) {
       const why = !inStage ? 'The start position is outside the stage.'
-        : outsideAreas ? 'The start is outside every firing area, and travel is limited to firing areas.'
+        : outsideAreas ? 'The start is outside every shooting area, and travel is limited to shooting areas.'
         : insideWall ? 'The start position is inside a wall.'
         : 'The start position is too close to walls or target stands to walk from.';
       return finish({ ...emptyPlan('invalid-input', [why], stage.downrangeDegrees, half), start: stage.start });
@@ -258,10 +258,10 @@ function* planSteps(snapshot: StageSnapshot, options: PlanRouteOptions): Generat
     version: 2 as const, start: stage.start, errors: [],
     safety: { downrangeDegrees: stage.downrangeDegrees, safeHalfAngleDegrees: half,
       checked: [`Every sampled point of each engaged target face is within ±${half}° of downrange (${Math.round(stage.downrangeDegrees)}°) from its shooting position.`,
-        'Shooting positions are strictly inside a firing area allowed for the target.',
+        'Shooting positions are strictly inside a shooting area allowed for the target.',
         `Steel is engaged only from at least ${Math.round(stage.steelMinInches)} in away, measured from the feet (${stage.ruleset} minimum).`,
         'Line of sight reaches the target face past walls, ports' + (policy === 'occlude' ? ', other target faces and no-shoots.' : '; shots passing a non-threat are flagged.'),
-        ...(hasProcedures ? ['Stage procedures: allowed firing areas per target and "engage after" order.'] : [])],
+        ...(hasProcedures ? ['Stage procedures: allowed shooting areas per target and "engage after" order.'] : [])],
       notChecked: stage.ruleset === 'IDPA' ? [...NOT_CHECKED, ...IDPA_NOT_CHECKED] : NOT_CHECKED, nearSafeAngle: [] as RoutePlan['safety']['nearSafeAngle'] },
   };
   const diagnosticsBase = { candidateCount: candidates.length, distinctCoverageSets: new Set(coverage.map(c => c.mask)).size, truncatedCandidates: truncated };

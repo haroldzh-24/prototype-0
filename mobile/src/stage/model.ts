@@ -33,7 +33,7 @@ export type FaultLineGeometry = Readonly<{ length: number }>;
 export type FacePreset = 'full' | 'upper' | 'lower' | 'left' | 'right';
 export type FaceCut = Readonly<{ kind: 'preset'; preset: FacePreset }>;
 export type TargetGeometry = Readonly<{ faceWidth: number; faceHeight: number }>;
-export const objectLabel = (type: StageObject['type']): string => ({ cardboardTarget: 'Cardboard target', noShootTarget: 'No-shoot target', steelPlate: 'Steel plate', steelPopper: 'Steel popper', wall: 'Wall', faultLine: 'Fault line', start: 'Start Position' })[type];
+export const objectLabel = (type: StageObject['type']): string => ({ cardboardTarget: 'Cardboard target', noShootTarget: 'No-shoot target', steelPlate: 'Steel plate', steelPopper: 'Steel popper', wall: 'Wall', faultLine: 'Fault line', start: 'Start position' })[type];
 
 type ObjectBase = {
   id: string;

@@ -4,7 +4,7 @@ import { Action, Copy, DataRow, Panel, Section, Stat, Notice, ui } from '../ui/k
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from './model';
 import { engagementLabel } from './engagements';
-import { isEngageable, targetLabel } from './model';
+import { isEngageable } from './model';
 import { evaluateRoute } from './route';
 import type { StageRoute } from './route';
 import type { PowerFactor, ShooterPerformanceProfile } from '../profile/model';
@@ -14,13 +14,11 @@ import { planReloads } from './reloadPlan';
 import type { TargetEstimate } from './expectedPoints';
 import { formatYards, formatYardsFixed, yardsToInches } from '../stage/measurements';
 import { buildPersonalizedModel } from '../profile/personalizedPerformance';
+import { positionTitle, SEP, targetNameWithType, targetTypeName } from '../ui/words';
 
 function readableWarning(warning: string) {
   return warning
-    .replace('Reload references a deleted shooting position.', 'Reload references a deleted waypoint.')
-    .replace(': position is outside the stage.', ': waypoint is outside the stage.')
-    .replace('reloads at one position', 'reloads at one waypoint')
-    .replace(' in Loadout / Planning.', ' in Target Rounds.')
+    .replace('Reload references a deleted shooting position.', 'Reload references a deleted position.')
     .replace(/: deleted or non-shootable target .+\.$/, ': a target is missing or cannot be engaged.');
 }
 
@@ -65,19 +63,20 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
     <Section title="OVERVIEW"><View style={ui.statGroup}>
     <Stat label="Movement" value={formatYards(result.distance)} />
     <Stat label="Targets" value={`${covered} / ${stage.objects.filter(isEngageable).length}`} />
-    <Stat label="Waypoints" value={route.positions.length} />
+    <Stat label="Positions" value={route.positions.length} />
     <Stat label="Moving windows" value={analysis ? new Set(analysis.nodes.filter(n => n.kind === 'moving').map(n => n.waypointId)).size : 0} />
     </View></Section>
-    <Copy>ROUTE</Copy><Copy>START → {route.positions.map((p, i) => `${i + 1} ${p.label}`).join(' → ') || 'No waypoints'}</Copy>
+    <Copy>ROUTE</Copy><Copy>START → {route.positions.map((p, i) => `${i + 1} ${p.label}`).join(' → ') || 'No positions'}</Copy>
     <Copy>ENGAGEMENTS</Copy>
-    {analysis ? analysis.nodes.map((node, i) => <Panel key={node.id}>
-      <Copy>Engagement node {i + 1} · {node.kind}</Copy>
-      {node.targets.map(t => <Copy key={t.targetId}>{t.orderLabel} {targetLabel(stage, t.targetId)}</Copy>)}
-    </Panel>) : route.positions.map((p, i) => <Panel key={p.id}><Copy>Waypoint {i + 1} · {p.label}</Copy>
-      {p.engagedTargetIds.map((id, j) => <Copy key={id}>{engagementLabel(j)} {targetLabel(stage, id)}</Copy>)}
+    {analysis ? analysis.nodes.map(node => { const at = route.positions.findIndex(p => p.id === node.waypointId);
+      return <Panel key={node.id}>
+      <Copy>{node.kind === 'moving' ? `Moving${SEP}on the way to ${at >= 0 ? positionTitle(at) : 'the next position'}` : `${at >= 0 ? positionTitle(at) : 'Position'}${SEP}standing`}</Copy>
+      {node.targets.map(t => <Copy key={t.targetId}>{t.orderLabel + '. ' + targetNameWithType(stage, t.targetId)}</Copy>)}
+    </Panel>; }) : route.positions.map((p, i) => <Panel key={p.id}><Copy>{positionTitle(i) + SEP + p.label}</Copy>
+      {p.engagedTargetIds.map((id, j) => <Copy key={id}>{engagementLabel(j) + '. ' + targetNameWithType(stage, id)}</Copy>)}
     </Panel>)}
     <Copy>AMMUNITION</Copy>
-    {result.ammo.map((ammo, i) => <Panel key={ammo.positionId}><Copy>Waypoint {i + 1}</Copy><DataRow label="Available" value={ammo.available} /><DataRow label="Required" value={ammo.required} /><DataRow label="Remaining" value={ammo.remaining} /></Panel>)}
+    {result.ammo.map((ammo, i) => <Panel key={ammo.positionId}><Copy>{positionTitle(i)}</Copy><DataRow label="Available" value={ammo.available} /><DataRow label="Required" value={ammo.required} /><DataRow label="Remaining" value={ammo.remaining} /></Panel>)}
     <DataRow label="Starting" value={result.startingRounds} />
     <DataRow label="Reloads" value={result.magazineChanges} />
     <DataRow label="Remaining" value={result.ammo.at(-1)?.remaining ?? result.startingRounds} />
@@ -99,7 +98,7 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
       {time.makeups > 0 && <DataRow label="Steel makeups" value={sec(time.makeups)} />}
       <DataRow label="Reloads" value={sec(time.reloads)} />
       {time.sources.map((line, i) => <Copy key={i}>{line}</Copy>)}
-      <Action title={timeDetails ? 'Hide time by position' : 'Time by position'} onPress={() => setTimeDetails(!timeDetails)} />
+      <Action title={timeDetails ? 'HIDE TIME BY POSITION' : 'TIME BY POSITION'} onPress={() => setTimeDetails(!timeDetails)} />
       {timeDetails && time.draw > 0 && <DataRow label="Draw (start)" value={sec(time.draw)} />}
       {timeDetails && time.positions.map((p, i) => <View key={p.positionId} style={{ gap: 2 }}>
         <DataRow label={`${i + 1}. ${p.label}`} value={sec(p.seconds)} />
@@ -108,11 +107,11 @@ export default function RouteAnalysis({ stage, plan, route, profile, ruleset = '
             t.splits ? `${t.splits} × ${sec(t.secondsPerSplit)} split${t.splitSource === 'SINGLE' ? ' (single value)' : ''}` : '',
             t.makeups > 0 ? `${t.makeups.toFixed(2)} makeups` : ''].filter(Boolean).join(', ')).filter(Boolean)].filter(Boolean).join(' · ')}</Copy>
       </View>)}</> : <Copy>{time.reason}</Copy>}
-    {analysis?.nodes.some(n => n.kind === 'moving') && <><Copy>MOVING-FIRE TIMING</Copy><Copy>Unavailable</Copy><Action title={details ? 'Hide Details' : 'Details'} onPress={() => setDetails(!details)} />{details && <Copy>The current performance model does not estimate firing while moving. Route geometry and target coverage remain available.</Copy>}</>}
+    {analysis?.nodes.some(n => n.kind === 'moving') && <><Copy>MOVING-FIRE TIMING</Copy><Copy>Unavailable</Copy><Action title={details ? 'HIDE DETAILS' : 'DETAILS'} onPress={() => setDetails(!details)} />{details && <Copy>The current performance model does not estimate firing while moving. Route geometry and target coverage remain available.</Copy>}</>}
     <Copy>POINTS AND HIT FACTOR</Copy>
     <DataRow label="Scoring" value={ruleset === 'USPSA' ? `USPSA ${powerFactor} (A ${points.zoneValues.A}, C ${points.zoneValues.C}, D ${points.zoneValues.D})` : 'PCSL (A 5, C 3, D 1; a T counts as two A)'} />
     {points.targets.map(t => <View key={t.targetId} style={{ gap: 2 }}>
-      <DataRow label={`${t.label}${t.cutFace ? ' (cut face)' : t.kind === 'partial' ? ` (${pct(t.openFraction)} open)` : ''}`} value={targetLine(t)} />
+      <DataRow label={`${t.label}${SEP}${targetTypeName(stage.objects.find(o => o.id === t.targetId)?.type ?? 'cardboardTarget')}${t.cutFace ? ' (cut face)' : t.kind === 'partial' ? ` (${pct(t.openFraction)} open)` : ''}`} value={targetLine(t)} />
       <Copy>{sourceText(t)}{t.notes.length ? ' · ' + t.notes.join(' ') : ''}</Copy>
     </View>)}
     <DataRow label="Expected points" value={points.complete ? `${points.expectedPoints.toFixed(1)} of ${points.maxPoints} (${pct(points.maxPoints ? points.expectedPoints / points.maxPoints : 0)})`

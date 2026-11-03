@@ -12,6 +12,7 @@ import { useThemeMode } from '@/ui/theme';
 import { checkStage, minimumRounds, uspsaCourseType } from '@/rules/stageCheck';
 import { meaningfulRoute } from '@/editor/routePresentation';
 import type { CardBadge } from '@/ui/LibraryCard';
+import { words } from '@/ui/words';
 
 type StageFacts = { detail: string; badges: CardBadge[] };
 
@@ -69,13 +70,13 @@ function MatchStages({ id }: { id?: string }) {
         badges={facts[stage.id]?.badges} disabled={busy} open={() => router.push({ pathname: '/builder', params: { id: stage.id } })} more={() => setMenu(stage)} />)}
     </>}
     <EditorSheet title={menu?.name ?? 'Stage actions'} visible={!!menu} close={() => setMenu(null)}>
-      <MenuRow title="Rename" onPress={() => { if (menu) { setEditing(menu); setName(menu.name); setError(''); } setMenu(null); }} />
-      <MenuRow title="Duplicate" onPress={() => { if (menu) void run(() => repo.duplicateStage(menu.id)); setMenu(null); }} />
-      <MenuRow title="Delete" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
+      <MenuRow title="RENAME" onPress={() => { if (menu) { setEditing(menu); setName(menu.name); setError(''); } setMenu(null); }} />
+      <MenuRow title="DUPLICATE" onPress={() => { if (menu) void run(() => repo.duplicateStage(menu.id)); setMenu(null); }} />
+      <MenuRow title="DELETE" destructive onPress={() => { setDeleting(menu); setError(''); setMenu(null); }} />
     </EditorSheet>
-    <EditorSheet title={editing === 'new' ? 'Add Stage' : 'Rename Stage'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
+    <EditorSheet title={editing === 'new' ? 'Add stage' : 'Rename stage'} visible={editing !== null} close={() => { if (!running.current) setEditing(null); }}>
       <Panel><Input label="Stage name" value={name} disabled={busy} onChange={setName} />
-        <Action variant="primary" title={busy ? 'Saving...' : editing === 'new' ? 'Open Stage Designer' : 'Apply name'} disabled={busy || !name.trim()} onPress={() => void run(async () => {
+        <Action variant="primary" title={busy ? 'SAVING…' : editing === 'new' ? words.openEditor : words.done} disabled={busy || !name.trim()} onPress={() => void run(async () => {
           if (editing === 'new' && match) {
             const current = await repo.loadMatch(match.id);
             const stageId = await repo.createStage(name, createDefaultStage(current.targetFamily), createPlan(), current.id);

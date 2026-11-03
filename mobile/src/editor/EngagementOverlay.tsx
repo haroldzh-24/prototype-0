@@ -38,7 +38,7 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
         {(layers.arrows === 'ALL' || layers.arrows === 'SELECTED' && (selectedNodeId ? selectedNodeId === node.id : node.waypointId === selectedId)) && node.targets.map(t => { const target = stage.objects.find(o => o.id === t.targetId); return target ? <View key={t.targetId}>{line(node.position, target.position, color, 2, t.orderLabel)}</View> : null; })}
         <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />
         <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{selectedNodeId === node.id ? (moving ? 'MOVING ' : 'ENGAGEMENT ') + (i + 1) : (moving ? 'M' : 'E') + (i + 1)}</Text>
-        {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={(moving ? "Moving window " : "Engagement node ") + (i + 1)} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
+        {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={(moving ? "Moving window " : "Standing engagement ") + (i + 1)} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
       </View>;
     })}
   </View>;

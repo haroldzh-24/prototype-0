@@ -5,7 +5,7 @@ import { compactContext, instructions, trustedFacts, revisionToken, boundedInter
 import type { Availability, Decision, RouteAIAdapter } from './types';
 import { resolveDecision, validateDecision } from './resolve';
 import type { Resolution } from './resolve';
-export const quickPrompts=['How long is this route?','Why is waypoint 2 here?','Compare alternatives','Make the route shorter'];
+export const quickPrompts=['How long is this route?','Why is position 2 here?','Compare alternatives','Make the route shorter'];
 export type Lifecycle='IDLE'|'INTERPRETING'|'RESOLVING_REFERENCE'|'EXECUTING_QUERY'|'SOLVING'|'FORMATTING_RESPONSE'|'WAITING_FOR_CLARIFICATION'|'PREVIEW_READY'|'APPLYING'|'ERROR'|'CANCELLED';
 export type ChatMessage={id:string;role:'You'|'AI';text:string;requestId?:string;status:'complete'|'pending'|'failed'|'cancelled';previewId?:string;error?:string};
 export type RequestOutcome={status:'complete'|'clarification'|'preview'|'cancelled'|'stale'|'error'|'ignored';requestId?:string};
@@ -115,7 +115,7 @@ export class RouteAIController {
       if(resolution.command.type==='ANSWER_ONLY'&&resolution.command.query.type==='REQUIRED_AREAS')result.highlights.requiredAreaIds=c.solverInput.requiredAreas.map(a=>a.id);
     }
     this.transition('FORMATTING_RESPONSE',{clarification:undefined});const formatStarted=performance.now();
-    const facts=trustedFacts(result),safeFacts=utf8Bytes(JSON.stringify(facts))<=4000?facts:{status:'factsTooLarge',message:'Too many facts to summarize. Ask about one waypoint or segment.'};
+    const facts=trustedFacts(result),safeFacts=utf8Bytes(JSON.stringify(facts))<=4000?facts:{status:'factsTooLarge',message:'Too many facts to summarize. Ask about one position or segment.'};
     let text:string;
     try{text=await this.boundary(r,()=>this.adapter.format(r.session,{revision:revisionToken(c.revision),question:message,facts:safeFacts}),this.options.formatMs??45000);}
     catch(e){this.check(r);if(/TIMED_OUT|CANCELLED|STALE/.test(String(e)))throw e;

@@ -8,6 +8,7 @@ import { centroid } from '../planning/firingAreaEditing';
 import type { Point } from '../planning/firingAreaEditing';
 import { colors } from '../ui/tokens';
 import { useThemeMode } from '../ui/theme';
+import { shootingAreaTitle } from '../ui/words';
 
 export type FiringAreaOverlayProps = {
   areas: readonly FiringArea[];
@@ -73,7 +74,7 @@ export default function FiringAreaOverlay({ areas, draft, selectedId, editing, o
         <Image pointerEvents="none" source={{ uri: fill.uri }} cachePolicy="none" transition={0} contentFit="fill"
           style={{ position: 'absolute', left: topLeft.x, top: topLeft.y, width: fill.w * transform.scale, height: fill.h * transform.scale }} />
         {area.vertices.map((v, i) => <Edge key={i} a={at(v, transform)} b={at(area.vertices[(i + 1) % area.vertices.length], transform)} colour={colour} width={selected ? 3 : 2} />)}
-        <Text pointerEvents="none" style={{ position: 'absolute', left: c.x - 40, top: c.y - 9, width: 80, textAlign: 'center', fontSize: 12, fontWeight: '700', color: colour }}>{'AREA ' + (n + 1)}</Text>
+        <Text pointerEvents="none" style={{ position: 'absolute', left: c.x - 70, top: c.y - 9, width: 140, textAlign: 'center', fontSize: 12, fontWeight: '700', color: colour }}>{shootingAreaTitle(n).toUpperCase()}</Text>
         {editing && selected && onMoveCorner && area.vertices.map((v, i) => <Corner key={'c' + i} areaId={area.id} index={i} point={v} transform={transform} onMove={onMoveCorner} onDragging={onDragging} />)}
       </View>;
     })}

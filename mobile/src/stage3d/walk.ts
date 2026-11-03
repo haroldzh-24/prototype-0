@@ -128,7 +128,7 @@ export type TargetState = 'moving' | 'here' | 'legal' | 'visible' | 'hidden' | '
 export type TargetStatus = { targetId: string; label: string; state: TargetState; detail: string; rounds: number; plannedAt?: string };
 const STATE_ORDER: TargetState[] = ['moving', 'here', 'legal', 'visible', 'hidden', 'done'];
 const REASONS: Record<string, string> = {
-  NO_ALLOWED_AREA: 'not from this spot: outside its firing area', OUTSIDE_SAFE_ANGLE: 'outside the safe angle from here',
+  NO_ALLOWED_AREA: 'not from this spot: outside its shooting area', OUTSIDE_SAFE_ANGLE: 'outside the safe angle from here',
   STEEL_TOO_CLOSE: 'steel too close from here', OCCLUDED: 'hidden from here', IDPA_AREAS_REQUIRED: 'needs its cover position set in Route settings',
 };
 

@@ -13,10 +13,10 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
     <Text style={[ui.actionText, { color: colors.accent }]}>Route {index + 1}{index === 0 ? ' · Best option' : ''}</Text>
     <Text style={ui.statValue}>{(card.movementDistance / 36).toFixed(2)} yd</Text>
     <Copy>{card.estimatedTime === null ? 'Timing unavailable' : `${card.estimatedTime.toFixed(2)} s estimated`}</Copy>
-    <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} ${card.route.engagementRules ? 'stationary nodes' : 'waypoints'} · ${card.reloads} reloads`}</Copy>
+    <Copy>{`${(card.movementDistance / 36).toFixed(2)} yd · ${card.positions} ${card.route.engagementRules ? 'standing positions' : 'positions'} · ${card.reloads} reloads`}</Copy>
     {details && <Copy>{card.comparison}</Copy>}
-    {card.movingSegments !== null && <Copy>{card.positions} stationary nodes / {card.movingSegments} moving windows / {card.route.positions.length} route waypoints</Copy>}
-    {details && <><Copy>{card.route.engagementRules ? 'Geometry-based planning' : styleLabel} · {card.label}</Copy><Copy>Used {card.sourceCounts.auto} automatically discovered waypoints / {card.sourceCounts.manual} manual waypoints</Copy>
+    {card.movingSegments !== null && <Copy>{`${card.positions} standing positions · ${card.movingSegments} moving windows · ${card.route.positions.length} route positions`}</Copy>}
+    {details && <><Copy>{card.route.engagementRules ? 'Geometry-based planning' : styleLabel} · {card.label}</Copy><Copy>{`Used ${card.sourceCounts.auto} automatically found positions · ${card.sourceCounts.manual} manual positions`}</Copy>
     {card.personalization && <><Copy>Personalized confidence: {card.personalization.confidence}</Copy><Copy>Using: {card.personalization.using.join(', ') || 'Generic factors for this route'}</Copy><Copy>Fallback: {card.personalization.fallback.join(', ') || 'None within recorded range'}</Copy></>}</>}
     {card.personalizedFallback && <Copy>Personalized fell back to Balanced.</Copy>}
     {!!card.reasons.length && <>
@@ -26,6 +26,6 @@ export default function PlannerResultCard({ card, index, styleLabel, pending, on
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: details }} onPress={() => onExpand({ ...expansion, details: !details })} style={ui.action}><Text style={ui.actionText}>{details ? '−' : '+'} DETAILS</Text></Pressable>
     {details && <>{card.personalization && <Copy>Profile-based evaluator estimate. Accepted manual routes currently display baseline timing; the difficulty curve is applied during Personalized comparison.</Copy>}<Copy>Difficulty is a distance-based index. Retreat is a geometric estimate.</Copy>{card.details.map(row => <DataRow key={row.label} {...row} />)}</>}
     <Pressable accessibilityRole="button" onPress={onPreview} style={[ui.action, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}><ToolIcon name="view" active /><Text style={ui.actionText}>VIEW ON STAGE</Text></Pressable>
-    {pending ? <><Copy>Replace the existing manual route with this route?</Copy><Action title="Cancel" onPress={onCancel} /><Action variant="primary" title="Confirm replacement" onPress={onConfirm} /></> : <Action variant="primary" title="USE ROUTE" onPress={onUse} />}
+    {pending ? <><Copy>Replace the existing manual route with this route?</Copy><Action title="CANCEL" onPress={onCancel} /><Action variant="primary" title="CONFIRM REPLACEMENT" onPress={onConfirm} /></> : <Action variant="primary" title="USE ROUTE" onPress={onUse} />}
   </View>;
 }

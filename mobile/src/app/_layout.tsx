@@ -31,7 +31,7 @@ export default function Layout() {
       <Stack.Screen name="planner" options={{ title: 'Matches', headerShown: false }} />
       <Stack.Screen name="match" options={{ title: 'Stages', headerShown: false }} />
       <Stack.Screen name="saved-stages" options={{ title: 'Saved stages' }} />
-      <Stack.Screen name="builder" options={{ title: 'Stage builder', headerShown: false, gestureEnabled: false, fullScreenGestureEnabled: false }} />
+      <Stack.Screen name="builder" options={{ title: 'Stage editor', headerShown: false, gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <Stack.Screen name="training" options={{ title: 'Training', headerShown: false }} />
       <Stack.Screen name="account" options={{ title: 'Profile', headerShown: false }} />
     </Stack>

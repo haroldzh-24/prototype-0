@@ -12,6 +12,7 @@ import { stageDownrange } from '../stage/orientation';
 import { normalizeStage } from './v2/normalizeStage';
 import type { NormalizedStage, TargetFace } from './v2/normalizeStage';
 import { checkEngagement, defaultNoShootPolicy, FOOT_REACH_INCHES } from './v2/coverage';
+import { engagementOrder } from '../ui/words';
 
 export type RouteWaypoint = Pick<ShootingPosition, 'id' | 'label' | 'position'>;
 export type FiringArea = { id: string; vertices: { x: number; y: number }[] };
@@ -39,9 +40,9 @@ const interpolate = (a: StagePosition, b: StagePosition, d: number) => {
   const t = length(a, b) ? d / length(a, b) : 0;
   return point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
 };
+/** Engagement order within a position, as shown to the user: 1, 2, 3 (ui/words.ts). */
 export function engagementLabel(index: number): string {
-  let label = ''; for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) label = String.fromCharCode(65 + (n - 1) % 26) + label;
-  return label;
+  return engagementOrder(index);
 }
 /** Safe direction defaults to the stage's downrange (up the screen when no stage is given). */
 /** New route rules for a stage. Pass the match's ruleset: steel distances and on-the-move rules depend on it. */
@@ -180,11 +181,11 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
   const result: EngagementAnalysis = { windows: [], nodes: [], segments: [], alternatives: [], coveredTargetIds: [], warnings: [], complete: false, truncated: false };
   const rules = route.engagementRules, targets = stage.objects.filter(isEngageable), walls = stage.objects.filter((o): o is Wall => o.type === 'wall');
   const start = stage.objects.find(o => o.type === 'start');
-  if (!rules || !validEngagementRules(rules) || !start) { result.warnings.push('Configure firing areas, safe direction and stage procedures before analyzing engagements.'); return result; }
+  if (!rules || !validEngagementRules(rules) || !start) { result.warnings.push('Configure shooting areas, safe direction and stage procedures before analyzing engagements.'); return result; }
   if (targets.length > 64 || walls.length > 128 || walls.some(w => w.ports.length > 32) || route.positions.length > 64) {
     result.truncated = true; result.warnings.push('Engagement analysis limit exceeded.'); return result;
   }
-  if (!rules.firingAreas.length) result.warnings.push('No legal firing areas configured.');
+  if (!rules.firingAreas.length) result.warnings.push('No legal shooting areas configured.');
   if (activeRuleset(rules.ruleset) === 'IDPA' && targets.some(t => !rules.targetProcedures[t.id]?.areaIds?.length)) result.warnings.push('IDPA needs explicit cover/exposure area assignments for every target.');
   const kernel = kernelFor(stage, rules);
   const completed = new Set<string>();
@@ -278,7 +279,7 @@ export function analyzeEngagements(stage: StageDocument, route: StageRoute, sugg
       }
       const id = suggest ? stationaryPending.find(eligible) : stationaryPending[0];
       if (!id) break;
-      stationary.push({ targetId: id, orderLabel: engagementLabel(stationary.length), reason: 'Legal stationary engagement at this waypoint.' }); completed.add(id);
+      stationary.push({ targetId: id, orderLabel: engagementLabel(stationary.length), reason: 'Legal stationary engagement at this position.' }); completed.add(id);
       stationaryPending.splice(stationaryPending.indexOf(id), 1);
     }
     if (stationary.length) result.nodes.push({ id: `stationary-${waypoint.id}`, waypointId: waypoint.id, kind: 'stationary', position: to, targets: stationary });

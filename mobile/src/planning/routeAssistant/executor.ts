@@ -54,7 +54,7 @@ export function executeRouteAssistantCommand(c: RouteAssistantContext, command: 
   const find=(id:string)=>route.positions.findIndex(p=>p.id===id);
   if(command.type==='MOVE_WAYPOINT'){
     const id=command.waypointId??c.selectedWaypointId;
-    if(!id)return {kind:'clarification',data:{question:'Which waypoint should move?',options:route.positions.map(p=>({id:p.id,label:p.label}))},durationMs:performance.now()-started};
+    if(!id)return {kind:'clarification',data:{question:'Which position should move?',options:route.positions.map(p=>({id:p.id,label:p.label}))},durationMs:performance.now()-started};
     const i=find(id);if(i<0)return error('WAYPOINT_NOT_FOUND');
     const d=command.destination,p=d.kind==='absolute'?d.position:{x:route.positions[i].position.x+d.deltaXInches,y:route.positions[i].position.y+d.deltaYInches};
     const invalid=validatePoint(c,p);if(invalid)return error(invalid);
@@ -68,7 +68,8 @@ export function executeRouteAssistantCommand(c: RouteAssistantContext, command: 
     else {const points=[c.solverInput.start,...route.positions.map(p=>p.position)];let nearest=Infinity;
       for(let i=1;i<points.length;i++){const d=distanceBetweenPoints(command.position,project(command.position,points[i-1],points[i]));if(d<nearest){nearest=d;index=i-1;}}
     }
-    route.positions.splice(index,0,{id:command.waypointId,label:`Waypoint ${command.waypointId}`,position:{space:'stage',...command.position,z:0},visibleTargetIds:[],engagedTargetIds:[]});
+    let number=1;while(route.positions.some(q=>q.label==='P'+number))number++; // named like every other position
+    route.positions.splice(index,0,{id:command.waypointId,label:'P'+number,position:{space:'stage',...command.position,z:0},visibleTargetIds:[],engagedTargetIds:[]});
   }else if(command.type==='DELETE_WAYPOINT'){
     const i=find(command.waypointId);if(i<0)return error('WAYPOINT_NOT_FOUND');route.positions.splice(i,1);route.reloads=route.reloads.filter(r=>r.positionId!==command.waypointId);
   }else if(command.type==='REORDER_WAYPOINT'){

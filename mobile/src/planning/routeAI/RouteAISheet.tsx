@@ -17,8 +17,8 @@ export default function RouteAISheet({visible,close,state,controller,revision,ap
     <Action title="SEND" variant="primary" disabled={!available||busy||!!preview||!input.trim()} onPress={send} />
   </View>}><View testID="route-ai-sheet" style={{padding:12,gap:12}}>
     <StatusBadge label={available?'OFFLINE':state.availability.replaceAll('_',' ')} tone={available?'selected':'warning'} />
-    {!available&&<><Notice>{labels[state.availability]}</Notice><Copy>Normal Route Planner remains fully usable.</Copy><Action title="CHECK AGAIN" onPress={()=>void controller.initialize()} /></>}
-    {available&&!state.messages.length&&<><Copy>Ask about the current route or propose a waypoint change.</Copy>{quickPrompts.map(prompt=><Action key={prompt} title={prompt} disabled={busy} onPress={()=>void controller.send(prompt)} />)}</>}
+    {!available&&<><Notice>{labels[state.availability]}</Notice><Copy>The route planner (AUTO-PLAN) remains fully usable.</Copy><Action title="CHECK AGAIN" onPress={()=>void controller.initialize()} /></>}
+    {available&&!state.messages.length&&<><Copy>Ask about the current route or propose a position change.</Copy>{quickPrompts.map(prompt=><Action key={prompt} title={prompt} disabled={busy} onPress={()=>void controller.send(prompt)} />)}</>}
     {available&&!!state.messages.length&&<Copy>AI WORDING replies are written by the on-device model from facts the app computes. Numbers under COMPUTED come directly from the app.</Copy>}
     {state.messages.filter(m=>m.status!=='pending').map(message=><View key={message.id} style={{gap:4}}><StatusBadge label={message.role==='AI'?'AI WORDING':message.role} /><Copy>{message.text}</Copy></View>)}
     {busy&&<><Loading label={state.phase} /><Action title="CANCEL" onPress={()=>controller.cancel()} /></>}

@@ -112,8 +112,10 @@ test('mass rounds are atomic, scoring-only, and allow independent overrides', ()
   for (const invalid of [-1, 1.5, NaN, Number.MAX_SAFE_INTEGER]) assert.equal(assignRoundsByType(f.plan, f.stage, 'cardboardTarget', invalid).plan, f.plan);
   assert.equal(assignRoundsByType(f.plan, f.stage, 'noShootTarget', 2).plan, f.plan);
   assert.equal(JSON.stringify(f.stage), original);
-  assert.equal(targetLabel(f.stage, cards[0].id), 'Cardboard 1');
-  assert.equal(targetLabel(f.stage, cards[1].id), 'Cardboard 2');
+  // Targets are T1, T2… in stage order (scoring targets of every kind), the same name in every view.
+  const scoring = f.stage.objects.filter(o => ['cardboardTarget', 'steelPlate', 'steelPopper'].includes(o.type));
+  assert.equal(targetLabel(f.stage, cards[0].id), 'T' + (scoring.indexOf(cards[0]) + 1));
+  assert.equal(targetLabel(f.stage, cards[1].id), 'T' + (scoring.indexOf(cards[1]) + 1));
 });
 test('canvas toggles preserve visibility, engagement ownership, and physical positions', () => {
   const f = fixture(), id = f.targets[0].id;

@@ -76,7 +76,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await capture('home'); await click('Open STAGE PLANNER'); await wait('MATCHES'); await capture('matches');
     const name = 'Final review ' + Date.now() + ' ' + 'long stage and match name '.repeat(2);
     await click('+ MATCH'); await fill('Match name', name); await click('Create Match'); await wait('STAGES'); await capture('stages');
-    await click('+ STAGE'); await fill('Stage name', name); await click('Open Stage Designer'); await wait('SELECT'); await capture('build');
+    await click('+ STAGE'); await fill('Stage name', name); await click('OPEN STAGE EDITOR'); await wait('SELECT'); await capture('build');
     let r = await rect('[data-testid=stage-object-target-1]'); await tap({x:r.x+r.width/2,y:r.y+r.height/2}); await wait('DUPLICATE'); await capture('build-target');
     await click('EDIT'); await capture('object-sheet'); await click('Done'); await click('Deselect');
     await click('DRAW'); await click('WALL'); await capture('drawing'); await click('DONE');

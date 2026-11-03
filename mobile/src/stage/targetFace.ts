@@ -1,9 +1,9 @@
 import type { FaceCut, FacePreset, StageObject } from './model';
 
 export const facePresets: readonly { preset: FacePreset; label: string }[] = [
-  { preset: 'full', label: 'Full' }, { preset: 'upper', label: 'Upper Portion' },
-  { preset: 'lower', label: 'Lower Portion' }, { preset: 'left', label: 'Left Portion' },
-  { preset: 'right', label: 'Right Portion' },
+  { preset: 'full', label: 'Full' }, { preset: 'upper', label: 'Upper portion' },
+  { preset: 'lower', label: 'Lower portion' }, { preset: 'left', label: 'Left portion' },
+  { preset: 'right', label: 'Right portion' },
 ];
 export function validFaceCut(value: unknown): value is FaceCut {
   if (!value || typeof value !== 'object') return false;

@@ -164,7 +164,7 @@ export function evaluateRoute(stage: StageDocument, plan: StagePlan, route: Stag
       engaged.add(id);
       if (!p.visibleTargetIds.includes(id)) warnings.push(`${p.label}: engaged ${targetLabel(stage, id)} is not marked visible.`);
       const rounds = plan.engagements[id];
-      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for ${targetLabel(stage, id)} in Loadout / Planning.`); continue; }
+      if (!Number.isSafeInteger(rounds) || rounds <= 0) { warnings.push(`${p.label}: set planned rounds for ${targetLabel(stage, id)} in Target rounds.`); continue; }
       required += rounds; splits += rounds - 1; positionSplits += rounds - 1; count++;
     }
     targetCount += count; transitions += Math.max(0, count - 1);

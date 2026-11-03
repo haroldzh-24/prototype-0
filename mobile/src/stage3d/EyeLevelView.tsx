@@ -13,13 +13,29 @@ import GLStage, { glUnavailable } from './GLStage';
 import { buildWalk, sightStage, suggestedHeading, targetStatuses, walkPoint } from './walk';
 import type { TargetState } from './walk';
 import type { Ruleset } from '../planning/v2/types';
+import { SEP, targetTypeName, walkStatusWords } from '../ui/words';
 
 /** Web: stop the browser from panning or zooming the page under a drag (the 2D canvas does the same). */
 const NO_BROWSER_GESTURES = (Platform.OS === 'web' ? { touchAction: 'none' } : {}) as ViewStyle;
 
 const EYE_KEY = 'psp.eyeHeight', DEFAULT_EYE = 63, EYE_LIMITS = [36, 84] as const;
 const feet = (inches: number) => `${Math.floor(inches / 12)} ft ${Math.round(inches % 12)} in`;
-const STATE_TEXT: Record<TargetState, string> = { moving: 'ON THE MOVE', here: 'FROM HERE', legal: 'LEGAL', visible: 'VISIBLE', hidden: 'HIDDEN', done: 'DONE' };
+const STATE_TEXT = Object.fromEntries(Object.entries(walkStatusWords).map(([k, v]) => [k, v.word])) as Record<TargetState, string>;
+const STATES = Object.keys(walkStatusWords) as TargetState[];
+
+/**
+ * The status word as a chip. Each state has its own look, not only its own colour: ON THE MOVE and FROM HERE are
+ * filled, LEGAL has a thick outline, VISIBLE a solid outline, HIDDEN a dashed outline in a quieter colour.
+ */
+export function StatusChip({ state }: { state: TargetState }) {
+  const filled = state === 'moving' || state === 'here';
+  const tone = state === 'moving' ? colors.movement : state === 'here' ? colors.accent : state === 'legal' ? colors.warning
+    : state === 'visible' ? colors.text : state === 'hidden' ? colors.subdued : colors.subdued;
+  return <View testID={'status-' + state} style={{ minWidth: 92, alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, backgroundColor: filled ? tone : 'transparent',
+    borderColor: tone, borderWidth: state === 'legal' ? 2 : 1, borderStyle: state === 'hidden' ? 'dashed' : 'solid' }}>
+    <Text style={{ ...typography.category, fontSize: 12, color: filled ? colors.onAccent : tone }}>{STATE_TEXT[state]}</Text>
+  </View>;
+}
 
 /**
  * Eye-level walk-through of the planned route: stand at the start or any stop, or scrub along the path, and see what
@@ -37,6 +53,7 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
   const setEyeHeight = (v: number) => { const next = Math.min(EYE_LIMITS[1], Math.max(EYE_LIMITS[0], v)); setEyeHeightState(next); writePref(EYE_KEY, String(next)); };
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState(glUnavailable());
+  const [legend, setLegend] = useState(false);
 
   const at = walkPoint(walk, distance, stopId);
   const statuses = useMemo(() => targetStatuses(stage, plan, walk, at, sight ?? null), [stage, plan, walk, at.distance, at.stop?.id, sight]);
@@ -73,7 +90,6 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
 
   const nextStop = walk.stops.find(s => s.distance > at.distance + 0.5);
   const title = at.stop ? `VIEW FROM ${at.stop.label}` : nextStop ? `WALKING TO ${nextStop.label} · ${formatYardsFixed(nextStop.distance - at.distance, 1)}` : 'VIEW';
-  const tone = (s: TargetState) => s === 'moving' ? colors.movement : s === 'here' ? colors.accent : s === 'legal' ? colors.warning : s === 'done' ? colors.subdued : colors.muted;
   const labels = size.width > 0 ? scene.labels.filter(l => l.kind !== 'start').map(l => ({ ...l, screen: projectToScreen(matrices.viewProj, l.at, size.width, size.height) }))
     .filter(l => l.screen && l.screen.depth < 1 && l.screen.x > -40 && l.screen.x < size.width + 40 && l.screen.y > -20 && l.screen.y < size.height + 20) : [];
   const stateOf = new Map(statuses.map(s => [s.targetId, s.state]));
@@ -91,18 +107,19 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
       <View style={{ flexDirection: 'row', gap: 6 }}>
         {button('Lower eye height', '−', () => setEyeHeight(eyeHeight - 1), eyeHeight <= EYE_LIMITS[0])}
         {button('Raise eye height', '+', () => setEyeHeight(eyeHeight + 1), eyeHeight >= EYE_LIMITS[1])}
+        {button(legend ? 'Hide what the status words mean' : 'What the status words mean', legend ? '×' : '?', () => setLegend(!legend))}
       </View>
     </View>
     <View style={{ flex: 1, minHeight: 160, overflow: 'hidden', backgroundColor: colors.sky }} onLayout={({ nativeEvent }) => setSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
-      {error ? <Text accessibilityLiveRegion="polite" style={{ ...typography.body, color: colors.text, padding: 12 }}>{'The eye-level view needs 3D, which could not start on this device. ' + (glUnavailable() ? 'It needs the next app update.' : '')}</Text>
+      {error ? <Text accessibilityLiveRegion="polite" style={{ ...typography.body, color: colors.text, padding: 12 }}>{'WALK needs 3D, which could not start on this device. ' + (glUnavailable() ? 'It needs the next app update.' : '')}</Text>
         : size.width > 0 && <View key={Math.round(size.width) + 'x' + Math.round(size.height)} style={{ flex: 1 }} pointerEvents="none">
           <GLStage scene={scene} viewProj={matrices.viewProj} clear={clear} onError={setError} /></View>}
       <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
         {labels.map(l => { const state = stateOf.get(l.id); return <Text key={l.id + l.kind} style={{ position: 'absolute', left: l.screen!.x - 30, top: l.screen!.y - 12, width: 60, textAlign: 'center',
-          ...typography.category, fontSize: 12, lineHeight: 15, color: state === 'moving' || state === 'here' ? colors.onAccent : colors.text,
+          ...typography.category, fontSize: 12, lineHeight: 15, color: state === 'moving' || state === 'here' ? colors.onAccent : state === 'hidden' || state === 'done' ? colors.subdued : colors.text,
           backgroundColor: state === 'moving' ? colors.movement : state === 'here' ? colors.accent : colors.panel }}>{l.text}</Text>; })}
       </View>
-      <View {...looker.panHandlers} accessible accessibilityLabel="Eye-level view. Drag to look around." style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, NO_BROWSER_GESTURES]} />
+      <View {...looker.panHandlers} accessible accessibilityLabel="Walk-through at eye level. Drag to look around." style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, NO_BROWSER_GESTURES]} />
       <View style={{ position: 'absolute', right: 8, top: 8, flexDirection: 'row', gap: 6 }}>
         {(look.heading !== 0 || look.pitch !== -4) && button('Look at the planned targets again', 'RE-AIM', () => setLook({ heading: 0, pitch: -4 }))}
         {button('Back to the plan', '2D', onExit)}
@@ -129,13 +146,23 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
     </View>}
     {!plan.route?.positions.length && <Text style={{ ...typography.body, color: colors.muted, paddingHorizontal: spacing.sm, paddingTop: 6 }}>No route yet: this is the view from the start. Plan a route to walk it here.</Text>}
     <ScrollView style={{ maxHeight: 190 }} contentContainerStyle={{ padding: spacing.sm, gap: 4 }}>
-      {statuses.map(s => <View key={s.targetId} accessible accessibilityLabel={`${s.label}, ${STATE_TEXT[s.state].toLowerCase()}, ${s.detail}, ${s.rounds} rounds`}
+      {legend && <View testID="walk-legend" style={{ gap: 6, paddingBottom: 6, borderBottomWidth: borders.regular, borderColor: colors.border }}>
+        {STATES.map(state => <View key={state} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <StatusChip state={state} />
+          <Text style={{ ...typography.body, fontSize: 15, lineHeight: 19, color: colors.muted, flex: 1 }}>{walkStatusWords[state].meaning}</Text>
+        </View>)}
+      </View>}
+      {statuses.map(s => { const type = targetTypeName(stage.objects.find(o => o.id === s.targetId)?.type ?? 'cardboardTarget');
+        return <View key={s.targetId} accessible accessibilityLabel={`${s.label}, ${type}, ${STATE_TEXT[s.state].toLowerCase()}, ${s.detail}, ${s.rounds} rounds`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6, borderBottomWidth: 1, borderColor: colors.hairline, opacity: s.state === 'done' ? 0.6 : 1 }}>
-        <Text style={{ ...typography.label, color: colors.text, width: 42 }}>{s.label}</Text>
-        <Text style={{ ...typography.category, fontSize: 12, color: s.state === 'moving' || s.state === 'here' ? colors.onAccent : tone(s.state), backgroundColor: s.state === 'moving' ? colors.movement : s.state === 'here' ? colors.accent : 'transparent', borderWidth: 1, borderColor: tone(s.state), paddingHorizontal: 6, paddingVertical: 2, minWidth: 92, textAlign: 'center' }}>{STATE_TEXT[s.state]}</Text>
-        <Text style={{ ...typography.body, fontSize: 15, lineHeight: 19, color: colors.muted, flex: 1 }}>{s.detail}{s.plannedAt && s.state !== 'moving' && s.state !== 'here' ? ` · planned ${s.plannedAt}` : ''}</Text>
+        <View style={{ width: 52 }}>
+          <Text style={{ ...typography.label, color: colors.text }}>{s.label}</Text>
+          <Text style={{ ...typography.category, fontSize: 11, lineHeight: 13, color: colors.muted }}>{type.toUpperCase()}</Text>
+        </View>
+        <StatusChip state={s.state} />
+        <Text style={{ ...typography.body, fontSize: 15, lineHeight: 19, color: colors.muted, flex: 1 }}>{s.detail}{s.plannedAt && s.state !== 'moving' && s.state !== 'here' ? `${SEP}planned ${s.plannedAt}` : ''}</Text>
         <Text style={{ ...typography.label, color: colors.text }}>{s.rounds + ' rd'}</Text>
-      </View>)}
+      </View>; })}
       {walk.analysis && !walk.analysis.complete && <Text style={{ ...typography.body, fontSize: 15, color: colors.warning }}>{walk.analysis.warnings[0] ?? 'The route analysis is incomplete.'}</Text>}
       <Text style={{ ...typography.body, fontSize: 14, lineHeight: 18, color: colors.subdued }}>Sight lines use the plan view and wall heights: a target seen over a low wall or past another target is marked as assumed. Check on the range.</Text>
     </ScrollView>

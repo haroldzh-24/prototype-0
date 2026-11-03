@@ -95,10 +95,10 @@ test('outside travel off with no firing areas explains the real problem', () => 
   plan.route.engagementRules = { ...defaultEngagementRules(stage), allowOutsideTravel: false, firingAreas: [] };
   const r = solveRoute(solverInputFromPlan(stage, plan));
   assert.equal(r.status, 'invalid-input');
-  assert.match(r.diagnostics.warnings[0], /no firing areas/);
+  assert.match(r.diagnostics.warnings[0], /no shooting areas/);
   plan.route.engagementRules.firingAreas = [{ id: 'box', vertices: square(130, 80, 40, 40) }];
   const r2 = solveRoute(solverInputFromPlan(stage, plan));
-  assert.match(r2.diagnostics.warnings[0], /Start is outside every firing area/);
+  assert.match(r2.diagnostics.warnings[0], /Start is outside every shooting area/);
 });
 
 test('coverage counts ENGAGE arrows as planned but never as checked', () => {

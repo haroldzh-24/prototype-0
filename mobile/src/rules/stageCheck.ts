@@ -80,7 +80,7 @@ export function checkStage(doc: StageDocument, rules: EngagementRules | undefine
   }
 
   if (!areas.length) {
-    findings.push({ severity: 'info', code: 'NO_AREAS', rule: '', objectIds: [], message: 'Add firing areas in Route settings to check distances from where competitors shoot.' });
+    findings.push({ severity: 'info', code: 'NO_AREAS', rule: '', objectIds: [], message: 'Draw shooting areas in PLAN → AREAS to check distances from where competitors shoot.' });
   } else {
     // Steel distance from where competitors can stand (fault lines are part of the shooting area).
     const steelMin = { USPSA: 276, PCSL: 252, IDPA: 360 }[ruleset];
@@ -90,19 +90,19 @@ export function checkStage(doc: StageDocument, rules: EngagementRules | undefine
         const rule = { USPSA: 'USPSA 10.5.16, 2.1.3', PCSL: 'PCSL 1.8.1-1.8.3', IDPA: 'IDPA 2.14' }[ruleset];
         const extra = ruleset === 'PCSL' ? ' Closer steel needs visual distance indicators noted in the stage brief.' : '';
         findings.push({ severity: 'safety', code: 'STEEL_DISTANCE', rule, objectIds: [object.id],
-          message: `${label(object.id)} is ${feet(near)} from a firing area. Firing at steel closer than ${feet(steelMin)} is a disqualification.${extra}` });
+          message: `${label(object.id)} is ${feet(near)} from a shooting area. Firing at steel closer than ${feet(steelMin)} is a disqualification.${extra}` });
       } else if (ruleset === 'USPSA' && near < 312) {
         findings.push({ severity: 'rule', code: 'STEEL_FAULT_LINE', rule: 'USPSA 2.1.3', objectIds: [object.id],
-          message: `${label(object.id)} is ${feet(near)} from a firing area. Fault lines limiting the approach to steel must be at least 26 ft away.` });
+          message: `${label(object.id)} is ${feet(near)} from a shooting area. Fault lines limiting the approach to steel must be at least 26 ft away.` });
       }
     }
     // Target distance limits.
     for (const { object, face } of scoring) {
       const near = Math.min(...areas.map(a => faceToArea(face, a)));
       if (ruleset === 'PCSL' && near > 1800) findings.push({ severity: 'rule', code: 'PCSL_MAX_DISTANCE', rule: 'PCSL 10.9.1', objectIds: [object.id],
-        message: `${label(object.id)} is ${yards(near)} from the nearest firing area; pistol targets may be at most 50 yd.` });
+        message: `${label(object.id)} is ${yards(near)} from the nearest shooting area; pistol targets may be at most 50 yd.` });
       if (ruleset === 'IDPA' && near > 1080) findings.push({ severity: 'rule', code: 'IDPA_MAX_DISTANCE', rule: 'IDPA 6.5.3, 6.5.4', objectIds: [object.id],
-        message: `${label(object.id)} is ${yards(near)} from the nearest firing area; targets may be at most 20 yd in scenario stages and 30 yd in standards.` });
+        message: `${label(object.id)} is ${yards(near)} from the nearest shooting area; targets may be at most 20 yd in scenario stages and 30 yd in standards.` });
       else if (ruleset === 'IDPA' && near > 720) findings.push({ severity: 'info', code: 'IDPA_SCENARIO_DISTANCE', rule: 'IDPA 6.5.3', objectIds: [object.id],
         message: `${label(object.id)} is ${yards(near)} away: allowed in standards stages only (scenario limit 20 yd).` });
     }

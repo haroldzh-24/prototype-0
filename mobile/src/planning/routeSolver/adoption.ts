@@ -29,11 +29,14 @@ export function anchorSurvives(anchor: ManualEngagement['anchor'], positions: St
 export function candidateToStageRoute(candidate:RouteCandidate,plan:StagePlan):StageRoute {
   const previous=plan.route, used=new Set<string>(), taken=new Set((previous?.positions??[]).map(p=>p.id));
   let fresh=0;
+  // New points are named like every other position (P1, P2…), skipping names the previous route already used.
+  const names=new Set((previous?.positions??[]).map(p=>p.label));let next=0;
+  const freshName=()=>{let name;do{name=`P${++next}`;}while(names.has(name));names.add(name);return name;};
   const positions=candidate.waypoints.slice(1).map((p)=>{
     const existing=previous?.positions.find(q=>!used.has(q.id)&&Math.hypot(q.position.x-p.x,q.position.y-p.y)<1e-7);
     if(existing){used.add(existing.id);return JSON.parse(JSON.stringify(existing)) as StageRoute['positions'][number];}
     let id;do{id=`solver-waypoint-${++fresh}`;}while(taken.has(id));taken.add(id);
-    return {id,label:`Waypoint ${fresh}`,position:{space:'stage' as const,x:p.x,y:p.y,z:0},visibleTargetIds:[],engagedTargetIds:[]};
+    return {id,label:freshName(),position:{space:'stage' as const,x:p.x,y:p.y,z:0},visibleTargetIds:[],engagedTargetIds:[]};
   });
   const route:StageRoute={version:1,id:candidate.id,name:'Minimum movement route',positions,
     reloads:(previous?.reloads??[]).filter(r=>positions.some(p=>p.id===r.positionId)).map(r=>({...r})),
@@ -57,5 +60,5 @@ export function adoptionLosses(previous:StageRoute|undefined,next:StageRoute):{w
 }
 /** Transitional preview shape only; no legacy generation/evaluation/ranking is invoked. */
 export function solverPreviewCard(candidate:RouteCandidate,plan:StagePlan,index:number):PlannerCard {
-  return {number:index+1,label:index===0?'Minimum movement':'Alternative route',id:candidate.id,route:candidateToStageRoute(candidate,plan),estimatedTime:null,movementDistance:candidate.totalDistanceInches,positions:candidate.waypointCount,reloads:0,movingSegments:null,roundsRemaining:0,routeStyle:'GEOMETRY',personalization:null,personalizedFallback:false,sourceCounts:{auto:candidate.waypointCount,manual:0},reasons:candidate.explanationData.map(e=>e.kind==='obstruction'?`Waypoint ${e.waypointIndex} avoids ${e.barrierIds?.join(', ')}.`:`Required area ${e.areaIds?.join(', ')} requires waypoint ${e.waypointIndex}.`),details:[],comparison:`${candidate.requiredAreasVisited.length} required areas visited`};
+  return {number:index+1,label:index===0?'Minimum movement':'Alternative route',id:candidate.id,route:candidateToStageRoute(candidate,plan),estimatedTime:null,movementDistance:candidate.totalDistanceInches,positions:candidate.waypointCount,reloads:0,movingSegments:null,roundsRemaining:0,routeStyle:'GEOMETRY',personalization:null,personalizedFallback:false,sourceCounts:{auto:candidate.waypointCount,manual:0},reasons:candidate.explanationData.map(e=>e.kind==='obstruction'?`Position ${e.waypointIndex} avoids ${e.barrierIds?.join(', ')}.`:`Shooting area ${e.areaIds?.join(', ')} needs position ${e.waypointIndex}.`),details:[],comparison:`${candidate.requiredAreasVisited.length} shooting areas visited`};
 }

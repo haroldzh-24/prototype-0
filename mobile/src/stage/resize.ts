@@ -11,9 +11,9 @@ export function outsideStage(document: StageDocument, size: StageSize, route?: S
   const objects: OutsideItem[] = document.objects.filter(object => {
     const half = rotatedHalfExtents(object), offset = footprintCenterOffset(object);
     return outside(object.position.x + offset.x, object.position.y + offset.y, half.x, half.y);
-  }).map(object => ({ id: object.id, kind: 'object', label: `${objectLabel(object.type)} / ${object.id}` }));
+  }).map(object => ({ id: object.id, kind: 'object', label: `${objectLabel(object.type)} · ${object.id}` }));
   return [...objects, ...(route?.positions ?? []).filter(p => outside(p.position.x, p.position.y))
-    .map(p => ({ id: p.id, kind: 'position' as const, label: `Shooting position / ${p.label}` }))];
+    .map(p => ({ id: p.id, kind: 'position' as const, label: `Position · ${p.label}` }))];
 }
 
 /** A boundary-only update. Unconfirmed reductions return the original document. */

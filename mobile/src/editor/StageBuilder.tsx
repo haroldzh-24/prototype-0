@@ -44,7 +44,6 @@ import { createRoute, toggleRouteTarget } from '@/planning/route';
 import type { TargetAssignmentMode, StageRoute } from '@/planning/route';
 import type { PowerFactor, ShooterPerformanceProfile } from '@/profile/model';
 import { reconcilePlan } from '@/planning/model';
-import Stage25D from '@/editor/Stage25D';
 import StageViewport from '@/editor/StageViewport';
 import SnapControls from '@/editor/SnapControls';
 import ObjectInspector from '@/editor/ObjectInspector';
@@ -89,6 +88,8 @@ import Stage3DView from '../stage3d/Stage3DView';
 import EyeLevelView from '../stage3d/EyeLevelView';
 import { buildWalk } from '../stage3d/walk';
 import { moveObject } from '../stage/operations';
+import HoldHint from './HoldHint';
+import { positionTitle, SEP, targetName, targetTypeName, words } from '../ui/words';
 
 export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: { initial: SavedStage; targetFamily: TargetFamily; routeAIAdapter?: RouteAIAdapter }) {
   const repo = useRepository(), navigation = useNavigation();
@@ -161,8 +162,12 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const [gridVisible, setGridVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
   const [planSection, setPlanSection] = useState<'loadout' | 'targets'>('loadout');
-  // 2D plan, 3D (orbit and edit), eye level (walk the route); 2.5D is the old read-only preview, kept as a fallback.
-  const [viewMode, setViewMode] = useState<'topDown' | '3d' | 'eye' | '25d'>('topDown');
+  // 2D plan, 3D (orbit and edit), eye level (WALK). 2.5D is only the automatic fallback inside Stage3DView when 3D cannot start.
+  const [viewMode, setViewMode] = useState<'topDown' | '3d' | 'eye'>('topDown');
+  // Where WALK was opened from, so leaving the walk-through goes back there.
+  const [walkFrom, setWalkFrom] = useState<'build' | 'plan'>('plan');
+  // Press and hold was used: the one-time hint has done its job.
+  const [holdUsed, setHoldUsed] = useState(false);
 
   const discovered = currentDiscovery(stage, discoverySession);
   const previewing = !!preview || discoveryPreview;
@@ -247,11 +252,17 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     setEditError(result.error ?? '');
     if (!result.error) { switchTool('select'); setStage(result.stage); setSelectedId(id); }
   };
-  const undoSegment = () => {
-    const id = chain.at(-1), object = stage.objects.find(o => o.id === id); if (!object || !isSegment(object)) return;
-    setStage({ ...stage, objects: stage.objects.filter(o => o.id !== id) }); setChain(chain.slice(0,-1));
-    const start = endpoints(object).start; updateDraft({ start, end: start });
+  /**
+   * The header's undo covers every document edit (one history). While drawing connected walls or fault lines, the last
+   * step is the last segment drawn: undo takes it back and the next segment starts where it started, as UNDO SEGMENT did.
+   */
+  const undoEdit = () => {
+    const last = (tool === 'wall' || tool === 'faultLine') && chain.length ? stage.objects.find(o => o.id === chain.at(-1)) : undefined;
+    documentHistory.undo();
+    if (last && isSegment(last)) { setChain(chain.slice(0, -1)); const start = endpoints(last).start; updateDraft({ start, end: start }); }
+    else { updateDraft(null); setChain([]); }
   };
+  const redoEdit = () => { updateDraft(null); setChain([]); documentHistory.redo(); };
   const act = (action: ObjectAction) => {
     documentHistory.begin();
     const result = applyObjectAction(stage, selectedId, action, uuid.v4);
@@ -306,9 +317,11 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     ? { ...current, route: { ...current.route, engagementRules: change(current.route.engagementRules ?? defaultEngagementRules(stage, activeRuleset(targetFamily))) } } : current);
   /** A layer (hostage no-shoot, double) is moved by moving the target it sits on. */
   const layerParentId = (id: string) => { const o = stage.objects.find(x => x.id === id); return isPaper(o) && o.attachment ? o.attachment.parentId : null; };
+  /** The selection bar names the object as everywhere else (T3, NS1), then what it is. */
   const selectedTitle = (o: NonNullable<typeof selected>) => {
-    if (isPaper(o) && o.attachment) { const parent = stage.objects.find(x => x.id === o.attachment!.parentId); return (o.type === 'noShootTarget' ? 'NO-SHOOT' : 'TARGET') + ' ON ' + (parent ? targetLabel(stage, parent.id) : 'TARGET').toUpperCase(); }
-    return (isTarget(o) ? targetPreset(o.presetId ?? '')?.name ?? objectLabel(o.type) : objectLabel(o.type)).toUpperCase();
+    if (isPaper(o) && o.attachment) { const parent = stage.objects.find(x => x.id === o.attachment!.parentId); return [targetName(stage, o), (o.type === 'noShootTarget' ? 'NO-SHOOT' : 'TARGET') + ' ON ' + (parent ? targetLabel(stage, parent.id) : 'TARGET')].join(SEP).toUpperCase(); }
+    if (!isTarget(o)) return objectLabel(o.type).toUpperCase();
+    return [targetName(stage, o), o.type === 'noShootTarget' ? 'NO-SHOOT' : targetPreset(o.presetId ?? '')?.name ?? targetTypeName(o.type) + ' target'].join(SEP).toUpperCase();
   };
   /** Leave PATH, ENGAGE, REVIEW and AREAS (one route tool is active at a time). */
   const clearRouteTools = () => { setRouteEditing(false); setEngageMode(false); setReviewMode(false); setAreaMode(false); setAreaDraft(null); setAddingPoint(false); setAssignmentMode(null); };
@@ -343,47 +356,59 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   const zoom = (factor: number) => setViewport((current) => zoomViewport(current, current.zoom * factor, { x: 0, y: 0 }, { width: 0, height: 0 }));
 
   const stageFindings = checkStage(stage, plan.route?.engagementRules, targetFamily);
-  const stageFindingCount = stageFindings.filter(f => f.severity !== 'info').length, stageSafety = stageFindings.some(f => f.severity === 'safety');
+  const stageSafety = stageFindings.filter(f => f.severity === 'safety').length, stageRules = stageFindings.filter(f => f.severity === 'rule').length;
+  const leaveWalk = () => { if (walkFrom === 'build') { clearRouteTools(); setRouteMode(false); switchTool('select'); } setViewMode('topDown'); };
   return <SafeAreaView edges={['top', 'bottom', 'left', 'right']} style={styles.screen}>
     <EditorSheet title="Close stage" visible={pendingExit !== null && !allowExit} close={() => setPendingExit(null)}>
       <View style={ui.panel}>
         <Text style={styles.title}>{saving ? 'SAVE IN PROGRESS' : dirty ? 'UNSAVED CHANGES' : 'STAGE SAVED'}</Text>
         <Text>{dirty ? 'Save your work before closing, or discard the changes.' : 'Your stage is saved on this device.'}</Text>
         <Button title="Keep editing" onPress={() => setPendingExit(null)} />
-        <Button title={saving ? 'Saving...' : 'Save'} disabled={saving || !dirty} onPress={() => void save()} />
+        <Button title={saving ? 'Saving…' : 'Save'} disabled={saving || !dirty} onPress={() => void save()} />
         {saveMessage && saveMessage !== 'Saved on this device.' && <ErrorState title="Stage could not be saved." detail={saveMessage} />}
         <Button title={dirty ? 'Discard changes and close' : 'Close stage'} danger={dirty} disabled={saving} onPress={() => setAllowExit(true)} />
       </View>
     </EditorSheet>
     <EditorSheet title="Stage name" visible={editingName} close={() => setEditingName(false)}>
-      <View style={ui.panel}><TextInput accessibilityLabel="Stage name" autoFocus style={ui.input} value={name} maxLength={100} onChangeText={setName} onSubmitEditing={() => setEditingName(false)} /><Text>Use Save in Stage Designer to persist the name.</Text></View>
+      <View style={ui.panel}><TextInput accessibilityLabel="Stage name" autoFocus style={ui.input} value={name} maxLength={100} onChangeText={setName} onSubmitEditing={() => setEditingName(false)} /><Text>The new name is kept when you save the stage.</Text></View>
     </EditorSheet>
     <View style={styles.topbar}>
       <Button title="Back" displayTitle={"\u2039"} compact disabled={saving || dragging} onPress={() => previewing ? (setPreview(null), setDiscoveryPreview(false)) : router.dismissTo({ pathname: '/match', params: { id: initial.matchId } })} />
-      <View style={{ flex: 1, minWidth: 0 }}><Pressable accessibilityRole="button" accessibilityLabel="Edit stage name" accessibilityState={{ disabled: previewing }} style={{ minHeight: 44, justifyContent: 'center' }} disabled={previewing} onPress={() => setEditingName(true)}><Text numberOfLines={1} style={styles.name}>{name || 'Untitled stage'}</Text></Pressable><Text accessibilityLiveRegion="polite" style={[styles.status, { color: dirty ? colors.warning : colors.accent }]}>{dirty ? 'UNSAVED' : 'SAVED'}</Text></View>
-      {!previewing && <Button title={saving ? 'Saving...' : 'Save'} accent compact disabled={saving || dragging} onPress={() => void save()} />}
+      <Pressable accessibilityRole="button" accessibilityLabel="Edit stage name" accessibilityState={{ disabled: previewing }} disabled={previewing} onPress={() => setEditingName(true)}
+        style={({ pressed }) => [styles.nameButton, pressed && styles.pressed]}>
+        <Text numberOfLines={2} style={styles.name}>{name || 'Untitled stage'}</Text>
+        {!previewing && <Text style={styles.pencil}>{'\u270e'}</Text>}
+      </Pressable>
+      {!previewing && <>
+        <Button title="Undo" displayTitle={'\u21b6'} compact disabled={dragging || saving || !documentHistory.canUndo} onPress={undoEdit} />
+        <Button title="Redo" displayTitle={'\u21b7'} compact disabled={dragging || saving || !documentHistory.canRedo} onPress={redoEdit} />
+        {/* Orange only when there is something to save; saved reads as a quiet, disabled state. */}
+        <Button title={saving ? 'Saving…' : dirty ? 'Save' : 'Saved'} displayTitle={saving ? 'SAVING…' : dirty ? 'SAVE' : 'SAVED \u2713'} accent={dirty && !saving} compact
+          disabled={saving || dragging || !dirty} onPress={() => void save()} />
+      </>}
     </View>
     {!!saveMessage && saveMessage !== 'Saved on this device.' && <View style={styles.controls}><Text style={styles.error}>Stage could not be saved.</Text><Button title="Save error details" onPress={() => setPanel('saveError')} /></View>}
     {<View style={styles.controls}>
-      <Button title="BUILD" label="Build the stage" active={!routeMode} disabled={dragging || previewing} onPress={() => { clearRouteTools(); setRouteMode(false); setPanel(null); setViewMode('topDown'); switchTool('select'); }} />
-      <Button title="PLAN" label="Plan the route" active={routeMode && viewMode !== 'eye'} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); enterRoute(); }} />
-      <Button title="WALK" label="Walk the route at eye level" active={routeMode && viewMode === 'eye'} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); clearRouteTools(); if (!routeMode) enterRoute(); setViewMode('eye'); }} />
+      <Button title={words.steps.build} label="Build the stage" active={!routeMode} disabled={dragging || previewing} onPress={() => { clearRouteTools(); setRouteMode(false); setPanel(null); setViewMode('topDown'); switchTool('select'); }} />
+      <Button title={words.steps.plan} label="Plan the route" active={routeMode && viewMode !== 'eye'} disabled={dragging || previewing} onPress={() => { switchTool('select'); setPanel(null); enterRoute(); }} />
+      <Button title={words.steps.walk} label="Walk the route at eye level" active={routeMode && viewMode === 'eye'} disabled={dragging || previewing} onPress={() => {
+        if (viewMode !== 'eye') setWalkFrom(routeMode ? 'plan' : 'build');
+        switchTool('select'); setPanel(null); clearRouteTools(); if (!routeMode) enterRoute(); setViewMode('eye'); }} />
     </View>}
-    {!routeMode && !previewing && <View style={styles.controls}><Button title={stageFindingCount ? `STAGE CHECK · ${stageFindingCount}${stageSafety ? ' SAFETY' : ''}` : 'STAGE CHECK'} danger={stageSafety} disabled={dragging} onPress={() => setPanel('check')} /></View>}
+    {!routeMode && !previewing && <View style={styles.controls}><Button title={['STAGE CHECK', stageSafety && `${stageSafety} SAFETY`, stageRules && `${stageRules} RULE`].filter(Boolean).join(SEP)} danger={stageSafety > 0} disabled={dragging} onPress={() => setPanel('check')} /></View>}
     {routeMode && !previewing && viewMode !== 'eye' && <View style={styles.controls}>
       <Button title="PATH" label="Draw or edit the path" active={routeEditing} disabled={dragging} onPress={() => { const on = !routeEditing; clearRouteTools(); setViewMode('topDown'); setRouteEditing(on); setPanel(null); }} />
       <Button title="ENGAGE" label="Assign engagements" active={engageMode} disabled={dragging} onPress={() => { const on = !engageMode; clearRouteTools(); setViewMode('topDown'); setEngageMode(on); setPanel(null); }} />
       <Button title="REVIEW" label="Review coverage" active={reviewMode} disabled={dragging} onPress={() => { const on = !reviewMode; clearRouteTools(); setViewMode('topDown'); setReviewMode(on); setPanel(null); }} />
-      <Button title="AREAS" label="Draw firing areas" active={areaMode} disabled={dragging} onPress={() => { const on = !areaMode; clearRouteTools(); setViewMode('topDown'); setAreaMode(on); setAreaId(on ? firingAreas[0]?.id ?? null : null); setPanel(null); }} />
+      <Button title="AREAS" label="Draw shooting areas" active={areaMode} disabled={dragging} onPress={() => { const on = !areaMode; clearRouteTools(); setViewMode('topDown'); setAreaMode(on); setAreaId(on ? firingAreas[0]?.id ?? null : null); setPanel(null); }} />
     </View>}
     {routeMode && areaMode && !previewing && <Text accessibilityLiveRegion="polite" style={[styles.status, styles.routeNote]}>{areaDraft
       ? `NEW AREA · ${areaDraft.length} ${areaDraft.length === 1 ? 'corner' : 'corners'} · tap the next corner${areaDraft.length >= 3 ? ', or FINISH' : ''}`
-      : areaNote || `FIRING AREAS · ${firingAreas.length} · ${firingAreas.length ? 'tap an area to select it, drag its corners to adjust' : 'NEW AREA or FROM FAULT LINES, then adjust'}`}</Text>}
+      : areaNote || `${words.shootingAreas.toUpperCase()} · ${firingAreas.length} · ${firingAreas.length ? 'tap an area to select it, drag its corners to adjust' : 'NEW AREA or FROM FAULT LINES, then adjust'}`}</Text>}
     {routeMode && !reviewMode && !areaMode && !previewing && viewMode !== 'eye' && !meaningfulRoute(plan.route) && <Text style={[styles.status, styles.routeNote]}>{'NO ROUTE YET\n' + (firingAreas.length ? 'AUTO-PLAN finds the fewest legal positions, or draw the path with PATH.' : 'Draw where competitors may shoot with AREAS, then AUTO-PLAN. Or draw the path with PATH.')}</Text>}
-    {routeMode && !reviewMode && !areaMode && !previewing && viewMode !== 'eye' && meaningfulRoute(plan.route) && <Text style={[styles.status, styles.routeNote]}>ROUTE{'\n'}{formatYards(routeEvaluation?.distance ?? 0)} {'\u2022'} {plan.route?.positions.length} {plan.route?.positions.length === 1 ? 'waypoint' : 'waypoints'} {'\u2022'} {coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))}</Text>}
+    {routeMode && !reviewMode && !areaMode && !previewing && viewMode !== 'eye' && meaningfulRoute(plan.route) && <Text style={[styles.status, styles.routeNote]}>ROUTE{'\n'}{[formatYards(routeEvaluation?.distance ?? 0), `${plan.route?.positions.length} ${plan.route?.positions.length === 1 ? 'position' : 'positions'}`, coverageText(routeTargetCoverage(stage.objects.filter(isEngageable).map(o => o.id), plan.route, routeEvaluation?.engagementAnalysis?.coveredTargetIds))].join(SEP)}</Text>}
     <View style={styles.canvas} onLayout={({ nativeEvent }) => setCanvasSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
-      {viewMode === '25d' ? <Stage25D stage={stage} selectedId={selectedId} back={() => setViewMode('topDown')} /> :
-        viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={activeRuleset(targetFamily)} onExit={() => setViewMode('topDown')} /> :
+      {viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={activeRuleset(targetFamily)} onExit={leaveWalk} /> :
         viewMode === '3d' ? <Stage3DView stage={stage} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
           onSelect={id => { if (!routeMode) setSelectedId(id); }} onExit={() => setViewMode('topDown')}
           onMoveStart={() => onDragging(true)} onMoveEnd={() => onDragging(false)}
@@ -418,34 +443,35 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
             if (!assignmentMode || !positionId) return;
             setPlan(current => current.route ? { ...current, route: toggleRouteTarget(current.route, stage, positionId, id, assignmentMode) } : current);
           }, layers: routeEditing || engageMode || reviewMode ? { ...layers, path: true, waypoints: true, nodes: false, windows: false, arrows: 'OFF' as const } : layers, selectedNodeId: nodeId, editing: routeEditing && !engageMode, onNodeSelect: (id, node) => { setPositionId(id); setNodeId(node); setPanel('engagement'); }, route: plan.route, selectedId: positionId, onSelect: id => { setPositionId(id); setNodeId(null); }, onChange: changeRoute, onDragging } : undefined}
-          onLongPress={!routeMode && !previewing ? (point, at) => setRadial({ at, point }) : undefined}
+          onLongPress={!routeMode && !previewing ? (point, at) => { setHoldUsed(true); setRadial({ at, point }); } : undefined}
           onSelect={setSelectedId} onDragging={onDragging} setStage={setStage} />}
     {!previewing && !routeMode && viewMode === 'topDown' && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && <View style={styles.modeOverlay}>
-      <View style={styles.readout}><Text numberOfLines={2} style={[styles.title, { flex: 1 }]}>{tool === 'target' ? (placement?.noShoot ? 'NO-SHOOT / ' : '') + (targetPreset(placement?.id ?? '')?.name ?? '') : tool === 'wall' ? 'WALL' : 'FAULT LINE'}</Text><Button title="DONE" compact disabled={dragging} onPress={() => switchTool('select')} /></View>
-      {tool === 'target' ? <Text>Tap to place</Text> : <><Text>{draft ? formatYards(segmentMetrics(draft.start, draft.end).length) + ' \u2022 ' + segmentMetrics(draft.start, draft.end).angle.toFixed(1) + '\u00b0' : 'Tap start, then drag or tap endpoint'}</Text><View style={styles.controls}><Button title={snapping.enabled ? 'SNAP ON' : 'SNAP OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} /><Button title="UNDO SEGMENT" disabled={dragging || !chain.length} onPress={undoSegment} />{draft && <Button title="Cancel Draft" disabled={dragging} onPress={() => updateDraft(null)} />}</View></>}
+      <View style={styles.readout}><Text numberOfLines={2} style={[styles.title, { flex: 1 }]}>{tool === 'target' ? (placement?.noShoot ? 'NO-SHOOT' + SEP : '') + (targetPreset(placement?.id ?? '')?.name ?? '') : tool === 'wall' ? 'WALL' : 'FAULT LINE'}</Text><Button title={words.done} compact disabled={dragging} onPress={() => switchTool('select')} /></View>
+      {tool === 'target' ? <Text>Tap to place</Text> : <><Text>{draft ? formatYards(segmentMetrics(draft.start, draft.end).length) + SEP + segmentMetrics(draft.start, draft.end).angle.toFixed(1) + '\u00b0' : 'Tap start, then drag or tap endpoint. Undo (top) takes back the last segment.'}</Text><View style={styles.controls}><Button title={snapping.enabled ? 'SNAP ON' : 'SNAP OFF'} disabled={dragging} onPress={() => setSnapping(s => ({ ...s, enabled: !s.enabled }))} />{draft && <Button title="Cancel draft" disabled={dragging} onPress={() => updateDraft(null)} />}</View></>}
     </View>}
-    {viewMode === 'topDown' && !radial && <View style={{ position: 'absolute', top: 8, right: 8 }}><Button title="Fit" compact disabled={dragging} onPress={() => setViewport(fitViewport())} /></View>}
-    {!previewing && !radial && !routeEditing && !engageMode && !reviewMode && !areaMode && !addingPoint && !assignmentMode && viewMode !== '25d' && viewMode !== 'eye' && !(tool === 'target' || tool === 'wall' || tool === 'faultLine') &&
+    {viewMode === 'topDown' && !radial && <View style={{ position: 'absolute', top: 8, right: 8 }}><Button title="Fit" label="Fit the stage" compact disabled={dragging} onPress={() => setViewport(fitViewport())} /></View>}
+    {!previewing && !radial && !routeEditing && !engageMode && !reviewMode && !areaMode && !addingPoint && !assignmentMode && viewMode !== 'eye' && !(tool === 'target' || tool === 'wall' || tool === 'faultLine') &&
       <View style={styles.viewSwitch} accessibilityRole="radiogroup" accessibilityLabel="View">
-        {([['topDown', '2D', 'Plan view'], ['3d', '3D', '3D view'], ['eye', 'EYE', 'Eye-level view']] as const).map(([mode, title, label]) =>
+        {/* Eye level is WALK (step bar), not a third view here. */}
+        {([['topDown', words.views.planButton, words.views.plan], ['3d', words.views.threeDButton, words.views.threeD]] as const).map(([mode, title, label]) =>
           <Button key={mode} title={title} label={label} compact active={viewMode === mode} disabled={dragging} onPress={() => { setViewMode(mode); setPanel(null); }} />)}
       </View>}
     {!previewing && routeMode && engageMode && selectedManualEngagement && !dragging && <View style={styles.context}>
-      <Text>{selectedManualEngagement.anchor.kind === 'waypoint' && plan.route ? 'Engagement ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement'} / {targetLabel(stage, selectedManualEngagement.targetId)}</Text>
+      <Text>{(selectedManualEngagement.anchor.kind === 'waypoint' && plan.route ? 'Engagement ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement') + SEP + targetLabel(stage, selectedManualEngagement.targetId)}</Text>
       <Button title="Edit engagement" onPress={() => setPanel('manualEdit')} />
     </View>}
-    {!previewing && routeMode && addingPoint && <View style={styles.context}><Text>ADD WAYPOINT / tap the canvas</Text><Button title="Cancel add waypoint" onPress={() => setAddingPoint(false)} /></View>}
-    {!previewing && routeMode && !engageMode && !reviewMode && !areaMode && selectedWaypoint && !addingPoint && !assignmentMode && <View style={styles.context}><Button title={'WAYPOINT ' + (plan.route!.positions.indexOf(selectedWaypoint) + 1)} onPress={() => setPanel('waypoint')} /></View>}
+    {!previewing && routeMode && addingPoint && <View style={styles.context}><Text>{'ADD POSITION' + SEP + 'tap the canvas'}</Text><Button title="Cancel add position" onPress={() => setAddingPoint(false)} /></View>}
+    {!previewing && routeMode && !engageMode && !reviewMode && !areaMode && selectedWaypoint && !addingPoint && !assignmentMode && <View style={styles.context}><Button title={positionTitle(plan.route!.positions.indexOf(selectedWaypoint))} onPress={() => setPanel('waypoint')} /></View>}
     {!previewing && routeMode && assignmentMode && <View style={styles.context}>
-      <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label} / TAP TO TOGGLE {assignmentMode.toUpperCase()} TARGETS</Text>
+      <Text style={styles.status}>{plan.route?.positions.find(p => p.id === positionId)?.label + SEP + `TAP TO TOGGLE ${assignmentMode.toUpperCase()} TARGETS`}</Text>
       <View style={styles.controls}>
         <Button title="Visible targets" active={assignmentMode === 'visible'} onPress={() => setAssignmentMode('visible')} />
         <Button title="Engaged targets" active={assignmentMode === 'engaged'} onPress={() => setAssignmentMode('engaged')} />
-        <Button title="Done" onPress={() => setAssignmentMode(null)} />
+        <Button title={words.done} onPress={() => setAssignmentMode(null)} />
       </View>
     </View>}
     {!previewing && selected && !dragging && !routeMode && viewMode === '3d' && <View style={styles.context}>
-      <View style={styles.readout}><Text style={[styles.status, { flex: 1 }]}>{selectedTitle(selected) + ' · DRAG TO MOVE'}</Text>
+      <View style={styles.readout}><Text style={[styles.status, { flex: 1 }]}>{selectedTitle(selected) + SEP + 'DRAG TO MOVE'}</Text>
         {!(isPaper(selected) && selected.attachment) && <Button title="EDIT" compact onPress={() => setPanel('edit')} />}<Button title="Deselect" compact onPress={() => setSelectedId(null)} /></View>
       <View style={[styles.controls, { paddingTop: 0 }]}>
         {isPaper(selected) && selected.attachment ? <Button title="LAYER" label="Slide, rotate or remove this layer" compact onPress={() => setPanel('layers')} /> : <>
@@ -475,6 +501,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="DELETE" danger disabled={dragging || selected.type === 'start'} onPress={() => setPanel('delete')} />
       </View>}
     </View>}
+    <HoldHint show={!previewing && !routeMode && viewMode === 'topDown' && tool === 'select' && !radial && !selected && !dragging} learned={holdUsed} />
     {radial && viewMode === 'topDown' && !routeMode && !previewing && <RadialAddMenu at={radial.at} bounds={canvasSize} targetFamily={targetFamily}
       onChoose={chooseFromRadial} onClose={() => setRadial(null)} />}
     </View>
@@ -483,21 +510,20 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     <RouteAISheet visible={aiOpen} close={()=>{aiController.close();setAIOpen(false);}} state={aiState} controller={aiController} revision={aiContext.revision} inspect={()=>setAIOpen(false)} apply={()=>{
       return aiController.apply(preview=>aiLatest.current.documentHistory.applyAssistantPreview(preview));
     }} />
-    <View style={[styles.bottomBar, routeMode && routeEditing && { flexWrap: 'wrap' }, (viewMode === '25d' || viewMode === 'eye') && { display: 'none' }, !routeMode && !previewing && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && { display: 'none' }]}>
-      {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered waypoints. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>Route {preview.number} / {preview.label}{preview.personalizedFallback ? ' / Balanced fallback' : ''}</Text><Text>Cyan: path / Thin lines: assigned targets / White: moving reload / R: reload</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode && reviewMode ? <ManualReviewPanel review={manualReview} stage={stage} selectedTargetId={reviewTargetId} selectedEngagementId={manualEngagementId} onlyUnassigned={onlyUnassigned} disabled={dragging}
+    <View style={[styles.bottomBar, routeMode && routeEditing && { flexWrap: 'wrap' }, viewMode === 'eye' && { display: 'none' }, !routeMode && !previewing && (tool === 'target' || tool === 'wall' || tool === 'faultLine') && { display: 'none' }]}>
+      {discoveryPreview ? <View style={{ flex: 1, gap: 4 }}><Text>Amber squares: {discovered?.candidates.length ?? 0} discovered positions. Pan or zoom to inspect.</Text><Button title="Back to planner" onPress={() => setDiscoveryPreview(false)} /></View> : preview ? <View style={{ flex: 1, gap: 4 }}><Text style={styles.status}>{[`Route ${preview.number}`, preview.label, preview.personalizedFallback && 'Balanced fallback'].filter(Boolean).join(SEP)}</Text><Text>{['Cyan: path', 'thin lines: assigned targets', 'white: moving reload', 'R: reload'].join(SEP)}</Text><Button title="Back to results" icon="exit" onPress={() => setPreview(null)} /></View> : routeMode && reviewMode ? <ManualReviewPanel review={manualReview} stage={stage} selectedTargetId={reviewTargetId} selectedEngagementId={manualEngagementId} onlyUnassigned={onlyUnassigned} disabled={dragging}
           onToggle={() => { setOnlyUnassigned(v => !v); if (!onlyUnassigned && manualReview.targets.find(t => t.target.id === reviewTargetId)?.assigned) setReviewTargetId(null); }}
           onSelectTarget={setReviewTargetId} onHighlight={highlightReviewEngagement}
-          onRemove={id => { if (plan.route) changeRoute(deleteManualEngagement(plan.route, id)); }}
-          onUndo={documentHistory.undo} onRedo={documentHistory.redo} canUndo={documentHistory.canUndo} canRedo={documentHistory.canRedo} /> : routeMode && engageMode ? <View style={{ flex: 1, gap: 6 }}>
-          <Text>Drag from a waypoint or the path to a target. Tap an arrow to edit; drag it to change direction.</Text>
-          <View style={styles.controls}><Button title="ENGAGEMENTS" disabled={dragging} onPress={() => setPanel('manualEngagements')} /><Button title="Undo" disabled={dragging || !documentHistory.canUndo} onPress={documentHistory.undo} /><Button title="Redo" disabled={dragging || !documentHistory.canRedo} onPress={documentHistory.redo} /></View>
+          onRemove={id => { if (plan.route) changeRoute(deleteManualEngagement(plan.route, id)); }} /> : routeMode && engageMode ? <View style={{ flex: 1, gap: 6 }}>
+          <Text>Drag from a position or the path to a target. Tap an arrow to edit; drag it to change direction.</Text>
+          <View style={styles.controls}><Button title="ENGAGEMENTS" disabled={dragging} onPress={() => setPanel('manualEngagements')} /></View>
         </View> : routeMode && routeEditing ? <>
-          <Button title="ADD WAYPOINT" active={addingPoint} disabled={dragging} onPress={() => { setAddingPoint(true); setAssignmentMode(null); setPanel(null); }} />
+          <Button title="ADD POSITION" active={addingPoint} disabled={dragging} onPress={() => { setAddingPoint(true); setAssignmentMode(null); setPanel(null); }} />
           <Button title="MOVE" onPress={() => { setAddingPoint(false); setPanel(null); }} />
           <Button title="ORDER" onPress={() => setPanel('order')} />
           <Button title="DELETE" danger disabled={!selectedWaypoint} onPress={() => setPanel('deleteWaypoint')} />
           <Button title="CONNECTION" disabled={!selectedWaypoint} onPress={() => setPanel('waypoint')} />
-          <Button title="DONE" onPress={() => { setRouteEditing(false); setAssignmentMode(null); }} />
+          <Button title={words.done} onPress={() => { setRouteEditing(false); setAssignmentMode(null); }} />
         </> : routeMode && areaMode ? (areaDraft ? <>
           <Button title="FINISH AREA" accent disabled={dragging || areaDraft.length < 3} onPress={finishArea} />
           <Button title="UNDO CORNER" disabled={dragging || !areaDraft.length} onPress={() => setAreaDraft(areaDraft.slice(0, -1))} />
@@ -507,8 +533,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           <Button title="FROM FAULT LINES" label="Draft the shooting area from the fault lines" disabled={dragging || firingAreas.length >= 32 || !stage.objects.some(o => o.type === 'faultLine')} onPress={addFromFaultLines} />
           <Button title="WHOLE BAY" label="Add the whole bay as one area" disabled={dragging || firingAreas.length >= 32} onPress={() => { addWholeBay(); setAreaNote(''); }} />
           <Button title="DELETE AREA" danger disabled={dragging || !areaId} onPress={() => { if (areaId) changeRules(rules => removeArea(rules, areaId)); setAreaId(null); }} />
-          <Button title="UNDO" label="Undo the last change" disabled={dragging || !documentHistory.canUndo} onPress={documentHistory.undo} />
-          <Button title="DONE" disabled={dragging} onPress={() => { setAreaMode(false); setAreaId(null); }} />
+          <Button title={words.done} disabled={dragging} onPress={() => { setAreaMode(false); setAreaId(null); }} />
         </>) : routeMode ? <>
         <Button title="AUTO-PLAN" label="Plan the route automatically" accent={!meaningfulRoute(plan.route)} onPress={() => { setPlannerOrigin('planV2'); setPanel('planV2'); }} />
         <Button title="ANALYZE" label="Time, ammunition and coverage" onPress={() => setPanel('summary')} />
@@ -520,9 +545,9 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="&#8226;&#8226;&#8226;" label="Stage tools" compact disabled={dragging} onPress={() => setPanel('more')} />
       </>}
     </View>
-    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ layers: 'Layers', check: 'Stage check', settings: 'Stage Settings', aiPlan: 'MOVEMENT OPTIMIZER', planV2: 'PLAN ROUTE', edit: 'Edit', plan: 'Plan', view: routeMode ? 'ROUTE LAYERS' : 'View', snap: 'Grid & snap', summary: 'ANALYSIS', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset Stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route Settings', waypoint: 'Waypoint', order: 'Waypoint order', resetRoute: 'Reset Route', deleteWaypoint: 'Delete waypoint', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
+    <EditorSheet title={panel === 'edit' && selected ? objectLabel(selected.type) : ({ layers: 'Layers', check: 'Stage check', settings: words.stageSize, aiPlan: 'Movement optimizer', planV2: 'Plan route', edit: 'Edit', plan: 'Plan', view: routeMode ? 'Route layers' : 'View settings', snap: 'Grid and snap', summary: 'Analysis', assign: 'Targets', reload: 'Reload', delete: 'Delete object', reset: 'Reset stage', more: routeMode ? 'Route tools' : 'Stage tools', draw: 'Draw', rules: 'Route settings', waypoint: words.position, order: 'Position order', resetRoute: 'Reset route', deleteWaypoint: 'Delete position', engagement: 'Engagement', saveError: 'Save error', manualEngagements: 'Engagements', manualTarget: 'Reassign target', manualEdit: 'Edit engagement', manualCreate: 'Create engagement' }[panel ?? 'edit'])} visible={panel !== null && panel !== 'aiPlan' && panel !== 'planV2'} close={() => setPanel(null)}>
       {panel === 'manualEdit' && selectedManualEngagement && plan.route && <>
-            <Text>{selectedManualEngagement.anchor.kind === 'waypoint' ? 'Waypoint ' + (plan.route.positions.findIndex(p => p.id === (selectedManualEngagement.anchor.kind === 'waypoint' ? selectedManualEngagement.anchor.waypointId : '')) + 1) + ' / ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement'} / {targetLabel(stage, selectedManualEngagement.targetId)}</Text>
+            <Text>{(selectedManualEngagement.anchor.kind === 'waypoint' ? positionTitle(plan.route.positions.findIndex(p => p.id === (selectedManualEngagement.anchor.kind === 'waypoint' ? selectedManualEngagement.anchor.waypointId : ''))) + SEP + 'engagement ' + manualEngagementLabel(plan.route, selectedManualEngagement) : 'Route engagement') + SEP + targetLabel(stage, selectedManualEngagement.targetId)}</Text>
             <View style={styles.controls}>
               <Button title="Reassign target" disabled={dragging} onPress={() => setPanel('manualTarget')} />
               <Button title="Turn left" disabled={dragging} onPress={() => plan.route && changeRoute(editManualEngagement(stage, plan.route, selectedManualEngagement.id, { direction: selectedManualEngagement.direction - Math.PI / 12 }))} />
@@ -534,36 +559,36 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
           </>}
       {panel === 'manualCreate' && plan.route && <>
         <Text>Choose an anchor, then a target. Route sections use their midpoint, including rounded sections.</Text>
-        {plan.route.positions.map((p,i)=><Button key={p.id} title={'Anchor: Waypoint '+(i+1)} active={creationAnchor?.kind==='waypoint' && creationAnchor.waypointId===p.id} onPress={()=>setCreationAnchor({kind:'waypoint',waypointId:p.id})} />)}
+        {plan.route.positions.map((p,i)=><Button key={p.id} title={'Anchor: '+positionTitle(i)} active={creationAnchor?.kind==='waypoint' && creationAnchor.waypointId===p.id} onPress={()=>setCreationAnchor({kind:'waypoint',waypointId:p.id})} />)}
         {routeSections(stage,plan.route).map((section,i)=><Button key={section.id} title={'Anchor: Route section '+(i+1)+' midpoint'} active={creationAnchor?.kind==='section' && creationAnchor.sectionId===section.id} onPress={()=>setCreationAnchor({kind:'section',sectionId:section.id,fraction:.5})} />)}
         {creationAnchor && stage.objects.filter(isEngageable).map(target=><Button key={target.id} title={'Create engagement to '+targetLabel(stage,target.id)} onPress={()=>{ if(plan.route) changeRoute(addManualEngagement(stage,plan.route,{id:'engagement-'+uuid.v4(),anchor:creationAnchor,targetId:target.id,direction:0})); setCreationAnchor(null); setPanel('manualEngagements'); }} />)}
       </>}
       {panel === 'manualEngagements' && plan.route && <>
         <Button title="Create engagement without dragging" onPress={()=>{setCreationAnchor(null);setPanel('manualCreate');}} />
-        {!plan.route.manualEngagements?.length && <Text>No manual engagements. Drag from a waypoint or path to a target in ENGAGE.</Text>}
-        {plan.route.manualEngagements?.map(e => <Button key={e.id} title={(e.anchor.kind === 'waypoint' ? 'Waypoint ' + (plan.route!.positions.findIndex(p => p.id === (e.anchor.kind === 'waypoint' ? e.anchor.waypointId : '')) + 1) + ' / ' + manualEngagementLabel(plan.route!, e) : 'Route engagement') + ' / ' + targetLabel(stage, e.targetId)} active={e.id === manualEngagementId} onPress={() => { setManualEngagementId(e.id); setPanel('manualEdit'); }} />)}
+        {!plan.route.manualEngagements?.length && <Text>No manual engagements. Drag from a position or the path to a target in ENGAGE.</Text>}
+        {plan.route.manualEngagements?.map(e => <Button key={e.id} title={(e.anchor.kind === 'waypoint' ? positionTitle(plan.route!.positions.findIndex(p => p.id === (e.anchor.kind === 'waypoint' ? e.anchor.waypointId : ''))) + SEP + 'engagement ' + manualEngagementLabel(plan.route!, e) : 'Route engagement') + SEP + targetLabel(stage, e.targetId)} active={e.id === manualEngagementId} onPress={() => { setManualEngagementId(e.id); setPanel('manualEdit'); }} />)}
       </>}
       {panel === 'manualTarget' && selectedManualEngagement && plan.route && <>
         {stage.objects.filter(isEngageable).map(target => <Button key={target.id} title={targetLabel(stage, target.id)} active={target.id === selectedManualEngagement.targetId} onPress={() => { if (plan.route) changeRoute(editManualEngagement(stage, plan.route, selectedManualEngagement.id, { targetId: target.id })); setPanel('manualEdit'); }} />)}
       </>}
       {panel === 'layers' && selected && <LayerPanel stage={stage} selectedId={selected.id} setStage={setStage} onSelect={setSelectedId} />}
-      {panel === 'saveError' && <ErrorState title="Stage could not be saved. Try Save again after reviewing the details." detail={saveMessage} />}
+      {panel === 'saveError' && <ErrorState title="Stage could not be saved. Try SAVE again after reviewing the details." detail={saveMessage} />}
       {panel === 'engagement' && plan.route && <EngagementDetails stage={stage} route={plan.route} nodeId={nodeId} onChange={changeRoute} />}
       {panel === 'rules' && plan.route && <>
         <EngagementSettings stage={stage} initial={plan.route.engagementRules} family={targetFamily} onCancel={() => setPanel(plannerOrigin)} onApply={rules => { if (plan.route) changeRoute({ ...plan.route, engagementRules: rules }); setPanel(plannerOrigin); }} /></>}
-      {panel === 'resetRoute' && <><Text>Clear the route, waypoints, reloads and route rules?</Text><Button title="Cancel" onPress={() => setPanel(null)} /><Button title="Reset route" danger onPress={() => { changeRoute(createRoute('route-' + uuid.v4())); setPositionId(null); setPanel(null); }} /></>}
+      {panel === 'resetRoute' && <><Text>Clear the route, positions, reloads and route rules?</Text><Button title="Cancel" onPress={() => setPanel(null)} /><Button title="Reset route" danger onPress={() => { changeRoute(createRoute('route-' + uuid.v4())); setPositionId(null); setPanel(null); }} /></>}
       {panel === 'waypoint' && selectedWaypoint && plan.route && <>
-        <Text>WAYPOINT {plan.route.positions.indexOf(selectedWaypoint) + 1}</Text>
-        <Text>Select a waypoint to edit its incoming connection. Drag diamonds; tap + to insert bends.</Text>
+        <Text style={styles.title}>{positionTitle(plan.route.positions.indexOf(selectedWaypoint))}</Text>
+        <Text>Select a position to edit its incoming connection. Drag diamonds; tap + to insert bends.</Text>
         {(() => {
           const index=plan.route.positions.indexOf(selectedWaypoint), origin=index ? plan.route.positions[index-1] : stage.objects.find(o=>o.type==='start');
-          if(!origin) return <Text>Add a previous waypoint to create a connection.</Text>;
+          if(!origin) return <Text>Add a previous position to create a connection.</Text>;
           const connection=plan.route.connections?.find(c=>c.fromId===origin.id && c.toId===selectedWaypoint.id) ?? {fromId:origin.id,toId:selectedWaypoint.id,style:'STRAIGHT' as const,bends:[]};
           return <><View style={styles.controls}>{(['STRAIGHT','ROUNDED'] as const).map(style=><Button key={style} title={style} active={connection.style===style} onPress={()=>plan.route && changeRoute(setConnection(plan.route,{...connection,style}))} />)}</View>
           {connection.bends.map((bend,i)=><View key={'move-'+bend.id}><Text>{'Move bend '+(i+1)+' (one inch)'}</Text><View style={styles.controls}>{(['Left','Right','Up','Down'] as const).map(direction=><Button key={direction} title={'Bend '+(i+1)+' '+direction} onPress={()=>plan.route && changeRoute(setConnection(plan.route,{...connection,bends:connection.bends.map(b=>b.id===bend.id?{...b,position:{...b.position,x:Math.max(0,Math.min(stage.stage.width,b.position.x+(direction==='Left'?-1:direction==='Right'?1:0))),y:Math.max(0,Math.min(stage.stage.depth,b.position.y+(direction==='Up'?-1:direction==='Down'?1:0)))}}:b)}))} />)}</View></View>)}
           {connection.bends.map((bend,i)=><Button key={bend.id} title={'Delete bend '+(i+1)} danger onPress={()=>plan.route && changeRoute(setConnection(plan.route,{...connection,bends:connection.bends.filter(b=>b.id!==bend.id)}))} />)}</>;
         })()}
-        <TextInput accessibilityLabel="Waypoint label" style={ui.input} value={selectedWaypoint.label} maxLength={30} onChangeText={label => { if (plan.route) changeRoute({ ...plan.route, positions: plan.route.positions.map(p => p.id === positionId ? { ...p, label } : p) }); }} />
+        <TextInput accessibilityLabel="Position label" style={ui.input} value={selectedWaypoint.label} maxLength={30} onChangeText={label => { if (plan.route) changeRoute({ ...plan.route, positions: plan.route.positions.map(p => p.id === positionId ? { ...p, label } : p) }); }} />
         <Text>{formatYards(routeEvaluation?.segments.find(s => s.toId === positionId)?.distance ?? 0)} from previous</Text>
         <Text>{formatYards(routeEvaluation?.segments.find(s => s.fromId === positionId)?.distance ?? 0)} to next</Text>
         <Text>{selectedWaypoint.engagedTargetIds.length} targets assigned{selectedWaypoint.movingTargetIds?.length ? ` (${selectedWaypoint.movingTargetIds.length} while moving)` : ''}</Text>
@@ -572,11 +597,10 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         <Button title="RELOAD" onPress={() => setPanel('reload')} />
         <Button title="DELETE" danger onPress={() => setPanel('deleteWaypoint')} />
       </>}
-      {panel === 'deleteWaypoint' && <><Text>Delete this waypoint and its reload assignment?</Text><Button title="Cancel" onPress={() => setPanel('waypoint')} /><Button title="Delete waypoint" danger onPress={() => { if (plan.route) { changeRoute(retainConnections({ ...plan.route, positions: plan.route.positions.filter(p => p.id !== positionId), reloads: plan.route.reloads.filter(r => r.positionId !== positionId) })); setPositionId(null); setPanel(null); } }} />
+      {panel === 'deleteWaypoint' && <><Text>Delete this position and its reload assignment?</Text><Button title="Cancel" onPress={() => setPanel('waypoint')} /><Button title="Delete position" danger onPress={() => { if (plan.route) { changeRoute(retainConnections({ ...plan.route, positions: plan.route.positions.filter(p => p.id !== positionId), reloads: plan.route.reloads.filter(r => r.positionId !== positionId) })); setPositionId(null); setPanel(null); } }} />
       </>}
       {panel === 'order' && plan.route && <>
-        <Text>WAYPOINT ORDER</Text>
-        {plan.route.positions.map((p, i) => <View key={p.id}><Button title={String(i + 1) + ' ' + p.label} onPress={() => { setPositionId(p.id); setPanel('waypoint'); }} /><View style={styles.controls}><Button title="Earlier" disabled={!i} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, -1))} /><Button title="Later" disabled={i === plan.route!.positions.length - 1} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, 1))} /></View></View>)}
+        {plan.route.positions.map((p, i) => <View key={p.id}><Button title={String(i + 1) + SEP + p.label} onPress={() => { setPositionId(p.id); setPanel('waypoint'); }} /><View style={styles.controls}><Button title="Earlier" disabled={!i} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, -1))} /><Button title="Later" disabled={i === plan.route!.positions.length - 1} onPress={() => plan.route && changeRoute(reorderPosition(plan.route, p.id, 1))} /></View></View>)}
       </>}
       {panel === 'draw' && <>
         <Button title="WALL" onPress={() => { setPanel(null); switchTool('wall'); }} />
@@ -586,31 +610,26 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       {panel === 'more' && <>
         {routeMode ? <>
           <Button title="Ask Route AI" onPress={() => { setAIOpen(true); setPanel(null); }} />
-          <Button title="Route Settings" onPress={() => setPanel('rules')} />
+          <Button title="Route settings" onPress={() => setPanel('rules')} />
           <Button title="Loadout" onPress={() => { setPlanSection('loadout'); setPanel('plan'); }} />
-          <Button title="Target Rounds" onPress={() => { setPlanSection('targets'); setPanel('plan'); }} />
-          <Button title="Overlay Layers" onPress={() => setPanel('view')} />
+          <Button title="Target rounds" onPress={() => { setPlanSection('targets'); setPanel('plan'); }} />
+          <Button title="Route layers" onPress={() => setPanel('view')} />
           <Button title="Movement-only optimizer (older)" onPress={() => { setPlannerOrigin('aiPlan'); setPanel('aiPlan'); }} />
-          <Button title="Reset Route" danger onPress={() => setPanel('resetRoute')} />
+          <Button title="Reset route" danger onPress={() => setPanel('resetRoute')} />
         </> : <>
+          {/* Views are on the canvas (2D · 3D) and in the step bar (WALK); undo and redo are in the header. */}
           <Text style={styles.title}>STAGE</Text>
-          <Button title="Stage Dimensions" onPress={() => setPanel('settings')} />
-          <Button title="Grid & Snapping" onPress={() => setPanel('snap')} />
-          <Button title="3D view" onPress={() => { setViewMode('3d'); setPanel(null); }} />
-          <Button title="Eye-level view" onPress={() => { setViewMode('eye'); setPanel(null); }} />
-          <Text style={styles.title}>PLANNING</Text><Button title="Loadout" onPress={() => { setPlanSection('loadout'); setPanel('plan'); }} /><Button title="Target Rounds" onPress={() => { setPlanSection('targets'); setPanel('plan'); }} /><Text style={styles.title}>VIEW</Text>
-
-
+          <Button title={words.stageSize} onPress={() => setPanel('settings')} />
+          <Button title="Grid and snap" onPress={() => setPanel('snap')} />
+          <Button title="Import stage diagram" onPress={() => { setPanel(null); setImportOpen(true); }} />
+          <Text style={styles.title}>PLANNING</Text><Button title="Loadout" onPress={() => { setPlanSection('loadout'); setPanel('plan'); }} /><Button title="Target rounds" onPress={() => { setPlanSection('targets'); setPanel('plan'); }} />
+          <Text style={styles.title}>VIEW</Text>
+          <Button title="View settings" onPress={() => setPanel('view')} />
         </>}
-        {!routeMode && <Button title="Import stage diagram" onPress={() => { setPanel(null); setImportOpen(true); }} />}
-        {!routeMode && <Button title="Overlay / View Settings" onPress={() => setPanel('view')} />}
         <Button title="Zoom out" disabled={viewport.zoom <= MIN_ZOOM} onPress={() => zoom(1 / 1.25)} />
         <Text testID="stage-zoom">{Math.round(viewport.zoom * 100)}%</Text>
         <Button title="Zoom in" disabled={viewport.zoom >= MAX_ZOOM} onPress={() => zoom(1.25)} />
-        {!routeMode && <Text style={styles.title}>EDIT HISTORY</Text>}
-        <Button title="UNDO EDIT" disabled={!documentHistory.canUndo} onPress={() => { updateDraft(null); setChain([]); documentHistory.undo(); }} />
-        <Button title="REDO EDIT" disabled={!documentHistory.canRedo} onPress={() => { updateDraft(null); setChain([]); documentHistory.redo(); }} />
-        {!routeMode && <><Text style={styles.title}>DANGER</Text><Button title="Reset Stage" danger onPress={() => setPanel('reset')} /></>}
+        {!routeMode && <><Text style={styles.title}>DANGER</Text><Button title="Reset stage" danger onPress={() => setPanel('reset')} /></>}
       </>}
       {panel === 'settings' && <StageSettings stage={stage} route={plan.route} onApply={setStage} onSelect={item => {
         setViewMode('topDown'); setAssignmentMode(null);
@@ -639,32 +658,27 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
       </View>}
       {panel === 'summary' && plan.route && <RouteAnalysis stage={stage} plan={plan} route={plan.route} profile={profile} ruleset={activeRuleset(targetFamily) === 'PCSL' ? 'PCSL' : 'USPSA'} powerFactor={powerFactor} onRouteChange={changeRoute} edit={() => { setRouteEditing(true); setPanel(null); }} />}
       {panel === 'plan' && <>
-        {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to PLAN ROUTE' : 'Back to MOVEMENT OPTIMIZER'} onPress={() => setPanel(plannerOrigin)} />}
-        <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <Button key={section} title={section} active={planSection === section} onPress={() => setPlanSection(section)} />)}</View>
+        {routeMode && <Button title={plannerOrigin === 'planV2' ? 'Back to plan route' : 'Back to movement optimizer'} onPress={() => setPanel(plannerOrigin)} />}
+        <View style={styles.controls}>{(['loadout', 'targets'] as const).map(section => <Button key={section} title={section === 'loadout' ? 'Loadout' : 'Target rounds'} active={planSection === section} onPress={() => setPlanSection(section)} />)}</View>
         {<PlanningPanel section={planSection} plan={plan} stage={stage} onChange={setPlan} />}
       </>}
       {panel === 'view' && routeMode && <>
-        {(['path', 'waypoints', 'nodes', 'windows', 'targetIds', 'grid'] as const).map(key => <Button key={key} title={({ path: 'Route', waypoints: 'Waypoints', nodes: 'Engagement Nodes', windows: 'Moving Windows', targetIds: 'Target IDs', grid: 'Grid' }[key]) + ' ' + (layers[key] ? 'ON' : 'OFF')} onPress={() => setLayers(l => ({ ...l, [key]: !l[key] }))} />)}
-        <Button title={'Target Arrows ' + layers.arrows} onPress={() => setLayers(l => ({ ...l, arrows: l.arrows === 'OFF' ? 'SELECTED' : l.arrows === 'SELECTED' ? 'ALL' : 'OFF' }))} />
+        {(['path', 'waypoints', 'nodes', 'windows', 'targetIds', 'grid'] as const).map(key => <Button key={key} title={({ path: 'Route', waypoints: words.positions, nodes: 'Engagement marks', windows: 'Moving windows', targetIds: 'Target names', grid: 'Grid' }[key]) + SEP + (layers[key] ? 'ON' : 'OFF')} onPress={() => setLayers(l => ({ ...l, [key]: !l[key] }))} />)}
+        <Button title={'Target arrows' + SEP + layers.arrows} onPress={() => setLayers(l => ({ ...l, arrows: l.arrows === 'OFF' ? 'SELECTED' : l.arrows === 'SELECTED' ? 'ALL' : 'OFF' }))} />
       </>}
       {panel === 'view' && !routeMode && <>
-        <View style={styles.controls}>
-          <Button title="Top Down" active={viewMode === 'topDown'} onPress={() => { setViewMode('topDown'); setPanel(null); }} />
-          <Button title="3D" active={viewMode === '3d'} onPress={() => { setViewMode('3d'); setPanel(null); }} />
-          <Button title="Eye level" active={viewMode === 'eye'} onPress={() => { setViewMode('eye'); setPanel(null); }} />
-          <Button title="2.5D" active={viewMode === '25d'} onPress={() => { setViewMode('25d'); setPanel(null); }} />
-        </View>
-        <Button title={'Grid / ' + (gridVisible ? 'ON' : 'OFF')} active={gridVisible} onPress={() => setGridVisible(v => !v)} />
-        <Button title={'Route / ' + (routeVisible ? 'ON' : 'OFF')} active={routeVisible} onPress={() => setRouteVisible(v => !v)} />
+        {/* Plan view and 3D are switched on the canvas; WALK is the eye-level view. */}
+        <Button title={'Grid' + SEP + (gridVisible ? 'ON' : 'OFF')} active={gridVisible} onPress={() => setGridVisible(v => !v)} />
+        <Button title={'Route' + SEP + (routeVisible ? 'ON' : 'OFF')} active={routeVisible} onPress={() => setRouteVisible(v => !v)} />
         {backdrop && <View style={styles.controls}>{([['OFF', 0], ['LIGHT', 0.3], ['HALF', 0.5], ['STRONG', 0.85]] as const).map(([title, value]) =>
-          <Button key={title} title={'Drawing / ' + title} label={'Stage drawing underneath: ' + title.toLowerCase()} active={backdropOpacity === value} onPress={() => setBackdropOpacity(value)} />)}</View>}
-        <Button title="Fit Stage / Reset View" onPress={() => { setViewport(fitViewport()); setViewMode('topDown'); setPanel(null); }} />
-        <Button title="Grid / Snap Settings" onPress={() => setPanel('snap')} />
+          <Button key={title} title={'Drawing' + SEP + title} label={'Stage drawing underneath: ' + title.toLowerCase()} active={backdropOpacity === value} onPress={() => setBackdropOpacity(value)} />)}</View>}
+        <Button title="Fit stage" onPress={() => { setViewport(fitViewport()); setViewMode('topDown'); setPanel(null); }} />
+        <Button title="Grid and snap" onPress={() => setPanel('snap')} />
       </>}
 
-      {panel === 'snap' && <>{!routeMode && <Button title={'Grid ' + (gridVisible ? 'ON' : 'OFF')} onPress={() => setGridVisible(v => !v)} />}<SnapControls value={snapping} onChange={setSnapping} disabled={false} /></>}
+      {panel === 'snap' && <>{!routeMode && <Button title={'Grid' + SEP + (gridVisible ? 'ON' : 'OFF')} onPress={() => setGridVisible(v => !v)} />}<SnapControls value={snapping} onChange={setSnapping} disabled={false} /></>}
       {(panel === 'assign' || panel === 'reload') && plan.route && <>
-        <Button title="Back to waypoint" onPress={() => setPanel('waypoint')} />
+        <Button title="Back to position" onPress={() => setPanel('waypoint')} />
         {!!profileError && <ErrorState title="Profile unavailable. Route timing may be unavailable." detail={profileError} />}
         <RoutePanel onAssign={mode => { setAssignmentMode(mode); setPanel(null); }} section={panel} stage={stage} plan={plan} route={plan.route} selectedId={positionId} onChange={changeRoute} />
       </>}
@@ -685,17 +699,23 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
   </SafeAreaView>;
 }
 
+/**
+ * The editor's button. Buttons read ALL CAPS (the outdoor design); `title` stays in sentence case because it is also
+ * what VoiceOver reads when there is no `label`.
+ */
 function Button({ title, label, onPress, disabled = false, active = false, danger = false, compact = false, accent = false, icon, displayTitle }: { title: string; label?: string; onPress: () => void; disabled?: boolean; active?: boolean; danger?: boolean; compact?: boolean; accent?: boolean; icon?: ToolIconName; displayTitle?: string }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label ?? title} accessibilityState={{ disabled, selected: active }} disabled={disabled}
     style={({ pressed }) => [styles.button, compact && styles.compact, icon && styles.tool, accent && styles.accentButton, active && !icon && styles.activeButton, danger && styles.danger, pressed && styles.pressed, disabled && styles.disabled]} onPress={onPress}>
     {icon && <ToolIcon name={icon} active={active} />}
-    <Text style={[styles.buttonText, icon && styles.toolLabel, accent && styles.accentText, active && (icon ? styles.active : styles.activeText), danger && styles.dangerText]}>{displayTitle ?? title}</Text>
+    <Text style={[styles.buttonText, icon && styles.toolLabel, accent && styles.accentText, active && (icon ? styles.active : styles.activeText), danger && styles.dangerText]}>{(displayTitle ?? title).toUpperCase()}</Text>
   </Pressable>;
 }
 const styles = themed(c => ({
   screen: { flex: 1, backgroundColor: c.background },
   topbar: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: borders.strong, borderColor: c.border },
-  name: { ...typography.section, flex: 1, minWidth: 0, borderBottomWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 0 },
+  nameButton: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { ...typography.section, fontSize: 19, lineHeight: 22, flexShrink: 1, minWidth: 0, color: c.text },
+  pencil: { ...typography.label, fontSize: 20, color: c.muted },
   readout: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12 },
   canvas: { flex: 1, minHeight: 100, marginHorizontal: 0 },
   zoomBar: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 2 },

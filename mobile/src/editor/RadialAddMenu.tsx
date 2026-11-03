@@ -48,6 +48,8 @@ export default function RadialAddMenu({ at, bounds, targetFamily, onChoose, onCl
   onChoose: (choice: RadialChoice) => void; onClose: () => void;
 }) {
   const [family, setFamily] = useState(targetFamily);
+  // Only the match's family unless the shooter asks for the others (IDPA targets stay available there).
+  const [otherFamilies, setOtherFamilies] = useState(false);
   const [category, setCategory] = useState<Category | null>(null);
   const [info, setInfo] = useState<{ preset: TargetPreset; role: TargetRole } | null>(null);
   useEffect(() => { setFamily(targetFamily); }, [targetFamily]);
@@ -78,11 +80,21 @@ export default function RadialAddMenu({ at, bounds, targetFamily, onChoose, onCl
 
   return <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} testID="radial-add-menu">
     <Pressable accessibilityLabel="Close the add menu" onPress={onClose} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#00000055' }} />
-    {/* Family: the match's by default; others are a tap away, as in the old list. */}
-    <View accessibilityRole="radiogroup" accessibilityLabel="Target family" style={{ position: 'absolute', top: 6, left: 6, right: 6, flexDirection: 'row', justifyContent: 'center', gap: 0 }}>
-      {targetFamilies.map((f, i) => <Pressable key={f} accessibilityRole="radio" accessibilityState={{ checked: f === family }} onPress={() => { setFamily(f); setInfo(null); }}
-        style={{ minHeight: 40, minWidth: 72, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: f === family ? colors.text : colors.panel, borderWidth: borders.regular, borderColor: colors.border, marginLeft: i ? -borders.regular : 0 }}>
-        <Text style={{ ...typography.label, fontSize: 16, color: f === family ? colors.background : colors.text }}>{f}</Text></Pressable>)}
+    {/* Family: only the match's. OTHER FAMILIES reveals the switcher; "<family> ONLY" hides it and goes back to the match's family. */}
+    <View style={{ position: 'absolute', top: 6, left: 6, right: 6, flexDirection: 'row', justifyContent: 'center', gap: 0 }}>
+      {otherFamilies ? <>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Target family" style={{ flexDirection: 'row' }}>
+          {targetFamilies.map((f, i) => <Pressable key={f} accessibilityRole="radio" accessibilityState={{ checked: f === family }} onPress={() => { setFamily(f); setInfo(null); }}
+            style={{ minHeight: 40, minWidth: 72, paddingHorizontal: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: f === family ? colors.text : colors.panel, borderWidth: borders.regular, borderColor: colors.border, marginLeft: i ? -borders.regular : 0 }}>
+            <Text style={{ ...typography.label, fontSize: 16, color: f === family ? colors.background : colors.text }}>{f}</Text></Pressable>)}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={'Only ' + targetFamily + ' targets'} onPress={() => { setOtherFamilies(false); setFamily(targetFamily); setInfo(null); }}
+          style={{ minHeight: 40, minWidth: 44, paddingHorizontal: 10, marginLeft: 6, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.panel, borderWidth: borders.regular, borderColor: colors.border }}>
+          <Text style={{ ...typography.label, fontSize: 16, color: colors.text }}>{targetFamily + ' ONLY'}</Text></Pressable>
+      </> : <Pressable accessibilityRole="button" accessibilityLabel="Other families" accessibilityHint={'Shows targets from families other than ' + targetFamily}
+        accessibilityState={{ expanded: false }} onPress={() => setOtherFamilies(true)}
+        style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.panel, borderWidth: borders.regular, borderColor: colors.border }}>
+        <Text style={{ ...typography.label, fontSize: 16, color: colors.text }}>OTHER FAMILIES</Text></Pressable>}
     </View>
     {ring.map((p, i) => { const item = items[i]; return <Pressable key={item.key} accessibilityRole="button" accessibilityLabel={item.accessibilityLabel}
       accessibilityHint={item.info ? 'Long-press for size and source' : undefined}

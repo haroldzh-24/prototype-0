@@ -15,7 +15,7 @@ import { optionsFromPlan, planRouteAsync, planToStageRoute, snapshotFromPlan } f
 import type { ReasonCode, RoutePlan } from './types';
 
 export const reasonText: Record<ReasonCode, string> = {
-  NO_ALLOWED_AREA: 'No firing area the stage brief allows for this target.',
+  NO_ALLOWED_AREA: 'No shooting area the stage brief allows for this target.',
   IDPA_AREAS_REQUIRED: 'IDPA: assign this target\'s position(s) of cover in Route settings.',
   PROCEDURE_ORDER: 'Cannot satisfy its "engage after" procedure on this route.',
   STEEL_TOO_CLOSE: 'Every legal spot is closer to this steel than the ruleset allows (a DQ if fired on).',
@@ -73,21 +73,21 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     if (next) onUse(next); else setConfirm(true);
   }
   const losses = card ? adoptionLosses(plan.route, card.route) : null;
-  return <EditorSheet title="PLAN ROUTE" visible={!preview} close={onClose}><Panel>
+  return <EditorSheet title="Plan route" visible={!preview} close={onClose}><Panel>
     <Copy>Fewest legal shooting positions, then the shortest walk.</Copy>
-    <DataRow label="Firing areas" value={snapshot.firingAreas.length} />
+    <DataRow label="Shooting areas" value={snapshot.firingAreas.length} />
     <DataRow label="Ruleset" value={snapshot.ruleset ?? 'USPSA'} />
     <DataRow label="Downrange" value={downrangeLabel(stageDownrange(stage))} />
     {movingAvailable
       ? <Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
       : <Copy>{activeRuleset(rules?.ruleset) === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
     {idpaOnHold(rules?.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
-    {!snapshot.firingAreas.length && <Notice>Draw firing areas first: positions are only planned inside them.</Notice>}
-    <Action title={snapshot.firingAreas.length ? 'EDIT FIRING AREAS' : 'DRAW FIRING AREAS'} variant={snapshot.firingAreas.length ? undefined : 'primary'} onPress={() => onConfigure('areas')} />
+    {!snapshot.firingAreas.length && <Notice>Draw shooting areas first: positions are only planned inside them.</Notice>}
+    <Action title={snapshot.firingAreas.length ? 'EDIT SHOOTING AREAS' : 'DRAW SHOOTING AREAS'} variant={snapshot.firingAreas.length ? undefined : 'primary'} onPress={() => onConfigure('areas')} />
     <Action title="ROUTE SETTINGS" onPress={() => onConfigure('rules')} />
-    {running && <><Loading label="Planning route..." /><Action title="CANCEL" onPress={cancel} /></>}
+    {running && <><Loading label="Planning route…" /><Action title="CANCEL" onPress={cancel} /></>}
     {!!error && <Notice tone="error">{error}</Notice>}
-    {!result && <Action variant="primary" title={running ? 'Planning...' : 'PLAN ROUTE'} disabled={running} onPress={() => { void run(); }} />}
+    {!result && <Action variant="primary" title={running ? 'PLANNING…' : 'PLAN ROUTE'} disabled={running} onPress={() => { void run(); }} />}
     {result && <>
       <Copy>{statusText[result.status].toUpperCase()}</Copy>
       {result.errors.map(e => <Notice key={e} tone="error">{e}</Notice>)}
@@ -107,9 +107,9 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
         {confirm ? <>
           <Copy>Replace your existing route?</Copy>
           {losses && (losses.waypoints || losses.reloads || losses.bends || losses.engageArrows)
-            ? <Notice>{`This replaces ${losses.waypoints} waypoint(s), ${losses.reloads} reload(s), ${losses.bends} bend(s) and ${losses.engageArrows} ENGAGE arrow(s).`}</Notice> : null}
-          <Action title="Keep route" onPress={() => setConfirm(false)} />
-          <Action variant="primary" title="Confirm replacement" onPress={() => use(true)} />
+            ? <Notice>{`This replaces ${losses.waypoints} position(s), ${losses.reloads} reload(s), ${losses.bends} bend(s) and ${losses.engageArrows} ENGAGE arrow(s).`}</Notice> : null}
+          <Action title="KEEP ROUTE" onPress={() => setConfirm(false)} />
+          <Action variant="primary" title="CONFIRM REPLACEMENT" onPress={() => use(true)} />
         </> : <Action variant="primary" title="USE ROUTE" onPress={() => use()} />}
         <Action title="VIEW ON STAGE" onPress={() => onPreview(card)} />
       </>}

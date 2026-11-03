@@ -2,6 +2,7 @@ import { reconcileManualEngagements } from './manualEngagements';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StageRoute } from './route';
 import type { TargetExpectation } from './expectedPoints';
+import { targetName, targetTypeName } from '../ui/words';
 
 export type Magazine = Readonly<{ id: string; label?: string; capacity: number; startingRounds: number }>;
 /** Shooter-specific loadout, target round counts and optional manual route; separate from physical geometry. */
@@ -26,11 +27,12 @@ export const createMagazineId = (randomUUID: () => string) => 'magazine-' + rand
 export const isEngageable = (object: StageObject) => ['cardboardTarget', 'steelPlate', 'steelPopper'].includes(object.type);
 export const scoringTypes = ['cardboardTarget', 'steelPlate', 'steelPopper'] as const;
 export type ScoringType = typeof scoringTypes[number];
-export const targetTypeLabel = (type: ScoringType) => ({ cardboardTarget: 'Cardboard', steelPlate: 'Steel', steelPopper: 'Popper' })[type];
+export const targetTypeLabel = (type: ScoringType) => targetTypeName(type);
+/** The target's name shown to the user: T1, T2… (ui/words.ts), the same in every view. */
 export function targetLabel(stage: StageDocument, id: string): string {
   const target = stage.objects.find(o => o.id === id);
   if (!target || !isEngageable(target)) return 'Missing scoring target';
-  return `${targetTypeLabel(target.type as ScoringType)} ${stage.objects.filter(o => o.type === target.type).findIndex(o => o.id === id) + 1}`;
+  return targetName(stage, target);
 }
 export type PlanResult = { plan: StagePlan; error?: string };
 const count = (n: number) => Number.isSafeInteger(n) && n >= 0;

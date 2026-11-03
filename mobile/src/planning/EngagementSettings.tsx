@@ -4,10 +4,11 @@ import { TextInput, View } from 'react-native';
 import { Action, Copy, Notice, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
 import { inchesToYards, yardsToInches } from '../stage/measurements';
-import { isEngageable, targetLabel } from './model';
+import { isEngageable } from './model';
 import { defaultEngagementRules, safeDirectionMismatch, signedDegrees, validEngagementRules } from './engagements';
 import { downrangeLabel, stageDownrange } from '../stage/orientation';
 import type { EngagementRules, FiringArea } from './engagements';
+import { SEP, shootingAreaTitle, targetNameWithType } from '../ui/words';
 
 /** Stage-brief authoring. Coordinate pairs are physical yards, not screen pixels. */
 export default function EngagementSettings({ stage, initial, family, onApply, onCancel }: { stage: StageDocument; initial?: EngagementRules; family?: EngagementRules['ruleset']; onApply: (rules: EngagementRules) => void; onCancel: () => void }) {
@@ -33,18 +34,18 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
   return <View style={{ gap: 8 }}>
     <Copy>RULESET</Copy>
     {idpaOnHold(rules.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{matchFamilies.map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? 'Selected: ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{matchFamilies.map(ruleset => <Action key={ruleset} title={`${rules.ruleset === ruleset ? '✓ ' : ''}${ruleset}`} onPress={() => setRules({ ...rules, ruleset })} />)}</View>
     <Copy>MOVEMENT</Copy>
-    <Action title={`Moving engagement: ${rules.allowMoving ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowMoving: !rules.allowMoving })} />
-    <Action title={`Travel outside areas: ${rules.allowOutsideTravel ? 'ON' : 'OFF'}`} onPress={() => setRules({ ...rules, allowOutsideTravel: !rules.allowOutsideTravel })} />
-    <Action title={'FIRING AREAS / ' + areas.length + ' areas >'} onPress={() => setSection(section === 'areas' ? null : 'areas')} />
-    <Action title={'SAFE-ANGLE CHECK (simplified) / ' + direction + '° ± ' + angle + '° >'} onPress={() => setSection(section === 'safety' ? null : 'safety')} />
-    <Action title={'TARGET PROCEDURES / ' + Object.keys(rules.targetProcedures).length + ' customized >'} onPress={() => setSection(section === 'targets' ? null : 'targets')} />
+    <Action title={'MOVING ENGAGEMENT' + SEP + (rules.allowMoving ? 'ON' : 'OFF')} onPress={() => setRules({ ...rules, allowMoving: !rules.allowMoving })} />
+    <Action title={'TRAVEL OUTSIDE AREAS' + SEP + (rules.allowOutsideTravel ? 'ON' : 'OFF')} onPress={() => setRules({ ...rules, allowOutsideTravel: !rules.allowOutsideTravel })} />
+    <Action title={'SHOOTING AREAS' + SEP + areas.length + ' >'} onPress={() => setSection(section === 'areas' ? null : 'areas')} />
+    <Action title={'SAFE-ANGLE CHECK (SIMPLIFIED)' + SEP + direction + '° ± ' + angle + '° >'} onPress={() => setSection(section === 'safety' ? null : 'safety')} />
+    <Action title={'TARGET PROCEDURES' + SEP + Object.keys(rules.targetProcedures).length + ' CUSTOMIZED >'} onPress={() => setSection(section === 'targets' ? null : 'targets')} />
     {section === 'safety' && <>
     <Notice>Simplified check: it compares the direction from each shooting spot to the target centre against this angle. It does not check muzzle direction while moving, reloading or drawing, and it is not proof of 180-degree rule compliance.</Notice>
     <Copy>Safe direction in degrees: 0 = right, 90 = down, -90 = up. Stage downrange is {downrangeLabel(stageDownrange(stage)).toLowerCase()} ({signedDegrees(stageDownrange(stage))}°).</Copy>
     {Number.isFinite(Number(direction)) && direction.trim() !== '' && safeDirectionMismatch(stage, { safeDirectionDegrees: Number(direction) }) && <Notice>This safe direction differs from the stage's downrange.</Notice>}
-    <Action title="Use stage downrange" onPress={() => setDirection(String(signedDegrees(stageDownrange(stage))))} />
+    <Action title="USE STAGE DOWNRANGE" onPress={() => setDirection(String(signedDegrees(stageDownrange(stage))))} />
     <TextInput accessibilityLabel="Safe direction degrees" style={ui.input} value={direction} onChangeText={setDirection} />
     <Copy>Safe half angle in degrees (90 means ±90° from downrange, the usual 180-degree limit).</Copy>
     <TextInput accessibilityLabel="Safe half angle degrees" style={ui.input} value={angle} onChangeText={setAngle} />
@@ -55,34 +56,34 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
     <TextInput accessibilityLabel="Engagement sample spacing inches" style={ui.input} value={spacing} onChangeText={setSpacing} />
     </>}
     {section === 'areas' && <>
-    <Copy>Easier: draw areas on the stage with AREAS in the route bar. Here you can enter points in boundary order, in yards. Areas exclude their boundary. Fault-line marks alone do not identify the legal side. The whole-stage button supplies a rectangle you can edit to follow your course boundaries.</Copy>
+    <Copy>Easier: draw shooting areas on the stage with AREAS in the PLAN bar. Here you can enter points in boundary order, in yards. Areas exclude their boundary. Fault-line marks alone do not identify the legal side. The whole-stage button supplies a rectangle you can edit to follow your course boundaries.</Copy>
     {areas.map((a, areaIndex) => <View key={a.id} style={{ gap: 4 }}>
-      <Action title={'Firing area ' + (areaIndex + 1) + (areaId === a.id ? ' / Close' : ' >')} onPress={() => setAreaId(areaId === a.id ? null : a.id)} />
+      <Action title={shootingAreaTitle(areaIndex).toUpperCase() + (areaId === a.id ? SEP + 'CLOSE' : ' >')} onPress={() => setAreaId(areaId === a.id ? null : a.id)} />
       {areaId === a.id && <>
       {a.text.split('\n').map((line, index) => {
         const parts = line.split(',');
         const update = (axis: number, value: string) => { const rows = a.text.split('\n'); const pair = [...parts]; pair[axis] = value; rows[index] = pair.join(','); setAreas(areas.map(row => row.id === a.id ? { ...row, text: rows.join('\n') } : row)); };
         return <View key={index} style={{ gap: 4 }}><Copy>POINT {index + 1}</Copy>
-          {(['X', 'Y'] as const).map((axis, i) => <View key={axis} style={{ gap: 4 }}><Copy>{axis} / yd</Copy><TextInput accessibilityLabel={'Firing area ' + (areaIndex + 1) + ' point ' + (index + 1) + ' ' + axis + ' yards'} keyboardType="decimal-pad" style={ui.input} value={(parts[i] ?? '').trim()} onChangeText={value => update(i, value)} /></View>)}
+          {(['X', 'Y'] as const).map((axis, i) => <View key={axis} style={{ gap: 4 }}><Copy>{axis + ' (yd)'}</Copy><TextInput accessibilityLabel={shootingAreaTitle(areaIndex) + ' point ' + (index + 1) + ' ' + axis + ' yards'} keyboardType="decimal-pad" style={ui.input} value={(parts[i] ?? '').trim()} onChangeText={value => update(i, value)} /></View>)}
           <Action title="REMOVE POINT" disabled={a.text.split('\n').length <= 3} onPress={() => setAreas(areas.map(row => row.id === a.id ? { ...row, text: row.text.split('\n').filter((_, i) => i !== index).join('\n') } : row))} />
         </View>;
       })}
       <Action title="+ POINT" onPress={() => setAreas(areas.map(row => row.id === a.id ? { ...row, text: row.text + '\n0, 0' } : row))} />
-      <Action title="Remove firing area" variant="destructive" onPress={() => { setAreas(areas.filter(row => row.id !== a.id)); setAreaId(null); }} />
+      <Action title="REMOVE SHOOTING AREA" variant="destructive" onPress={() => { setAreas(areas.filter(row => row.id !== a.id)); setAreaId(null); }} />
       </>}
     </View>)}
-    <Action title="Add whole-stage firing area" disabled={areas.length >= 32} onPress={addArea} />
+    <Action title="ADD WHOLE-STAGE SHOOTING AREA" disabled={areas.length >= 32} onPress={addArea} />
     </>}
     {section === 'targets' && <>
-    <Copy>Target procedures: restrict firing areas, require a stationary engagement, or choose targets that must be completed first.{activeRuleset(rules.ruleset) === 'IDPA' ? " IDPA requires explicit areas for each target based on the brief's cover and exposure requirements." : ''}</Copy>
-    <View style={{ gap: 4 }}>{targets.map(t => <Action key={t.id} title={`${targetId === t.id ? 'Selected: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => setTargetId(t.id)} />)}</View>
+    <Copy>Target procedures: restrict shooting areas, require a stationary engagement, or choose targets that must be completed first.{activeRuleset(rules.ruleset) === 'IDPA' ? " IDPA requires explicit areas for each target based on the brief's cover and exposure requirements." : ''}</Copy>
+    <View style={{ gap: 4 }}>{targets.map(t => <Action key={t.id} title={`${targetId === t.id ? '✓ ' : ''}${targetNameWithType(stage, t.id).toUpperCase()}`} onPress={() => setTargetId(t.id)} />)}</View>
     {targetId && <>
-      <Action title={`Stationary required: ${procedure.stationaryOnly ? 'yes' : 'no'}`} onPress={() => updateProcedure({ stationaryOnly: !procedure.stationaryOnly })} />
-      <Copy>Allowed areas {procedure.areaIds === undefined ? (activeRuleset(rules.ruleset) === 'IDPA' ? '(all configured areas; IDPA needs an explicit selection)' : '(all configured areas)') : procedure.areaIds.length ? '' : '(none)'}</Copy>
-      {areas.map((a, index) => <Action key={a.id} title={`${procedure.areaIds?.includes(a.id) ? 'Selected: ' : ''}Firing area ${index + 1}`} onPress={() => updateProcedure({ areaIds: toggle(procedure.areaIds, a.id) })} />)}
-      {activeRuleset(rules.ruleset) !== 'IDPA' && <Action title="Allow all configured areas" onPress={() => updateProcedure({ areaIds: undefined })} />}
+      <Action title={'STATIONARY REQUIRED' + SEP + (procedure.stationaryOnly ? 'YES' : 'NO')} onPress={() => updateProcedure({ stationaryOnly: !procedure.stationaryOnly })} />
+      <Copy>Allowed shooting areas {procedure.areaIds === undefined ? (activeRuleset(rules.ruleset) === 'IDPA' ? '(all of them; IDPA needs an explicit selection)' : '(all of them)') : procedure.areaIds.length ? '' : '(none)'}</Copy>
+      {areas.map((a, index) => <Action key={a.id} title={`${procedure.areaIds?.includes(a.id) ? '✓ ' : ''}${shootingAreaTitle(index).toUpperCase()}`} onPress={() => updateProcedure({ areaIds: toggle(procedure.areaIds, a.id) })} />)}
+      {activeRuleset(rules.ruleset) !== 'IDPA' && <Action title="ALLOW ALL SHOOTING AREAS" onPress={() => updateProcedure({ areaIds: undefined })} />}
       <Copy>Engage these targets first:</Copy>
-      {targets.filter(t => t.id !== targetId).map(t => <Action key={t.id} title={`${procedure.afterTargetIds?.includes(t.id) ? 'Required first: ' : ''}${targetLabel(stage, t.id)}`} onPress={() => updateProcedure({ afterTargetIds: toggle(procedure.afterTargetIds, t.id) })} />)}
+      {targets.filter(t => t.id !== targetId).map(t => <Action key={t.id} title={`${procedure.afterTargetIds?.includes(t.id) ? 'FIRST ✓ ' : ''}${targetNameWithType(stage, t.id).toUpperCase()}`} onPress={() => updateProcedure({ afterTargetIds: toggle(procedure.afterTargetIds, t.id) })} />)}
     </>}
     </>}
     {!!error && <Notice tone="error">{error}</Notice>}
@@ -95,6 +96,6 @@ export default function EngagementSettings({ stage, initial, family, onApply, on
       if (!validEngagementRules(next)) { setError('Check the numeric settings and enter at least three X, Y corners for each area.'); return; }
       onApply(next);
     }} />
-    <Action title="Cancel settings" onPress={onCancel} />
+    <Action title="CANCEL SETTINGS" onPress={onCancel} />
   </View>;
 }

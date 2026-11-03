@@ -5,6 +5,7 @@ import { useRepository } from '@/storage/StorageProvider';
 import type { Match, SavedStage } from '@/storage/repository';
 import { Screen, Loading, ErrorState, Action } from '@/ui/kit';
 import { useThemeMode } from '@/ui/theme';
+import { words } from '@/ui/words';
 
 export default function BuilderRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -22,6 +23,6 @@ function LoadedBuilder({ id }: { id: string }) {
       .then(next => { if (active) { setData(next); setError(''); } }).catch(e => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, [id, repo, attempt]));
-  if (error || !data) return <Screen safeTop title="STAGE DESIGNER">{error ? <ErrorState title="Couldn’t load stage." detail={error} retry={() => setAttempt(value => value + 1)} /> : <Loading label="Loading stage…" />}<Action title="Back to Matches" onPress={() => router.dismissTo('/planner')} /></Screen>;
+  if (error || !data) return <Screen safeTop title={words.editor}>{error ? <ErrorState title="Couldn’t load the stage." detail={error} retry={() => setAttempt(value => value + 1)} /> : <Loading label="Loading stage…" />}<Action title="BACK TO MATCHES" onPress={() => router.dismissTo('/planner')} /></Screen>;
   return <StageBuilder initial={data.saved} targetFamily={data.match.targetFamily} />;
 }
