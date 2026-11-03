@@ -124,7 +124,7 @@ export type RebuildOptions = { baseline: ShooterPerformanceProfile; observations
   manualOverrides?: Partial<Record<TimingFactor, number>> };
 /** The only measurement-to-profile boundary. Other contexts remain available as separate statistics. */
 export function rebuildPerformanceProfile({ baseline, observations: input, context, manualOverrides = {} }: RebuildOptions) {
-  if (!trainingContexts.includes(context)) throw new Error('Invalid calibration context.');
+  if (!trainingContexts.includes(context)) throw new Error('Invalid practice type.');
   const { observations, eligible, warnings } = validateObservations(input);
   const performance = { ...baseline, timingEvidence: { ...baseline.timingEvidence } };
   const aggregates = Object.fromEntries(trainingContexts.map(c => [c, {}])) as Record<TrainingContext, Partial<Record<ObservationFactor, SampleStatistics>>>;

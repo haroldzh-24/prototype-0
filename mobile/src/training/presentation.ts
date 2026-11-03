@@ -46,7 +46,7 @@ export function labeledPlanElements(comparison: ExecutionComparison, kind: Mappi
     const route = comparison.snapshot?.plan.route;
     const segment = comparison.snapshot?.evaluation.segments.find(s => s.toId === element.id);
     if (!route || !segment) return element;
-    const label = (id: string) => { const index = route.positions.findIndex(p => p.id === id); return index < 0 ? 'Start' : `Waypoint ${index + 1} · ${route.positions[index].label}`; };
+    const label = (id: string) => { const index = route.positions.findIndex(p => p.id === id); return index < 0 ? 'Start' : `Position ${index + 1} · ${route.positions[index].label}`; };
     return { ...element, label: `${label(segment.fromId)} → ${label(segment.toId)}` };
   });
 }

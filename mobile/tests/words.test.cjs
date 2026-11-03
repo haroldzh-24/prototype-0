@@ -6,10 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-/** Folders and files whose user-facing text is checked. Add yours here when your area adopts the word list. */
+/** Folders whose user-facing text is checked: every screen in the app. */
 const SCOPE = [
   'src/editor', 'src/planning', 'src/stage3d', 'src/stage', 'src/ui', 'src/rules',
-  'src/app/match.tsx', 'src/app/planner.tsx', 'src/app/builder.tsx', 'src/app/_layout.tsx',
+  'src/app', 'src/training', 'src/profile', 'src/diagramImport', 'src/storage', 'src/utils',
 ];
 /** Strings that are never shown to the user, with the reason. */
 const ALLOW = [
@@ -63,7 +63,7 @@ function userFacingStrings(file, source) {
 }
 const retired = strings => strings.flatMap(s => RETIRED_WORDS.filter(w => w.pattern.test(s.text)).map(w => `${s.file}:${s.line}: "${s.text.slice(0, 90)}" (use ${w.use})`));
 
-test('user-facing text in the editor, planner, 3D and match screens uses the word list, not the retired words', () => {
+test('user-facing text across the app uses the word list, not the retired words', () => {
   const scanned = SCOPE.flatMap(files);
   assert.ok(scanned.length > 50, 'the scope was found');
   const problems = scanned.flatMap(file => retired(userFacingStrings(file, fs.readFileSync(path.join(root, file), 'utf8'))));
@@ -83,7 +83,9 @@ test('the scan finds retired words in text and leaves code identifiers alone', (
     const tip = \`Add firing areas in Route settings to check \${n}\`;
     const eye = <Button title="Eye-level view" />;
     const old = 'Cardboard 1';
+    const view = <Button title="Top Down" />;
+    const kind = 'Only a top-down plan can add elements';
   `;
   const found = retired(userFacingStrings('sample.tsx', sample)).map(p => p.split(': ')[1].split(' (use')[0]);
-  assert.deepEqual(found, ['"Open Stage Designer"', '"WAYPOINT"', '"Waypoint "', '"Add firing areas in Route settings to check "', '"Add firing areas in Route settings to check "', '"Eye-level view"', '"Cardboard 1"']);
+  assert.deepEqual(found, ['"Open Stage Designer"', '"WAYPOINT"', '"Waypoint "', '"Add firing areas in Route settings to check "', '"Add firing areas in Route settings to check "', '"Eye-level view"', '"Cardboard 1"', '"Top Down"']);
 });

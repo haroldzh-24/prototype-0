@@ -76,7 +76,8 @@ export const walkStatusWords = {
  */
 export const RETIRED_WORDS: readonly { pattern: RegExp; use: string }[] = [
   { pattern: /stage\s*builder|stage\s*designer/i, use: words.editor },
-  { pattern: /top[\s-]*down/i, use: words.views.plan },
+  // "Top-down plan" names a kind of drawing (stage diagram import), not a view, so it stays.
+  { pattern: /top[\s-]*down(?![\s-]+(plan|diagram|layout|drawing))/i, use: words.views.plan },
   { pattern: /eye[\s-]*level view|^EYE$|^Eye level$/i, use: 'WALK' },
   { pattern: /firing area|required area/i, use: words.shootingArea },
   { pattern: /way\s*points?\b/i, use: `${words.position} (P1, P2…) or ${words.pathPoint}` },

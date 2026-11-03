@@ -119,7 +119,7 @@ export function ExecutionComparisonReview({ video, busy, onChange, onPreview }: 
         {chosen && <>
           <Copy>SELECT SAVED / ACCEPTED ROUTE · {chosen.name}</Copy>
           {chosen.plan.route ? <>
-            <Copy>{chosen.plan.route.name} · {chosen.plan.route.positions.length} waypoints. The estimate will use the current saved profile at linking time.</Copy>
+            <Copy>{chosen.plan.route.name} · {chosen.plan.route.positions.length} positions. The estimate will use the current saved profile at linking time.</Copy>
             <Action title={`Link snapshot: ${chosen.plan.route.name}`} variant="primary" disabled={disabled} onPress={link} />
           </> : <Copy>This stage has no saved route. Save or accept a route in Stage Planner first.</Copy>}
         </>}
