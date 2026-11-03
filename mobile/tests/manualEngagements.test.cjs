@@ -63,7 +63,8 @@ test('reassignment and direction edits preserve identity and anchors; target del
   for(const targetId of ['missing','wall','ns']) {assert.equal(editManualEngagement(stage,r,'e',{targetId}),r);assert.equal(add(stage,route,'invalid',waypoint('w1'),targetId),route);}
   assert.equal(editManualEngagement(stage,r,'e',{direction:NaN}),r);
   const document={...stage,objects:stage.objects.filter(o=>o.id!=='t2')}, plan={...createPlan(),route:updated};
-  assert.deepEqual(reconcilePlan(plan,document).route.manualEngagements,[]);assert.equal(updated.manualEngagements.length,1);
+  // Normalising the plan folds arrows into position engagements (phase 3); an arrow to a deleted target is dropped.
+  const reconciled=reconcilePlan(plan,document).route;assert.equal(reconciled.manualEngagements,undefined);assert.ok(reconciled.positions.every(p=>!p.engagedTargetIds.includes('t2')));assert.equal(updated.manualEngagements.length,1);
 });
 test('stored validation rejects duplicate IDs, invalid anchors and nonfinite geometry while older stages remain valid',()=>{
  const {stage,route}=fixture(), r=add(stage,route,'e',waypoint('w1')),e=r.manualEngagements[0];assert.ok(isStageRoute(route));assert.ok(isStageRoute(r));

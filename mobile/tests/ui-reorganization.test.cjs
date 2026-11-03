@@ -639,16 +639,22 @@ test('manual overlay shows short arrows, selected target and temporary dotted gu
 });
 
 test('REVIEW derives manual coverage, preserves canvas and annotations across modes, and highlights saved anchors',()=>{
- const r=route(),document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
- const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');routeTool(h,'PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();routeTool(h,'ENGAGE');h.child('StageViewport').manualEngage.onSelect('e');h.render();routeTool(h,'REVIEW');
- let v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,false);assert.deepEqual(v.viewport,pan);assert.equal(v.manualReview.review.assignedTargets,1);assert.equal(v.manualReview.selectedEngagementId,'e');
+ // Loaded arrows are folded into positions on open (phase 3), so the arrow is drawn in this session with ENGAGE.
+ const r=route(),document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];
+ const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');routeTool(h,'PATH');const pan={zoom:2,pan:{x:31,y:-20}};h.child('StageViewport').onViewportChange(pan);h.render();routeTool(h,'ENGAGE');
+ h.child('StageViewport').manualEngage.onCreate({kind:'waypoint',waypointId:'w'},target.id,0);h.render();const drawn=h.child('StageViewport').routePlanning.route,e=drawn.manualEngagements[0].id;h.child('StageViewport').manualEngage.onSelect(e);h.render();routeTool(h,'REVIEW');
+ let v=h.child('StageViewport');assert.equal(v.manualEngage,undefined);assert.equal(v.routePlanning.editing,false);assert.deepEqual(v.viewport,pan);assert.equal(v.manualReview.review.assignedTargets,1);assert.equal(v.manualReview.selectedEngagementId,e);
  v.manualReview.onSelectTarget(target.id);h.render();let panel=h.child('ManualReviewPanel');assert.equal(panel.selectedTargetId,target.id);panel.onHighlight(panel.review.engagements[0]);h.render();assert.deepEqual(h.child('StageViewport').focusPosition,r.positions[0].position);
  h.child('ManualReviewPanel').onToggle();h.render();assert.equal(h.child('StageViewport').manualReview.onlyUnassigned,true);assert.equal(h.child('StageViewport').manualReview.selectedTargetId,null);
- routeTool(h,'PATH');v=h.child('StageViewport');assert.equal(v.manualReview,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route,r);assert.deepEqual(v.viewport,pan);routeTool(h,'ENGAGE');assert.equal(h.child('StageViewport').manualEngage.selectedId,'e');assert.equal(h.saved.length,0);
+ routeTool(h,'PATH');v=h.child('StageViewport');assert.equal(v.manualReview,undefined);assert.equal(v.routePlanning.editing,true);assert.deepEqual(v.routePlanning.route,drawn);assert.deepEqual(v.viewport,pan);routeTool(h,'ENGAGE');assert.equal(h.child('StageViewport').manualEngage.selectedId,e);assert.equal(h.saved.length,0);
 });
-test('REVIEW retains invalid loaded entries for explicit removal and restores them through document undo',()=>{
- const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'missing',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'orphan',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'gone'},direction:0}];
- const h=initial(r);h.press('PLAN');routeTool(h,'REVIEW');let panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,2);assert.equal(panel.review.assignedTargets,0);panel.onRemove('missing');h.render();assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);assert.equal(h.child('ManualReviewPanel').onUndo,undefined,'REVIEW has no undo of its own');h.press('Undo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,2);h.press('Redo');assert.equal(h.child('ManualReviewPanel').review.invalid.length,1);
+test('loaded ENGAGE arrows are folded into positions when the stage opens; invalid ones are dropped, and nothing is marked unsaved',()=>{
+ const document=stage(),target=document.objects.find(require('../src/planning/model.ts').isEngageable);
+ const r=route();r.positions=[{id:'w',label:'w',position:{space:'stage',x:150,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'missing',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'w'},direction:0},{id:'orphan',targetId:'deleted',anchor:{kind:'waypoint',waypointId:'gone'},direction:0},{id:'good',targetId:target.id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
+ const h=harness('editor/StageBuilder.tsx',{initial:{id:'s',name:'Stage',matchId:'m',document,plan:plan(r)},targetFamily:'USPSA'});h.press('PLAN');
+ const shown=h.child('StageViewport').routePlanning.route;assert.equal(shown.manualEngagements,undefined);assert.deepEqual(shown.positions[0].engagedTargetIds,[target.id]);
+ routeTool(h,'REVIEW');const panel=h.child('ManualReviewPanel');assert.equal(panel.review.invalid.length,0);assert.equal(panel.review.engagements.length,0);
+ assert.ok(h.nodes().some(n=>n.props?.title==='SAVED ✓'),'the migration on open is not an unsaved edit');
 });
 test('REVIEW overlay distinguishes status with symbols and filters assigned highlights',()=>{
  const document=stage(),r=route(),targets=document.objects.filter(require('../src/planning/model.ts').isEngageable);r.positions=[{id:'w',label:'w',position:{space:'stage',x:100,y:200,z:0},visibleTargetIds:[],engagedTargetIds:[]}];r.manualEngagements=[{id:'e',targetId:targets[0].id,anchor:{kind:'waypoint',waypointId:'w'},direction:0}];
@@ -1431,15 +1437,19 @@ test('ANALYZE shows points per target, where they come from, and the hit factor;
   const plan = { route, loadout: { chamberLoaded: true, startingMagazineId: null, magazines: [] }, engagements: { T1: 2 } };
   const profile = { ...createLocalProfile().performance, hitModel: { paper: [{ yards: 7, runs: 3, count: 6, a: 5 / 6, c: 1 / 6, d: 0, miss: 0 }] } };
   const h = harness('planning/RouteAnalysis.tsx', { stage, plan, route, profile, ruleset: 'USPSA', powerFactor: 'major', edit() {} });
+  h.press('Show points and hit factor');
   const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
   assert.equal(row('Scoring'), 'USPSA major (A 5, C 4, D 2)');
   assert.match(row('T1 · Paper'), /^7\.0 yd · AA 69% · AC 28% · CC 3% · 9\.7 of 10 pts$/);
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /your numbers, 3 runs at 7 yd/.test([].concat(n.props.children).join(''))));
   assert.match(row('Expected points'), /^9\.7 of 10 \(97%\)$/);
   assert.match(row('Estimated hit factor'), /^\d+\.\d\d( \(provisional\))?$/);
-  const unplanned = harness('planning/RouteAnalysis.tsx', { stage, plan: { ...plan, engagements: {} }, route, profile, edit() {} });
+  // Rounds you have not set use the rule default (phase 3); rounds you set to zero still block the hit factor.
+  const unplanned = harness('planning/RouteAnalysis.tsx', { stage, plan: { ...plan, engagements: { T1: 0 } }, route, profile, edit() {} });
+  unplanned.press('Show points and hit factor');
   assert.equal(unplanned.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Estimated hit factor').props.value, 'Set planned rounds for 1 target');
   const noData = harness('planning/RouteAnalysis.tsx', { stage, plan, route, profile: createLocalProfile().performance, edit() {} });
+  noData.press('Show points and hit factor');
   assert.equal(noData.nodes().find(n => n.type === 'DataRow' && n.props.label === 'Estimated hit factor').props.value, 'Needs every target estimated');
 
   let change;
@@ -1465,10 +1475,12 @@ test('review: ANALYZE names the real reason a hit factor is missing, marks it pr
   const row = (h, label) => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
   const partRoute = { ...createRoute('r'), positions: [P1] };
   const a = harness('planning/RouteAnalysis.tsx', { stage, plan: { route: partRoute, loadout: { chamberLoaded: true, startingMagazineId: null, magazines: [] }, engagements: { T1: 2, T2: 2 } }, route: partRoute, profile, edit() {} });
+  a.press('Show points and hit factor');
   assert.equal(row(a, 'Estimated hit factor'), '1 target is not in the route');
   const full = { ...partRoute, positions: [{ ...P1, visibleTargetIds: ['T1', 'T2'], engagedTargetIds: ['T1', 'T2'] }] };
   const cut = { ...stage, objects: stage.objects.map(o => o.id === 'T2' ? { ...o, faceCut: { ...o.faceCut, preset: 'upper' } } : o) };
   const b = harness('planning/RouteAnalysis.tsx', { stage: cut, plan: { route: full, loadout: { chamberLoaded: true, startingMagazineId: null, magazines: [] }, engagements: { T1: 1, T2: 2 } }, route: full, profile, edit() {} });
+  b.press('Show points and hit factor');
   assert.match(row(b, 'Estimated hit factor'), /^\d+\.\d\d \(provisional\)$/);
   assert.ok(b.nodes().some(n => n.type === 'Copy' && /^Provisional: .*1 paper target with fewer than 2 rounds.*generic/.test([].concat(n.props.children).join(''))));
   assert.ok(b.nodes().some(n => n.type === 'DataRow' && n.props.label === 'T2 · Paper (cut face)'));
@@ -1489,6 +1501,7 @@ test('ANALYZE times the stage from your numbers, shows where each part came from
   let changed;
   const props = { stage, plan, route, profile, edit() {}, onRouteChange: r => { changed = r; } };
   const h = harness('planning/RouteAnalysis.tsx', props);
+  h.press('Show time'); h.press('Show ammunition');
   const row = label => h.nodes().find(n => n.type === 'DataRow' && n.props.label === label)?.props.value;
   assert.match(row('Provisional total'), /^\d+\.\d\d s$/);
   assert.ok(h.nodes().some(n => n.type === 'Copy' && /^Splits: your split curve for 3 targets\.$/.test([].concat(n.props.children).join(''))));

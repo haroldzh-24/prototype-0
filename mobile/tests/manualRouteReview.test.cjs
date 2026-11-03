@@ -47,11 +47,12 @@ test('older stages, empty stages and stages without manual engagements review sa
  const {stage,route}=fixture();route.positions[0].engagedTargetIds=['a'];assert.equal(reviewManualRoute(stage,route).assignedTargets,0);assert.equal(reviewManualRoute(stage).unassignedTargets,3);
  const empty=reviewManualRoute({...stage,objects:[]});assert.equal(empty.totalTargets,0);assert.equal(empty.distance,0);assert.equal(empty.waypoints,0);assert.deepEqual(empty.invalid,[]);
 });
-test('load preserves pre-existing invalid references; deliberate deletion still cleans valid references',()=>{
+test('load folds arrows into position engagements (UI cohesion phase 3): invalid references are dropped, valid ones engage',()=>{
  const {stage,route}=fixture();route.manualEngagements=[e('bad','missing'),e('orphan','a',{kind:'waypoint',waypointId:'missing'}),e('good','b')];const plan={...createPlan(),route};
- const loaded=reconcilePlan(plan,stage,{stage,route});assert.deepEqual(loaded.route.manualEngagements,route.manualEngagements);
- const changed={...stage,objects:stage.objects.filter(o=>o.id!=='b')};const deleted=reconcilePlan(loaded,changed,{stage,route});assert.deepEqual(deleted.route.manualEngagements.map(e=>e.id),['bad','orphan']);
- assert.equal(reviewManualRoute(changed,deleted.route).invalid.length,2);
+ assert.ok(isStageRoute(route),'old saved data still loads');
+ const loaded=reconcilePlan(plan,stage,{stage,route});assert.equal(loaded.route.manualEngagements,undefined);assert.deepEqual(loaded.route.positions.map(p=>p.engagedTargetIds),[['b'],[]]);
+ assert.equal(reviewManualRoute(stage,loaded.route).engagements.length,0,'REVIEW has nothing left to show; its marks are in ANALYZE (planStatus reviewTargets)');
+ const changed={...stage,objects:stage.objects.filter(o=>o.id!=='b')};const deleted=reconcilePlan(loaded,changed,{stage,route:loaded.route});assert.deepEqual(deleted.route.positions.map(p=>p.engagedTargetIds),[[],[]]);
  const modified={...route,name:'Renamed'};assert.equal(reconcileManualEngagements(stage,modified,route).manualEngagements.length,3);
  assert.equal(addManualEngagement(stage,route,e('new','a')).manualEngagements.length,4);
 });

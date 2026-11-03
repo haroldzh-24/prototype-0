@@ -12,6 +12,7 @@ import type { PlannerCard } from '../plannerUI';
 import { copyPlannerRoute } from '../plannerUI';
 import { adoptionLosses } from '../routeSolver/adoption';
 import { optionsFromPlan, planRouteAsync, planToStageRoute, snapshotFromPlan } from './index';
+import { autoPlanDefault, ON_THE_MOVE_COST } from '../planDefaults';
 import type { ReasonCode, RoutePlan } from './types';
 
 export const reasonText: Record<ReasonCode, string> = {
@@ -45,7 +46,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
   const rules = plan.route?.engagementRules;
   // Engaging on the move follows the route setting; IDPA is planned standing (cover rules are not modelled).
   const movingAvailable = !!rules && rules.allowMoving !== false && activeRuleset(rules.ruleset) !== 'IDPA';
-  const [moving, setMoving] = useState(movingAvailable);
+  // Standing only until ANALYZE can time shots on the move (planDefaults.ts MOVING_SHOTS_TIMED).
+  const [moving, setMoving] = useState(autoPlanDefault() === 'ON THE MOVE');
   const abort = useRef<AbortController | null>(null);
   // A stage or route edit invalidates any result or run in progress.
   useEffect(() => { setResult(null); setConfirm(false); return () => { abort.current?.abort(); abort.current = null; }; }, [stage, plan]);
@@ -79,7 +81,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
     <DataRow label="Ruleset" value={snapshot.ruleset ?? 'USPSA'} />
     <DataRow label="Downrange" value={downrangeLabel(stageDownrange(stage))} />
     {movingAvailable
-      ? <Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
+      ? <><Segmented options={['STANDING ONLY', 'ON THE MOVE']} value={moving ? 'ON THE MOVE' : 'STANDING ONLY'} disabled={running} onChange={v => { setMoving(v === 'ON THE MOVE'); setResult(null); }} />
+        {moving ? <Notice tone="warning">{ON_THE_MOVE_COST}</Notice> : <Copy>{ON_THE_MOVE_COST}</Copy>}</>
       : <Copy>{activeRuleset(rules?.ruleset) === 'IDPA' ? 'IDPA plans are standing only: cover is not modelled.' : 'Engaging on the move is off in Route settings.'}</Copy>}
     {idpaOnHold(rules?.ruleset) && <Copy>{IDPA_ON_HOLD_NOTE}</Copy>}
     {!snapshot.firingAreas.length && <Notice>Draw shooting areas first: positions are only planned inside them.</Notice>}
@@ -107,7 +110,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
         {confirm ? <>
           <Copy>Replace your existing route?</Copy>
           {losses && (losses.waypoints || losses.reloads || losses.bends || losses.engageArrows)
-            ? <Notice>{`This replaces ${losses.waypoints} position(s), ${losses.reloads} reload(s), ${losses.bends} bend(s) and ${losses.engageArrows} ENGAGE arrow(s).`}</Notice> : null}
+            ? <Notice>{'This replaces ' + [losses.waypoints && `${losses.waypoints} position(s)`, losses.reloads && `${losses.reloads} reload(s)`, losses.bends && `${losses.bends} bend(s)`,
+              losses.engageArrows && `${losses.engageArrows} ENGAGE arrow(s)`].filter(Boolean).join(', ') + '.'}</Notice> : null}
           <Action title="KEEP ROUTE" onPress={() => setConfirm(false)} />
           <Action variant="primary" title="CONFIRM REPLACEMENT" onPress={() => use(true)} />
         </> : <Action variant="primary" title="USE ROUTE" onPress={() => use()} />}

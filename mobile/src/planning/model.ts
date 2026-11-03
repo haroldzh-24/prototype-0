@@ -1,4 +1,5 @@
 import { reconcileManualEngagements } from './manualEngagements';
+import { migrateManualEngagements } from './assignments';
 import type { StageDocument, StageObject } from '../stage/model';
 import type { StageRoute } from './route';
 import type { TargetExpectation } from './expectedPoints';
@@ -80,9 +81,15 @@ export function assignRounds(plan: StagePlan, stage: StageDocument, id: string, 
   if (!Number.isSafeInteger(Object.values(engagements).reduce((n,r) => n+r,0))) return { plan, error: 'Planned total is too large.' };
   return { plan: { ...plan, engagements } };
 }
-/** Deleted/unsupported references cannot consume ammunition or reappear after Reset. */
+/**
+ * Deleted/unsupported references cannot consume ammunition or reappear after Reset. Also where a loaded plan is
+ * normalised: saved ENGAGE arrows become position engagements here (assignments.ts migrateManualEngagements).
+ */
 export function reconcilePlan(plan: StagePlan, stage: StageDocument, previous?: { stage: StageDocument; route?: StageRoute }): StagePlan {
-  if (plan.route) { const route = reconcileManualEngagements(stage, plan.route, previous?.route, previous?.stage); if (route !== plan.route) plan = { ...plan, route }; }
+  if (plan.route) {
+    const route = migrateManualEngagements(stage, reconcileManualEngagements(stage, plan.route, previous?.route, previous?.stage));
+    if (route !== plan.route) plan = { ...plan, route };
+  }
   const valid = new Set(stage.objects.filter(isEngageable).map(o => o.id));
   const entries = Object.entries(plan.engagements).filter(([id]) => valid.has(id));
   const staleRoute = plan.route?.positions.some(p => [...p.visibleTargetIds, ...p.engagedTargetIds].some(id => !valid.has(id)));

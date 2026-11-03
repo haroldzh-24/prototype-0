@@ -10,6 +10,7 @@ import type { ScoringType } from './model';
 import { addMagazineBatch, ammunitionSummary, assignRounds, createMagazineId, deleteMagazine, designateMagazine, isEngageable, saveMagazine, setChamber } from './model';
 import type { Magazine, PlanResult, StagePlan } from './model';
 import { SEP, targetNameWithType } from '../ui/words';
+import { ownRounds, plannedRounds, REQUIRED_HITS, REQUIRED_HITS_SOURCE, withRoundDefaults } from './planDefaults';
 
 export default function PlanningPanel({ plan, stage, onChange, section = 'loadout' }: { section?: 'loadout' | 'targets'; plan: StagePlan; stage: StageDocument; onChange: (plan: StagePlan) => void }) {
   const [error, setError] = useState('');
@@ -19,7 +20,8 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
   const [applied, setApplied] = useState('');
   const affected = stage.objects.filter(o => o.type === targetType).length;
   const apply = (result: PlanResult) => { setError(result.error ?? ''); if (!result.error) onChange(result.plan); };
-  const summary = ammunitionSummary(plan,stage);
+  // Rounds you have not set count at the rule default, as ANALYZE counts them (planDefaults.ts).
+  const summary = ammunitionSummary(withRoundDefaults(plan, stage),stage);
   return <View style={{ gap: 12, padding: 16, backgroundColor: colors.panel }}>
     <Text style={{ ...typography.section, color: colors.text }}>{section === 'loadout' ? 'Loadout and starting ammo' : 'Target rounds'}</Text>
     <View style={ui.statGroup}><Stat value={summary.totalAvailable} label="Total available" /><Stat value={summary.totalPlanned} label="Planned rounds" /><Stat value={summary.reserve} label="Reserve" /></View>
@@ -30,6 +32,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
     <Action label="Add magazine" onPress={() => apply(saveMagazine(plan,{ id: createMagazineId(uuid.v4), capacity: 10, startingRounds: 0 },true))} />
     <BatchMagazineForm plan={plan} onChange={onChange} />
     <Action label="Start without magazine" onPress={() => apply(designateMagazine(plan,null))} />
+    {!plan.loadout.magazines.length && <Text>No magazines yet: ANALYZE uses the magazine size, rounds loaded and chamber stored in your profile until you add your own.</Text>}
     {plan.loadout.startingMagazineId === null && <Text>No starting magazine designated.</Text>}
     {plan.loadout.magazines.map((magazine,index) => <View key={magazine.id} style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 12, gap: 8 }}>
       <Text>{'Magazine ' + (index+1) + SEP + (plan.loadout.startingMagazineId === magazine.id ? 'starting in firearm' : 'carried spare')}</Text>
@@ -39,7 +42,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
     </View>)}
     </>}
     {section === 'targets' && <>
-    <Text>Unassigned targets have zero planned rounds. No-shoots and props do not consume ammunition.</Text>
+    <Text>{`Targets without your own number use the rule default: ${REQUIRED_HITS.cardboardTarget} rounds per paper target, ${REQUIRED_HITS.steelPlate} per steel (${REQUIRED_HITS_SOURCE}). No-shoots and props do not consume ammunition.`}</Text>
     <Action label="Rounds by target type" onPress={() => setMassOpen(v => !v)} />
     {massOpen && <View style={{ gap: 8, padding: 12, backgroundColor: colors.secondary }}>
       {scoringTypes.map(type => <Action key={type} label={`${type === targetType ? '✓ ' : ''}${targetTypeLabel(type)}${SEP}${stage.objects.filter(o => o.type === type).length} targets`} onPress={() => { setTargetType(type); setApplied(''); }} />)}
@@ -55,7 +58,7 @@ export default function PlanningPanel({ plan, stage, onChange, section = 'loadou
       {!!applied && <Text accessibilityLiveRegion="polite">{applied}</Text>}
     </View>}
     {stage.objects.filter(isEngageable).map(object => <RoundAssignment key={object.id}
-      label={targetNameWithType(stage, object.id)} value={plan.engagements[object.id] ?? 0}
+      label={targetNameWithType(stage, object.id) + (ownRounds(plan, object.id) ? '' : SEP + 'rule default')} value={plannedRounds(plan, object).rounds}
       onSave={rounds => apply(assignRounds(plan,stage,object.id,rounds))} />)}
     </>}
     {summary.insufficient && <Text accessibilityLiveRegion="polite" style={{ color: colors.danger }}>Planned rounds exceed available ammunition by {-summary.reserve}.</Text>}
