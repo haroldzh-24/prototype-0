@@ -55,6 +55,35 @@ Target drafts typically found 60–90 % of the briefing's targets, plus a few fa
 out roughly right where frames don't overlap in the picture. Treat every draft as a starting point: the top-down
 picture underneath is the dependable part.
 
+Rerun on 2026-11-10 with the same pages and code path (`e735510`): the floor straightened on 12 of 13 pages; 5 and 6
+now pass, at fits of 0.44 and 0.40, right at the 0.40 cutoff, so small changes can tip them either way. Stage 1 still
+fails.
+
+## Photos of a printout (2026-11-10)
+
+A phone photo of the printed page adds uneven light, a shadow across the page, a colour cast and glare
+(`src/diagramImport/photoLight.ts`, `tests/printoutPhoto.test.cjs`):
+
+- **Flatten the paper first.** The page corners found when the photo is prepared (or set in CORNERS) straighten the
+  paper before the drawing is looked for; if the drawing isn't inside them, the whole picture is read instead.
+- **Even the light.** The floor is one green and the paper one white across the page, so where either looks darker the
+  light was dimmer. The floor is measured on its own colour only (its chroma, so grass and berms don't count), a coarse
+  map of the light is filled in where neither shows, smoothed, and divided out. The lit paper sets the exposure and the
+  colour balance. A clean render comes back untouched: the 13 PDF pages read exactly as before.
+- **Black-and-white prints** are refused with what to use instead (colours find the floor, areas and targets).
+- **Glare and very uneven light** are named in the message when a photo can't be read.
+
+Simulated photos of the 12 readable Area 4 pages (dim warm light; a gradient; a soft shadow; a hard shadow), scored
+against the PDF reading (bay within 2 yd each way, paper targets within 2 or 25 %):
+
+| | Read | Like the PDF |
+| --- | --- | --- |
+| Read as photographed | 42 of 48 | 6 of 48 |
+| Light evened first | 46 of 48 | 22 of 48 |
+
+Not yet tried on real phone photos. The reader itself is sensitive (several PDF pages sit near its cutoffs), so a
+photo that reads is still a draft to check.
+
 ## Limits
 
 - Designers choose colours: yellow shooting areas (Stage 4) aren't drafted, and black barrels look like walls.

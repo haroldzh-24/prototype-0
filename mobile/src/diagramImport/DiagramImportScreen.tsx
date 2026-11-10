@@ -343,6 +343,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     </Section>}
     {draft?.page && <Section title="3D stage view">
       <Copy>Match book pages made in Practisim Designer show the stage in 3D on a gridded floor. READ 3D DRAWING straightens the floor from its grid, takes one grid square as 1 yd, and drafts shooting areas, targets and walls for you to check. For a flat top-down plan, use NEXT instead.</Copy>
+      {draft.sourceKind !== 'pdf' && <Copy>A photo of a printout: lay the page flat, fill the frame with it, and keep glare off it. Shadows and warm light are evened out before reading, and a colour print is needed.</Copy>}
       <Action title="READ 3D DRAWING" accessibilityLabel="Read a 3D stage drawing from its floor grid" disabled={busy} onPress={readThreeD} />
     </Section>}
     {(references.length > 0 || damagedIds.length > 0) && <Section title={`Saved references · ${references.length} of ${MAX_REFERENCES}`}>

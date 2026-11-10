@@ -8,7 +8,7 @@
  */
 import type { Raster } from './recognition';
 import type { DocumentAsset, PageImage, Point, Proposal, Reconstruction } from './model';
-import { fullQuad, validateReconstruction, validProposal } from './model';
+import { fullCrop, fullQuad, validateReconstruction, validProposal } from './model';
 import type { GroundResult, Mat3, Vec2 } from './groundPlane';
 import { apply, straightenGround } from './groundPlane';
 import type { Bay, Detected, Reading } from './practisimReader';
@@ -16,6 +16,8 @@ import { READER_ID, readDrawing } from './practisimReader';
 import type { Briefing, Label, TextBox } from './briefing';
 import { assignLabels, briefingSummary, briefingTargets, parseBriefing, parseLabels } from './briefing';
 import { encodePng } from './png';
+import { evenLight, looksGreyscale, photoTips } from './photoLight';
+import type { LightResult } from './photoLight';
 import type { TargetFamily } from '../stage/targetFamily';
 import type { StageDocument } from '../stage/model';
 import { presetsForFamily } from '../stage/targetPresets';
@@ -140,23 +142,46 @@ export type ThreeDResult = { draft: Reconstruction; message: string; ground: Gro
 /** Reads the 3D drawing on the draft's page and returns the draft ready for the Scale step. Throws with a reason. */
 /** Lets the screen draw between the long steps (the reading itself runs on the JavaScript thread). */
 const breathe = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+const BLACK_AND_WHITE = 'No 3D stage view was found: this page looks black and white. READ 3D DRAWING finds the floor, shooting areas and targets by their colours, so it needs a colour print, the PDF or a screenshot. A top-down plan, or this page by hand: use NEXT.';
+const sameQuad = (a: readonly Point[], b: readonly Point[]) => a.every((p, i) => Math.abs(p.x - b[i].x) < 1e-6 && Math.abs(p.y - b[i].y) < 1e-6);
+
+/** The page to read and its light: flattened by the page's corners when it is a photo of paper, light evened out. */
+async function lookAtPage(draft: Reconstruction & { page: PageImage }, deps: ThreeDDeps, signal: AbortSignal) {
+  const page = draft.page, corners = draft.alignment.corners, rotation = draft.alignment.rotation;
+  const read = async (source: PageImage, flattened: boolean) => {
+    const light = evenLight(await deps.readRaster(source, signal));
+    return { source, flattened, light, box: drawingBox(light.raster) };
+  };
+  // A photo of a printout: the corners found when it was prepared (or set in CORNERS) flatten the paper first. If the
+  // drawing isn't inside them (a corner found on something else), the whole picture is read instead.
+  if (!sameQuad(corners, fullQuad()) || rotation !== 0) {
+    const flat = await read(await deps.alignPage(page, { corners, rotation, crop: fullCrop() }), true);
+    if (flat.box) return flat;
+  }
+  return read(page, false);
+}
+
 export async function readThreeDDrawing(draft: Reconstruction, family: TargetFamily, deps: ThreeDDeps, signal: AbortSignal): Promise<ThreeDResult> {
   if (!draft.page) throw new Error('Show the page first.');
-  const page = draft.page, pageRaster = await deps.readRaster(page, signal);
-  const box = drawingBox(pageRaster);
-  if (!box) throw new Error('No 3D stage view was found on this page (it needs a green floor). Use NEXT to straighten a top-down plan instead.');
-  const alignment = { corners: fullQuad(), rotation: 0 as const, crop: box };
+  const page = draft.page;
+  const look = await lookAtPage({ ...draft, page }, deps, signal), light: LightResult = look.light, box = look.box;
+  if (!box && looksGreyscale(light.raster)) throw new Error(BLACK_AND_WHITE);
+  const tips = photoTips(light);
+  if (!box) throw new Error(['No 3D stage view was found on this page (it needs a green floor).', tips, 'Use NEXT to straighten a top-down plan instead.'].filter(Boolean).join(' '));
+  const alignment = look.flattened ? { corners: draft.alignment.corners, rotation: draft.alignment.rotation, crop: box } : { corners: fullQuad(), rotation: 0 as const, crop: box };
   const cropped = await deps.alignPage(page, alignment);
   if (signal.aborted) throw new Error('Reading cancelled.');
-  const raster = await deps.readRaster(cropped, signal);
+  // The crop on the same exposure and colour balance as the whole page (it may show no paper of its own).
+  const croppedRaster = await deps.readRaster(cropped, signal);
+  const raster = light.evened ? evenLight(croppedRaster, light.reference).raster : croppedRaster;
   await breathe();
   const { result: ground, reason } = straightenGround(raster);
-  if (!ground) throw new Error(`${reason} Straighten it by hand with NEXT, or try a screenshot of just the drawing.`);
+  if (!ground) throw new Error([reason, tips, 'Straighten it by hand with NEXT, or try a screenshot of just the drawing.'].filter(Boolean).join(' '));
   if (signal.aborted) throw new Error('Reading cancelled.');
   await breathe();
   const reading = readDrawing(raster, ground), e = extentOf(reading.bay);
   // Labels over targets and the briefing, when the phone can read text.
-  const [labelBoxes, pageBoxes] = await Promise.all([deps.recognizeText(cropped).catch(() => null), deps.recognizeText(page).catch(() => null)]);
+  const [labelBoxes, pageBoxes] = await Promise.all([deps.recognizeText(cropped).catch(() => null), deps.recognizeText(look.source).catch(() => null)]);
   const faces = reading.objects.map(o => o.kind === 'target' ? { x: (o.faceImage.x0 + o.faceImage.x1) / 2, y: o.faceImage.y0 } : { x: -1e9, y: -1e9 });
   const labels = labelBoxes ? assignLabels(parseLabels(labelBoxes.map(b => ({ ...b, x: b.x * raster.width, y: b.y * raster.height, width: b.width * raster.width, height: b.height * raster.height }))), faces, raster.width * 0.06) : new Map<number, Label>();
   const briefing = pageBoxes ? parseBriefing([...pageBoxes].sort((a, b) => a.y - b.y || a.x - b.x).map(b => b.text)) : null;
@@ -183,6 +208,7 @@ export async function readThreeDDrawing(draft: Reconstruction, family: TargetFam
   const bayYards = `${Math.round(reading.bay.right - reading.bay.left)} × ${Math.round(reading.bay.front - reading.bay.back)} yd`;
   const message = [
     `Straightened from the floor grid (match ${Math.round(ground.evidence.fit * 100)} %). One grid square is taken as 1 yd; the bay shows as ${bayYards}. Check the scale against a dimension on the drawing.`,
+    light.evened ? 'The photo\'s light was evened out first (shadows and colour cast), so check colours against the page.' : '',
     `Drafted ${drafted.summary.join(', ')}.` + (drafted.barrels ? ` ${drafted.barrels} barrel${drafted.barrels === 1 ? '' : 's'} seen but not added; add a wall where one blocks shots.` : ''),
     briefing ? `Briefing: ${briefingSummary(briefing)}${listed !== null && listed !== found ? ` (${listed} targets listed, ${found} found)` : ''}.` : '',
     ...reading.warnings,
