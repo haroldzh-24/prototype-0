@@ -1,3 +1,12 @@
+# 2026-11-09 (match book drawings, planner report card, hand-tracked breakdowns)
+
+- Fixed: `npm run typecheck` failed in `StageViewport.tsx` (the web-only `touchAction` style) with the installed React Native types.
+- Found by the report card: AUTO-PLAN refuses a stage without a start position ("The stage has no start position."), and nothing the import drafts is a start. The sample stages have one; READ 3D DRAWING doesn't propose one yet (the shooter figure in the drawing marks it).
+- Open (READ 3D DRAWING): the floor didn't straighten on Area 4 stages 1 (faint grid), 5 and 6, which need NEXT and the corners by hand; target drafts miss some targets and add some false ones on textured berms; walls that overlap in the picture make zig-zag drafts; barrels and no-shoots aren't drafted; the grid square is assumed to be 1 yd; reading runs on the JavaScript thread (a few seconds on a phone, unmeasured).
+- Open (breakdowns): thresholds are reasoned, not tuned on range video; Vision's left/right hand can be wrong (nearest-hand fallback); mirrored front-camera video isn't corrected; the Turn in El Presidente is part of the reaction, not its own mark.
+- Open (samples): positions are about half a yard off and leave out barrels and no-shoots; the swingers in stages 8 and 12 are still targets; get the match's permission before shipping them in the App Store build.
+- Reminder: the September 9–10 device checks and the September 9 dense-snapping assessment are now two months overdue (`mobile/docs/rc-hardware-validation.md`).
+
 # Fixed 2026-11-03 (UI cohesion, independent review)
 
 - The undo bar could undo an older edit after a no-op RESET STAGE or DELETE; default spare magazines too few for PLAN RELOADS; LOADOUT and RELOAD sheets disagreeing with ANALYZE; one position with two P-names (stored label vs route order), which also misdirected Ask; RESET ROUTE marking an empty route unsaved; drill-sheet notes and procedurals lost on close; VoiceOver unable to open the PLAN target sheet; older History sessions no longer deletable. Details in changelog.md.

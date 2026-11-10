@@ -18,7 +18,7 @@ Scope comes from the owner's ideas (2026-10-26, marked ★) and the earlier revi
 | A4 | **Rule checks for layers** | Coverage limits where the rulebook sets them (e.g. half-size targets keep half the lower A-zone visible, USPSA 4.2.1.1); PCSL Practical/Competition mixing (9.2.2.1). |
 | A5 | **Drill logger web fix** | Tapped hits land where tapped in the web version. |
 
-## Milestone B: fast stage entry — B3 done; B2 started (drawing under the plan, Photos import) 2026-10-26, batch 16
+## Milestone B: fast stage entry — B3 done; B2 started (drawing under the plan, Photos import) 2026-10-26, batch 16; B1 first version for 3D match book drawings 2026-11-09 (`docs/practisim-reader.md`)
 
 | # | Item | Done when |
 | --- | --- | --- |
@@ -39,7 +39,7 @@ Decision deferred: on-phone reading vs a paid cloud vision service. Test both on
 | C5 | **2–3 plans side by side** | Compared by expected time and hit factor, with the trade-off spelled out ("hard lean at P2"). |
 | C6 ★ | **Is slowing down worth it?** | Per target: time for AA vs accepting a C, against your stage hit factor ("T5: AA costs 0.35 s for +2 points; worth it while stage HF is under 5.7"). |
 
-## Milestone T: Training is the drill library (owner, 2026-10-26) — T1 done (batch 20), T2 done (batch 21), T3 first version (batch 22; `docs/drill-library.md`); all need a phone check, T3 needs real videos to tune
+## Milestone T: Training is the drill library (owner, 2026-10-26) — T1 done (batch 20), T2 done (batch 21), T3 first version (batch 22), rebuilt on hand tracking for every drill 2026-11-09 (`docs/drill-library.md`); all need a phone check, T3 needs real videos to tune
 
 The drills are the whole Training section and the way the app collects data. No free video upload: a video always belongs to a drill run, so the app knows what happened in it.
 
@@ -49,6 +49,10 @@ The drills are the whole Training section and the way the app collects data. No 
 | T2 ★ | **A drill run's video times itself** | Add the video of a run from the drill; the app finds the beep and the drill's shots in the audio (it knows how many and where the reload is), fills the times for you to check against the video, and saves the run with its video. |
 | T3 ★ | **Draw and reload broken into movements** | Start signal → hand moves → grip → out of the holster → hands meet → on target → first shot (and the reload's phases), from body and hand tracking on the run's video, with how sure each mark is. Needs tracking above today's 10 frames a second (a native change and a new phone build) and real draw videos to tune before the numbers are trusted. |
 | T4 ★ | **Practice drills for USPSA and other matches** | More standard drills, described in our own words, each with what it measures; par set by you. |
+
+## Planner test set (2026-11-09)
+
+AUTO-PLAN graded on 9 Area 4 2026 stages: `docs/planner-report-card.md`. Next: reference plans (owner) for the "as good as a person" check.
 
 ## UI cohesion (owner, 2026-11-02) — phases 1–5 done in code 2026-11-02; needs a phone check
 

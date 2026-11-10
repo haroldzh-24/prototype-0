@@ -120,12 +120,10 @@ public final class TrainingPoseModule: Module {
     guard let track = asset.tracks(withMediaType: .video).first else { throw failure("Unsupported or zero-duration video.") }
     let natural = track.naturalSize
     guard natural.width > 0, natural.height > 0 else { throw failure("Invalid video geometry.") }
-    let scale = min(1.0, Double(imageSize) / Double(max(natural.width, natural.height)))
+    // Frames at their own size (Vision scales internally); only the pixel format is set, the safest reader setting.
     let reader = try AVAssetReader(asset: asset)
     let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
-      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-      kCVPixelBufferWidthKey as String: Int((Double(natural.width) * scale).rounded()),
-      kCVPixelBufferHeightKey as String: Int((Double(natural.height) * scale).rounded()),
+      kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)
     ])
     output.alwaysCopiesSampleData = false
     guard reader.canAdd(output) else { throw failure("This video can't be read frame by frame.") }

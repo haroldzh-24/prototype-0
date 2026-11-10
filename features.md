@@ -1,3 +1,10 @@
+# Next for drawings, the planner and breakdowns - 2026-11-09
+
+From the owner's ask of 2026-11-09; the first versions are in changelog.md.
+- READ 3D DRAWING: propose the start from the shooter figure; draft barrels once the app has a barrel object; straighten by hand from four grid crossings when the grid is faint; read a match book PDF's stage pages in one go; check the grid size against labelled dimensions on the page; measure accuracy on other match books (owner to send 2-3).
+- Planner: reference plans for the 9 sample stages (owner's or from stage videos) and the "as good as a person" check; low walls and see-through mesh in the sample files; Ask's 10-question check on a phone with Apple Intelligence.
+- Breakdowns: tune the thresholds on the owner's Draw and Reload videos (5 each, EXPORT TRACKING), then transitions and moves; average transitions and moves in YOUR NUMBERS; feed draw and reload phases into the planner's time model.
+
 # UI cohesion - 2026-11-02
 
 The owner's UI pass (plan: [Claude Doc](https://claude.ai/artifact/UroyABKMmyqc5qgaykbpYj), `docs/roadmap.md` U1–U5): **done in code 2026-11-02**, all five phases, on the web build only. Needs a phone check (gestures, VoiceOver, large text, safe areas, the drag-to-engage, the import on real photos).

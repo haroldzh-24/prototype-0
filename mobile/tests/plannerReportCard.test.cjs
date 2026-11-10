@@ -8,7 +8,7 @@ const { gradeStage, cardLine } = require('../src/samples/reportCard.ts');
 const { savedDocumentProblem } = require('../src/storage/repository.ts');
 const { isStageRoute } = require('../src/planning/route.ts');
 
-// Targets covered per stage on 2026-11-10 (planner 2.1.0). Raise these when coverage improves; never lower them silently.
+// Targets covered per stage on 2026-11-09 (planner 2.1.0). Raise these when coverage improves; never lower them silently.
 const BASELINE = { 2: 14, 3: 13, 4: 17, 7: 18, 8: 11, 9: 13, 10: 15, 11: 10, 12: 4 };
 
 test('sample stages are valid stage files with shooting areas, a start and the briefing\'s steel', () => {

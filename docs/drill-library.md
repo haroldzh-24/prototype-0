@@ -57,6 +57,35 @@ Each mark plays in the video (its own button next to BEEP and SHOT n), and any m
 
 **Limits of this first version:** the thresholds above are reasoned, not tuned: they have been checked only on scripted motion (every mark within two frames), never on real range video. It needs the next iPhone build (the tracker was capped at 10 frames a second; batch 22 raises it to 60). Turn draws, other start positions and reloads on the move are not broken down yet. The breakdown is not used by the stage planner.
 
+## Every drill broken down from hand tracking (2026-11-09; roadmap T3, second version)
+
+The body-tracking breakdown above needed both shoulders and both hips in every frame and looked 10 times a second, so
+close or side-on videos gave nothing. On builds with `TrainingPose.extractHands` (native revision 3), BREAK DOWN THIS
+RUN tracks both hands on every frame of the run's window, from 0.4 s before the beep to 0.3 s after the last shot
+(at most 30 s and 1800 frames). It also tracks the box around the person. Code: `src/training/drillScripts.ts`,
+`handTracking.ts`, `extractHands.ts`, `RunBreakdown.tsx`. Tests: `tests/drillScripts.test.cjs` (synthetic 60 fps
+tracks with known moments).
+
+- **Units:** hand lengths (the median wrist-to-middle-knuckle distance), so the camera's distance doesn't matter and
+  the body needn't be in the picture. Moves use the person's box, in body heights.
+- **Which hand:** Vision says left or right. When it can't, or says the same for both, the hand nearest to where the
+  shooting hand just was stays the shooting hand.
+- **Scripts:** each drill's `intervals` decide its pieces. The buzzer to the first shot is a **Draw** (hands at sides
+  or surrender), or **From ready** for low and high ready. A transition is a **Transition** (hold after the shot,
+  swing, settle to the next shot). A reload is a **Reload** (hand off the gun, at the pouch, magazine in, on target),
+  and a move a **Move** (shot to first step, move, stop to the shot). Splits are timed by sound alone. El Presidente's
+  turn is part of its draw's reaction for now.
+- **Windows:** each moment is searched for only between the two shots around it, after a 0.1 s recoil for swings.
+- **Where to film:** each drill's HOW TO tab and the breakdown say where to put the phone (strong side 45° in front
+  for draws, behind on the strong side for transitions, support side for reloads, side-on for moves), at 60 frames a
+  second or slow motion.
+- **Keeping it:** KEEP ON THIS RUN saves every piece on the run (`breakdown`). The draw or reload is also saved in the
+  older form (`phases`), so YOUR NUMBERS keeps averaging them.
+- **Tuning:** EXPORT TRACKING shares the run's tracking, shot times and hand as a file. Thresholds
+  (`SCRIPT_CONFIG`) are reasoned, not yet tuned on range video. The plan is to tune them on the owner's Draw and
+  Reload videos and pin the hand-checked moments in tests.
+- Older builds keep the body-tracking draw and standing reload.
+
 ## The drills
 
 | Drill | Shots: what each time is | Options | Measures |

@@ -138,6 +138,8 @@ export type ThreeDDeps = {
 export type ThreeDResult = { draft: Reconstruction; message: string; ground: GroundResult; briefing: Briefing | null };
 
 /** Reads the 3D drawing on the draft's page and returns the draft ready for the Scale step. Throws with a reason. */
+/** Lets the screen draw between the long steps (the reading itself runs on the JavaScript thread). */
+const breathe = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 export async function readThreeDDrawing(draft: Reconstruction, family: TargetFamily, deps: ThreeDDeps, signal: AbortSignal): Promise<ThreeDResult> {
   if (!draft.page) throw new Error('Show the page first.');
   const page = draft.page, pageRaster = await deps.readRaster(page, signal);
@@ -147,15 +149,19 @@ export async function readThreeDDrawing(draft: Reconstruction, family: TargetFam
   const cropped = await deps.alignPage(page, alignment);
   if (signal.aborted) throw new Error('Reading cancelled.');
   const raster = await deps.readRaster(cropped, signal);
+  await breathe();
   const { result: ground, reason } = straightenGround(raster);
   if (!ground) throw new Error(`${reason} Straighten it by hand with NEXT, or try a screenshot of just the drawing.`);
   if (signal.aborted) throw new Error('Reading cancelled.');
+  await breathe();
   const reading = readDrawing(raster, ground), e = extentOf(reading.bay);
   // Labels over targets and the briefing, when the phone can read text.
   const [labelBoxes, pageBoxes] = await Promise.all([deps.recognizeText(cropped).catch(() => null), deps.recognizeText(page).catch(() => null)]);
   const faces = reading.objects.map(o => o.kind === 'target' ? { x: (o.faceImage.x0 + o.faceImage.x1) / 2, y: o.faceImage.y0 } : { x: -1e9, y: -1e9 });
   const labels = labelBoxes ? assignLabels(parseLabels(labelBoxes.map(b => ({ ...b, x: b.x * raster.width, y: b.y * raster.height, width: b.width * raster.width, height: b.height * raster.height }))), faces, raster.width * 0.06) : new Map<number, Label>();
   const briefing = pageBoxes ? parseBriefing([...pageBoxes].sort((a, b) => a.y - b.y || a.x - b.x).map(b => b.text)) : null;
+  await breathe();
+  if (signal.aborted) throw new Error('Reading cancelled.');
   const top = renderTopDown(raster, ground.toImage, e);
   const asset = await deps.storePng(encodePng(top.rgba, top.width, top.height), 'Straightened floor.png');
   const aligned: PageImage = { asset, width: top.width, height: top.height, page: page.page, pageCount: page.pageCount };

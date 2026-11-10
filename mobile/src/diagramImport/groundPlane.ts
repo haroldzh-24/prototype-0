@@ -84,18 +84,19 @@ export const OTHER = 0, FLOOR = 1, GRID = 2, SHADOW = 3;
  * Floor: close to the floor colour. Shadow: the floor colour darkened (same proportions, 45–92 % as bright). Grid line:
  * the floor colour mixed toward white (every channel moves the same fraction of the way to 255).
  */
-export function pixelKind(c: Rgb, floor: Rgb): PixelKind {
-  const d = Math.hypot(c[0] - floor[0], c[1] - floor[1], c[2] - floor[2]);
-  if (d < 34) return FLOOR;
-  const ts = [0, 1, 2].map(i => floor[i] > 235 ? null : (c[i] - floor[i]) / (255 - floor[i])).filter((t): t is number => t !== null);
-  if (ts.length >= 2) {
-    const mean = ts.reduce((s, t) => s + t, 0) / ts.length;
-    if (mean > 0.1 && mean < 0.95 && ts.every(t => Math.abs(t - mean) < 0.22)) return GRID;
-  }
-  const sum = c[0] + c[1] + c[2], fsum = floor[0] + floor[1] + floor[2], k = sum / fsum;
-  if (k > 0.45 && k < 0.92 && greenish(c)) {
-    const mix = Math.hypot(c[0] - floor[0] * k, c[1] - floor[1] * k, c[2] - floor[2] * k);
-    if (mix < 30) return SHADOW;
+export function pixelKind(c: Rgb, floor: Rgb): PixelKind { return kindOfRgb(c[0], c[1], c[2], floor); }
+/** `pixelKind` on plain numbers (no array per pixel: this runs for every pixel of the drawing). */
+export function kindOfRgb(r: number, g: number, b: number, floor: Rgb): PixelKind {
+  const dr = r - floor[0], dg = g - floor[1], db = b - floor[2];
+  if (dr * dr + dg * dg + db * db < 34 * 34) return FLOOR;
+  let n = 0, sum = 0, lo = Infinity, hi = -Infinity;
+  const add = (v: number, f: number) => { if (f > 235) return; const t = (v - f) / (255 - f); n++; sum += t; lo = Math.min(lo, t); hi = Math.max(hi, t); };
+  add(r, floor[0]); add(g, floor[1]); add(b, floor[2]);
+  if (n >= 2) { const mean = sum / n; if (mean > 0.1 && mean < 0.95 && hi - mean < 0.22 && mean - lo < 0.22) return GRID; }
+  const k = (r + g + b) / (floor[0] + floor[1] + floor[2]);
+  if (k > 0.45 && k < 0.92 && g > r + 12 && g > b + 12) {
+    const mr = r - floor[0] * k, mg = g - floor[1] * k, mb = b - floor[2] * k;
+    if (mr * mr + mg * mg + mb * mb < 30 * 30) return SHADOW;
   }
   return OTHER;
 }
@@ -126,10 +127,10 @@ export function kinds(r: Raster, floor: Rgb): Uint8Array {
   for (let y = Math.floor(h * 0.55); y < h; y += 2) for (let x = Math.floor(w * 0.2); x < Math.floor(w * 0.8); x += 2) if (greenish(at(r, x, y))) sample.push(d[y * w + x]);
   sample.sort((p, q) => p - q);
   const threshold = Math.max(7, (sample[Math.floor(sample.length * 0.97)] ?? 0) * 0.5);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const c = at(r, x, y), i = y * w + x, kind = pixelKind(c, floor);
+  for (let i = 0; i < w * h; i++) {
+    const R = r.rgba[i * 4], G = r.rgba[i * 4 + 1], B = r.rgba[i * 4 + 2], kind = kindOfRgb(R, G, B, floor);
     // Grid lines keep the floor's green tint; white or grey lines are walls, not grid.
-    out[i] = d[i] > threshold && greenish(c) ? GRID : kind === GRID ? FLOOR : kind;
+    out[i] = d[i] > threshold && G > R + 12 && G > B + 12 ? GRID : kind === GRID ? FLOOR : kind;
   }
   return out;
 }
