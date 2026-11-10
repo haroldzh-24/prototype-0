@@ -1,3 +1,7 @@
+# 2026-11-10 (TestFlight build)
+
+- Fixed: the iOS build failed in EAS's "Configure expo-updates" phase, building from Windows. The fingerprint runtime version is worked out on the Windows PC and again on Expo's Mac, and the two can differ (line endings, paths), which stops the build. The runtime version is now the app version ("1.0.0"). Rule from here: bump `version` in app.json whenever native code or a native package changes, or an over-the-air update could reach a build without that native code.
+
 # 2026-11-09 (match book drawings, planner report card, hand-tracked breakdowns)
 
 - Fixed: `npm run typecheck` failed in `StageViewport.tsx` (the web-only `touchAction` style) with the installed React Native types.
