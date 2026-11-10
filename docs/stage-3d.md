@@ -22,7 +22,8 @@ Undo, Save and the unsaved-changes guard are shared, because all three views edi
 ## Eye level and engaging on the move
 
 - Eye height defaults to 5 ft 3 in and is adjusted with − / + (36–84 in), remembered on the device.
-- The scrubber under the view is the planned walk: stops are marks, green stretches are where the plan engages a target on the move. Drag along it, step a yard with ◀ ▶, or jump to START, P1, P2… The view turns toward what the plan engages at that point (drag to look around; RE-AIM to turn back).
+- The scrubber under the view is the planned walk: stops are marks, green stretches are where the plan engages a target on the move. Drag along it (it lands on a stop within about 14 points of one), step a yard with ◀ ▶, or jump to START, P1, P2…
+- **Auto-aim** (`aimAt` in `walk.ts`, 2026-11-10): at a stop, or inside a stretch shot on the move, the view aims at one target the plan engages there, in the plan's order, looking at the middle of its face from eye height; ‹ › step through that spot's targets (AIM T4 · 2 OF 3). Walking between them it faces the way you walk and turns to the next planned target over the last 1.5 yd; standing on the start it faces the first planned target (NEXT T1, with HIDDEN FROM HERE when it can't be seen). Turns are smoothed, the short way round. Dragging switches to FREE LOOK until AIM is pressed or another stop is reached. Without a plan the view faces the targets as a whole, as before.
 - For every scoring target the list says, for that exact spot:
   - **ON THE MOVE** — the plan engages it on this stretch (anywhere along it), with the yards of legal walking left;
   - **FROM HERE** — engaged standing at this stop;

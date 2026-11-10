@@ -256,3 +256,71 @@ test('walk: a first position on the start box, route order for facing, ruleset a
   const legalMid = W.targetStatuses(s2, p2, w2, mid).filter(s => s.state === 'legal');
   assert.ok(legalMid.every(s => /not on the move \(moving engagement is off/.test(s.detail)), JSON.stringify(legalMid));
 });
+
+test('walk aim: one target at a time in plan order, turning to the next before arriving', () => {
+  const { stage, plan } = gallery();
+  const walk = W.buildWalk(stage, plan.route), sight = W.sightStage(stage, plan);
+  const aimAt = (d, pick = 0) => { const wp = W.walkPoint(walk, d); return { wp, aim: W.aimAt(stage, walk, wp, W.targetStatuses(stage, plan, walk, wp, sight), 63, pick) }; };
+  const bearing = (wp, id) => { const t = stage.objects.find(o => o.id === id).position; return Math.atan2(t.y - wp.point.y, t.x - wp.point.x) * 180 / Math.PI; };
+  // Inside L's stretch: aims at L, not at the middle of everything planned.
+  const L = walk.windows.find(w => w.targetId === 'L'), { wp: inL, aim: onL } = aimAt((L.from + L.to) / 2);
+  assert.equal(onL.mode, 'engage'); assert.ok(onL.queue.includes('L'));
+  near(onL.heading, bearing(inL, onL.targetId), 1e-6);
+  // Two stretches open at once: ‹ › steps through them in plan order and wraps.
+  const both = Array.from({ length: Math.ceil(walk.length) }, (_, i) => i).find(d => aimAt(d).aim.queue.length > 1);
+  if (both !== undefined) {
+    const first = aimAt(both).aim, second = aimAt(both, 1).aim, wrapped = aimAt(both, 2).aim, back = aimAt(both, -1).aim;
+    assert.deepEqual(first.queue, ['L', 'M'].filter(id => first.queue.includes(id)));
+    assert.equal(second.targetId, first.queue[1]); assert.equal(wrapped.targetId, first.queue[0]); assert.equal(back.targetId, first.queue[first.queue.length - 1]);
+  }
+  // At P1: R, looking down toward the middle of its face from 63 in.
+  const end = aimAt(walk.length);
+  assert.equal(end.aim.targetId, 'R'); assert.equal(end.aim.mode, 'engage');
+  const face = stage.objects.find(o => o.id === 'R'), zs = require('../src/stage/projection.ts').objectSurfaces(face).flatMap(s => s.points.map(p => p.z));
+  const expectPitch = Math.atan2((Math.min(...zs) + Math.max(...zs)) / 2 - 63, Math.hypot(face.position.x - end.wp.point.x, face.position.y - end.wp.point.y)) * 180 / Math.PI;
+  near(end.aim.pitch, expectPitch, 1e-6);
+  // Past every stretch and still walking: the way you walk, then turning to R over the last 1.5 yd.
+  const lastWindow = Math.max(...walk.windows.map(w => w.to));
+  if (walk.length - lastWindow > W.AIM_BLEND_INCHES + 12) {
+    const far = aimAt(lastWindow + 6);
+    assert.equal(far.aim.mode, 'walk'); assert.equal(far.aim.targetId, null); near(far.aim.heading, far.wp.heading, 1e-6);
+    const close = aimAt(walk.length - W.AIM_BLEND_INCHES / 2);
+    assert.equal(close.aim.mode, 'next'); assert.equal(close.aim.targetId, 'R');
+    near(close.aim.heading, W.blendHeading(close.wp.heading, bearing(close.wp, 'R'), 0.5), 1e-6);
+  }
+});
+
+test('walk aim: from the start, the first planned target; without a plan, the targets as a whole', () => {
+  const stage = createDefaultStage(undefined, { size: { width: 600, depth: 480 } });
+  stage.objects = [createObject('start', 'start', 300, 440), createObject('cardboardTarget', 'T', 300, 60), createObject('cardboardTarget', 'U', 500, 60)];
+  const plan = createPlan(); plan.route = createRoute('r');
+  plan.route.engagementRules = { ...defaultEngagementRules(stage), firingAreas: [box('A', 20, 300, 560, 160)] };
+  plan.route.positions = [
+    { id: 'P1', label: 'P1', position: at(100, 400), visibleTargetIds: ['T'], engagedTargetIds: ['T'] },
+    { id: 'P2', label: 'P2', position: at(500, 400), visibleTargetIds: ['U'], engagedTargetIds: ['U'] }];
+  const walk = W.buildWalk(stage, plan.route), sight = W.sightStage(stage, plan);
+  const start = W.walkPoint(walk, 0), aim = W.aimAt(stage, walk, start, W.targetStatuses(stage, plan, walk, start, sight), 63);
+  assert.equal(aim.mode, 'next'); assert.equal(aim.targetId, 'T');
+  near(aim.heading, -90, 1e-6);
+  // At P2, P1's target is done: U is the one.
+  const p2 = W.walkPoint(walk, walk.length);
+  assert.equal(W.aimAt(stage, walk, p2, W.targetStatuses(stage, plan, walk, p2, sight), 63).targetId, 'U');
+  // No route: the old overview heading, level.
+  const none = W.buildWalk(stage, undefined), here = W.walkPoint(none, 0), statuses = W.targetStatuses(stage, createPlan(), none, here);
+  const overview = W.aimAt(stage, none, here, statuses, 63);
+  assert.equal(overview.mode, 'overview'); assert.equal(overview.targetId, null); assert.equal(overview.pitch, W.LEVEL_PITCH);
+  near(overview.heading, W.suggestedHeading(stage, none, here, statuses), 1e-9);
+});
+
+test('walk aim helpers: short turns, smooth easing, and scrubbing that lands on stops', () => {
+  near(W.turnBetween(170, -170), 20); near(W.turnBetween(-170, 170), -20); near(W.turnBetween(10, 10), 0);
+  near(W.blendHeading(170, -170, 0.5), 180); near(W.blendHeading(0, 90, 2), 90, 1e-9, 'clamped');
+  // Easing closes the gap the short way, never overshoots, and lands exactly.
+  let h = 170; for (let i = 0; i < 5; i++) { const next = W.easeHeading(h, -170, 16); assert.ok(W.turnBetween(next, -170) >= 0 && W.turnBetween(next, -170) < W.turnBetween(h, -170) + 1e-9); h = next; }
+  let settled = 0; for (let i = 0; i < 200; i++) settled = W.easeHeading(settled, 45, 16);
+  assert.equal(settled, 45);
+  assert.equal(W.easeHeading(10, 30, 0), 10, 'no time, no turn');
+  const walk = { stops: [{ id: 's', label: 'START', distance: 0 }, { id: 'P1', label: 'P1', distance: 200 }, { id: 'P2', label: 'P2', distance: 420 }] };
+  assert.equal(W.snapToStop(walk, 192, 12), 200); assert.equal(W.snapToStop(walk, 180, 12), 180);
+  assert.equal(W.snapToStop(walk, 5, 12), 0); assert.equal(W.snapToStop(walk, 412, 12), 420);
+});

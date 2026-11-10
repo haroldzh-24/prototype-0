@@ -14,6 +14,7 @@ import { optionsFromPlan, snapshotFromPlan } from '../planning/v2/adopt';
 import type { Ruleset } from '../planning/v2/types';
 import { shortTargetLabel } from './scene';
 import { positionName } from '../ui/words';
+import { objectSurfaces } from '../stage/projection';
 
 /**
  * Walking the planned route at eye level. The walk follows the drawn path (bends included), the same path the
@@ -208,4 +209,88 @@ export function suggestedHeading(stage: StageDocument, walk: Walk, at: WalkPoint
     if (dist(c, at.point) > 1) return Math.atan2(c.y - at.point.y, c.x - at.point.x) * 180 / Math.PI;
   }
   return at.heading ?? stageDownrange(stage);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Aiming: which target the view points at as the shooter walks the route.
+
+/** How far before a stop (or a stretch shot on the move) the view starts turning from the walk to its first target. */
+export const AIM_BLEND_INCHES = 54;
+/** The pitch of a level look along the walk (slightly down, as the eye-level view has always opened). */
+export const LEVEL_PITCH = -4;
+export type AimMode = 'engage' | 'next' | 'walk' | 'overview';
+export type Aim = {
+  /** The target the view points at; null when facing the way the shooter walks. */
+  targetId: string | null;
+  heading: number; pitch: number;
+  /** The targets to engage right here, on the move or at this stop, in the plan's order: ‹ › steps through them. */
+  queue: string[]; index: number;
+  /** engage: a target the plan shoots here · next: turning toward the next planned target · walk: facing the way you walk · overview: no plan. */
+  mode: AimMode;
+};
+
+/** The smaller turn from one heading to another, in degrees (−180 to 180). */
+export function turnBetween(from: number, to: number): number { return ((to - from) % 360 + 540) % 360 - 180; }
+/** A heading part of the way from one to another, turning the short way. */
+export function blendHeading(from: number, to: number, t: number): number { return from + turnBetween(from, to) * Math.max(0, Math.min(1, t)); }
+/** One frame of a smooth turn: closes a share of the gap the short way (1 − e^(−dt/τ)), landing exactly when close. */
+export function easeHeading(current: number, target: number, dtMs: number, tauMs = 110): number {
+  const gap = turnBetween(current, target);
+  if (Math.abs(gap) < 0.05) return target;
+  return current + gap * (1 - Math.exp(-Math.max(0, dtMs) / tauMs));
+}
+
+/** Height of the middle of a target's face, as the 3D view draws it: where to look. */
+function aimHeight(stage: StageDocument, id: string): number | null {
+  const o = stage.objects.find(x => x.id === id);
+  if (!o) return null;
+  const zs = objectSurfaces(o).flatMap(s => s.points.map(p => p.z));
+  return zs.length ? (Math.min(...zs) + Math.max(...zs)) / 2 : null;
+}
+
+/**
+ * Where to point the eye-level view. At a stop, or inside a stretch the plan shoots on the move, it aims at one target
+ * the plan engages there, in the plan's order (`pick` steps through them). Walking between them it faces the way the
+ * shooter walks, turning to the next planned target over the last `AIM_BLEND_INCHES` before it. Standing on a stop with
+ * nothing of its own (the start), it faces the next planned target. With no plan, the targets as a whole.
+ */
+export function aimAt(stage: StageDocument, walk: Walk, at: WalkPoint, statuses: TargetStatus[], eyeHeight: number, pick = 0): Aim {
+  const state = new Map(statuses.map(s => [s.targetId, s.state]));
+  const position = (id: string) => stage.objects.find(o => o.id === id)?.position;
+  const toward = (id: string, fallback: number) => {
+    const p = position(id);
+    return p && dist(p, at.point) > 1 ? Math.atan2(p.y - at.point.y, p.x - at.point.x) * 180 / Math.PI : fallback;
+  };
+  const pitchTo = (id: string) => {
+    const p = position(id), z = aimHeight(stage, id);
+    if (!p || z === null) return LEVEL_PITCH;
+    const deg = Math.atan2(z - eyeHeight, Math.max(12, dist(p, at.point))) * 180 / Math.PI;
+    return Math.max(-45, Math.min(45, deg));
+  };
+  const walking = at.heading ?? stageDownrange(stage);
+  const queue = [...new Set(walk.order.filter(s => { const st = state.get(s.targetId); return st === 'moving' || st === 'here'; }).map(s => s.targetId))];
+  if (queue.length) {
+    const index = ((pick % queue.length) + queue.length) % queue.length, id = queue[index];
+    return { targetId: id, heading: toward(id, walking), pitch: pitchTo(id), queue, index, mode: 'engage' };
+  }
+  const next = walk.order.find(s => state.has(s.targetId) && state.get(s.targetId) !== 'done');
+  if (next) {
+    const id = next.targetId, window = next.kind === 'moving' ? walk.windows.find(w => w.targetId === id) : undefined;
+    const engageAt = window ? window.from : walk.stops[next.stopIndex]?.distance ?? walk.length;
+    const t = at.stop || at.heading === null ? 1 : 1 - (engageAt - at.distance) / AIM_BLEND_INCHES;
+    if (t <= 0) return { targetId: null, heading: walking, pitch: LEVEL_PITCH, queue: [], index: 0, mode: 'walk' };
+    const share = Math.min(1, t);
+    return { targetId: id, heading: blendHeading(walking, toward(id, walking), share), pitch: LEVEL_PITCH + (pitchTo(id) - LEVEL_PITCH) * share, queue: [], index: 0, mode: 'next' };
+  }
+  return { targetId: null, heading: suggestedHeading(stage, walk, at, statuses), pitch: LEVEL_PITCH, queue: [], index: 0, mode: walk.length === 0 ? 'overview' : 'walk' };
+}
+
+/**
+ * Scrubbing lands on a stop when the finger is within `tolerance` inches of it, so the view from that stop shows
+ * (a finger can't hit a stop to the half inch). Stops sharing a point resolve as `walkPoint` does.
+ */
+export function snapToStop(walk: Walk, distance: number, tolerance: number): number {
+  let best: number | null = null, gap = Infinity;
+  for (const s of walk.stops) { const d = Math.abs(s.distance - distance); if (d <= tolerance && d < gap) { gap = d; best = s.distance; } }
+  return best ?? distance;
 }
