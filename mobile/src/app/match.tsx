@@ -7,6 +7,7 @@ import EditorSheet from '@/editor/EditorSheet';
 import { useRepository } from '@/storage/StorageProvider';
 import type { Match, StageSummary } from '@/storage/repository';
 import { createDefaultStage } from '@/stage/defaults';
+import { AREA4_2026, buildSample } from '@/samples/area4';
 import { createPlan } from '@/planning/model';
 import { useThemeMode } from '@/ui/theme';
 import { checkStage, minimumRounds, uspsaCourseType } from '@/rules/stageCheck';
@@ -84,6 +85,12 @@ function MatchStages({ id }: { id?: string }) {
           } else if (editing && editing !== 'new') await repo.renameStage(editing.id, name);
         })} />{!!error && <ErrorState title="Changes could not be saved." detail={error} />}
       </Panel>
+      {editing === 'new' && match?.targetFamily === 'USPSA' && <Panel>
+        <Copy>Or add the {AREA4_2026.length} sample stages from the Area 4 2026 match book, with targets, walls and shooting areas already in place, to try AUTO-PLAN. Positions are approximate.</Copy>
+        <Action title={busy ? 'ADDING…' : `ADD ${AREA4_2026.length} SAMPLE STAGES`} disabled={busy} onPress={() => void run(async () => {
+          for (const spec of AREA4_2026) { const sample = buildSample(spec); await repo.createStage(sample.name, sample.document, sample.plan, match.id); }
+        })} />
+      </Panel>}
     </EditorSheet>
     <EditorSheet title="Delete stage" visible={deleting !== null} close={() => { if (!running.current) setDeleting(null); }}>
       <DeleteConfirmation noun="stage" detail={'Delete ' + deleting?.name + ' and its saved planning data?'} busy={busy} onKeep={() => setDeleting(null)} onDelete={() => { if (deleting) void run(() => repo.deleteStage(deleting.id)); }} error={error} />
