@@ -1,3 +1,11 @@
+# WALK auto-aim, and READ 3D DRAWING on photos of a printout - 2026-11-10
+
+On branch `walk-aim-and-printout` (`a2eb9df`, `9f48360`); main stays at `e735510` for the TestFlight build. Plan: project doc `claude/plan-printout-photo-and-walk-aim-2026-11-10.md`.
+- **WALK auto-aim** (`docs/stage-3d.md`): at a stop, or inside a stretch shot on the move, the view aims at one target the plan engages there, in the plan's order, at the middle of its face; ‹ › step through them (AIM T4 · 2 OF 3). Walking, it faces the way you walk and turns to the next planned target over the last 1.5 yd; on the start, NEXT T1 (HIDDEN FROM HERE when it can't be seen). Smooth turns; dragging is FREE LOOK until AIM or the next stop (replaces RE-AIM); the scrubber lands on a stop within about 14 points.
+- **Photos of a printed match book page** (`docs/practisim-reader.md`): READ 3D DRAWING flattens the paper by its corners first, evens the light (floor and paper as references, exposure and colour balance from the paper), refuses black-and-white prints with what to use instead, and names glare or very uneven light when a photo can't be read. PDF pages read exactly as before (all 13 Area 4 pages compared). On simulated photos of the 12 readable pages in four lighting setups: 46 of 48 read and 22 match the PDF reading, against 42 and 6 read as photographed. A tip next to READ 3D DRAWING says how to take the photo.
+- Regression: the planner report card and the three AUTO-PLAN test cases rerun at `9f48360`: 24 of 24, identical plans on all 9 stages.
+- Validation: 1134/1134 tests (`tests/walkAim.test.cjs`, `tests/printoutPhoto.test.cjs`, 3 new in `tests/stage3d.test.cjs`), TypeScript passed. Nothing checked on a phone or on real photos.
+
 # Match book 3D drawings, planner report card, drill breakdowns from hand tracking - 2026-11-09
 
 Asked for by the owner on 2026-11-09 (plan: [Claude Doc](https://claude.ai/artifact/HpLqKu9PaD9PK5E2RjMFhW), project doc `claude/plan-drawings-video-planner-2026-11-09.md`). Built on the web and in Node only; the native parts are not compiled yet.

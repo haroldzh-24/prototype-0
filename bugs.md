@@ -1,3 +1,11 @@
+# 2026-11-10 (WALK auto-aim, photos of a printout)
+
+- Open (report card wording): the report line says "legal" for an empty plan (0 positions after invalid input), because "every stop is inside an area" is true when there are no stops. The test still fails such a plan (it checks the status), but the line should say "no plan". Found while writing up the AUTO-PLAN tests.
+- Open (photos of a printout): tried only on simulated photos. About half of the simulated photos read like the PDF; the reader's cutoffs are close on several pages (5 and 6 straighten at fits of 0.44 and 0.40 against a 0.40 cutoff), so a photo can tip either way. Needs real phone photos of the printed Area 4 pages in shade, sun and lamp light. A hard shadow edge across the floor leaves a band about one cell wide that is evened wrongly.
+- Open (photos): black-and-white prints are refused; reading them needs shapes, not colours.
+- Open (WALK): auto-aim, the smooth turns and the scrubber landing on stops are checked in tests only; the feel on a phone (turn speed, landing distance) is unchecked.
+- Corrected: `docs/practisim-reader.md` listed stages 5 and 6 as refused; a rerun with the current code straightens them.
+
 # 2026-11-09 (match book drawings, planner report card, hand-tracked breakdowns)
 
 - Fixed: `npm run typecheck` failed in `StageViewport.tsx` (the web-only `touchAction` style) with the installed React Native types.

@@ -1,3 +1,10 @@
+# Next for photos of a printout and WALK - 2026-11-10
+
+First versions in changelog.md (2026-11-10).
+- Photos of a printout: test on real phone photos of the printed Area 4 pages (shade, sun, lamp, an angle, a fold) against the PDF reading; read black-and-white prints by shape; even a hard shadow edge without the one-cell band; a "retake" hint before reading when the page is small in the frame or blurred.
+- WALK: tune the turn speed and the scrubber's landing distance on a phone; show the aimed target's rounds and planned hits beside AIM; step through targets with a swipe as well as ‹ ›.
+- Report card: say "no plan" instead of "legal" for an empty plan (bugs.md 2026-11-10).
+
 # Next for drawings, the planner and breakdowns - 2026-11-09
 
 From the owner's ask of 2026-11-09; the first versions are in changelog.md.
