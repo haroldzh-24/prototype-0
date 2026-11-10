@@ -1,6 +1,9 @@
 import ExpoModulesCore
 import AVFoundation
 import Vision
+import CoreMedia
+import CoreVideo
+import ImageIO
 
 public final class TrainingPoseModule: Module {
   private let lock = NSLock()
@@ -63,6 +66,20 @@ public final class TrainingPoseModule: Module {
       return try self.extract(uri, job: job, fps: fps, limitMs: limitMs, maxSamples: maxSamples,
                               imageSize: imageSize, minConfidence: minConfidence)
     }.runOnQueue(DispatchQueue(label: "training.pose.frames", qos: .userInitiated))
+    // Every frame between fromMs and toMs (one run of a drill): both hands (Vision hand pose) and the box around the
+    // person (works on a partial body). Frames are decoded in order with AVAssetReader, not sampled.
+    AsyncFunction("extractHands") { (uri: String, job: String, fromMs: Double, toMs: Double, maxFrames: Int,
+                                     imageSize: Int, minConfidence: Double) -> [String: Any] in
+      defer {
+        self.lock.lock()
+        if self.active == job { self.active = nil; self.running = false; self.generator = nil }
+        self.lock.unlock()
+      }
+      try self.begin(job)
+      try self.check(job)
+      return try self.extractHands(uri, job: job, fromMs: fromMs, toMs: toMs, maxFrames: maxFrames,
+                                   imageSize: imageSize, minConfidence: minConfidence)
+    }.runOnQueue(DispatchQueue(label: "training.pose.hands", qos: .userInitiated))
   }
   private func begin(_ job: String) throws {
     lock.lock()
@@ -85,6 +102,87 @@ public final class TrainingPoseModule: Module {
     let stopped = active != job || cancelled
     lock.unlock()
     if stopped { throw failure("Movement analysis cancelled.") }
+  }
+  /// Upright orientation of a track's buffers from its preferred transform (phones record sideways and rotate on play).
+  private func orientation(of transform: CGAffineTransform) -> CGImagePropertyOrientation {
+    if transform.a == 0 && transform.b == 1 && transform.c == -1 && transform.d == 0 { return .right }
+    if transform.a == 0 && transform.b == -1 && transform.c == 1 && transform.d == 0 { return .left }
+    if transform.a == -1 && transform.d == -1 { return .down }
+    return .up
+  }
+  private func extractHands(_ uri: String, job: String, fromMs: Double, toMs: Double, maxFrames: Int,
+                            imageSize: Int, minConfidence: Double) throws -> [String: Any] {
+    guard fromMs.isFinite, toMs.isFinite, fromMs >= 0, toMs > fromMs, toMs - fromMs <= 30000,
+      maxFrames > 0, maxFrames <= 1800, imageSize >= 160, imageSize <= 1280,
+      minConfidence.isFinite, minConfidence >= 0, minConfidence <= 1,
+      let url = URL(string: uri), url.isFileURL else { throw failure("Unsupported local hand request.") }
+    let asset = AVURLAsset(url: url)
+    guard let track = asset.tracks(withMediaType: .video).first else { throw failure("Unsupported or zero-duration video.") }
+    let natural = track.naturalSize
+    guard natural.width > 0, natural.height > 0 else { throw failure("Invalid video geometry.") }
+    let scale = min(1.0, Double(imageSize) / Double(max(natural.width, natural.height)))
+    let reader = try AVAssetReader(asset: asset)
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+      kCVPixelBufferWidthKey as String: Int((Double(natural.width) * scale).rounded()),
+      kCVPixelBufferHeightKey as String: Int((Double(natural.height) * scale).rounded()),
+    ])
+    output.alwaysCopiesSampleData = false
+    guard reader.canAdd(output) else { throw failure("This video can't be read frame by frame.") }
+    reader.add(output)
+    reader.timeRange = CMTimeRange(start: CMTime(seconds: fromMs / 1000, preferredTimescale: 600),
+                                   end: CMTime(seconds: toMs / 1000, preferredTimescale: 600))
+    guard reader.startReading() else { throw failure("This video can't be read frame by frame.") }
+    defer { if reader.status == .reading { reader.cancelReading() } }
+    let upright = orientation(of: track.preferredTransform)
+    let sideways = upright == .right || upright == .left
+    let width = sideways ? natural.height : natural.width, height = sideways ? natural.width : natural.height
+    let joints: [(String, VNHumanHandPoseObservation.JointName)] = [
+      ("wrist", .wrist), ("thumbTip", .thumbTip), ("indexMCP", .indexMCP), ("indexTip", .indexTip),
+      ("middleMCP", .middleMCP), ("middleTip", .middleTip), ("littleMCP", .littleMCP)
+    ]
+    var frames: [[String: Any]] = []
+    var warnings: [String] = []
+    let expected = max(1.0, Double(track.nominalFrameRate) * (toMs - fromMs) / 1000)
+    while let sample = output.copyNextSampleBuffer() {
+      try check(job)
+      if frames.count >= maxFrames { warnings.append("Frame limit reached; the end of the run wasn't tracked."); break }
+      try autoreleasepool {
+        guard let pixels = CMSampleBufferGetImageBuffer(sample) else { return }
+        let ms = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample)) * 1000
+        guard ms.isFinite else { return }
+        let hands = VNDetectHumanHandPoseRequest()
+        hands.maximumHandCount = 2
+        let person = VNDetectHumanRectanglesRequest()
+        person.upperBodyOnly = false
+        try VNImageRequestHandler(cvPixelBuffer: pixels, orientation: upright, options: [:]).perform([hands, person])
+        var found: [[String: Any]] = []
+        for observation in (hands.results ?? []).prefix(2) {
+          let points = try observation.recognizedPoints(.all)
+          var named: [String: Any] = [:]
+          for (name, key) in joints {
+            guard let point = points[key], Double(point.confidence) >= minConfidence,
+              point.location.x.isFinite, point.location.y.isFinite else { continue }
+            named[name] = ["x": Double(point.location.x), "y": 1 - Double(point.location.y), "confidence": Double(point.confidence)]
+          }
+          let side = observation.chirality == .left ? "left" : observation.chirality == .right ? "right" : "unknown"
+          found.append(["chirality": side, "confidence": Double(observation.confidence), "joints": named])
+        }
+        var frame: [String: Any] = ["timestampMs": ms, "hands": found]
+        if let body = (person.results ?? []).max(by: { $0.boundingBox.height < $1.boundingBox.height }) {
+          let box = body.boundingBox
+          frame["person"] = ["x": Double(box.minX), "y": Double(1 - box.maxY), "width": Double(box.width), "height": Double(box.height), "confidence": Double(body.confidence)]
+        }
+        frames.append(frame)
+      }
+      lock.lock()
+      progress = min(1, Double(frames.count) / expected)
+      lock.unlock()
+    }
+    try check(job)
+    if reader.status == .failed { throw failure("The video stopped decoding: \(reader.error?.localizedDescription ?? "unknown error").") }
+    return ["frames": frames, "width": Double(width), "height": Double(height), "fps": Double(track.nominalFrameRate),
+            "fromMs": fromMs, "toMs": toMs, "warnings": warnings, "nativeRevision": 3]
   }
   private func extract(_ uri: String, job: String, fps: Double, limitMs: Double,
                        maxSamples: Int, imageSize: Int, minConfidence: Double) throws -> [String: Any] {

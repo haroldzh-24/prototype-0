@@ -29,7 +29,7 @@ export function trainingIntro(planPractice: TrainingContext): string {
 }
 /** Why MARK ON TARGET or the movement breakdown isn't offered (shown instead of hiding them). */
 export const MARK_ON_TARGET_NOTE = 'Marking hits works on single paper-target drills, live fire.';
-export const BREAKDOWN_NOTE = 'Breakdown works on Bill Drill, Draw from hands at sides and standing Reload runs with a video whose beep was used.';
+export const BREAKDOWN_NOTE = 'Breakdown works on runs with a video whose beep was used. Older builds of the app break down only Bill Drill, Draw from hands at sides and standing Reload.';
 export const READ_ONLY_NOTE = 'Read-only: recorded before the drill library.';
 export const startLabels: Record<StartingType, string> = {
   competitionHolster: 'Competition Holster', retentionHolster: 'Level II / III Holster',

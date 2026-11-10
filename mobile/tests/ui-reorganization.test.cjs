@@ -967,7 +967,7 @@ test('Drill sheet: your runs of these options, best time and par, and remove aft
   assert.equal(row('Runs'), '2'); assert.equal(row('Best time'), '2.45 s'); assert.equal(row('Par'), '2.50 s');
   const lines = h.nodes().filter(n => n.type === 'Copy' && /^Oct 20 · Live fire · /.test(n.props.children)).map(n => n.props.children);
   assert.deepEqual(lines, ['Oct 20 · Live fire · 2.45 s · under par', 'Oct 20 · Live fire · 2.60 s · over par'], 'newest first, this variant only');
-  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === 'Breakdown works on Bill Drill, Draw from hands at sides and standing Reload runs with a video whose beep was used.'),
+  assert.ok(h.nodes().some(n => n.type === 'Copy' && n.props.children === require('../src/training/presentation.ts').BREAKDOWN_NOTE),
     'says why no run here can be broken down');
   h.press('Remove run 1'); h.press('Confirm removing run 1');
   assert.deepEqual(removed, ['b']);
@@ -1288,9 +1288,10 @@ test('Drill sheet: a watched draw run offers the breakdown; kept breakdowns are 
   const h = drillSheet('draw', { records: [record], hand: 'right', onUpdate: r => { updates.push(r); } });
   drillTab(h, 'RUNS');
   h.press('Watch run 1');
-  const panel = h.child('PhaseBreakdown');
-  assert.deepEqual([panel.kind, panel.beepMs, panel.shotTimes, panel.side], ['draw', 1000, [1.05], 'right']);
-  await panel.onKeep(phases); await h.settle();
+  // The run's breakdown panel: hand tracking for any drill on new builds, the body-tracking draw/reload on old ones.
+  const panel = h.child('RunBreakdown');
+  assert.deepEqual([panel.drill.id, panel.beepMs, panel.run.shotTimes, panel.side], ['draw', 1000, [1.05], 'right']);
+  await panel.onKeep({ ...panel.run, phases }); await h.settle();
   assert.equal(updates[0].id, 'r1'); assert.deepEqual(updates[0].phases, phases);
   assert.equal(require('../src/training/drillLibrary.ts').libraryRunProblem(updates[0]), null);
   // With the breakdown saved, the drill shows your averages.

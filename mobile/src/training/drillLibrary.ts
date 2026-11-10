@@ -16,6 +16,8 @@ import { MAX_HITS_PER_RUN, PENALTY_TAGS, scoreRun, zoneChoices } from './drillLo
 import type { DrillHit } from './drillLog';
 import { savedPhasesProblem } from './movementPhases';
 import type { PhaseKind, SavedPhases } from './movementPhases';
+import type { SavedRunBreakdown } from './drillScripts';
+import { savedRunBreakdownProblem } from './drillScripts';
 
 export type IntervalKind = 'start' | 'split' | 'transition' | 'reload' | 'move' | 'shot';
 export const intervalLabels: Record<IntervalKind, string> = {
@@ -129,12 +131,15 @@ export type LibraryRun = {
   videoId?: string;
   /** The draw or reload broken into movements from the video, kept by you (roadmap T3). */
   phases?: SavedPhases;
+  /** The whole run broken down by its drill's script from hand tracking (drillScripts.ts), kept by you. */
+  breakdown?: SavedRunBreakdown;
 };
 /** A saved run with a breakdown this version can't read (a later version's, or damaged) keeps the run and drops it. */
 export function withReadablePhases(run: LibraryRun): LibraryRun {
-  if (run.phases === undefined || !savedPhasesProblem(run.phases) && run.phases.kind === phaseKindOf(run)) return run;
-  const { phases: _dropped, ...rest } = run;
-  return rest;
+  let next = run;
+  if (next.phases !== undefined && (savedPhasesProblem(next.phases) || next.phases.kind !== phaseKindOf(next))) { const { phases: _dropped, ...rest } = next; next = rest; }
+  if (next.breakdown !== undefined && savedRunBreakdownProblem(next.breakdown)) { const { breakdown: _dropped, ...rest } = next; next = rest; }
+  return next;
 }
 /** Which movement breakdown a run can have: hands-at-sides draws, and standing reloads. */
 export function phaseKindOf(run: Pick<LibraryRun, 'drillId' | 'choices'>): PhaseKind | null {
@@ -262,6 +267,7 @@ export function libraryRunProblem(run: LibraryRun): string | null {
     if (problem) return problem;
     if (run.phases.kind !== phaseKindOf(run)) return 'This drill has no such movement breakdown.';
   }
+  if (run.breakdown !== undefined) { const problem = savedRunBreakdownProblem(run.breakdown); if (problem) return problem; }
   if (run.target !== undefined) return targetProblem(run.target, drill, run);
   return null;
 }

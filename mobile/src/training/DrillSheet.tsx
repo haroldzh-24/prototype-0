@@ -17,7 +17,9 @@ import { runsOfDrill, runText } from './drillDays';
 import type { DrillRunEntry } from './drillDays';
 import HitMarker from './HitMarker';
 import DrillVideo, { ClipPlayer } from './DrillVideo';
-import PhaseBreakdown from './PhaseBreakdown';
+import RunBreakdown from './RunBreakdown';
+import { handTrackingAvailable } from './extractHands';
+import { CAMERA, RECORDING_TIP } from './drillScripts';
 import { phaseSeconds } from './movementPhases';
 import type { Side } from './movementPhases';
 import type { DrillTiming, Mark } from './videoTiming';
@@ -143,8 +145,9 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
   }
   /** The draw (Bill, Draw from hands at sides) or a standing reload, with a video whose beep was used. */
   const canBreakDown = (e: DrillRunEntry) => {
-    const kind = phaseKindOf(e.run), clip = runClip(e.recordId, e.run);
-    return !!kind && !!clip && clip.beepMs !== null && e.run.shotTimes.length >= (kind === 'draw' ? 1 : 2);
+    const clip = runClip(e.recordId, e.run), kind = phaseKindOf(e.run);
+    // Hand tracking breaks down any drill's run; older builds only the draw (Bill, Draw from hands at sides) and a standing reload.
+    return !!clip && clip.beepMs !== null && e.run.shotTimes.length >= 1 && (handTrackingAvailable() || !!kind && e.run.shotTimes.length >= (kind === 'draw' ? 1 : 2));
   };
   // Said once at the top of RUNS when none of the listed runs can be broken down, otherwise under the run watched.
   const anyBreakdown = mine.slice(0, 10).some(canBreakDown);
@@ -293,16 +296,16 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
           {phaseAverages.map(p => <DataRow key={p.label} label={p.label} value={p.seconds === null ? '—' : seconds(p.seconds)} />)}
         </>}
         {!anyBreakdown && <Copy>{BREAKDOWN_NOTE}</Copy>}
-        {mine.slice(0, 10).map((e, i) => { const clip = runClip(e.recordId, e.run), kind = phaseKindOf(e.run); return <View key={e.run.id} style={{ gap: 4 }}>
+        {mine.slice(0, 10).map((e, i) => { const clip = runClip(e.recordId, e.run); return <View key={e.run.id} style={{ gap: 4 }}>
           <Copy>{`${new Date(e.run.recordedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${contextLabels[e.context]} · ${runText(e.run, powerFactor)}`
             + (pars[key] !== undefined && e.run.totalTime !== null ? (e.run.totalTime <= pars[key] ? ' · under par' : ' · over par') : '') + (clip ? ' · video' : '')
-            + (e.run.phases ? ` · ${e.run.phases.kind} broken down` : '')}</Copy>
+            + (e.run.breakdown ? ' · broken down' : e.run.phases ? ` · ${e.run.phases.kind} broken down` : '')}</Copy>
           {clip && <Action title={watching === e.run.id ? 'HIDE VIDEO' : 'WATCH'} accessibilityLabel={(watching === e.run.id ? 'Hide the video of run ' : 'Watch run ') + (i + 1)}
             onPress={() => { setWatching(watching === e.run.id ? null : e.run.id); setPhaseMarks([]); }} />}
           {clip && watching === e.run.id && (clip.uri ? <ClipPlayer uri={clip.uri} marks={[...clip.marks, ...phaseMarks]} active={visible && tab === 'RUNS'} /> : <Notice tone="warning">{clip.error}</Notice>)}
-          {clip && watching === e.run.id && (kind && canBreakDown(e) && clip.beepMs !== null
-            ? <PhaseBreakdown kind={kind} session={clip.session} beepMs={clip.beepMs} shotTimes={e.run.shotTimes} side={hand}
-              saved={e.run.phases} onMarks={setPhaseMarks} onKeep={phases => keepPhases({ ...e.run, phases })} disabled={saving} />
+          {clip && watching === e.run.id && (canBreakDown(e) && clip.beepMs !== null
+            ? <RunBreakdown drill={drill} run={e.run} session={clip.session} beepMs={clip.beepMs} side={hand}
+              onMarks={setPhaseMarks} onKeep={kept => keepPhases(kept)} disabled={saving} />
             : anyBreakdown && <Copy>{BREAKDOWN_NOTE}</Copy>)}
           {removing === e.run.id ? <View style={{ flexDirection: 'row', gap: 8 }}>
             <Action title="KEEP" accessibilityLabel={`Keep run ${i + 1}`} disabled={saving} onPress={() => setRemoving(null)} />
@@ -322,6 +325,8 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
       <Copy>{drill.gives}</Copy>
       <Text style={ui.eyebrow}>WHAT THE PLANNER USES IT FOR</Text>
       <Copy>{drill.planner}</Copy>
+      <Text style={ui.eyebrow}>FILMING IT FOR A BREAKDOWN</Text>
+      <Copy>{`${CAMERA[drill.id] ?? ''} ${RECORDING_TIP} Start recording before the beep.`}</Copy>
     </Panel></View>
   </EditorSheet>;
 }
