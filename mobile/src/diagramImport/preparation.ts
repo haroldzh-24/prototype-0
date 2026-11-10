@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { preserveFile, assetUri } from './assets';
 import type { Alignment, DocumentAsset, PageImage, Quad } from './model';
+import type { TextBox } from './briefing';
 import { validCrop, validQuad } from './model';
 import { recordDerivative } from './sessionFiles';
 
@@ -31,4 +32,13 @@ export async function alignPage(page: PageImage, alignment: Alignment): Promise<
   validateResult(result);
   const asset = await preserveFile(result.uri, 'Aligned diagram.png', 'image/png'); recordDerivative(asset.path);
   return { ...page, asset, width: result.width, height: result.height };
+}
+
+/** Text the phone reads on a prepared page, or null when this version of the app can't read text. */
+export async function recognizeText(page: PageImage): Promise<TextBox[] | null> {
+  const module = requireOptionalNativeModule<{ recognizeText?(uri: string): Promise<TextBox[]> }>('DiagramImport');
+  if (!module?.recognizeText) return null;
+  const lines = await module.recognizeText(await assetUri(page.asset));
+  const unit = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= -0.01 && n <= 1.01;
+  return Array.isArray(lines) ? lines.filter(l => l && typeof l.text === 'string' && [l.x, l.y, l.width, l.height, l.confidence].every(unit)).slice(0, 500) : null;
 }

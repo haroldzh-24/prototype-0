@@ -76,6 +76,24 @@ public class DiagramImportModule: Module {
       }
       return ["width": width, "height": height, "rgba": data.base64EncodedString()]
     }
+    // Text on a prepared page (briefing lines, T1/P2 labels over targets): Vision's on-device text recognition.
+    // Boxes are normalized with a top-left origin, like every other document coordinate the app uses.
+    AsyncFunction("recognizeText") { (uri: String) -> [[String: Any]] in
+      let image = try loadImage(localURL(uri))
+      guard let cg = image.cgImage else { throw failure("The prepared image is unavailable.") }
+      let request = VNRecognizeTextRequest()
+      request.recognitionLevel = .accurate
+      request.usesLanguageCorrection = false
+      try VNImageRequestHandler(cgImage: cg, orientation: .up, options: [:]).perform([request])
+      var lines: [[String: Any]] = []
+      for observation in (request.results ?? []).prefix(500) {
+        guard let best = observation.topCandidates(1).first else { continue }
+        let box = observation.boundingBox
+        lines.append(["text": String(best.string.prefix(300)), "x": Double(box.minX), "y": Double(1 - box.maxY),
+                      "width": Double(box.width), "height": Double(box.height), "confidence": Double(best.confidence)])
+      }
+      return lines
+    }
     AsyncFunction("openOriginal") { (uri: String) in
       let url = try localURL(uri)
       guard let controller = self.appContext?.utilities?.currentViewController(), controller.viewIfLoaded?.window != nil else { throw failure("No active screen is available to open the original document.") }

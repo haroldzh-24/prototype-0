@@ -18,7 +18,10 @@ import { presetsForFamily } from '../stage/targetPresets';
 import { formatYards, inchesToYards, yardsToInches } from '../stage/measurements';
 import { assetUri, deleteDocumentFiles, pickDocument, pickPhoto, photographPaper, openOriginal } from './assets';
 import { takeDerivatives } from './sessionFiles';
-import { alignPage, preparePage } from './preparation';
+import { alignPage, preparePage, recognizeText } from './preparation';
+import { readThreeDDrawing, fitStageToDrawing } from './threeD';
+import { storeBytes } from './assets';
+import { recordDerivative } from './sessionFiles';
 import { fullCrop, fullQuad, latestBackdrop, reconstruct, validQuad, validCrop, validProposal, imagePoint, validateReconstruction } from './model';
 import type { DocumentAsset, Point, Proposal, Reconstruction } from './model';
 import {
@@ -112,7 +115,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     return () => { active = false; };
   }, [visible, stageId]);
   const recognitionAbort = useRef<AbortController | null>(null);
-  const [recognizing,setRecognizing] = useState(false), [batchIds,setBatchIds] = useState<string[]>([]);
+  const [recognizing,setRecognizing] = useState(false), [reading3d,setReading3d] = useState(false), [batchIds,setBatchIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<Reconstruction | null>(null), [references, setReferences] = useState<Reconstruction[]>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [confirmClose, setConfirmClose] = useState(false);
   const [step, setStep] = useState<ImportStep>('photo'), [cropping, setCropping] = useState(false);
@@ -208,6 +211,19 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     const snapshot=draft, controller=new AbortController();recognitionAbort.current=controller;setShowOriginal(false);setRecognizing(true);
     void run(async current=>{try{const raster=await readRaster(snapshot.aligned!,controller.signal);const result=await propose(snapshot,raster,recognizers[0],controller.signal);current(()=>{update({proposals:mergeDetections(snapshot.proposals,result.proposals)});setBatchIds([]);setMessage((result.proposals.length===1?'1 shape found. ':result.proposals.length+' shapes found. ')+result.warnings.join(' '));});}catch(error){throw new Error(errorText(error)+' You can still add elements by hand; nothing on the stage changed.');}finally{current(()=>setRecognizing(false));if(recognitionAbort.current===controller)recognitionAbort.current=null;}});
   };
+  /** READ 3D DRAWING: straighten a 3D stage view from its floor grid and draft its elements, then go to SCALE. */
+  const readThreeD = () => { if (gate.current.busy || !visible || !draft?.page) return;
+    const snapshot = draft, controller = new AbortController(); recognitionAbort.current = controller; setShowOriginal(false); setReading3d(true);
+    const deps = { readRaster, alignPage, recognizeText, storePng: async (bytes: Uint8Array, name: string) => { const asset = await storeBytes(bytes, name, 'image/png'); recordDerivative(asset.path); return asset; } };
+    void run(async current => {
+      try {
+        const result = await readThreeDDrawing(snapshot, family, deps, controller.signal);
+        await persist(result.draft, current);
+        current(() => { load(result.draft); setReferences(old => [...old.filter(v => v.id !== result.draft.id), result.draft]);
+          setDistance(result.draft.calibration!.inches / 36); setUnit('yd'); setMessage(result.message); });
+      } finally { current(() => setReading3d(false)); if (recognitionAbort.current === controller) recognitionAbort.current = null; }
+    });
+  };
   const batch = (accepted:boolean) => { if(!draft)return;try{update({proposals:acceptSelection(draft.proposals,batchIds,accepted)});setError('');}catch(e){setError(errorText(e));} };
   const segmentEdit = (edit:{rotation?:number;lengthPixels?:number}) => { if(!selected||!draft?.aligned)return;try{changeProposal(editSegmentOverlay(selected,draft.aligned,edit));setError('');}catch(e){setError(errorText(e));} };
   const activePage = !draft ? undefined : showOriginal || step === 'photo' ? draft.page : step === 'corners' ? (cropping ? draft.rectified : draft.page) : draft.aligned;
@@ -241,7 +257,8 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     });
   };
   const addToStage = () => { if (!draft) return; void run(async current => {
-    const document = reconstruct(draft, stage, family); await persist(draft, current);
+    // A drawing read from a 3D view covers the whole bay: the stage grows to fit it (never shrinks).
+    const document = reconstruct(draft, fitStageToDrawing(stage, draft), family); await persist(draft, current);
     const added = document.objects.length - stage.objects.length;
     current(() => { setReferences(old => [...old.filter(value => value.id !== draft.id), draft]); apply(document);
       setMessage(document === stage ? 'These elements are already on the stage. Edit them in the Stage editor, or undo the earlier addition there before adding corrected ones.'
@@ -270,8 +287,8 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
     accessibilityValue={{ min: 1, max: 3, now: stepIndex + 1 }}>
     <View style={styles.track}><View style={[styles.progress, { width: `${(stepIndex + 1) / 3 * 100}%` }]} /></View>
     <Text style={styles.steps}>{parts.map((part, i) => [i > 0 && ' · ', <Text key={part} style={i === stepIndex ? styles.current : undefined}>{part}</Text>])}</Text>
-    {busy && <Loading label={recognizing ? 'Detecting shapes…' : 'Working…'} />}
-    {recognizing && <Action title="CANCEL DETECTION" onPress={() => recognitionAbort.current?.abort()} />}
+    {busy && <Loading label={reading3d ? 'Reading the 3D drawing…' : recognizing ? 'Detecting shapes…' : 'Working…'} />}
+    {(recognizing || reading3d) && <Action title={reading3d ? 'CANCEL READING' : 'CANCEL DETECTION'} onPress={() => recognitionAbort.current?.abort()} />}
   </View>;
 
   const tapHint = !draft || step === 'photo' ? '' : showOriginal ? 'Showing the original page. Taps do nothing here.'
@@ -307,7 +324,7 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
   const atLimit = references.length + damagedIds.length >= MAX_REFERENCES;
   const photoStep = <>
     <Section title="Choose the drawing">
-      <Copy>A stage briefing PDF, an exported plan, a screenshot, or a photo of the printed page. Only a top-down plan can add elements to the stage; any drawing can be kept for reference.</Copy>
+      <Copy>A stage briefing PDF, an exported plan, a screenshot, or a photo of the printed page. A top-down plan, or a 3D view read with READ 3D DRAWING, can add elements to the stage; any drawing can be kept for reference.</Copy>
       {atLimit && <Notice tone="warning">This stage has {MAX_REFERENCES} saved references. Delete one below to import another.</Notice>}
       <View style={styles.row}>
         {Platform.OS === 'ios' && <Action title="CHOOSE FROM PHOTOS" disabled={busy || atLimit} onPress={() => importSource('photos')} />}
@@ -323,6 +340,10 @@ export default function DiagramImportScreen({ visible, stageId, stage, family, c
         <View style={{ justifyContent: 'flex-end' }}><Action title="SHOW PAGE" disabled={busy} onPress={renderPage} /></View>
       </View> : !draft.page && <Action title="PREPARE THE PICTURE AGAIN" disabled={busy} onPress={renderPage} />}
       {image}
+    </Section>}
+    {draft?.page && <Section title="3D stage view">
+      <Copy>Match book pages made in Practisim Designer show the stage in 3D on a gridded floor. READ 3D DRAWING straightens the floor from its grid, takes one grid square as 1 yd, and drafts shooting areas, targets and walls for you to check. For a flat top-down plan, use NEXT instead.</Copy>
+      <Action title="READ 3D DRAWING" accessibilityLabel="Read a 3D stage drawing from its floor grid" disabled={busy} onPress={readThreeD} />
     </Section>}
     {(references.length > 0 || damagedIds.length > 0) && <Section title={`Saved references · ${references.length} of ${MAX_REFERENCES}`}>
       {references.map(value => <View key={value.id} style={styles.card}>

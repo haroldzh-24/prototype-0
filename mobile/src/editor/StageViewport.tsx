@@ -206,7 +206,7 @@ export default function StageViewport(props: Props) {
     ? createViewportTransform(props.stage.stage, size, props.viewport) : null;
   return (
     <View style={styles.frame}>
-      <View testID="stage-canvas" ref={frame} {...responder.panHandlers} style={[styles.viewport, Platform.OS === 'web' && { touchAction: 'none' }]}
+      <View testID="stage-canvas" ref={frame} {...responder.panHandlers} style={[styles.viewport, Platform.OS === 'web' && ({ touchAction: 'none' } as object)]}
         onLayout={({ nativeEvent }) => {
           setSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height });
           frame.current?.measureInWindow((x, y) => { origin.current = { x, y }; });

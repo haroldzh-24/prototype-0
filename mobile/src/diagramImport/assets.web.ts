@@ -36,6 +36,10 @@ export async function storeBlob(blob: Blob, name: string): Promise<DocumentAsset
   } finally { db.close(); }
   return asset;
 }
+/** Saves bytes the app made (the straightened floor of a 3D drawing) in the browser's store. */
+export async function storeBytes(bytes: Uint8Array, name: string, mime: string): Promise<DocumentAsset> {
+  return storeBlob(new Blob([new Uint8Array(bytes)], { type: mime }), name);
+}
 /** Data URLs keep async component image references free of unreleased blob URLs. */
 export async function assetUri(asset: DocumentAsset): Promise<string> {
   const blob = await readBlob(asset);

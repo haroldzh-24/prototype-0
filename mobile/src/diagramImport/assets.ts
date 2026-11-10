@@ -23,6 +23,16 @@ export async function preserveFile(uri: string, name: string, mime: string): Pro
   try { if (!source.uri.startsWith(Paths.document.uri) && source.exists) source.delete(); } catch { /* best effort */ }
   return { path, name: name.slice(0, 300), mime, size: destination.size };
 }
+/** Saves bytes the app made (the straightened floor of a 3D drawing) as an app-owned document. */
+export async function storeBytes(bytes: Uint8Array, name: string, mime: string): Promise<DocumentAsset> {
+  if (!bytes.length || bytes.length > 50 * 1024 * 1024) throw new Error('The picture is empty or too large to save.');
+  const extension = mime === 'image/png' ? 'png' : 'bin';
+  new Directory(Paths.document, 'diagram-imports').create({ idempotent: true, intermediates: true });
+  const path = `diagram-imports/${uuid.v4()}.${extension}`, file = new File(Paths.document, path);
+  try { file.create(); file.write(bytes); }
+  catch (error) { if (file.exists) file.delete(); throw error; }
+  return { path, name: name.slice(0, 300), mime, size: file.size };
+}
 export async function pickDocument(): Promise<{ asset: DocumentAsset; kind: Reconstruction['sourceKind'] } | null> {
   const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], multiple: false, copyToCacheDirectory: true });
   if (result.canceled) return null;

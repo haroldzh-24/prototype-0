@@ -1,4 +1,5 @@
 import type { Alignment, DocumentAsset, PageImage } from './model';
+import type { TextBox } from './briefing';
 import { fullQuad, validCrop, validQuad } from './model';
 import { assetUri, storeBlob } from './assets.web';
 import { quadMapping } from './warp';
@@ -48,3 +49,6 @@ export async function alignPage(page: PageImage, alignment: Alignment): Promise<
   result.context.drawImage(rotated.element,c.x*rotated.element.width,c.y*rotated.element.height,c.width*rotated.element.width,c.height*rotated.element.height,0,0,result.element.width,result.element.height);
   return saved(result.element,page.page,page.pageCount);
 }
+
+/** The browser has no text recognition here; labels and the briefing are skipped. */
+export async function recognizeText(_page: PageImage): Promise<TextBox[] | null> { return null; }
