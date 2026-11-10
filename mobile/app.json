@@ -50,7 +50,13 @@
       "expo-sqlite",
       "expo-image",
       "expo-web-browser",
-      ["expo-video", { "supportsBackgroundPlayback": false, "supportsPictureInPicture": false }]
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -61,6 +67,12 @@
       "eas": {
         "projectId": "87b6f255-2d2a-4bc6-ad18-578ae3e2f64b"
       }
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/87b6f255-2d2a-4bc6-ad18-578ae3e2f64b"
     }
   }
 }
