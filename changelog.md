@@ -1,3 +1,22 @@
+# Accessibility, screens on every iPhone and iPad, day/night on Home, the Target logo - 2026-11-17
+
+Asked for by the owner on 2026-11-17 (plan: project doc `claude/plan-accessibility-batch-2026-11-17.md`; logo canvas "PSP logo and launch animation", direction 2 chosen). The drills rework and the WALK branch were left for later on purpose.
+- **Large text with a cap** (`src/ui/text.tsx`): every screen uses the app's Text and TextInput. Text follows the phone's text size and stops at 2× for reading text, 1.35× for bars and stage labels, 1.5× for titles and big numbers (React Native would scale more than 3× at the largest size). Fixed at 3.57× on a 375 × 667 preview: the editor header wraps undo/redo/save to a second row instead of squeezing the stage name; WALK's "No route yet" note scrolls with the list so the eye-height buttons stay on screen; the PLAN checklist and hold hint use the bar cap.
+- **Bold Text:** custom fonts ignore it, so each Barlow weight steps one heavier when it is on (Barlow 800 and Barlow Condensed 900 are now loaded).
+- **VoiceOver:**
+  - React Native's live regions only speak on Android; on iPhone the app's Text now announces a live region when its words change, and errors when they appear.
+  - AUTO-PLAN says its outcome; ANALYZE says time, hit factor and targets.
+  - A selected target, wall or fault line in BUILD has actions: move a foot left/right/up/down, rotate 15° (exact steps, no snapping).
+  - The 3D view's value is the plan in words (`src/planning/routeWords.ts`).
+  - Drill sheet LOG · RUNS · HOW TO read as tabs; each run in a trend is one stop (date, time, against par, hit factor), and over par is also marked ▲, not colour only; the hit target points to COUNT BY ZONE; the add menu is modal and closes with the two-finger scrub.
+- **More ways:** Increase Contrast (or Profile › CONTRAST › HIGH) switches to high-contrast day and night palettes (grey text at 7:1 or better); Reduce Motion turns the launch animation into a still fade; Smart Invert leaves photos, video, the 3D view and target pictures alone. Settings are read by `src/ui/a11y.ts`.
+- **Day/night on Home:** SYSTEM · DAY · NIGHT moved from Profile to Home; Profile's tile reads "Settings · contrast".
+- **iPad:** `supportsTablet` with `requireFullScreen` (the app is portrait-only); screens and sheets are one centred column at most 720 pt; the stage canvas keeps the full width.
+- **Logo (Target):** app icon for light, dark and tinted appearances; the mark on Home; a launch animation (`src/ui/LaunchIntro.tsx`, about 1.6 s, once per launch, tap to skip, skipped with VoiceOver, still with Reduce Motion). The launch screen is the animation's first frame (#0B0D10). Core Animated, no new native module. Expo's placeholder `assets/expo.icon` is no longer used.
+- **Safe-area sweep** (web build at each device's size and safe areas: iPhone SE, 13 mini, 16, 16 Pro Max, iPad mini, iPad Pro 13-inch; 15 screens each): 1,118 controls, none under the status bar, Dynamic Island, notch or home indicator, cut by a rounded corner or off screen. At the largest text on the four iPhones: 638 controls, none.
+- Independent review: no serious findings; fixed from it: warnings are polite (only errors interrupt), Stat units cap with their number, Profile shows HIGH while Increase Contrast forces it, the sheet width uses the shared constant.
+- Validation: 1139/1139 tests (`tests/accessibility.test.cjs` 16 new), TypeScript passed. The icon, launch screen and iPad support need a new build; nothing was checked on a phone.
+
 # Match book 3D drawings, planner report card, drill breakdowns from hand tracking - 2026-11-09
 
 Asked for by the owner on 2026-11-09 (plan: [Claude Doc](https://claude.ai/artifact/HpLqKu9PaD9PK5E2RjMFhW), project doc `claude/plan-drawings-video-planner-2026-11-09.md`). Built on the web and in Node only; the native parts are not compiled yet.

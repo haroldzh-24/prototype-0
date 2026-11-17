@@ -1,3 +1,9 @@
+# Next for accessibility and screens - 2026-11-17
+
+- Voice Control: give buttons whose spoken name differs from their words a name that starts with what's on them.
+- Haptics (needs expo-haptics and a build): a tick when a drag snaps, a buzz on save.
+- The drills rework (plan 2026-11-12) and merging `walk-aim-and-printout` (WALK auto-aim, printout photos) were held back on 2026-11-17; WALK's smooth turns should follow Reduce Motion once merged.
+
 # Next for drawings, the planner and breakdowns - 2026-11-09
 
 From the owner's ask of 2026-11-09; the first versions are in changelog.md.

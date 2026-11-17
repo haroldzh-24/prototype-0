@@ -1,3 +1,11 @@
+# 2026-11-17 (accessibility, screens, logo)
+
+- Open (phone): real Dynamic Type, VoiceOver focus order and announcements, Bold Text, Increase Contrast and Smart Invert are checked in tests and a web preview only. Run the VoiceOver and largest-text script (`mobile/docs/rc-hardware-validation.md`) on the new build.
+- Open (iPad): the old video analysis screen's dark header bar stops at the 720 pt column on an iPad; phones are unaffected.
+- Open (VoiceOver): ANALYZE re-announces its summary whenever its numbers change (for example after applying reloads); free drawing of walls, fault lines and shooting areas is still touch-only (FROM FAULT LINES and import cover the usual cases).
+- Open (Voice Control): button names that differ from their visible words ("Open matches" on the MATCHES tile) can't be said as shown; the owner hasn't said whether Voice Control matters.
+- Note: the safe-area sweep can't see the real keyboard, the native header on Saved stages, the video player or the camera.
+
 # 2026-11-10 (TestFlight build)
 
 - Fixed: the iOS build failed in EAS's "Configure expo-updates" phase, building from Windows. The fingerprint runtime version is worked out on the Windows PC and again on Expo's Mac, and the two can differ (line endings, paths), which stops the build. The runtime version is now the app version ("1.0.0"). Rule from here: bump `version` in app.json whenever native code or a native package changes, or an over-the-air update could reach a build without that native code.

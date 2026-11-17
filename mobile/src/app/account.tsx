@@ -35,7 +35,7 @@ export default function Account() {
     {!!error && <ErrorState title="Couldn’t load profile." detail={error} retry={() => setAttempt(value => value + 1)} />}
     <Panel><Copy>{profile?.displayName ?? 'Local shooter'}</Copy><Text style={ui.eyebrow}>LOCAL PROFILE</Text><Copy>On this device</Copy></Panel>
     <Panel><Text style={ui.eyebrow}>CONTRAST</Text>
-      <Segmented options={['STANDARD', 'HIGH']} value={contrastPreference().toUpperCase()} onChange={v => { setContrastPreference(v === 'HIGH' ? 'high' : 'standard'); setContrastShown(v); }} />
+      <Segmented options={['STANDARD', 'HIGH']} value={a11y.increaseContrast ? 'HIGH' : contrastPreference().toUpperCase()} disabled={a11y.increaseContrast} onChange={v => { setContrastPreference(v === 'HIGH' ? 'high' : 'standard'); setContrastShown(v); }} />
       <Copy>{a11y.increaseContrast ? 'High contrast is on because Increase Contrast is on in the phone’s Accessibility settings.' : 'High darkens grey text and lines to full strength: easier to read in bright sun. Increase Contrast in the phone’s Accessibility settings turns it on too.'} Day and night are on the Home screen.</Copy></Panel>
     {profile && <Panel><Text style={ui.eyebrow}>POWER FACTOR</Text>
       <Segmented options={['MINOR', 'MAJOR']} value={(profile.powerFactor ?? 'minor').toUpperCase()} onChange={v => {

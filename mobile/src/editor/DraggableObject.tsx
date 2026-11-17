@@ -32,7 +32,8 @@ type ObjectProps = {
 };
 /**
  * VoiceOver custom actions on the selected object in BUILD (swipe up or down to pick one): the same moves a drag makes,
- * a foot at a time on the screen's axes, and quarter-turn-sized steps of rotation. Layers move with their target.
+ * a foot at a time on the screen's axes, and 15° steps of rotation. Layers move with their target. Steps are exact
+ * (no snapping): a one-foot step snapped to the nearest grid line could land back where it started.
  */
 export const OBJECT_ACTIONS = [
   { name: 'left', label: 'Move left one foot', dx: -12, dy: 0 }, { name: 'right', label: 'Move right one foot', dx: 12, dy: 0 },

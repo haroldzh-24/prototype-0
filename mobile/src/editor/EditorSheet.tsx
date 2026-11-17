@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../ui/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Action, ui } from '../ui/kit';
+import { Action, CONTENT_MAX, ui } from '../ui/kit';
 import { borders, themed } from '../ui/tokens';
 
 /** Scrolling belongs to the modal, never to the canvas beneath it. */
@@ -27,7 +27,7 @@ export default function EditorSheet({ title, visible, close, children, footer, s
 const styles = themed(c => ({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0009' },
   // iPad: a centred sheet as wide as a screen column (kit CONTENT_MAX), not the full width of the glass.
-  sheet: { maxHeight: '85%', width: '100%', maxWidth: 720, alignSelf: 'center', backgroundColor: c.panel, borderTopWidth: 4, borderColor: c.border },
+  sheet: { maxHeight: '85%', width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center', backgroundColor: c.panel, borderTopWidth: 4, borderColor: c.border },
   header: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderBottomWidth: borders.regular, borderColor: c.border },
   content: { paddingHorizontal: 0, gap: 12, paddingBottom: 24 },
 }));

@@ -4,7 +4,7 @@ import type { TextInputProps, TextProps } from 'react-native';
 import { announce, spokenText, useA11y } from './a11y';
 
 /**
- * The app's Text and TextInput. Every screen imports these instead of React Native's (tests/textScale.test.cjs).
+ * The app's Text and TextInput. Every screen imports these instead of React Native's (tests/accessibility.test.cjs).
  *
  * Large text: text follows the phone's text size (Settings › Display & Text Size › Larger Text) and stops growing
  * at a cap, so the largest accessibility sizes (React Native scales those more than 3×) can't break the tools.
@@ -17,7 +17,8 @@ import { announce, spokenText, useA11y } from './a11y';
  * Bold Text: custom fonts don't follow the setting, so with Bold Text on each Barlow weight is one step heavier.
  *
  * Live regions: React Native's accessibilityLiveRegion only works on Android. On iPhone this Text announces a live
- * region to VoiceOver when its words change; 'assertive' ones (errors, warnings) also when they first appear.
+ * region to VoiceOver when its words change; 'assertive' ones (errors) also when they first appear. Warnings stay
+ * polite: several can appear at once, and iOS cuts each announcement off with the next.
  */
 export const TEXT_SCALE = { reading: 2, bar: 1.35, number: 1.5 } as const;
 

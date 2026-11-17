@@ -58,6 +58,11 @@ function loadTs(file, rn = {}) {
   return m.exports;
 }
 
+test('Stat units cap with their number, so a unit is never bigger than the figure', () => {
+  assert.match(src('ui/kit.tsx'), /\{unit && <Text maxFontSizeMultiplier=\{TEXT_SCALE\.number\}/);
+  assert.match(src('app/account.tsx'), /value=\{a11y\.increaseContrast \? 'HIGH'/, 'Profile shows HIGH while iOS Increase Contrast forces it');
+});
+
 test('a11y state: subscribers hear changes; announcements stay silent without VoiceOver', () => {
   const spoken = [];
   const a = loadTs('ui/a11y.ts', { AccessibilityInfo: { announceForAccessibility: t => spoken.push(t) } });
@@ -72,7 +77,7 @@ test('a11y state: subscribers hear changes; announcements stay silent without Vo
 test('live regions are spoken on iPhone (React Native only does it on Android); errors also when they appear', () => {
   const text = src('ui/text.tsx');
   assert.match(text, /Platform\.OS !== 'ios'/); assert.match(text, /live === 'assertive'/);
-  assert.match(src('ui/kit.tsx'), /accessibilityLiveRegion=\{tone === 'error' \|\| tone === 'warning' \? 'assertive' : 'polite'\}/);
+  assert.match(src('ui/kit.tsx'), /accessibilityLiveRegion=\{tone === 'error' \? 'assertive' : 'polite'\}/, 'errors at once; warnings polite (iOS cuts one announcement off with the next)');
   assert.match(src('planning/RouteAnalysis.tsx'), /useAnnounce\(`Time /, 'ANALYZE says its answer');
   assert.match(src('planning/v2/RoutePlannerV2Panel.tsx'), /useAnnounce\(running \? 'Planning'/, 'AUTO-PLAN says its outcome');
 });
@@ -156,7 +161,7 @@ test('iPad: full-screen, portrait, and lists and sheets in one centred column', 
   assert.equal(app.ios.supportsTablet, true); assert.equal(app.ios.requireFullScreen, true, 'portrait-only iPad apps must opt out of Split View');
   assert.equal(app.orientation, 'portrait');
   assert.match(src('ui/kit.tsx'), /CONTENT_MAX = 720/); assert.match(src('ui/kit.tsx'), /maxWidth: CONTENT_MAX, alignSelf: 'center'/);
-  assert.match(src('editor/EditorSheet.tsx'), /maxWidth: 720, alignSelf: 'center'/);
+  assert.match(src('editor/EditorSheet.tsx'), /maxWidth: CONTENT_MAX, alignSelf: 'center'/);
 });
 
 test('the Target logo: icons for light, dark and tinted, 1024 px; the launch screen is the animation’s first frame', () => {

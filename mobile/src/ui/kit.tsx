@@ -90,7 +90,7 @@ export function Loading({ label }: { label: string }) { return <View style={ui.d
 export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warning' | 'error' | 'success' }) {
   const fill = tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : tone === 'success' ? colors.background : colors.selected;
   const text = tone === 'error' ? colors.onDanger : tone === 'warning' ? colors.onCaution : colors.text;
-  return <Text accessibilityLiveRegion={tone === 'error' || tone === 'warning' ? 'assertive' : 'polite'} style={[ui.copy, { padding: 12, backgroundColor: fill, color: text, borderWidth: borders.regular, borderColor: tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : colors.border, fontFamily: typography.label.fontFamily }]}>{children}</Text>;
+  return <Text accessibilityLiveRegion={tone === 'error' ? 'assertive' : 'polite'} style={[ui.copy, { padding: 12, backgroundColor: fill, color: text, borderWidth: borders.regular, borderColor: tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : colors.border, fontFamily: typography.label.fontFamily }]}>{children}</Text>;
 }
 /** One choice of several. `tabs`: the options switch what the screen below shows (VoiceOver reads them as tabs). */
 export function Segmented({ options, value, onChange, disabled = false, tabs = false }: { options: readonly string[]; value: string; onChange: (value: string) => void; disabled?: boolean; tabs?: boolean }) {
@@ -100,7 +100,7 @@ export function Segmented({ options, value, onChange, disabled = false, tabs = f
       <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[ui.actionText, { textAlign: 'center' }, value === option && { color: colors.background }]}>{option}</Text></Pressable>)}</View>;
 }
 export function Stat({ value, label, unit }: { value: string | number; label: string; unit?: string }) {
-  return <View style={ui.stat} accessible accessibilityLabel={label + ": " + value + (unit ? " " + unit : "")}><Text maxFontSizeMultiplier={TEXT_SCALE.number} style={ui.statValue}>{value}{unit && <Text style={ui.statUnit}> {unit}</Text>}</Text><Text style={ui.statLabel}>{label.toUpperCase()}</Text></View>;
+  return <View style={ui.stat} accessible accessibilityLabel={label + ": " + value + (unit ? " " + unit : "")}><Text maxFontSizeMultiplier={TEXT_SCALE.number} style={ui.statValue}>{value}{unit && <Text maxFontSizeMultiplier={TEXT_SCALE.number} style={ui.statUnit}> {unit}</Text>}</Text><Text style={ui.statLabel}>{label.toUpperCase()}</Text></View>;
 }
 export function DataRow({ label, value }: { label: string; value: string | number }) {
   return <View style={ui.dataRow}><Text style={[ui.copy, { flex: 1 }]}>{label}</Text><Text style={ui.dataValue}>{value}</Text></View>;
