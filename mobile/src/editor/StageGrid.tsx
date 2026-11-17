@@ -1,3 +1,4 @@
+import { TEXT_SCALE } from '../ui/text';
 import { colors, themed } from '../ui/tokens';
 import { memo } from 'react';
 import { useThemeMode } from '../ui/theme';
@@ -18,7 +19,7 @@ export default memo(function StageGrid({ stage, transform: t }: { stage: StageSi
         width: vertical ? 1 : stage.width * t.scale,
         height: vertical ? stage.depth * t.scale : 1,
         backgroundColor: line.major ? colors.grid : colors.gridMinor }}>
-        {isGridLabel(line.value, gridLabelStepInches(t.scale, (vertical ? 64 : 24) * fontScale)) && <Text style={[styles.label, { width: 60 * fontScale }]}>{gridLabel(line.value)}</Text>}
+        {isGridLabel(line.value, gridLabelStepInches(t.scale, (vertical ? 64 : 24) * fontScale)) && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[styles.label, { width: 60 * fontScale }]}>{gridLabel(line.value)}</Text>}
       </View>;
     })}
   </View>;

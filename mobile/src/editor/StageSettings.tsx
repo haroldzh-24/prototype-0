@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { TextInput } from '../ui/text';
 import { Action, Copy, Segmented, ui } from '../ui/kit';
 import type { StageDocument } from '../stage/model';
 import { objectLabel } from '../stage/model';

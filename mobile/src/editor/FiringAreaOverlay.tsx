@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, StyleSheet, View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { Image } from 'expo-image';
 import type { ViewportTransform } from '@/stage/coordinates';
 import { stageToViewport } from '@/stage/coordinates';
@@ -74,7 +75,7 @@ export default function FiringAreaOverlay({ areas, draft, selectedId, editing, o
         <Image pointerEvents="none" source={{ uri: fill.uri }} cachePolicy="none" transition={0} contentFit="fill"
           style={{ position: 'absolute', left: topLeft.x, top: topLeft.y, width: fill.w * transform.scale, height: fill.h * transform.scale }} />
         {area.vertices.map((v, i) => <Edge key={i} a={at(v, transform)} b={at(area.vertices[(i + 1) % area.vertices.length], transform)} colour={colour} width={selected ? 3 : 2} />)}
-        <Text pointerEvents="none" style={{ position: 'absolute', left: c.x - 70, top: c.y - 9, width: 140, textAlign: 'center', fontSize: 12, fontWeight: '700', color: colour }}>{shootingAreaTitle(n).toUpperCase()}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} pointerEvents="none" style={{ position: 'absolute', left: c.x - 70, top: c.y - 9, width: 140, textAlign: 'center', fontSize: 12, fontWeight: '700', color: colour }}>{shootingAreaTitle(n).toUpperCase()}</Text>
         {editing && selected && onMoveCorner && area.vertices.map((v, i) => <Corner key={'c' + i} areaId={area.id} index={i} point={v} transform={transform} onMove={onMoveCorner} onDragging={onDragging} />)}
       </View>;
     })}

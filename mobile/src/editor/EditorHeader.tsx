@@ -11,5 +11,5 @@ export default function EditorHeader({ children }: { children: ReactNode }) {
   return <View style={styles.header}>{children}</View>;
 }
 const styles = themed(c => ({
-  header: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', paddingHorizontal: spacing.sm, paddingVertical: 6, borderBottomWidth: borders.strong, borderColor: c.border, backgroundColor: c.background },
+  header: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center', paddingHorizontal: spacing.sm, paddingVertical: 6, borderBottomWidth: borders.strong, borderColor: c.border, backgroundColor: c.background },
 }));

@@ -4,7 +4,8 @@ import type { EditorBackdrop } from '../diagramImport/DiagramImportScreen';
 import { placeDrawing } from '../diagramImport/model';
 import { setConnection, retainConnections } from '../planning/routeGeometry';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { AppState, BackHandler, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { TextInput, TEXT_SCALE, useFontScale } from '../ui/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useNavigation } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -101,6 +102,7 @@ import { deletedText, modeChip, positionName, positionNameWithNote, positionNote
 import { partialLabel, placePartial } from '../stage/partialTargets';
 
 export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: { initial: SavedStage; targetFamily: TargetFamily; routeAIAdapter?: RouteAIAdapter }) {
+  const fontScale = useFontScale();
   const repo = useRepository(), navigation = useNavigation();
   const saveOperation = useRef(new OperationGate());
   useEffect(() => { saveOperation.current.activate(); return () => saveOperation.current.dispose(); }, []);
@@ -486,8 +488,8 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     <EditorHeader>
       <ToolButton title={'‹'} accessibilityLabel="Back" disabled={saving || dragging} onPress={() => previewing ? (setPreview(null), setDiscoveryPreview(false)) : router.dismissTo({ pathname: '/match', params: { id: initial.matchId } })} />
       <Pressable accessibilityRole="button" accessibilityLabel="Edit stage name" accessibilityState={{ disabled: previewing }} disabled={previewing} onPress={() => setEditingName(true)}
-        style={({ pressed }) => [styles.nameButton, pressed && styles.pressed]}>
-        <Text numberOfLines={2} style={styles.name}>{name || 'Untitled stage'}</Text>
+        style={({ pressed }) => [styles.nameButton, { minWidth: 80 * Math.min(fontScale, TEXT_SCALE.bar) }, pressed && styles.pressed]}>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} numberOfLines={2} style={styles.name}>{name || 'Untitled stage'}</Text>
         {!previewing && <Text style={styles.pencil}>{'✎'}</Text>}
       </Pressable>
       {!previewing && <>

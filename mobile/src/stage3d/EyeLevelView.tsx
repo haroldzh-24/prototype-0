@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { PanResponder, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import type { ViewStyle } from 'react-native';
 import type { StageDocument } from '../stage/model';
 import type { StagePlan } from '../planning/model';
@@ -33,7 +34,7 @@ export function StatusChip({ state }: { state: TargetState }) {
     : state === 'visible' ? colors.text : state === 'hidden' ? colors.subdued : colors.subdued;
   return <View testID={'status-' + state} style={{ minWidth: 92, alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, backgroundColor: filled ? tone : 'transparent',
     borderColor: tone, borderWidth: state === 'legal' ? 2 : 1, borderStyle: state === 'hidden' ? 'dashed' : 'solid' }}>
-    <Text style={{ ...typography.category, fontSize: 12, color: filled ? colors.onAccent : tone }}>{STATE_TEXT[state]}</Text>
+    <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ ...typography.category, fontSize: 12, color: filled ? colors.onAccent : tone }}>{STATE_TEXT[state]}</Text>
   </View>;
 }
 
@@ -96,12 +97,12 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
   const button = (label: string, text: string, action: () => void, disabled = false) =>
     <Pressable key={label} accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={action}
       style={({ pressed }) => ({ minWidth: touch.min, minHeight: touch.min, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: borders.regular, borderColor: colors.border, backgroundColor: colors.panel, opacity: disabled ? 0.4 : pressed ? 0.65 : 1 })}>
-      <Text style={{ ...typography.label, color: colors.text }}>{text}</Text></Pressable>;
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ ...typography.label, color: colors.text }}>{text}</Text></Pressable>;
 
   return <View style={{ flex: 1, backgroundColor: colors.background }} testID="eye-level">
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: 6 }}>
       <View style={{ flexShrink: 1 }}>
-        <Text accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>{title}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>{title}</Text>
       </View>
     </View>
     <View style={{ flex: 1, minHeight: 160, overflow: 'hidden', backgroundColor: colors.sky }} onLayout={({ nativeEvent }) => setSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
@@ -109,7 +110,7 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
         : size.width > 0 && <View key={Math.round(size.width) + 'x' + Math.round(size.height)} style={{ flex: 1 }} pointerEvents="none">
           <GLStage scene={scene} viewProj={matrices.viewProj} clear={clear} onError={setError} /></View>}
       <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
-        {labels.map(l => { const state = stateOf.get(l.id); return <Text key={l.id + l.kind} style={{ position: 'absolute', left: l.screen!.x - 30, top: l.screen!.y - 12, width: 60, textAlign: 'center',
+        {labels.map(l => { const state = stateOf.get(l.id); return <Text maxFontSizeMultiplier={TEXT_SCALE.bar} key={l.id + l.kind} style={{ position: 'absolute', left: l.screen!.x - 30, top: l.screen!.y - 12, width: 60, textAlign: 'center',
           ...typography.category, fontSize: 12, lineHeight: 15, color: state === 'moving' || state === 'here' ? colors.onAccent : state === 'hidden' || state === 'done' ? colors.subdued : colors.text,
           backgroundColor: state === 'moving' ? colors.movement : state === 'here' ? colors.accent : colors.panel }}>{l.text}</Text>; })}
       </View>
@@ -119,8 +120,9 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
         {button('Back to the plan', '2D', onExit)}
       </View>
     </View>
-    {!plan.route?.positions.length && <Text style={{ ...typography.body, color: colors.muted, paddingHorizontal: spacing.sm, paddingTop: 6 }}>No route yet: this is the view from the start. Plan a route to walk it here.</Text>}
+    {/* The note scrolls with the list, so large text can't push the tool bar off the screen. */}
     <ScrollView style={{ maxHeight: 190 }} contentContainerStyle={{ padding: spacing.sm, gap: 4 }}>
+      {!plan.route?.positions.length && <Text style={{ ...typography.body, color: colors.muted }}>No route yet: this is the view from the start. Plan a route to walk it here.</Text>}
       {legend && <View testID="walk-legend" style={{ gap: 6, paddingBottom: 6, borderBottomWidth: borders.regular, borderColor: colors.border }}>
         {STATES.map(state => <View key={state} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <StatusChip state={state} />
@@ -160,13 +162,13 @@ export default function EyeLevelView({ stage, plan, ruleset, onExit }: { stage: 
             {button('Step back one yard', '◀', () => step(-36), at.distance <= 0)}
             {walk.stops.map(s => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={'View from ' + s.label} accessibilityState={{ selected: at.stop?.id === s.id }} onPress={() => jump(s.id, s.distance)}
               style={({ pressed }) => ({ minHeight: touch.min, minWidth: touch.min, paddingHorizontal: 12, justifyContent: 'center', borderWidth: borders.regular, borderColor: colors.border, backgroundColor: at.stop?.id === s.id ? colors.text : colors.panel, opacity: pressed ? 0.65 : 1 })}>
-              <Text style={{ ...typography.label, color: at.stop?.id === s.id ? colors.background : colors.text }}>{s.label}</Text></Pressable>)}
+              <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ ...typography.label, color: at.stop?.id === s.id ? colors.background : colors.text }}>{s.label}</Text></Pressable>)}
             {button('Step forward one yard', '▶', () => step(36), at.distance >= walk.length)}
           </ScrollView> : <View style={{ flex: 1 }} />}
         {button(legend ? 'Hide what the status words mean' : words.settings.walk, legend ? '×' : words.tools.more, () => setLegend(!legend))}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Text style={{ ...typography.category, color: colors.muted, flex: 1 }}>{'EYE HEIGHT ' + feet(eyeHeight).toUpperCase()}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ ...typography.category, color: colors.muted, flex: 1 }}>{'EYE HEIGHT ' + feet(eyeHeight).toUpperCase()}</Text>
         {button('Lower eye height', '−', () => setEyeHeight(eyeHeight - 1), eyeHeight <= EYE_LIMITS[0])}
         {button('Raise eye height', '+', () => setEyeHeight(eyeHeight + 1), eyeHeight >= EYE_LIMITS[1])}
       </View>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, DataRow, Notice, ui } from '../ui/kit';
 import { extractPoseUntil } from './extractPose';

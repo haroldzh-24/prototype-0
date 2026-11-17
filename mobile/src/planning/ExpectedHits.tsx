@@ -1,4 +1,5 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import { Copy, Segmented, ui } from '../ui/kit';
 import { MISS_RISKS, plannedOutcomes } from './expectedPoints';
 import type { PlannedOutcome, TargetExpectation } from './expectedPoints';

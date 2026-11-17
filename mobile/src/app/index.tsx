@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../ui/text';
 import { Screen, Copy, colors } from '@/ui/kit';
 import { borders, spacing, touch, typography } from '@/ui/tokens';
 import { useThemeMode } from '@/ui/theme';

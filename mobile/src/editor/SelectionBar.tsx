@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { borders, spacing, themed, typography } from '../ui/tokens';
 
 /**
@@ -9,7 +10,7 @@ import { borders, spacing, themed, typography } from '../ui/tokens';
 export default function SelectionBar({ title, action, children }: { title?: string; action?: ReactNode; children?: ReactNode }) {
   return <View testID="selection-bar" style={styles.bar}>
     {(!!title || !!action) && <View style={styles.titleRow}>
-      {!!title && <Text numberOfLines={2} style={styles.title}>{title}</Text>}
+      {!!title && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} numberOfLines={2} style={styles.title}>{title}</Text>}
       {!!action && <View style={styles.row}>{action}</View>}
     </View>}
     {!!children && <View style={styles.row}>{children}</View>}

@@ -1,6 +1,7 @@
 import { colors, typography, themed } from '../ui/tokens';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { TextInput } from '../ui/text';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import type { FiringPort, StageObject } from '@/stage/model';

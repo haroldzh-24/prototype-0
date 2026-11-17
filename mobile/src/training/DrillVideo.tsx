@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
+import { Text } from '../ui/text';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, DataRow, Notice, Segmented, ui } from '../ui/kit';

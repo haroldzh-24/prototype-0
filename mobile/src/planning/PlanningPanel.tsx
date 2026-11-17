@@ -1,7 +1,8 @@
 import { Action as SharedAction, Stat, ui } from '../ui/kit';
 import { colors, typography } from '../ui/tokens';
 import { useEffect, useState } from 'react';
-import { Switch, TextInput, View } from 'react-native';
+import { Switch, View } from 'react-native';
+import { TextInput } from '../ui/text';
 import Text from '@/editor/FieldText';
 import { uuid } from 'expo-modules-core';
 import type { StageDocument } from '../stage/model';

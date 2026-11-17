@@ -1,5 +1,5 @@
 import { colors, typography } from '../ui/tokens';
-import { Text as NativeText } from 'react-native';
+import { Text as NativeText } from '../ui/text';
 import type { TextProps } from 'react-native';
 
 /** Shared presentation baseline; explicit local styles can still override it. */

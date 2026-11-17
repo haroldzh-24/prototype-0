@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../ui/text';
 import { Action, Copy, DataRow, colors, ui } from '../ui/kit';
 import ToolIcon from '../ui/ToolIcon';
 import type { PlannerCard } from './plannerUI';

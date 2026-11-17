@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { TextInput } from '../ui/text';
 import { Action, Copy, StatusBadge, colors, ui } from '../ui/kit';
 import { eventTypes } from './videoModel';
 import type { EventType } from './videoModel';

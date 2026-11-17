@@ -1,4 +1,5 @@
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import { stageToViewport } from '../stage/coordinates';
 import type { ViewportTransform, StagePosition } from '../stage/coordinates';
 import type { StageDocument } from '../stage/model';

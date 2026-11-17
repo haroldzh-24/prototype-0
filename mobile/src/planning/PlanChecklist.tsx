@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { borders, colors, themed, touch, typography } from '../ui/tokens';
 import type { ChecklistKey, PlanChecklistState } from './planStatus';
 
@@ -14,10 +15,10 @@ export default function PlanChecklist({ checklist, onPress, current = null }: {
     {checklist.lines.map(line => <Pressable key={line.key} accessibilityRole="button" accessibilityLabel={`${line.step} ${line.title}: ${line.status}`}
       accessibilityState={{ selected: current === line.key }} onPress={() => onPress(line.key)}
       style={({ pressed }) => [styles.row, current === line.key && { backgroundColor: colors.selected }, pressed && { opacity: 0.65 }]}>
-      <Text style={[styles.step, line.done && { backgroundColor: colors.text, color: colors.background }]}>{line.done ? '✓' : String(line.step)}</Text>
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[styles.step, line.done && { backgroundColor: colors.text, color: colors.background }]}>{line.done ? '✓' : String(line.step)}</Text>
       <View style={{ flex: 1, gap: 0 }}>
-        <Text style={styles.title}>{line.title}</Text>
-        <Text style={[styles.status, !line.done && { color: colors.warning }]}>{line.status}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={styles.title}>{line.title}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[styles.status, !line.done && { color: colors.warning }]}>{line.status}</Text>
       </View>
     </Pressable>)}
   </View>;

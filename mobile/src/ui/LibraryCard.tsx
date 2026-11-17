@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from './text';
 import { Copy, StatusBadge, ui } from './kit';
 import { borders, colors, spacing, touch } from './tokens';
 

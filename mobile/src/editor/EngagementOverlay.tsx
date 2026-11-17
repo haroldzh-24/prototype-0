@@ -1,4 +1,5 @@
-import { Text, View, Pressable } from 'react-native';
+import { View, Pressable } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { useMemo } from 'react';
 import { stageToViewport } from '../stage/coordinates';
 import type { ViewportTransform, StagePosition } from '../stage/coordinates';
@@ -21,7 +22,7 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
       <View pointerEvents="none" style={{ position: 'absolute', left: (a.x + b.x) / 2 - size / 2, top: (a.y + b.y) / 2 - width / 2, width: size, height: width, backgroundColor: color, transform: [{ rotate: `${angle}rad` }] }} />
       {label && <>
         <View pointerEvents="none" style={{ position: 'absolute', left: b.x - 4, top: b.y - 4, width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: color, transform: [{ rotate: `${angle + Math.PI / 4}rad` }] }} />
-        <Text pointerEvents="none" style={{ position: 'absolute', left: a.x + (b.x - a.x) * 0.6, top: a.y + (b.y - a.y) * 0.6 - 8, color, backgroundColor: colors.background, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+        <Text maxFontSizeMultiplier={TEXT_SCALE.bar} pointerEvents="none" style={{ position: 'absolute', left: a.x + (b.x - a.x) * 0.6, top: a.y + (b.y - a.y) * 0.6 - 8, color, backgroundColor: colors.background, fontWeight: '700', fontSize: 13 }}>{label}</Text>
       </>}
     </>;
   };
@@ -41,7 +42,7 @@ export default function EngagementOverlay({ stage, route, transform, layers = de
       return <View key={node.id} pointerEvents="box-none">
         {(layers.arrows === 'ALL' || layers.arrows === 'SELECTED' && (selectedNodeId ? selectedNodeId === node.id : node.waypointId === selectedId)) && node.targets.map(t => { const target = stage.objects.find(o => o.id === t.targetId); return target ? <View key={t.targetId}>{line(node.position, target.position, color, 2, t.orderLabel)}</View> : null; })}
         <View pointerEvents="none" style={{ position: 'absolute', left: p.x - 10, top: p.y - 10, width: 20, height: 20, borderRadius: 10, borderWidth: selectedNodeId === node.id ? 3 : 2, borderStyle: moving ? 'dashed' : 'solid', borderColor: color, backgroundColor: colors.background }} />
-        {moving && !!name && <Text pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{'→' + name}</Text>}
+        {moving && !!name && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} pointerEvents="none" style={{ position: 'absolute', left: p.x + 12, top: p.y + 5, maxWidth: 110, color, fontSize: 10, backgroundColor: colors.background }}>{'→' + name}</Text>}
         {onSelect && <Pressable accessibilityRole="button" accessibilityState={{ selected: selectedNodeId === node.id }} accessibilityLabel={moving ? `On the way to ${name ? positionTitle(at) : 'the next position'}: targets and order` : `${name ? positionTitle(at) : words.position}${SEP}standing: targets and order`} onPress={() => onSelect(node.waypointId, node.id)} style={{ position: 'absolute', left: p.x - 22, top: p.y - 22, width: 44, height: 44 }} />}
       </View>;
     })}

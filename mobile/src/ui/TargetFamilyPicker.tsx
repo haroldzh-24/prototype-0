@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from './text';
 import { colors, ui } from './kit';
 import { matchFamilies } from '../rules/rulesets';
 import type { TargetFamily } from '../stage/targetFamily';

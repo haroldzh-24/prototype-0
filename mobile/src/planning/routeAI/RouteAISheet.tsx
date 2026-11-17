@@ -1,4 +1,5 @@
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { TextInput } from '../../ui/text';
 import { useState } from 'react';
 import EditorSheet from '../../editor/EditorSheet';
 import { Action, Copy, DataRow, ErrorState, Loading, Notice, Panel, StatusBadge, colors, ui } from '../../ui/kit';

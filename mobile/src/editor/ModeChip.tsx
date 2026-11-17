@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { borders, spacing, themed, typography } from '../ui/tokens';
 
 /**
@@ -9,8 +10,8 @@ import { borders, spacing, themed, typography } from '../ui/tokens';
 export default function ModeChip({ title, detail, action }: { title: string; detail?: string; action: ReactNode }) {
   return <View testID="mode-chip" accessibilityLiveRegion="polite" style={styles.chip}>
     <View style={{ flex: 1, minWidth: 0 }}>
-      <Text style={styles.title}>{title}</Text>
-      {!!detail && <Text numberOfLines={2} style={styles.detail}>{detail}</Text>}
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={styles.title}>{title}</Text>
+      {!!detail && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} numberOfLines={2} style={styles.detail}>{detail}</Text>}
     </View>
     {action}
   </View>;

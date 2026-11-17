@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import EditorSheet from '../editor/EditorSheet';
 import { inchesToYards } from '../stage/measurements';
 import { Action, Copy, DataRow, Panel, Segmented, ui } from '../ui/kit';

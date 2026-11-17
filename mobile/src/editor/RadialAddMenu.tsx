@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
+import { Text } from '../ui/text';
 import { Image } from 'expo-image';
 import { borders, colors, spacing, touch, typography } from '../ui/tokens';
 import TargetFamilyPicker from '../ui/TargetFamilyPicker';

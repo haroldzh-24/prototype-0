@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { uuid } from 'expo-modules-core';
 import LibraryCard from '@/ui/LibraryCard';

@@ -1,5 +1,6 @@
 import { colors } from '../ui/tokens';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import { stageToViewport } from '../stage/coordinates';
 import type { ViewportTransform } from '../stage/coordinates';
 import type { DiscoveredPosition } from '../planning/positionDiscovery';
@@ -9,7 +10,7 @@ export default function AutoPositionOverlay({ positions, transform }: { position
   return <>{positions.map((position, index) => {
     const point = stageToViewport(position.position, transform);
     return <View key={position.id} pointerEvents="none" style={{ position: 'absolute', left: point.x - 10, top: point.y - 10, width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: colors.ink, backgroundColor: colors.caution, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: colors.onCaution, fontSize: 10, fontWeight: 'bold' }}>A{index + 1}</Text>
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ color: colors.onCaution, fontSize: 10, fontWeight: 'bold' }}>A{index + 1}</Text>
     </View>;
   })}</>;
 }

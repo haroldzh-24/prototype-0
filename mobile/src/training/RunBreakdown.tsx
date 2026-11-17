@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Share, Text, View } from 'react-native';
+import { Platform, Share, View } from 'react-native';
+import { Text } from '../ui/text';
 import { File, Paths } from 'expo-file-system';
 import { uuid } from 'expo-modules-core';
 import { Action, Copy, DataRow, Notice, ui } from '../ui/kit';

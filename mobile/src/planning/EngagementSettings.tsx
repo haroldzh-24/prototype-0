@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE, matchFamilies } from '../rules/rulesets';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { TextInput } from '../ui/text';
 import { Action, Copy, Notice, ui } from '../ui/kit';
 import { spacing as gaps } from '../ui/tokens';
 import type { StageDocument } from '../stage/model';

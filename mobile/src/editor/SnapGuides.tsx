@@ -1,3 +1,4 @@
+import { TEXT_SCALE } from '../ui/text';
 import { colors, themed } from '../ui/tokens';
 import { StyleSheet, View } from 'react-native';
 import Text from '@/editor/FieldText';
@@ -15,7 +16,7 @@ export default function SnapGuides({ feedback, stage, transform: t }: {
       width: guide.axis === 'x' ? 2 : stage.width * t.scale,
       height: guide.axis === 'y' ? 2 : stage.depth * t.scale,
     }} />)}
-    {active && <Text style={styles.status}>{[
+    {active && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={styles.status}>{[
       feedback.guides.length ? 'Aligned ' + feedback.guides.map((g) => g.axis.toUpperCase()).join('/') : '',
       feedback.gridAxes.length ? 'Grid ' + feedback.gridAxes.join('/').toUpperCase() : '',
     ].filter(Boolean).join(' | ')}</Text>}

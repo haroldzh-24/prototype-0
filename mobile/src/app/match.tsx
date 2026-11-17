@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Text } from 'react-native';
+import { Text } from '../ui/text';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Screen, Panel, Action, Copy, EmptyState, Loading, Notice, ErrorState, ScreenHeader, MenuRow, Input, DeleteConfirmation, ui } from '@/ui/kit';
 import LibraryCard from '@/ui/LibraryCard';

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '../ui/text';
 import { uuid } from 'expo-modules-core';
 import EditorSheet from '../editor/EditorSheet';
 import { Action, Copy, DataRow, Input, Notice, Panel, Segmented, ui } from '../ui/kit';

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Text, TextInput, TEXT_SCALE } from './text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { borders, colors, spacing, themed, touch, typography } from './tokens';
 import { useThemeMode } from './theme';
@@ -12,7 +13,7 @@ export function Screen({ title, children, header, safeTop = false }: { title?: s
   return <SafeAreaView edges={safeTop ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{header}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ui.screen} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        {title && <Text accessibilityRole="header" style={ui.title}>{title.toUpperCase()}</Text>}{children}
+        {title && <Text maxFontSizeMultiplier={TEXT_SCALE.number} accessibilityRole="header" style={ui.title}>{title.toUpperCase()}</Text>}{children}
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
@@ -21,16 +22,16 @@ export function ScreenHeader({ title, action, back }: { title: string; action?: 
   return <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md, gap: spacing.md, borderBottomWidth: 4, borderColor: colors.border, backgroundColor: colors.background }}>
     {back && <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back}
       style={({ pressed }) => [{ alignSelf: 'flex-start', minHeight: touch.min, minWidth: touch.min, paddingHorizontal: spacing.md, borderWidth: borders.strong, borderColor: colors.border, justifyContent: 'center' }, pressed && { opacity: 0.6 }]}>
-      <Text style={ui.actionText}>‹ BACK</Text></Pressable>}
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={ui.actionText}>‹ BACK</Text></Pressable>}
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md }}>
-      <Text accessibilityRole="header" style={[ui.title, { flexGrow: 1, flexShrink: 1, minWidth: 120 }]}>{title.toUpperCase()}</Text>{action}
+      <Text maxFontSizeMultiplier={TEXT_SCALE.number} accessibilityRole="header" style={[ui.title, { flexGrow: 1, flexShrink: 1, minWidth: 120 }]}>{title.toUpperCase()}</Text>{action}
     </View>
   </View>;
 }
 export function StatusBadge({ label, tone = 'inactive' }: { label: string; tone?: 'selected' | 'movement' | 'warning' | 'error' | 'success' | 'inactive' }) {
   const fill = tone === 'selected' ? colors.accent : tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : 'transparent';
   const text = tone === 'selected' ? colors.onAccent : tone === 'error' ? colors.onDanger : tone === 'warning' ? colors.onCaution : tone === 'movement' ? colors.movement : colors.text;
-  return <Text style={[ui.eyebrow, { color: text, backgroundColor: fill, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderWidth: borders.regular, borderColor: fill === 'transparent' ? colors.border : fill }]}>{label.toUpperCase()}</Text>;
+  return <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[ui.eyebrow, { color: text, backgroundColor: fill, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderWidth: borders.regular, borderColor: fill === 'transparent' ? colors.border : fill }]}>{label.toUpperCase()}</Text>;
 }
 export function MenuRow({ title, onPress, destructive = false, disabled = false }: { title: string; onPress: () => void; destructive?: boolean; disabled?: boolean }) {
   return <Action title={title} onPress={onPress} disabled={disabled} variant={destructive ? 'destructive' : 'quiet'} />;
@@ -60,8 +61,8 @@ export function ToolButton({ title, selected = false, disabled = false, onPress,
     style={({ pressed }) => [ui.action, bar && { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
       grow && { flexGrow: 1 }, primary && { backgroundColor: colors.primary }, danger && { borderColor: colors.danger }, selected && { backgroundColor: colors.text },
       { opacity: disabled ? 0.4 : bar && pressed ? 0.65 : 1 }]}>
-    <Text numberOfLines={bar ? 1 : undefined} style={[ui.actionText, bar && { textAlign: 'center' }, { color: ink }]}>{title}</Text>
-    {!!badge && <Text style={[ui.eyebrow, { fontSize: 12, lineHeight: 15, paddingHorizontal: 4, minWidth: 20, textAlign: 'center',
+    <Text maxFontSizeMultiplier={TEXT_SCALE.bar} numberOfLines={bar ? 1 : undefined} style={[ui.actionText, bar && { textAlign: 'center' }, { color: ink }]}>{title}</Text>
+    {!!badge && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[ui.eyebrow, { fontSize: 12, lineHeight: 15, paddingHorizontal: 4, minWidth: 20, textAlign: 'center',
       color: badgeTone === 'danger' ? colors.onDanger : ink, backgroundColor: badgeTone === 'danger' ? colors.danger : 'transparent',
       borderWidth: borders.regular, borderColor: badgeTone === 'danger' ? colors.danger : ink }]}>{badge}</Text>}
   </Pressable>;
@@ -92,10 +93,10 @@ export function Segmented({ options, value, onChange, disabled = false }: { opti
   return <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', borderWidth: borders.strong, borderColor: colors.border }}>{options.map((option, i) =>
     <Pressable key={option} accessibilityRole="button" accessibilityState={{ selected: value === option, disabled }} disabled={disabled} onPress={() => onChange(option)}
       style={[{ flexGrow: 1, flexBasis: 0, minWidth: 64, minHeight: touch.min, paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.secondary }, i > 0 && { borderLeftWidth: borders.regular, borderColor: colors.border }, value === option && { backgroundColor: colors.text }, disabled && { opacity: 0.4 }]}>
-      <Text style={[ui.actionText, { textAlign: 'center' }, value === option && { color: colors.background }]}>{option}</Text></Pressable>)}</View>;
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[ui.actionText, { textAlign: 'center' }, value === option && { color: colors.background }]}>{option}</Text></Pressable>)}</View>;
 }
 export function Stat({ value, label, unit }: { value: string | number; label: string; unit?: string }) {
-  return <View style={ui.stat} accessible accessibilityLabel={label + ": " + value + (unit ? " " + unit : "")}><Text style={ui.statValue}>{value}{unit && <Text style={ui.statUnit}> {unit}</Text>}</Text><Text style={ui.statLabel}>{label.toUpperCase()}</Text></View>;
+  return <View style={ui.stat} accessible accessibilityLabel={label + ": " + value + (unit ? " " + unit : "")}><Text maxFontSizeMultiplier={TEXT_SCALE.number} style={ui.statValue}>{value}{unit && <Text style={ui.statUnit}> {unit}</Text>}</Text><Text style={ui.statLabel}>{label.toUpperCase()}</Text></View>;
 }
 export function DataRow({ label, value }: { label: string; value: string | number }) {
   return <View style={ui.dataRow}><Text style={[ui.copy, { flex: 1 }]}>{label}</Text><Text style={ui.dataValue}>{value}</Text></View>;

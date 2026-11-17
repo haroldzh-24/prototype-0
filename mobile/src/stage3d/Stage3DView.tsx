@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, Pressable, Text, View } from 'react-native';
+import { PanResponder, Platform, Pressable, View } from 'react-native';
+import { Text, TEXT_SCALE } from '../ui/text';
 import type { GestureResponderEvent, ViewStyle } from 'react-native';
 import type { StageDocument } from '../stage/model';
 import type { StagePosition } from '../stage/coordinates';
@@ -112,7 +113,7 @@ export default function Stage3DView(props: {
       <GLStage scene={scene} viewProj={matrices.viewProj} clear={clear} onError={setError} />
     </View>}
     <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
-      {labels.map(l => <Text key={l.id + l.kind} style={{ position: 'absolute', left: l.screen!.x - 30, top: l.screen!.y - 12, width: 60, textAlign: 'center',
+      {labels.map(l => <Text maxFontSizeMultiplier={TEXT_SCALE.bar} key={l.id + l.kind} style={{ position: 'absolute', left: l.screen!.x - 30, top: l.screen!.y - 12, width: 60, textAlign: 'center',
         ...typography.category, fontSize: 12, lineHeight: 15, color: l.id === props.selectedId ? colors.onAccent : colors.text,
         backgroundColor: l.id === props.selectedId ? colors.accent : l.kind === 'stop' ? colors.panel : 'transparent' }}>{l.text}</Text>)}
     </View>
@@ -125,7 +126,7 @@ export default function Stage3DView(props: {
         { label: 'Fit the stage', text: 'FIT', action: fit }].map(b =>
         <Pressable key={b.label} accessibilityRole="button" accessibilityLabel={b.label} onPress={b.action}
           style={({ pressed }) => ({ minWidth: 48, minHeight: 48, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel, borderWidth: borders.regular, borderColor: colors.border, opacity: pressed ? 0.65 : 1 })}>
-          <Text style={{ ...typography.label, color: colors.text }}>{b.text}</Text></Pressable>)}
+          <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={{ ...typography.label, color: colors.text }}>{b.text}</Text></Pressable>)}
     </View>
   </View>;
 }

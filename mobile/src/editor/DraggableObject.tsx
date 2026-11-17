@@ -1,3 +1,4 @@
+import { TEXT_SCALE } from '../ui/text';
 import { themed } from '../ui/tokens';
 import TargetFace from './TargetFace';
 import { isTarget } from '../stage/targetPlacement';
@@ -91,11 +92,11 @@ export default function DraggableObject(props: ObjectProps) {
         width: port.width * transform.scale,
         top: -1, height,
       }]}>
-      <Text style={styles.portLabel}>{index + 1}</Text>
+      <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={styles.portLabel}>{index + 1}</Text>
     </View>)}
     {item.type === 'faultLine' && <View pointerEvents="none" style={styles.dashes}>{Array.from({ length: Math.max(1, Math.floor(width / DASH)) }, (_, i) =>
       <View key={i} style={[styles.dash, { height: Math.min(3, height) }]} />)}</View>}
-    {item.type === 'start' && <Text style={styles.startText}>START</Text>}
+    {item.type === 'start' && <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={styles.startText}>START</Text>}
   </View>;
 }
 
