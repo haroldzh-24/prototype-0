@@ -29,6 +29,7 @@ function harness(entry, props = {}, overrides = {}) {
       if (id === 'react') return react;
       if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx, Fragment: 'Fragment' };
       if (/(^|\/)ui\/text$|^\.\/text$/.test(id)) return { Text: 'Text', TextInput: 'TextInput', TEXT_SCALE: { reading: 2, bar: 1.35, number: 1.5 }, heavierFont: f => f, useFontScale: () => 1 };
+      if (id.endsWith('prefsStore')) { const prefs = (globalThis.__testPrefs ??= {}); return { readPref: k => prefs[k] ?? null, writePref: (k, v) => { prefs[k] = v; } }; }
       if (id === 'react-native') return { View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Modal: 'Modal', ScrollView: 'ScrollView', Image: 'Image', KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'ios' }, Linking: { openSettings() {} } };
       if (id === 'react-native-safe-area-context') return { SafeAreaView: 'SafeAreaView' };
       if (id === 'expo-modules-core') return { requireOptionalNativeModule: () => null, uuid: { v4: () => 'new-' + (++serial) } };

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ComponentType } from 'react';
+import { View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import type { Scene } from './scene';
 import type { Mat4 } from './math';
@@ -46,8 +47,9 @@ export default function GLStage({ scene, viewProj, clear, onError }: {
     renderer.current = null;
   }, []);
   if (!GLView) return null;
-  return <GLView style={{ flex: 1 }} msaaSamples={4} onContextCreate={gl => {
+  // Smart Invert leaves the 3D picture alone (it would turn the sky black and the targets blue).
+  return <View accessibilityIgnoresInvertColors style={{ flex: 1 }}><GLView style={{ flex: 1 }} msaaSamples={4} onContextCreate={gl => {
     try { renderer.current = createRenderer(gl); uploaded.current = null; request(); }
     catch (error) { latest.current.onError(error instanceof Error ? error.message : String(error)); }
-  }} />;
+  }} /></View>;
 }

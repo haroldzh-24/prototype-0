@@ -43,6 +43,8 @@ const QUERIES: [keyof A11yState, string, keyof typeof AccessibilityInfo | null][
 export function startA11y() {
   if (started) return; started = true;
   for (const [key, event, query] of QUERIES) {
+    // React Native Web answers "yes" to the screen-reader question whatever the browser does.
+    if (key === 'screenReader' && Platform.OS === 'web') continue;
     const ask = query ? (AccessibilityInfo as unknown as Record<string, Query | undefined>)[query] : undefined;
     if (typeof ask === 'function') Promise.resolve().then(() => ask.call(AccessibilityInfo)).then(v => setA11y({ [key]: !!v }), () => {});
     try { AccessibilityInfo.addEventListener?.(event as never, ((v: boolean) => setA11y({ [key]: !!v })) as never); } catch { /* not on this platform */ }

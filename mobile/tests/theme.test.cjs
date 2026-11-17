@@ -109,10 +109,11 @@ test('every screen re-renders on a theme switch and the choice is saved', () => 
   assert.match(layout, /setThemePreference\(loadThemePreference\(\)\)/); assert.match(layout, /saveThemePreference\(themePreference\(\)\)/);
   assert.match(src('ui/prefsStore.ts'), /getItemSync\(key\)/, 'native reads the choice synchronously, before the first render');
   assert.doesNotMatch(src('ui/prefsStore.web.ts'), /expo-sqlite/, 'web does not open a second SQLite database next to the app one');
-  for (const weight of ['barlow/500Medium', 'barlow/600SemiBold', 'barlow/700Bold', 'barlow-condensed/700Bold', 'barlow-condensed/800ExtraBold']) assert.match(layout, new RegExp(`'@expo-google-fonts/${weight}'`), 'only the weights in use are bundled');
+  for (const weight of ['barlow/500Medium', 'barlow/600SemiBold', 'barlow/700Bold', 'barlow/800ExtraBold', 'barlow-condensed/700Bold', 'barlow-condensed/800ExtraBold', 'barlow-condensed/900Black']) assert.match(layout, new RegExp(`'@expo-google-fonts/${weight}'`), 'only the weights in use are bundled');
   assert.doesNotMatch(layout, /from '@expo-google-fonts\/barlow(-condensed)?'/, 'the package index would bundle every weight');
   assert.match(layout, /useColorScheme\(\)/, 'follows the phone appearance when set to System');
-  assert.match(src('app/account.tsx'), /setThemePreference/);
+  assert.match(src('app/index.tsx'), /setThemePreference/, 'day and night are on Home (moved from Profile 2026-11-17)');
+  assert.doesNotMatch(src('app/account.tsx'), /setThemePreference/, 'and only there');
   const app = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app.json'), 'utf8'));
   assert.equal(app.expo.userInterfaceStyle, 'automatic', 'iOS reports the dark appearance to the app');
 });

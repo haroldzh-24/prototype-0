@@ -14,7 +14,7 @@ export default function Stage25D({ stage, selectedId, back }: { stage: StageDocu
   const uri = useMemo(() => 'data:image/svg+xml;base64,' + btoa(stageSvg(stage, yaw, zoom, selectedId)), [stage, yaw, zoom, selectedId]);
   return <View style={{ flex: 1, gap: 8, padding: 8 }}>
     <Text maxFontSizeMultiplier={TEXT_SCALE.bar}>{'2.5D · READ ONLY'}</Text>
-    <Image source={{ uri }} style={{ width: '100%', flex: 1, minHeight: 80, backgroundColor: colors.panel }} contentFit="contain"
+    <Image accessibilityIgnoresInvertColors source={{ uri }} style={{ width: '100%', flex: 1, minHeight: 80, backgroundColor: colors.panel }} contentFit="contain"
       cachePolicy="none" transition={0} accessibilityLabel="Read-only projected stage visualization"
       onError={() => setError('The 2.5D preview could not be displayed on this device. The plan view (2D) remains available.')}
       onLoad={() => setError('')} />

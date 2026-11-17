@@ -26,7 +26,8 @@ export default function EditorSheet({ title, visible, close, children, footer, s
 }
 const styles = themed(c => ({
   overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0009' },
-  sheet: { maxHeight: '85%', backgroundColor: c.panel, borderTopWidth: 4, borderColor: c.border },
+  // iPad: a centred sheet as wide as a screen column (kit CONTENT_MAX), not the full width of the glass.
+  sheet: { maxHeight: '85%', width: '100%', maxWidth: 720, alignSelf: 'center', backgroundColor: c.panel, borderTopWidth: 4, borderColor: c.border },
   header: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderBottomWidth: borders.regular, borderColor: c.border },
   content: { paddingHorizontal: 0, gap: 12, paddingBottom: 24 },
 }));

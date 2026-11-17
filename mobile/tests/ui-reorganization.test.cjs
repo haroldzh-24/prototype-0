@@ -37,7 +37,7 @@ function harness(entry, props = {}, overrides = {}, exportName) {
       if (id === 'expo-modules-core') return { requireOptionalNativeModule: () => null, uuid: { v4: () => 'new-' + (++serial) } };
       if (id.endsWith('StorageProvider')) return { useRepository: () => repo };
       // Device prefs are a native store: an in-memory one unless the test gives its own.
-      if (id.endsWith('ui/prefsStore')) return { readPref: k => prefs.has(k) ? prefs.get(k) : null, writePref: (k, v) => { prefs.set(k, v); } };
+      if (id.endsWith('prefsStore')) return { readPref: k => prefs.has(k) ? prefs.get(k) : null, writePref: (k, v) => { prefs.set(k, v); } };
       if (id.endsWith('ui/kit') || id === './kit') return { Input: load(path.resolve(__dirname, '../src/ui/kit.tsx')).Input, DeleteConfirmation: load(path.resolve(__dirname, '../src/ui/kit.tsx')).DeleteConfirmation, ErrorState: 'ErrorState', ScreenHeader: 'ScreenHeader', MenuRow: 'MenuRow', StatusBadge: 'StatusBadge', Action: 'Action', ToolButton: 'ToolButton', Copy: 'Copy', Panel: 'Panel', Screen: 'Screen', DataRow: 'DataRow', Stat: 'Stat', Segmented: 'Segmented', EmptyState: 'EmptyState', Loading: 'Loading', Notice: 'Notice', Section: 'Section', ui: {}, colors: {} };
       let target = id.startsWith('@/') ? path.resolve(__dirname, '../src', id.slice(2)) : path.resolve(path.dirname(file), id);
       if (fs.existsSync(target + '.tsx')) return defaultExport(path.basename(target));
@@ -190,12 +190,12 @@ test('shared primary action retains disabled accessibility and touch size', () =
   assert.ok(button.props.style({ pressed: false }).some(style => style?.minHeight >= 44), 'at least 44 pt (56 for primary)');
 });
 
-test('Profile is settings: appearance, power factor, practice type for plans, shooting hand, eye height, and a link to YOUR NUMBERS', async () => {
+test('Profile is settings: contrast, power factor, practice type for plans, shooting hand, eye height, and a link to YOUR NUMBERS', async () => {
   const profile = require('../src/profile/model.ts').createLocalProfile();
   profile.performanceObservations = [{ context: 'DRY_FIRE' }, { context: 'LIVE_FIRE' }, { context: 'PRESSURE_MATCH' }];
   const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => profile } }); await h.settle();
   const eyebrows = h.nodes().filter(n => n.type === 'Text' && typeof n.props.children === 'string' && /^[A-Z ]+$/.test(n.props.children)).map(n => n.props.children);
-  for (const title of ['APPEARANCE', 'POWER FACTOR', 'PRACTICE TYPE FOR PLANS', 'SHOOTING HAND', 'EYE HEIGHT FOR WALK', 'YOUR NUMBERS', 'CLOUD SYNC']) assert.ok(eyebrows.includes(title), title);
+  for (const title of ['CONTRAST', 'POWER FACTOR', 'PRACTICE TYPE FOR PLANS', 'SHOOTING HAND', 'EYE HEIGHT FOR WALK', 'YOUR NUMBERS', 'CLOUD SYNC']) assert.ok(eyebrows.includes(title), title);
   // The numbers live in YOUR NUMBERS only: no second PERFORMANCE list, no unused magazine fields, no calibration words.
   assert.ok(!h.nodes().some(n => n.type === 'DataRow' && ['DRAW', 'RELOAD', 'SPLIT', 'MOVEMENT', 'TRANSITION', 'Magazine capacity', 'Starting rounds', 'Chamber', 'Active context'].includes(n.props.label)));
   for (const gone of ['PERFORMANCE', 'TRAINING DATA', 'CALIBRATION']) assert.ok(!eyebrows.includes(gone), gone);
@@ -496,7 +496,7 @@ test('Profile shows its settings without the profile (phone settings still work)
   const h = harness('app/account.tsx', {}, { repo: { loadProfile: async () => { throw new Error('storage unavailable'); } } });
   await h.settle();
   assert.equal(h.child('ErrorState').title, 'Couldn’t load profile.');
-  assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('NIGHT')));
+  assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('HIGH')), 'contrast');
   assert.ok(h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('LEFT')));
   assert.ok(h.nodes().some(n => n.props?.accessibilityLabel === 'Raise eye height'));
   assert.ok(!h.nodes().some(n => n.type === 'Segmented' && n.props.options.includes('MAJOR')), 'profile settings wait for the profile');

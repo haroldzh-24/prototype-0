@@ -8,3 +8,9 @@ export function loadThemePreference(): ThemePreference {
   return value === 'day' || value === 'night' ? value : 'system';
 }
 export const saveThemePreference = (value: ThemePreference) => writePref(THEME_KEY, value);
+
+/** Profile › Contrast: 'high' keeps the high-contrast palette on even without iOS Increase Contrast. */
+const CONTRAST_KEY = 'psp.contrast';
+export type ContrastPreference = 'standard' | 'high';
+export const loadContrastPreference = (): ContrastPreference => readPref(CONTRAST_KEY) === 'high' ? 'high' : 'standard';
+export const saveContrastPreference = (value: ContrastPreference) => writePref(CONTRAST_KEY, value);

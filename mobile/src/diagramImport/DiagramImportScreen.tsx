@@ -61,7 +61,7 @@ function DocumentImage({ asset, width, height, tap, children }: { asset: Documen
         if (size.width > 0 && size.height > 0 && Number.isFinite(x) && Number.isFinite(y)) tap?.({ x: Math.max(0, Math.min(1, x / size.width)), y: Math.max(0, Math.min(1, y / size.height)) });
       }}
       style={{ width: '100%', aspectRatio: width / height, backgroundColor: colors.canvas }}>
-      {!!uri && <View pointerEvents="none" style={styles.fill}><Image source={{ uri }} resizeMode="stretch" style={{ width: '100%', height: '100%' }} /></View>}
+      {!!uri && <View pointerEvents="none" style={styles.fill}><Image accessibilityIgnoresInvertColors source={{ uri }} resizeMode="stretch" style={{ width: '100%', height: '100%' }} /></View>}
       <View pointerEvents="none" style={styles.fill}>{children}</View>
     </Pressable>
     </View>

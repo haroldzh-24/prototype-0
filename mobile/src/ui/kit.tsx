@@ -7,11 +7,14 @@ import { borders, colors, spacing, themed, touch, typography } from './tokens';
 import { useThemeMode } from './theme';
 export { colors } from './tokens';
 
+/** Widest a list or sheet gets (iPad); phones are narrower than this. */
+export const CONTENT_MAX = 720;
+
 /** Outdoor high-contrast building blocks (day and night). Every control is at least 48 pt; primary actions 56 pt. */
 export function Screen({ title, children, header, safeTop = false }: { title?: string; children: ReactNode; header?: ReactNode; safeTop?: boolean }) {
   useThemeMode();
   return <SafeAreaView edges={safeTop ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: colors.background }}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{header}
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>{header && <View style={ui.column}>{header}</View>}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ui.screen} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {title && <Text maxFontSizeMultiplier={TEXT_SCALE.number} accessibilityRole="header" style={ui.title}>{title.toUpperCase()}</Text>}{children}
       </ScrollView>
@@ -103,7 +106,9 @@ export function DataRow({ label, value }: { label: string; value: string | numbe
   return <View style={ui.dataRow}><Text style={[ui.copy, { flex: 1 }]}>{label}</Text><Text style={ui.dataValue}>{value}</Text></View>;
 }
 export const ui = themed(c => ({
-  screen: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg },
+  // On an iPad, screens are one centred column (CONTENT_MAX wide), not a phone layout stretched across the glass.
+  screen: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg, width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center' },
+  column: { width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center' },
   title: { ...typography.title, color: c.text },
   sectionTitle: { ...typography.section, color: c.text },
   eyebrow: { ...typography.category, color: c.muted },

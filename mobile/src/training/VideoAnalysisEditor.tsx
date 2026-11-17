@@ -94,7 +94,7 @@ function Player({ video, onMetadata, onMark, preview, onCloseUp, closeBusy, task
   const step = video.session.fps ? frameToTime(1, video.session.fps) : 50;
   return <Panel>
     <View onLayout={e => setPlayerWidth(e.nativeEvent.layout.width)} style={{ height: 220 }}>
-      <VideoView player={player} style={{ width: '100%', height: 220 }} nativeControls={!selecting} contentFit="contain" />
+      <VideoView accessibilityIgnoresInvertColors player={player} style={{ width: '100%', height: 220 }} nativeControls={!selecting} contentFit="contain" />
       {(selecting || closeOverlay || (task === 'ANALYZE' && selection !== null)) && <CloseUpOverlay run={video.analysis.closeRun} timeMs={timeMs} width={playerWidth} height={220}
         videoWidth={selectionSize?.width ?? 0} videoHeight={selectionSize?.height ?? 0}
         selectedRegion={task === 'ANALYZE' && selection && Math.abs(selection.timestampMs - timeMs) < 50 ? selection.region : undefined} selecting={selecting} onSelect={value => { setSelection(value); setSelecting(false); }} />}

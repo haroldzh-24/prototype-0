@@ -10,16 +10,17 @@ import { contextLabels, PLAN_PRACTICE_DEFAULT, practiceAdjectives, practiceButto
 import { trainingContexts } from '@/training/observations';
 import type { Side } from '@/training/movementPhases';
 import { Screen, ScreenHeader, Copy, Panel, Action, Loading, ErrorState, Notice, Segmented, ui } from '@/ui/kit';
-import { setThemePreference, themePreference } from '@/ui/theme';
-import type { ThemePreference } from '@/ui/theme';
 import { useThemeMode } from '@/ui/theme';
+import { useA11y } from '@/ui/a11y';
+import { contrastPreference, setContrastPreference } from '@/ui/contrast';
 
 /**
- * Profile is settings: appearance, power factor, the practice type your plans use, shooting hand and eye height for
+ * Profile is settings: contrast (day and night are on Home), power factor, the practice type your plans use, shooting hand and eye height for
  * WALK. Your measured numbers have one home, Training · YOUR NUMBERS, linked from here.
  */
 export default function Account() {
   useThemeMode();
+  const a11y = useA11y(), [, setContrastShown] = useState<string>(contrastPreference());
   const repo = useRepository(), [profile, setProfile] = useState<UserProfile>(), [error, setError] = useState('');
   const [saveError, setSaveError] = useState(''), [practiceError, setPracticeError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -33,9 +34,9 @@ export default function Account() {
     {!profile && !error && <Loading label="Loading profile…" />}
     {!!error && <ErrorState title="Couldn’t load profile." detail={error} retry={() => setAttempt(value => value + 1)} />}
     <Panel><Copy>{profile?.displayName ?? 'Local shooter'}</Copy><Text style={ui.eyebrow}>LOCAL PROFILE</Text><Copy>On this device</Copy></Panel>
-    <Panel><Text style={ui.eyebrow}>APPEARANCE</Text>
-      <Segmented options={['SYSTEM', 'DAY', 'NIGHT']} value={themePreference().toUpperCase()} onChange={v => setThemePreference(v.toLowerCase() as ThemePreference)} />
-      <Copy>Day is built for full sun at the range. Night is easier on the eyes indoors and after dark. System follows the phone.</Copy></Panel>
+    <Panel><Text style={ui.eyebrow}>CONTRAST</Text>
+      <Segmented options={['STANDARD', 'HIGH']} value={contrastPreference().toUpperCase()} onChange={v => { setContrastPreference(v === 'HIGH' ? 'high' : 'standard'); setContrastShown(v); }} />
+      <Copy>{a11y.increaseContrast ? 'High contrast is on because Increase Contrast is on in the phone’s Accessibility settings.' : 'High darkens grey text and lines to full strength: easier to read in bright sun. Increase Contrast in the phone’s Accessibility settings turns it on too.'} Day and night are on the Home screen.</Copy></Panel>
     {profile && <Panel><Text style={ui.eyebrow}>POWER FACTOR</Text>
       <Segmented options={['MINOR', 'MAJOR']} value={(profile.powerFactor ?? 'minor').toUpperCase()} onChange={v => {
         const powerFactor = v === 'MAJOR' ? 'major' as const : 'minor' as const, previous = profile;

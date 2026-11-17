@@ -14,11 +14,16 @@ import { BarlowCondensed_900Black } from '@expo-google-fonts/barlow-condensed/90
 import { colors } from '../ui/tokens';
 import { onThemeChange, setSystemMode, setThemePreference, themePreference, useThemeMode } from '../ui/theme';
 import { loadThemePreference, saveThemePreference } from '../ui/themePrefs';
+import { startA11y } from '../ui/a11y';
+import { startContrast } from '../ui/contrast';
 import { StorageProvider } from '@/storage/StorageProvider';
+import LaunchIntro from '../ui/LaunchIntro';
 
 export default function Layout() {
   // Restore the saved choice and the phone's appearance before the first screen renders, so nothing flashes.
   useState(() => { setSystemMode(Appearance.getColorScheme() === 'dark' ? 'night' : 'day'); setThemePreference(loadThemePreference()); return true; });
+  // Accessibility settings (Bold Text, Reduce Motion, Increase Contrast, VoiceOver) and the Profile contrast choice.
+  useState(() => { startA11y(); startContrast(); return true; });
   const system = useColorScheme();
   useEffect(() => { setSystemMode(system === 'dark' ? 'night' : 'day'); }, [system]);
   useEffect(() => onThemeChange(() => saveThemePreference(themePreference())), []);
@@ -37,5 +42,7 @@ export default function Layout() {
       <Stack.Screen name="training" options={{ title: 'Training', headerShown: false }} />
       <Stack.Screen name="account" options={{ title: 'Profile', headerShown: false }} />
     </Stack>
-  </StorageProvider></ThemeProvider>;
+  </StorageProvider>
+  {/* Over everything, once per launch: the logo animation (ui/LaunchIntro.tsx). */}
+  <LaunchIntro /></ThemeProvider>;
 }

@@ -122,7 +122,7 @@ export default function RadialAddMenu({ at, bounds, targetFamily, onChoose, onCl
       onPress={item.choose} onLongPress={item.info ? () => setInfo(item.info!) : undefined}
       style={({ pressed }) => ({ position: 'absolute', left: center.x + p.x - LABEL / 2, top: center.y + p.y - ITEM / 2, width: LABEL, alignItems: 'center', opacity: pressed ? 0.7 : 1 })}>
       <View style={{ width: ITEM, height: ITEM, borderRadius: ITEM / 2, backgroundColor: colors.panel, borderWidth: borders.strong, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>
-        <Image source={{ uri: uri(item.art) }} style={{ width: image, height: image }} contentFit="contain" cachePolicy="none" transition={0} accessibilityIgnoresInvertColors />
+        <Image accessibilityIgnoresInvertColors source={{ uri: uri(item.art) }} style={{ width: image, height: image }} contentFit="contain" cachePolicy="none" transition={0} />
       </View>
       <Text numberOfLines={2} style={{ ...typography.category, fontSize: ITEM < 64 ? 11 : 12, lineHeight: ITEM < 64 ? 13 : 14, letterSpacing: 0.2, color: colors.text, backgroundColor: colors.panel, paddingHorizontal: 2, marginTop: 2, textAlign: 'center', width: LABEL }}>{item.label}</Text>
     </Pressable>; })}
@@ -149,10 +149,10 @@ export function TargetInfoCard({ preset, role, partial, onPlace, onClose }: {
       <Text accessibilityRole="header" style={{ ...typography.section, color: colors.text }}>{(partial ? partial.label + SEP : role === 'noShoot' ? 'NO-SHOOT' + SEP : '') + preset.name.toUpperCase()}</Text>
       <Text style={{ ...typography.category, color: preset.verification === 'verified' ? colors.movement : colors.warning }}>{status}</Text>
       <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-end', backgroundColor: '#FFFFFF', borderWidth: borders.regular, borderColor: colors.border, padding: 6 }}>
-        <Image source={{ uri: uri(targetArtSvg(preset, role, { size: 180, dimensions: true })) }} style={{ flex: 3, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0}
+        <Image accessibilityIgnoresInvertColors source={{ uri: uri(targetArtSvg(preset, role, { size: 180, dimensions: true })) }} style={{ flex: 3, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0}
           accessibilityLabel={`${preset.name}: ${formatLength(preset.width)} wide, ${formatLength(preset.height)} tall`} />
-        {partial ? <Image source={{ uri: uri(stack) }} style={{ flex: 2, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0} accessibilityLabel={partial.label.toLowerCase() + ', as the shooter sees it'} />
-          : <Image source={{ uri: uri(targetIsoSvg(preset, role, { size: 120 })) }} style={{ flex: 2, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0} accessibilityLabel="3D view" />}
+        {partial ? <Image accessibilityIgnoresInvertColors source={{ uri: uri(stack) }} style={{ flex: 2, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0} accessibilityLabel={partial.label.toLowerCase() + ', as the shooter sees it'} />
+          : <Image accessibilityIgnoresInvertColors source={{ uri: uri(targetIsoSvg(preset, role, { size: 120 })) }} style={{ flex: 2, aspectRatio: 1 }} contentFit="contain" cachePolicy="none" transition={0} accessibilityLabel="3D view" />}
       </View>
       {partial && <Text style={{ ...typography.body, fontSize: 15, lineHeight: 20, color: colors.text }}>{partial.detail}</Text>}
       {partial?.partial.kind === 'cover' && <Text style={{ ...typography.body, fontSize: 15, lineHeight: 20, color: colors.muted }}>Painted black (non-scoring). The edge follows the face's own landmarks (neck, shoulders, head width), not a maker's printed lines. After placing, slide or turn it in LAYERS.</Text>}

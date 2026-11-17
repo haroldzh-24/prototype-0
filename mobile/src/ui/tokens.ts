@@ -51,6 +51,20 @@ export const nightPalette: Palette = {
   sky: '#06080B', ground3d: '#161A20', wall3d: '#7E8894',
 };
 
+/**
+ * High contrast (iOS Increase Contrast, or Profile › Contrast › HIGH for bright sun): the same palettes with grey text
+ * and quiet lines taken to full strength, so nothing relies on a light grey being seen. Text stays at 7:1 or better.
+ */
+export const dayHighContrastPalette: Palette = {
+  ...dayPalette, muted: '#0A0A0A', subdued: '#1F1F1F', hairline: '#0A0A0A', selected: '#C9D6FF', accent: '#0030B0',
+  warning: '#5C3700', movement: '#005A30', grid: '#7A7A7A', gridMinor: '#BDBDBD', offStage: '#D6D6D6', suggested: '#5C3700', detected: '#4A1FA8',
+};
+export const nightHighContrastPalette: Palette = {
+  ...nightPalette, background: '#000000', panel: '#000000', secondary: '#0B0D10', text: '#FFFFFF', muted: '#F2F4F7', subdued: '#DDE1E6',
+  border: '#FFFFFF', hairline: '#C9CED6', accent: '#9DBBFF', warning: '#FFE08A', movement: '#7FE5CB', grid: '#5A626C', gridMinor: '#2C323A',
+  canvas: '#000000', startFill: '#000000', suggested: '#FFE08A', detected: '#D9BBFF',
+};
+
 let active: Palette = dayPalette;
 /** The palette in use. */
 export const palette = () => active;

@@ -18,7 +18,7 @@ const row = { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 }
 function StackPreview({ stage, baseId }: { stage: StageDocument; baseId: string }) {
   // On a light card in day and night, so black paint and dark outlines always read.
   return <View style={{ backgroundColor: '#EDEDE8', padding: 8 }}>
-    <Image accessibilityLabel="The target and its layers, as the shooter sees them" source={{ uri: 'data:image/svg+xml;base64,' + btoa(stackArtSvg(stage, baseId, { size: 240 })) }}
+    <Image accessibilityIgnoresInvertColors accessibilityLabel="The target and its layers, as the shooter sees them" source={{ uri: 'data:image/svg+xml;base64,' + btoa(stackArtSvg(stage, baseId, { size: 240 })) }}
       style={{ width: '100%', height: 200 }} contentFit="contain" cachePolicy="none" transition={0} />
   </View>;
 }

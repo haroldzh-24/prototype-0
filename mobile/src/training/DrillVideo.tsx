@@ -45,7 +45,7 @@ export function ClipPlayer({ uri, marks, onDuration, active = true }: { uri: str
   }, [player]);
   const playFrom = (ms: number) => { try { player.pause(); player.currentTime = Math.max(0, ms / 1000 - 0.5); player.play(); setError(''); } catch { setError('Playback failed. Try again.'); } };
   return <View style={{ gap: 6 }}>
-    <VideoView player={player} style={{ width: '100%', height: 220 }} nativeControls contentFit="contain" />
+    <VideoView accessibilityIgnoresInvertColors player={player} style={{ width: '100%', height: 220 }} nativeControls contentFit="contain" />
     {!!error && <Notice tone="warning">{error}</Notice>}
     {marks.length > 0 && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
       {marks.map(m => <Action key={m.label} title={'▶ ' + m.label} accessibilityLabel={'Play from ' + m.label} onPress={() => playFrom(m.ms)} />)}
