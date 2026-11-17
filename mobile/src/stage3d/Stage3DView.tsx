@@ -30,6 +30,8 @@ export default function Stage3DView(props: {
   onSelect: (id: string | null) => void;
   onMoveStart?: () => void; onMove?: (id: string, position: StagePosition) => void; onMoveEnd?: () => void;
   route?: SceneOptions['route']; tints?: SceneOptions['tints'];
+  /** The plan in words (planning/routeWords.ts): VoiceOver reads it as this view's value, since it can't read 3D. */
+  spokenRoute?: string;
   /** Back to the 2D plan (offered when 3D cannot run). */ onExit: () => void;
 }) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -117,7 +119,7 @@ export default function Stage3DView(props: {
         ...typography.category, fontSize: 12, lineHeight: 15, color: l.id === props.selectedId ? colors.onAccent : colors.text,
         backgroundColor: l.id === props.selectedId ? colors.accent : l.kind === 'stop' ? colors.panel : 'transparent' }}>{l.text}</Text>)}
     </View>
-    <View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="3D stage. Drag to orbit, pinch to zoom, tap to select."
+    <View {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel="3D stage. Drag to orbit, pinch to zoom, tap to select." accessibilityValue={props.spokenRoute ? { text: props.spokenRoute } : undefined}
       style={[{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }, Platform.OS === 'web' && ({ touchAction: 'none' } as ViewStyle)]} />
     {!props.selectedId && <Text pointerEvents="none" style={{ position: 'absolute', left: 8, right: 8, bottom: 8, textAlign: 'center', ...typography.category, color: colors.muted }}>
       {props.editable ? 'DRAG TO ORBIT · PINCH TO ZOOM · TAP TO SELECT' : 'DRAG TO ORBIT · PINCH TO ZOOM'}</Text>}

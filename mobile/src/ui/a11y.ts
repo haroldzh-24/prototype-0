@@ -67,3 +67,17 @@ export function announce(message: string) {
   if (!state.screenReader || !message) return;
   try { AccessibilityInfo.announceForAccessibility?.(message); } catch { /* not on this platform */ }
 }
+
+/** Announce `message` to VoiceOver whenever it changes to a new, non-empty value (results, errors, saves). */
+export function useAnnounce(message: string | null | undefined) {
+  useEffect(() => { if (message) announce(message); }, [message]);
+}
+
+/** The words inside Text children, for announcing a live region on iOS. */
+export function spokenText(children: unknown): string {
+  if (children === null || children === undefined || typeof children === 'boolean') return '';
+  if (typeof children === 'string' || typeof children === 'number') return String(children);
+  if (Array.isArray(children)) return children.map(spokenText).join('');
+  const props = (children as { props?: { children?: unknown } }).props;
+  return props ? spokenText(props.children) : '';
+}

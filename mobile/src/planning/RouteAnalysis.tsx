@@ -1,3 +1,4 @@
+import { useAnnounce } from '../ui/a11y';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
@@ -70,6 +71,7 @@ export default function RouteAnalysis({ stage, plan, route: savedRoute, profile,
     : unplanned ? `Set planned rounds for ${plural(unplanned, 'target')}` : !points.complete ? 'Needs every target estimated'
     : !result.timing ? 'Needs the time estimate' : null;
   const hitFactor = hitFactorBlock || !time.available ? null : estimatedHitFactor(points, time.total);
+  useAnnounce(`Time ${time.available ? sec(time.total) : 'not estimated'}. Hit factor ${hitFactor !== null ? hitFactor.toFixed(2) : 'not estimated'}. ${review.engaged} of ${review.total} targets.`);
   // Fewer rounds than required hits, route warnings, or generic timing values make the number provisional.
   const short = scoring.filter(t => (effective.engagements[t.id] ?? 0) > 0 && t.type === 'cardboardTarget' && effective.engagements[t.id] < 2).length;
   const generic = profile ? buildPersonalizedModel(profile).fallback.filter(f => f !== 'Shooting difficulty') : [];

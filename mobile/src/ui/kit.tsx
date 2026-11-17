@@ -87,11 +87,12 @@ export function Loading({ label }: { label: string }) { return <View style={ui.d
 export function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'warning' | 'error' | 'success' }) {
   const fill = tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : tone === 'success' ? colors.background : colors.selected;
   const text = tone === 'error' ? colors.onDanger : tone === 'warning' ? colors.onCaution : colors.text;
-  return <Text accessibilityLiveRegion="polite" style={[ui.copy, { padding: 12, backgroundColor: fill, color: text, borderWidth: borders.regular, borderColor: tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : colors.border, fontFamily: typography.label.fontFamily }]}>{children}</Text>;
+  return <Text accessibilityLiveRegion={tone === 'error' || tone === 'warning' ? 'assertive' : 'polite'} style={[ui.copy, { padding: 12, backgroundColor: fill, color: text, borderWidth: borders.regular, borderColor: tone === 'error' ? colors.danger : tone === 'warning' ? colors.caution : colors.border, fontFamily: typography.label.fontFamily }]}>{children}</Text>;
 }
-export function Segmented({ options, value, onChange, disabled = false }: { options: readonly string[]; value: string; onChange: (value: string) => void; disabled?: boolean }) {
-  return <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', borderWidth: borders.strong, borderColor: colors.border }}>{options.map((option, i) =>
-    <Pressable key={option} accessibilityRole="button" accessibilityState={{ selected: value === option, disabled }} disabled={disabled} onPress={() => onChange(option)}
+/** One choice of several. `tabs`: the options switch what the screen below shows (VoiceOver reads them as tabs). */
+export function Segmented({ options, value, onChange, disabled = false, tabs = false }: { options: readonly string[]; value: string; onChange: (value: string) => void; disabled?: boolean; tabs?: boolean }) {
+  return <View accessibilityRole={tabs ? 'tablist' : 'radiogroup'} style={{ flexDirection: 'row', flexWrap: 'wrap', borderWidth: borders.strong, borderColor: colors.border }}>{options.map((option, i) =>
+    <Pressable key={option} accessibilityRole={tabs ? 'tab' : 'button'} accessibilityState={{ selected: value === option, disabled }} disabled={disabled} onPress={() => onChange(option)}
       style={[{ flexGrow: 1, flexBasis: 0, minWidth: 64, minHeight: touch.min, paddingHorizontal: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.secondary }, i > 0 && { borderLeftWidth: borders.regular, borderColor: colors.border }, value === option && { backgroundColor: colors.text }, disabled && { opacity: 0.4 }]}>
       <Text maxFontSizeMultiplier={TEXT_SCALE.bar} style={[ui.actionText, { textAlign: 'center' }, value === option && { color: colors.background }]}>{option}</Text></Pressable>)}</View>;
 }

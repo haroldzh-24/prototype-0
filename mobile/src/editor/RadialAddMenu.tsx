@@ -101,8 +101,8 @@ export default function RadialAddMenu({ at, bounds, targetFamily, onChoose, onCl
   const ring = ringPositions(items.length, radius);
   const image = ITEM * 0.62;
 
-  return <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} testID="radial-add-menu">
-    <Pressable accessibilityLabel="Close the add menu" onPress={onClose} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#00000055' }} />
+  return <View accessibilityViewIsModal onAccessibilityEscape={onClose} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} testID="radial-add-menu">
+    <Pressable accessibilityRole="button" accessibilityLabel="Close the add menu" onPress={onClose} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#00000055' }} />
     {/* Family: only the match's. OTHER FAMILIES reveals the switcher; "<family> ONLY" hides it and goes back to the match's family. */}
     <View style={{ position: 'absolute', top: 6, left: 6, right: 6, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
       {otherFamilies ? <>

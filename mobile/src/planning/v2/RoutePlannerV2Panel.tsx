@@ -1,3 +1,4 @@
+import { useAnnounce } from '../../ui/a11y';
 import { useEffect, useRef, useState } from 'react';
 import { activeRuleset, idpaOnHold, IDPA_ON_HOLD_NOTE } from '../../rules/rulesets';
 import { Action, Copy, DataRow, Loading, Notice, Panel, Segmented } from '../../ui/kit';
@@ -51,6 +52,8 @@ export default function RoutePlannerV2Panel({ stage, plan, preview, onPreview, o
   const abort = useRef<AbortController | null>(null);
   // A stage or route edit invalidates any result or run in progress.
   useEffect(() => { setResult(null); setConfirm(false); return () => { abort.current?.abort(); abort.current = null; }; }, [stage, plan]);
+  // VoiceOver hears the outcome when a run finishes (the result card is below the fold).
+  useAnnounce(running ? 'Planning' : result ? `${statusText[result.status]}. ${result.targets.filter(t => t.status === 'covered').length} of ${result.targets.length} targets planned.` : null);
   const snapshot = snapshotFromPlan(stage, plan);
   const label = (id: string) => targetLabel(stage, id);
   async function run() {

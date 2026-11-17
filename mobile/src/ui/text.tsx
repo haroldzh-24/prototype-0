@@ -1,7 +1,7 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import { Platform, StyleSheet, Text as RNText, TextInput as RNTextInput, useWindowDimensions } from 'react-native';
 import type { TextInputProps, TextProps } from 'react-native';
-import { useA11y } from './a11y';
+import { announce, spokenText, useA11y } from './a11y';
 
 /**
  * The app's Text and TextInput. Every screen imports these instead of React Native's (tests/textScale.test.cjs).
@@ -15,6 +15,9 @@ import { useA11y } from './a11y';
  * Pass maxFontSizeMultiplier to choose; reading is the default.
  *
  * Bold Text: custom fonts don't follow the setting, so with Bold Text on each Barlow weight is one step heavier.
+ *
+ * Live regions: React Native's accessibilityLiveRegion only works on Android. On iPhone this Text announces a live
+ * region to VoiceOver when its words change; 'assertive' ones (errors, warnings) also when they first appear.
  */
 export const TEXT_SCALE = { reading: 2, bar: 1.35, number: 1.5 } as const;
 
@@ -49,8 +52,19 @@ function textStyle(style: TextProps['style'], bold: boolean, cap: number | null 
   return Object.keys(extra).length ? [style, extra] : style;
 }
 
+function useLiveRegion(props: TextProps) {
+  const live = props.accessibilityLiveRegion, words = live && live !== 'none' ? spokenText(props.children).trim() : '';
+  const first = useRef(true);
+  useEffect(() => {
+    const mounted = first.current; first.current = false;
+    if (Platform.OS !== 'ios' || !words) return;
+    if (!mounted || live === 'assertive') announce(words);
+  }, [words, live]);
+}
+
 export const Text = forwardRef<RNText, TextProps>(function Text(props, ref) {
   const { boldText } = useA11y();
+  useLiveRegion(props);
   const cap = props.maxFontSizeMultiplier ?? TEXT_SCALE.reading;
   return <RNText ref={ref} {...props} maxFontSizeMultiplier={cap} style={textStyle(props.style, boldText, cap)} />;
 });

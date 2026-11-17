@@ -116,18 +116,27 @@ export default function YourNumbers({ visible, records, profile, onClose }: {
         <Action title={(open ? '▾ ' : '▸ ') + label} accessibilityLabel={'Trend ' + label} onPress={() => setTrendKey(open ? null : key)} />
         {open && <View style={{ gap: 4 }}>
           {par !== undefined && <DataRow label="Par" value={s2(par)} />}
-          {trend.map(t => <View key={t.runId} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* Each run is one VoiceOver stop with its date, time, par and hit factor; over par is said in words, not colour only. */}
+          {trend.map(t => <View key={t.runId} accessible accessibilityLabel={trendRowLabel(t, par)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[ui.copy, { width: 56 }]}>{new Date(t.at).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}</Text>
             <View style={{ flex: 1, height: 14, backgroundColor: colors.hairline }}>
               {t.total !== null && longest > 0 && <View style={{ width: `${Math.max(2, 100 * t.total / longest)}%`, height: 14,
                 backgroundColor: par !== undefined && t.total > par ? colors.warning : colors.movement }} />}
               {par !== undefined && longest > 0 && <View accessibilityLabel="Par mark" style={{ position: 'absolute', left: `${100 * par / longest}%`, top: -3, width: 2, height: 20, backgroundColor: colors.text }} />}
             </View>
-            <Text style={[ui.dataValue, { minWidth: 112, textAlign: 'right' }]}>{(t.total !== null ? s2(t.total) : '—') + (t.hitFactor !== null ? ' · HF ' + t.hitFactor.toFixed(2) : '')}</Text>
+            <Text style={[ui.dataValue, { minWidth: 112, textAlign: 'right' }]}>{(t.total !== null ? s2(t.total) : '—') + (par !== undefined && t.total !== null && t.total > par ? ' ▲' : '') + (t.hitFactor !== null ? ' · HF ' + t.hitFactor.toFixed(2) : '')}</Text>
           </View>)}
-          <Copy>{par !== undefined ? 'Green runs are at or under par (the black mark). ' : 'Set a par when you log this drill to mark it here. '}Oldest first.</Copy>
+          <Copy>{par !== undefined ? 'Green runs are at or under par (the black mark); ▲ marks a run over par. ' : 'Set a par when you log this drill to mark it here. '}Oldest first.</Copy>
         </View>}
       </View>;
     }), variants.length > 0)}
   </Panel></EditorSheet>;
+}
+
+/** What VoiceOver says for one run in a trend: date, time, against par, hit factor. */
+export function trendRowLabel(t: { at: string; total: number | null; hitFactor: number | null }, par?: number): string {
+  const date = new Date(t.at).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+  const time = t.total !== null ? t.total.toFixed(2) + ' seconds' : 'no time';
+  const vsPar = par === undefined || t.total === null ? '' : t.total > par ? ', over par by ' + (t.total - par).toFixed(2) : ', at or under par';
+  return date + ': ' + time + vsPar + (t.hitFactor !== null ? ', hit factor ' + t.hitFactor.toFixed(2) : '');
 }

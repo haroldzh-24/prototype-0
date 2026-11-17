@@ -11,7 +11,7 @@ import { objectLabel } from '@/stage/model';
 import { targetName, targetNameWithType } from '@/ui/words';
 import type { StageDocument, StageObject } from '@/stage/model';
 import { footprint } from '@/stage/geometry';
-import { moveObject } from '@/stage/operations';
+import { moveObject, rotateObject } from '@/stage/operations';
 import { resolveMovement } from '@/stage/snapping';
 import { shooterSign } from '@/stage/targetLayers';
 import type { SnapFeedback, SnapSettings } from '@/stage/snapping';
@@ -30,6 +30,23 @@ type ObjectProps = {
   onFeedback: (feedback: SnapFeedback) => void;
   item: StageObject; transform: ViewportTransform; selected: boolean;
 };
+/**
+ * VoiceOver custom actions on the selected object in BUILD (swipe up or down to pick one): the same moves a drag makes,
+ * a foot at a time on the screen's axes, and quarter-turn-sized steps of rotation. Layers move with their target.
+ */
+export const OBJECT_ACTIONS = [
+  { name: 'left', label: 'Move left one foot', dx: -12, dy: 0 }, { name: 'right', label: 'Move right one foot', dx: 12, dy: 0 },
+  { name: 'up', label: 'Move up one foot', dx: 0, dy: -12 }, { name: 'down', label: 'Move down one foot', dx: 0, dy: 12 },
+  { name: 'clockwise', label: 'Rotate 15 degrees clockwise', turn: 15 }, { name: 'counterclockwise', label: 'Rotate 15 degrees counterclockwise', turn: -15 },
+] as const;
+export function applyObjectAction(stage: StageDocument, item: StageObject, name: string): StageDocument {
+  const action = OBJECT_ACTIONS.find(a => a.name === name);
+  if (!action) return stage;
+  const id = movingId(item), moving = stage.objects.find(o => o.id === id);
+  if (!moving) return stage;
+  if ('turn' in action) return rotateObject(stage, id, action.turn);
+  return moveObject(stage, id, { ...moving.position, x: moving.position.x + action.dx, y: moving.position.y + action.dy });
+}
 /** Fault lines are dashed (a dash and a gap every DASH px); drawn with views because dashed borders differ per platform. */
 const DASH = 12;
 /** The object a drag moves: a layered face moves the target it sits on. */
@@ -80,6 +97,9 @@ export default function DraggableObject(props: ObjectProps) {
   return <View testID={"stage-object-" + item.id} {...responder.panHandlers} hitSlop={{ top: Math.max(10, (44-height)/2), bottom: Math.max(10, (44-height)/2), left: Math.max(10, (44-width)/2), right: Math.max(10, (44-width)/2) }}
     accessible accessibilityRole="button" accessibilityLabel={targetName(props.stage, item) ? targetNameWithType(props.stage, item.id) : objectLabel(item.type)}
     accessibilityState={{ selected }} onAccessibilityTap={() => { if (props.onAccessibilityTap === undefined) props.onSelect(item.id); else props.onAccessibilityTap?.(); }}
+    accessibilityHint={selected && props.onAccessibilityTap === undefined ? 'Swipe up or down for move and rotate actions.' : undefined}
+    accessibilityActions={selected && props.onAccessibilityTap === undefined ? OBJECT_ACTIONS.map(a => ({ name: a.name, label: a.label })) : undefined}
+    onAccessibilityAction={e => { const name = e.nativeEvent.actionName; props.setStage(current => applyObjectAction(current, item, name)); }}
     style={[styles.object, target ? styles.targetMarker
       : item.type === 'wall' ? styles.wall : item.type === 'faultLine' ? styles.faultLine : styles.start, {
       left: center.x - width / 2, top: center.y - height / 2, width, height,

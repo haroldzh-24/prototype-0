@@ -214,7 +214,7 @@ export default function DrillSheet({ visible, drillId, records, context, onConte
         <Segmented options={c.options.map(o => o.label)} value={c.options.find(o => o.value === run.choices[c.key])?.label ?? ''} disabled={saving}
           onChange={label => choose(c.key, c.options.find(o => o.label === label)!.value)} />
       </View>)}
-      <Segmented options={DRILL_TABS} value={tab} onChange={t => setTab(t as Tab)} />
+      <Segmented tabs options={DRILL_TABS} value={tab} onChange={t => setTab(t as Tab)} />
     </Panel>
 
     <View style={shown(tab === 'LOG')}><Panel>

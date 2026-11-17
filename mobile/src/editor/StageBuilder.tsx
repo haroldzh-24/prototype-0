@@ -1,3 +1,4 @@
+import { routeAsWords } from '../planning/routeWords';
 import type { EngagementAnchor } from '../planning/manualEngagements';
 import DiagramImportScreen from '../diagramImport/DiagramImportScreen';
 import type { EditorBackdrop } from '../diagramImport/DiagramImportScreen';
@@ -520,7 +521,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
     {/* 3 Canvas */}
     <View style={styles.canvas} onLayout={({ nativeEvent }) => setCanvasSize({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}>
       {viewMode === 'eye' ? <EyeLevelView stage={stage} plan={plan} ruleset={activeRuleset(targetFamily)} onExit={leaveWalk} /> :
-        viewMode === '3d' ? <Stage3DView stage={stage} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
+        viewMode === '3d' ? <Stage3DView stage={stage} spokenRoute={routeAsWords(stage, route)} selectedId={selectedId} editable={!routeMode && !previewing} route={route3d}
           onSelect={id => { if (!routeMode) setSelectedId(id); else if (id && stage.objects.some(o => o.id === id && isEngageable(o))) setPlanTargetId(id); }} onExit={() => setViewMode('topDown')}
           onMoveStart={() => onDragging(true)} onMoveEnd={() => onDragging(false)}
           onMove={(id, position) => setStage(current => {
@@ -589,7 +590,7 @@ export default function StageBuilder({ initial, targetFamily, routeAIAdapter }: 
         onChoose={chooseFromRadial} onClose={() => setRadial(null)} />}
     </View>
 
-    {!!editError && <Text accessibilityLiveRegion="polite" style={styles.error}>{editError}</Text>}
+    {!!editError && <Text accessibilityLiveRegion="assertive" style={styles.error}>{editError}</Text>}
     {routeMode && areaMode && !!areaNote && !previewing && <Text accessibilityLiveRegion="polite" style={styles.note}>{areaNote}</Text>}
     {/* Ask is opened from PLAN's •••; closing it returns there. */}
     <RouteAISheet visible={aiOpen} close={()=>{aiController.close();setAIOpen(false);setPanel('more');}} state={aiState} controller={aiController} revision={aiContext.revision} inspect={()=>setAIOpen(false)} apply={()=>{

@@ -41,13 +41,13 @@ export default function HitMarker({ family, preset, target, distanceYards, disab
   const untagged = target.hits.filter(h => h.zone === null).length;
   return <View style={{ gap: 8 }}>
     <Copy>{aiming ? 'Tap where you aimed.' : 'Tap where each shot hit, then pick its zone.'}</Copy>
-    <Pressable accessibilityLabel="Target: tap where a shot hit" disabled={disabled}
+    <Pressable accessibilityRole="button" accessibilityLabel="Target: tap where a shot hit" accessibilityHint="With VoiceOver, COUNT BY ZONE adds hits without placing them." disabled={disabled}
       onLayout={e => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
       onPress={e => { const p = pressPoint(e.nativeEvent); if (p) tap(p.x, p.y); }}
       style={{ width: WIDTH, height, alignSelf: 'center', backgroundColor: '#f4f1ea' }}>
       <Image pointerEvents="none" source={{ uri: outlineUri(preset) }} style={{ width: WIDTH, height }} contentFit="fill" cachePolicy="none" />
       <View pointerEvents="none" style={{ position: 'absolute', left: (target.aim.x / target.faceWidth + 0.5) * size.width - 8, top: (0.5 - target.aim.y / target.faceHeight) * size.height - 8, width: 16, height: 16, borderWidth: 2, borderColor: '#1d4ed8', borderRadius: 8 }} />
-      {target.hits.filter(h => h.x !== null && h.y !== null).map(h => <Pressable key={h.id} accessibilityLabel={`Hit ${h.order}${h.zone ? ' zone ' + h.zone : ', no zone yet'}`} onPress={() => setSelected(h.id)}
+      {target.hits.filter(h => h.x !== null && h.y !== null).map(h => <Pressable key={h.id} accessibilityRole="button" accessibilityLabel={`Hit ${h.order}${h.zone ? ' zone ' + h.zone : ', no zone yet'}`} onPress={() => setSelected(h.id)}
         style={{ position: 'absolute', left: ((h.x as number) / target.faceWidth + 0.5) * size.width - 7, top: (0.5 - (h.y as number) / target.faceHeight) * size.height - 7, width: 14, height: 14, borderRadius: 7,
           backgroundColor: h.id === selected ? '#dc2626' : h.zone ? '#111827' : '#f59e0b', borderWidth: 1, borderColor: '#fff' }} />)}
     </Pressable>
